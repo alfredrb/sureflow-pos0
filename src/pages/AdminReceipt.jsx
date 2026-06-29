@@ -17,7 +17,7 @@ export default function AdminReceipt() {
       const configs = await base44.entities.ReceiptConfig.list();
       if (configs.length > 0) { setConfig(configs[0]); setConfigId(configs[0].id); }
       else {
-        const defaults = { store_name: "My Store", store_address: "", store_phone: "", header_line_1: "", header_line_2: "", footer_line_1: "Thank you!", footer_line_2: "", show_operator_name: true, show_date_time: true, show_register_id: true, show_tax_breakdown: true, show_barcode: false };
+        const defaults = { store_name: "My Store", store_address: "", store_phone: "", header_line_1: "", header_line_2: "", footer_line_1: "Thank you!", footer_line_2: "", show_operator_name: true, show_date_time: true, show_register_id: true, show_tax_breakdown: true, show_barcode: false, show_discounts: true };
         setConfig(defaults);
       }
       setLoading(false);
@@ -73,6 +73,7 @@ export default function AdminReceipt() {
               { key: "show_register_id", label: "Show Register ID" },
               { key: "show_tax_breakdown", label: "Show Tax Breakdown" },
               { key: "show_barcode", label: "Show Barcode" },
+              { key: "show_discounts", label: "Show Discount Details" },
             ].map(opt => (
               <div key={opt.key} className="flex items-center justify-between">
                 <label className="text-sm text-gray-700">{opt.label}</label>
@@ -101,7 +102,7 @@ export default function AdminReceipt() {
               <div className="border-t border-dashed border-gray-300 my-2" />
               <div className="space-y-0.5">
                 <div className="flex justify-between"><span>Milk 1 Gal x1</span><span>$4.99</span></div>
-                <div className="text-green-700 text-[11px] ml-2">Clearance -10%: Saved $0.56</div>
+                {config.show_discounts && <div className="text-green-700 text-[11px] ml-2">Clearance -10%: Saved $0.56</div>}
                 <div className="flex justify-between"><span>White Bread x2</span><span>$6.98</span></div>
                 <div className="flex justify-between"><span>Cola 2L x1</span><span>$2.99</span></div>
               </div>

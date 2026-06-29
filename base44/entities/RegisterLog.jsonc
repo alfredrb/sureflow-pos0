@@ -42,6 +42,40 @@
       "type": "number",
       "description": "Transaction amount if applicable"
     },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "discount_type": {
+            "type": "string"
+          },
+          "discount_percentage": {
+            "type": "number"
+          },
+          "original_price": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true
+      },
+      "description": "Transaction items with discount details"
+    },
     "override_operator_id": {
       "type": "string"
     },

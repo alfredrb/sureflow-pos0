@@ -42,6 +42,11 @@
     "show_barcode": {
       "type": "boolean",
       "default": false
+    },
+    "show_discounts": {
+      "type": "boolean",
+      "default": true,
+      "description": "Show discount details on receipts"
     }
   },
   "required": [
