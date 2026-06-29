@@ -11,12 +11,14 @@ export default function POSLogin() {
   const [loading, setLoading] = useState(false);
   const [time, setTime] = useState(new Date());
   const [online, setOnline] = useState(navigator.onLine);
-  const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "REG-001");
+  const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "");
   const [registerIp, setRegisterIp] = useState(sessionStorage.getItem("pos_register_ip") || "—");
   const [showConfig, setShowConfig] = useState(false);
   const [configPin, setConfigPin] = useState("");
   const [configUnlocked, setConfigUnlocked] = useState(false);
-  const [tempRegNum, setTempRegNum] = useState("");
+  const [availableRegisters, setAvailableRegisters] = useState([]);
+  const [detectedIp, setDetectedIp] = useState(null);
+  const [configLoading, setConfigLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -39,19 +41,40 @@ export default function POSLogin() {
 
   const numpad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "ENT"];
 
+  const getLocalIP = () => new Promise((resolve) => {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel("");
+    pc.createOffer().then(o => pc.setLocalDescription(o));
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) return;
+      const match = e.candidate.candidate.match(/\b(\d{1,3}\.){3}\d{1,3}\b/);
+      if (match) { resolve(match[0]); pc.close(); }
+    };
+    setTimeout(() => resolve(null), 3000);
+  });
+
   const handleConfigOpen = () => {
     setShowConfig(true);
     setConfigPin("");
     setConfigUnlocked(false);
-    setTempRegNum(registerNum);
+    setAvailableRegisters([]);
+    setDetectedIp(null);
   };
 
   const handleConfigUnlock = async () => {
+    setConfigLoading(true);
     try {
       const supervisors = await base44.entities.Operator.filter({ role: "supervisor", status: "active" });
       const admins = await base44.entities.Operator.filter({ role: "admin", status: "active" });
       const all = [...supervisors, ...admins];
       if (all.some(op => op.pin === configPin)) {
+        // Fetch registers and detect IP in parallel
+        const [registers, ip] = await Promise.all([
+          base44.entities.Register.list(),
+          getLocalIP()
+        ]);
+        setAvailableRegisters(registers);
+        setDetectedIp(ip);
         setConfigUnlocked(true);
       } else {
         toast({ title: "Access Denied", description: "Invalid supervisor/admin PIN", variant: "destructive" });
@@ -60,31 +83,27 @@ export default function POSLogin() {
     } catch {
       toast({ title: "Error", description: "Could not verify PIN", variant: "destructive" });
     }
+    setConfigLoading(false);
   };
 
-  const handleConfigSave = async () => {
-    const newRegId = tempRegNum.trim();
-    if (!newRegId) return;
+  const handleSelectRegister = async (reg) => {
+    setConfigLoading(true);
     try {
-      const results = await base44.entities.Register.filter({ register_id: newRegId });
-      if (results.length === 0) {
-        toast({ title: "Not Found", description: `No register with ID "${newRegId}" found in admin panel`, variant: "destructive" });
-        return;
-      }
-      const reg = results[0];
-      // Mark register as online
-      await base44.entities.Register.update(reg.id, { status: "online" });
-      // Update IP display
-      const ip = reg.ip_address || "—";
-      setRegisterIp(ip);
-      sessionStorage.setItem("pos_register_ip", ip);
+      const updatedIp = detectedIp || reg.ip_address || "—";
+      await base44.entities.Register.update(reg.id, {
+        status: "online",
+        ip_address: detectedIp || reg.ip_address
+      });
+      setRegisterNum(reg.register_id);
+      setRegisterIp(updatedIp);
+      sessionStorage.setItem("pos_register_num", reg.register_id);
+      sessionStorage.setItem("pos_register_ip", updatedIp);
+      setShowConfig(false);
+      toast({ title: "Register Set", description: `${reg.register_id} — IP: ${updatedIp}` });
     } catch {
-      toast({ title: "Warning", description: "Could not sync register info", variant: "destructive" });
+      toast({ title: "Error", description: "Could not update register", variant: "destructive" });
     }
-    setRegisterNum(newRegId);
-    sessionStorage.setItem("pos_register_num", newRegId);
-    setShowConfig(false);
-    toast({ title: "Saved", description: `Register set to ${newRegId}` });
+    setConfigLoading(false);
   };
 
   const handleKey = (key) => {
@@ -227,31 +246,66 @@ export default function POSLogin() {
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
-                    <button key={k} onClick={() => {
+                    <button key={k} disabled={configLoading} onClick={() => {
                       if (k === "CLR") setConfigPin("");
                       else if (k === "ENT" && configPin.length > 0) handleConfigUnlock();
                       else if (k !== "ENT" && configPin.length < 6) setConfigPin(p => p + k);
                     }}
-                    className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 ${
+                    className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
                       k === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
                       k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
                       "bg-[#1a1f4a] text-white border border-blue-500/10"
-                    }`}>{k}</button>
+                    }`}>
+                      {configLoading && k === "ENT" ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : k}
+                    </button>
                   ))}
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                <label className="text-blue-300/60 text-xs">Register Number</label>
-                <input
-                  type="text"
-                  value={tempRegNum}
-                  onChange={e => setTempRegNum(e.target.value)}
-                  className="w-full bg-[#0a0e27] border border-blue-500/10 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500/30"
-                />
-                <button onClick={handleConfigSave} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                  Save
-                </button>
+                {detectedIp && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <Wifi className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-green-400 text-[10px] uppercase tracking-wider">Host IP Detected</p>
+                      <p className="text-green-300 font-mono text-sm">{detectedIp}</p>
+                    </div>
+                  </div>
+                )}
+                {!detectedIp && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
+                    <p className="text-yellow-400/70 text-[10px]">Could not auto-detect IP — existing register IP will be kept</p>
+                  </div>
+                )}
+                <p className="text-blue-300/50 text-xs">Select a register:</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {availableRegisters.length === 0 && (
+                    <p className="text-blue-300/30 text-xs text-center py-4">No registers configured in admin panel</p>
+                  )}
+                  {availableRegisters.map(reg => (
+                    <button
+                      key={reg.id}
+                      disabled={configLoading}
+                      onClick={() => handleSelectRegister(reg)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all text-left ${
+                        registerNum === reg.register_id
+                          ? "bg-blue-600/20 border-blue-500/40 text-white"
+                          : "bg-[#0a0e27] border-blue-500/10 text-blue-200 hover:border-blue-500/30 hover:bg-[#141838]"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-mono text-sm font-semibold">{reg.register_id}</p>
+                        <p className="text-[10px] text-blue-300/40">{reg.name}{reg.location ? ` — ${reg.location}` : ""}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono text-[10px] text-blue-300/30">{detectedIp || reg.ip_address || "—"}</p>
+                        <span className={`text-[10px] ${reg.status === "online" ? "text-green-400/60" : reg.status === "maintenance" ? "text-yellow-400/60" : "text-red-400/60"}`}>
+                          {reg.status}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
