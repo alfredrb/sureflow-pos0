@@ -41,6 +41,11 @@
       "type": "boolean",
       "default": false,
       "description": "Enable Customer Service Mode on this register"
+    },
+    "feature_exchange": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable Item Exchange on this register"
     }
   },
   "required": [

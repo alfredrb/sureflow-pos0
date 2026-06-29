@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw, Headphones } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw, Headphones, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -205,6 +205,221 @@ function ReturnsPanel({ operator, loadData, toast }) {
   );
 }
 
+// ── Exchange Panel ────────────────────────────────────────────────────────────
+function ExchangePanel({ operator, products, loadData, toast }) {
+  const [txId, setTxId] = useState("");
+  const [origTx, setOrigTx] = useState(null);
+  const [searching, setSearching] = useState(false);
+  // returnItems: { [index]: qty } — items being returned
+  const [returnSel, setReturnSel] = useState({});
+  // replaceItems: products to give the customer in exchange
+  const [replaceCart, setReplaceCart] = useState([]);
+  const [itemSearch, setItemSearch] = useState("");
+  const [step, setStep] = useState("lookup"); // "lookup" | "select"
+
+  const lookUp = async () => {
+    if (!txId) return;
+    setSearching(true);
+    setOrigTx(null); setReturnSel({}); setReplaceCart([]);
+    const results = await base44.entities.Transaction.filter({ transaction_id: txId, status: "completed" });
+    if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
+    else { setOrigTx(results[0]); setStep("select"); }
+    setSearching(false);
+  };
+
+  const toggleReturn = (i, item) => {
+    setReturnSel(prev => {
+      if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
+      return { ...prev, [i]: item.qty };
+    });
+  };
+
+  const setReturnQty = (i, qty, maxQty) => {
+    setReturnSel(prev => ({ ...prev, [i]: Math.min(Math.max(1, parseInt(qty) || 1), maxQty) }));
+  };
+
+  const addReplace = (product) => {
+    setReplaceCart(prev => {
+      const ex = prev.find(i => i.sku === product.sku);
+      if (ex) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: +(( i.qty + 1) * i.price).toFixed(2) } : i);
+      return [...prev, { sku: product.sku, name: product.name, price: product.price, qty: 1, total: product.price, tax_rate: product.tax_rate || 0 }];
+    });
+  };
+
+  const removeReplace = (sku) => setReplaceCart(prev => prev.filter(i => i.sku !== sku));
+
+  const origItems = origTx?.items || [];
+  const returnedItems = origItems.filter((_, i) => returnSel[i] !== undefined).map(item => {
+    const idx = origItems.indexOf(item);
+    const qty = returnSel[idx];
+    return { ...item, qty, total: +(qty * item.price).toFixed(2) };
+  });
+  const returnValue = returnedItems.reduce((s, i) => s + i.total, 0);
+  const replaceValue = replaceCart.reduce((s, i) => s + i.total, 0);
+  const diff = +(replaceValue - returnValue).toFixed(2);
+
+  const filteredProducts = products.filter(p =>
+    !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch)
+  );
+
+  const confirmExchange = async () => {
+    if (returnedItems.length === 0 || replaceCart.length === 0) {
+      toast({ title: "Incomplete", description: "Select items to return and replacement items", variant: "destructive" }); return;
+    }
+    const exTxId = "EXC-" + Date.now().toString(36).toUpperCase();
+    await base44.entities.Transaction.create({
+      transaction_id: exTxId,
+      operator_id: operator.operator_id,
+      operator_name: operator.full_name,
+      register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+      items: replaceCart,
+      subtotal: replaceValue,
+      tax: 0,
+      total: diff,
+      payment_method: origTx.payment_method,
+      status: "completed",
+      refund_type: "exchange",
+      amount_tendered: Math.max(0, diff),
+      change_due: diff < 0 ? Math.abs(diff) : 0
+    });
+    await base44.entities.Transaction.update(origTx.id, { refund_type: "exchange" });
+    const msg = diff > 0 ? `Customer owes $${diff.toFixed(2)}` : diff < 0 ? `Refund $${Math.abs(diff).toFixed(2)} to customer` : "Even exchange";
+    toast({ title: "Exchange Processed", description: `${exTxId} — ${msg}` });
+    setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart({}); setStep("lookup");
+    loadData();
+  };
+
+  const reset = () => { setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup"); };
+
+  return (
+    <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <ArrowLeftRight className="w-4 h-4 text-teal-400" />
+        <p className="text-teal-300 text-xs uppercase tracking-widest font-bold">Item Exchange</p>
+      </div>
+
+      {step === "lookup" && (
+        <>
+          <div className="bg-[#111638] rounded-xl border border-teal-500/10 p-3 space-y-2 flex-shrink-0">
+            <label className="text-blue-300/50 text-[10px] uppercase tracking-wider block">Look Up Original Transaction</label>
+            <div className="flex gap-2">
+              <Input value={txId} onChange={e => setTxId(e.target.value.toUpperCase())} onKeyDown={e => e.key === "Enter" && lookUp()}
+                placeholder="TX-XXXXXXXX" className="bg-[#0a0e27] border-teal-500/20 text-white font-mono placeholder:text-blue-300/20" />
+              <Button disabled={searching || !txId} onClick={lookUp} className="bg-teal-600 hover:bg-teal-500 flex-shrink-0">
+                {searching ? "..." : "Look Up"}
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center text-blue-300/20 gap-3">
+            <ArrowLeftRight className="w-12 h-12" />
+            <p className="text-xs">Enter a Transaction ID to start an exchange</p>
+          </div>
+        </>
+      )}
+
+      {step === "select" && origTx && (
+        <div className="flex-1 flex gap-3 overflow-hidden">
+          {/* Left: items to return */}
+          <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+            <p className="text-blue-300/40 text-[10px] uppercase tracking-wider flex-shrink-0">① Select Items to Return</p>
+            <div className="flex-1 overflow-y-auto bg-[#111638] rounded-xl border border-teal-500/20 p-2 space-y-1.5">
+              {origItems.map((item, i) => {
+                const checked = returnSel[i] !== undefined;
+                return (
+                  <div key={i} onClick={() => toggleReturn(i, item)}
+                    className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-teal-500/40 bg-teal-500/10" : "border-blue-500/10 bg-[#0a0e27] hover:border-teal-500/20"}`}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-teal-600 border-teal-500" : "border-blue-500/30"}`}>
+                      {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-[10px] font-medium truncate">{item.name}</p>
+                      <p className="text-blue-300/40 text-[9px]">${item.price?.toFixed(2)} · qty {item.qty}</p>
+                    </div>
+                    {checked && (
+                      <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setReturnQty(i, returnSel[i] - 1, item.qty)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>
+                        <span className="text-white text-[10px] w-4 text-center">{returnSel[i]}</span>
+                        <button onClick={() => setReturnQty(i, returnSel[i] + 1, item.qty)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>
+                      </div>
+                    )}
+                    <p className="text-teal-300 text-[10px] font-semibold w-10 text-right flex-shrink-0">
+                      ${checked ? (returnSel[i] * item.price).toFixed(2) : item.total?.toFixed(2)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="bg-[#111638] rounded-lg border border-teal-500/10 p-2 flex justify-between text-xs flex-shrink-0">
+              <span className="text-blue-300/50">Return Value</span>
+              <span className="text-teal-300 font-bold">${returnValue.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Right: replacement items */}
+          <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+            <p className="text-blue-300/40 text-[10px] uppercase tracking-wider flex-shrink-0">② Select Replacement Items</p>
+            <div className="relative flex-shrink-0">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-blue-300/30" />
+              <Input value={itemSearch} onChange={e => setItemSearch(e.target.value)} placeholder="Search products..."
+                className="pl-7 bg-[#0a0e27] border-teal-500/10 text-white text-xs h-7 placeholder:text-blue-300/20" />
+            </div>
+            <div className="flex-1 overflow-y-auto bg-[#111638] rounded-xl border border-teal-500/20 p-2 space-y-1.5">
+              {filteredProducts.slice(0, 20).map(p => (
+                <button key={p.id} onClick={() => addReplace(p)}
+                  className="w-full flex items-center gap-2 p-2 rounded-lg border border-blue-500/10 bg-[#0a0e27] hover:border-teal-500/30 hover:bg-teal-500/5 transition-colors text-left">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-[10px] font-medium truncate">{p.name}</p>
+                    <p className="text-blue-300/40 text-[9px]">{p.sku}</p>
+                  </div>
+                  <span className="text-teal-400 text-[10px] font-bold flex-shrink-0">${p.price.toFixed(2)}</span>
+                </button>
+              ))}
+            </div>
+            {/* Replace cart */}
+            {replaceCart.length > 0 && (
+              <div className="bg-[#111638] rounded-xl border border-teal-500/20 p-2 space-y-1 flex-shrink-0 max-h-28 overflow-y-auto">
+                <p className="text-blue-300/40 text-[9px] uppercase tracking-wider">Replacement Cart</p>
+                {replaceCart.map(i => (
+                  <div key={i.sku} className="flex items-center justify-between text-[10px]">
+                    <span className="text-white">{i.qty}× {i.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-teal-300">${i.total.toFixed(2)}</span>
+                      <button onClick={() => removeReplace(i.sku)} className="text-red-400/50 hover:text-red-400"><X className="w-3 h-3" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="bg-[#111638] rounded-lg border border-teal-500/10 p-2 flex justify-between text-xs flex-shrink-0">
+              <span className="text-blue-300/50">Replace Value</span>
+              <span className="text-teal-300 font-bold">${replaceValue.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      {step === "select" && (
+        <div className="bg-[#111638] rounded-xl border border-teal-500/20 p-3 flex-shrink-0 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${diff > 0 ? "bg-green-500/20 text-green-300" : diff < 0 ? "bg-red-500/20 text-red-300" : "bg-teal-500/20 text-teal-300"}`}>
+              {diff > 0 ? `CUSTOMER OWES $${diff.toFixed(2)}` : diff < 0 ? `REFUND $${Math.abs(diff).toFixed(2)}` : "EVEN EXCHANGE"}
+            </span>
+            <span className="text-blue-300/40 text-[10px]">{returnedItems.length} returning · {replaceCart.length} replacing</span>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={reset} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10">Cancel</Button>
+            <Button onClick={confirmExchange} disabled={returnedItems.length === 0 || replaceCart.length === 0}
+              className="flex-1 bg-teal-600 hover:bg-teal-500 text-white font-bold disabled:opacity-40">
+              Confirm Exchange
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CS Mode Panel ────────────────────────────────────────────────────────────
 function CSModePanel({ toast }) {
   return (
@@ -254,7 +469,7 @@ export default function POSRegister() {
   const [qtyDialog, setQtyDialog] = useState(false);
   const [qtyValue, setQtyValue] = useState("1");
   const [activeSection, setActiveSection] = useState("sale");
-  const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false });
+  const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
   // Top-level mode: "sale" | "returns" | "cs"
   const [posMode, setPosMode] = useState("sale");
   const navigate = useNavigate();
@@ -277,7 +492,7 @@ export default function POSRegister() {
     setProducts(prods);
     setFunctionKeys(fkeys);
     if (regs.length > 0) {
-      setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false });
+      setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
     }
     const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
     setCategories(cats);
@@ -385,6 +600,7 @@ export default function POSRegister() {
   const modeTabs = [
     { id: "sale", label: "Sale", icon: ShoppingCart, activeColor: "bg-blue-600 text-white", inactiveColor: "bg-[#0a0e27] text-blue-300/50 border border-blue-500/10 hover:border-blue-500/30" },
     ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
+    ...(registerFeatures.feature_exchange ? [{ id: "exchange", label: "Exchange", icon: ArrowLeftRight, activeColor: "bg-teal-600 text-white", inactiveColor: "bg-[#0a0e27] text-teal-300/50 border border-teal-500/10 hover:border-teal-500/30" }] : []),
     ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "CS Mode", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
   ];
 
@@ -543,6 +759,10 @@ export default function POSRegister() {
 
           {posMode === "returns" && (
             <ReturnsPanel operator={operator} loadData={loadData} toast={toast} />
+          )}
+
+          {posMode === "exchange" && (
+            <ExchangePanel operator={operator} products={products} loadData={loadData} toast={toast} />
           )}
 
           {posMode === "cs" && (

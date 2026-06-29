@@ -7,10 +7,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 
-const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", feature_returns: false, feature_customer_service: false };
+const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", feature_returns: false, feature_customer_service: false, feature_exchange: false };
 
 const FEATURES = [
   { key: "feature_returns", label: "Returns / Refunds", description: "Allow cashiers to process item returns" },
+  { key: "feature_exchange", label: "Item Exchange", description: "Allow cashiers to exchange items from a prior transaction" },
   { key: "feature_customer_service", label: "Customer Service Mode", description: "Enable CS mode features (baseline)" },
 ];
 
@@ -32,7 +33,7 @@ export default function AdminRegisters() {
   const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
-    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false });
+    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false });
     setDialogOpen(true);
   };
 
