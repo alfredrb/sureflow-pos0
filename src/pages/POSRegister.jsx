@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw, Headphones, ArrowLeftRight } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import POSCartItem from "@/components/POSCartItem";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund"];
@@ -680,6 +681,7 @@ export default function POSRegister() {
   // Tab-switch guard
   const [switchGuard, setSwitchGuard] = useState(null); // { targetMode } when pending confirmation
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [discounts, setDiscounts] = useState([]);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -687,6 +689,18 @@ export default function POSRegister() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Get applicable discounts
+  const getApplicableDiscounts = (productCategory) => {
+    const now = new Date();
+    return discounts.filter(d => {
+      if (!d.active) return false;
+      if (d.start_date && new Date(d.start_date) > now) return false;
+      if (d.end_date && new Date(d.end_date) < now) return false;
+      if (d.categories.length > 0 && !d.categories.includes(productCategory)) return false;
+      return true;
+    });
+  };
 
   const writeLog = (eventType, detail, extra = {}) => {
     const op = operator || JSON.parse(sessionStorage.getItem("pos_operator") || "{}");
@@ -721,13 +735,15 @@ export default function POSRegister() {
 
   const loadData = async () => {
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const [prods, fkeys, regs] = await Promise.all([
+    const [prods, fkeys, regs, discs] = await Promise.all([
       base44.entities.Product.filter({ status: "active" }),
       base44.entities.FunctionKey.list("key_number"),
-      base44.entities.Register.filter({ register_id: registerId })
+      base44.entities.Register.filter({ register_id: registerId }),
+      base44.entities.DiscountType.list()
     ]);
     setProducts(prods);
     setFunctionKeys(fkeys);
+    setDiscounts(discs);
     if (regs.length > 0) {
       setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
     }
@@ -738,9 +754,12 @@ export default function POSRegister() {
 
   const addToCart = (product) => {
     setCart(prev => {
+      const applicableDiscounts = getApplicableDiscounts(product.category);
+      const bestDiscount = applicableDiscounts.length > 0 ? applicableDiscounts[0] : null;
+      const discountedPrice = bestDiscount ? product.price * (1 - bestDiscount.percentage / 100) : product.price;
       const existing = prev.find(i => i.sku === product.sku);
-      if (existing) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * i.price } : i);
-      return [...prev, { sku: product.sku, name: product.name, price: product.price, qty: 1, total: product.price, tax_rate: product.tax_rate || 0 }];
+      if (existing) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * discountedPrice, discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price } : i);
+      return [...prev, { sku: product.sku, name: product.name, price: discountedPrice, qty: 1, total: discountedPrice, tax_rate: product.tax_rate || 0, discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price }];
     });
   };
 
@@ -887,8 +906,12 @@ export default function POSRegister() {
     try {
       await base44.entities.Transaction.create({
         transaction_id: txId, operator_id: operator.operator_id, operator_name: operator.full_name,
-        register_id: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total,
-        payment_method: paymentMethod, status: "completed",
+        register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+        items: cart.map(item => ({
+          sku: item.sku, name: item.name, qty: item.qty, price: item.price, total: item.total,
+          discount_type: item.discount_type || null, discount_percentage: item.discount_percentage || 0, original_price: item.original_price || item.price
+        })),
+        subtotal, tax, total, payment_method: paymentMethod, status: "completed",
         amount_tendered: parseFloat(amountTendered || total), change_due: changeDue
       });
       for (const item of cart) {
@@ -1021,25 +1044,7 @@ export default function POSRegister() {
                     <p className="text-xs">No items scanned</p>
                   </div>
                 ) : cart.map((item) => (
-                  <div key={item.sku} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-blue-500/5">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs truncate font-medium">{item.name}</p>
-                      <p className="text-blue-300/40 text-[10px]">${item.price.toFixed(2)} ea</p>
-                    </div>
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                      <button onClick={() => updateQty(item.sku, -1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
-                        <Minus className="w-2.5 h-2.5" />
-                      </button>
-                      <span className="text-white text-xs w-5 text-center">{item.qty}</span>
-                      <button onClick={() => updateQty(item.sku, 1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
-                        <Plus className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                    <p className="text-white font-semibold text-xs w-12 text-right flex-shrink-0">${item.total.toFixed(2)}</p>
-                    <button onClick={() => removeFromCart(item.sku)} className="text-red-400/40 hover:text-red-400 flex-shrink-0">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
+                  <POSCartItem key={item.sku} item={item} onUpdateQty={updateQty} onRemove={removeFromCart} />
                 ))}
               </div>
               <div className="border-t border-blue-500/10 p-3 space-y-1 flex-shrink-0">

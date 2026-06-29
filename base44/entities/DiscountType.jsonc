@@ -1,0 +1,40 @@
+{
+  "name": "DiscountType",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Discount type name (e.g., 'Rollback', 'Manager Special', 'Clearance')"
+    },
+    "percentage": {
+      "type": "number",
+      "description": "Discount percentage (e.g., 10 for 10%)"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Product categories this discount applies to"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this discount is currently active"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the discount starts"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the discount ends"
+    }
+  },
+  "required": [
+    "name",
+    "percentage"
+  ]
+}

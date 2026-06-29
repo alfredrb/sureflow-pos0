@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { label: "Network", path: "/admin/network", icon: Network },
   { label: "Register Log", path: "/admin/register-log", icon: ClipboardList },
   { label: "Remote Workstation", path: "/admin/remote-workstation", icon: MonitorSpeaker },
+  { label: "Discounts", path: "/admin/discounts", icon: Percent },
 ];
 
 export default function AdminLayout() {

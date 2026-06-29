@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network } from "lucide-react";
+import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent } from "lucide-react";
 
 export default function Home() {
   return (
@@ -37,7 +37,7 @@ export default function Home() {
           { icon: Receipt, label: "Transactions", to: "/admin/transactions" },
           { icon: Keyboard, label: "Fn Keys", to: "/admin/function-keys" },
           { icon: Monitor, label: "Registers", to: "/admin/registers" },
-          { icon: Network, label: "Network", to: "/admin/network" },
+          { icon: Percent, label: "Discounts", to: "/admin/discounts" },
         ].map(item => {
           const Icon = item.icon;
           return (

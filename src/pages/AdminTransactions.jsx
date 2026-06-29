@@ -1,10 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import moment from "moment";
+
+const exportToCSV = (data, filename) => {
+  const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
+  const csv = [keys.join(","), ...data.map(t => keys.map(k => {
+    const val = t[k] ?? "";
+    return typeof val === "string" && val.includes(",") ? `"${val}"` : val;
+  }).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
 
 const STATUS_BADGE = {
   completed:  { label: "Completed",  cls: "bg-emerald-100 text-emerald-700" },
@@ -120,9 +136,12 @@ export default function AdminTransactions() {
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Transaction Logs</h1>
-        <p className="text-gray-500 text-sm mt-1">{transactions.length} transactions</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Transaction Logs</h1>
+          <p className="text-gray-500 text-sm mt-1">{transactions.length} transactions</p>
+        </div>
+        <Button onClick={() => exportToCSV(filtered, "transactions.csv")} variant="outline" className="border-gray-300"><Download className="w-4 h-4 mr-2" /> Export</Button>
       </div>
 
       <div className="flex gap-3 mb-4">
@@ -197,9 +216,16 @@ export default function AdminTransactions() {
                 <div className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 uppercase">Items</div>
                 <div className="divide-y divide-gray-50">
                   {(detail.items || []).map((item, idx) => (
-                    <div key={idx} className="px-4 py-2 flex justify-between text-sm">
-                      <span>{item.name} × {item.qty}</span>
-                      <span className="font-medium">${(item.total || 0).toFixed(2)}</span>
+                    <div key={idx} className="px-4 py-2">
+                      <div className="flex justify-between text-sm mb-0.5">
+                        <span>{item.name} × {item.qty}</span>
+                        <span className="font-medium">${(item.total || 0).toFixed(2)}</span>
+                      </div>
+                      {item.discount_type && (
+                        <div className="text-xs text-green-600">
+                          {item.discount_type} -{item.discount_percentage}%: Saved ${(((item.original_price || item.price) - item.price) * item.qty).toFixed(2)}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -101,6 +101,7 @@ export default function AdminReceipt() {
               <div className="border-t border-dashed border-gray-300 my-2" />
               <div className="space-y-0.5">
                 <div className="flex justify-between"><span>Milk 1 Gal x1</span><span>$4.99</span></div>
+                <div className="text-green-700 text-[11px] ml-2">Clearance -10%: Saved $0.56</div>
                 <div className="flex justify-between"><span>White Bread x2</span><span>$6.98</span></div>
                 <div className="flex justify-between"><span>Cola 2L x1</span><span>$2.99</span></div>
               </div>

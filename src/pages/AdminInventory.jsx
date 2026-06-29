@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, AlertTriangle, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,6 +8,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 
 const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "" };
+
+const exportToCSV = (data, filename) => {
+  const keys = ["sku", "name", "price", "cost", "category", "barcode", "stock_qty", "tax_rate", "status", "return_period_days"];
+  const csv = [keys.join(","), ...data.map(p => keys.map(k => {
+    const val = p[k] ?? "";
+    return typeof val === "string" && val.includes(",") ? `"${val}"` : val;
+  }).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
+
+const importFromCSV = async (file, onImport) => {
+  const text = await file.text();
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split(",").map(h => h.replace(/"/g, ""));
+  const rows = lines.slice(1).map(line => {
+    const values = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => v.replace(/"/g, ""));
+    return headers.reduce((obj, h, i) => {
+      let val = values[i] ?? "";
+      if (h === "price" || h === "cost" || h === "tax_rate") val = parseFloat(val) || 0;
+      if (h === "stock_qty" || h === "return_period_days") val = val === "" ? (h === "return_period_days" ? "" : 0) : parseInt(val) || 0;
+      obj[h] = val;
+      return obj;
+    }, {});
+  });
+  await Promise.all(rows.map(p => base44.entities.Product.create(p)));
+  onImport();
+};
 
 export default function AdminInventory() {
   const [products, setProducts] = useState([]);
@@ -51,7 +84,21 @@ export default function AdminInventory() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-gray-500 text-sm mt-1">{products.length} products</p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => exportToCSV(products, "inventory.csv")} variant="outline" className="border-gray-300"><Download className="w-4 h-4 mr-2" /> Export</Button>
+          <label>
+            <input type="file" accept=".csv" onChange={e => {
+              if (e.target.files?.[0]) {
+                importFromCSV(e.target.files[0], () => {
+                  toast({ title: "Import complete" });
+                  load();
+                }).catch(() => toast({ title: "Import failed", variant: "destructive" }));
+              }
+            }} hidden />
+            <Button asChild variant="outline" className="border-gray-300 cursor-pointer"><span><Upload className="w-4 h-4 mr-2" /> Import</span></Button>
+          </label>
+          <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
+        </div>
       </div>
 
       <div className="relative mb-4">

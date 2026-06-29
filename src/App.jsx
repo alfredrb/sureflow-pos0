@@ -27,6 +27,7 @@ import AdminRegisters from '@/pages/AdminRegisters';
 import AdminNetwork from '@/pages/AdminNetwork';
 import AdminRegisterLog from '@/pages/AdminRegisterLog';
 import AdminRemoteWorkstation from '@/pages/AdminRemoteWorkstation';
+import AdminDiscounts from '@/pages/AdminDiscounts';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -71,6 +72,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/network" element={<AdminNetwork />} />
           <Route path="/admin/register-log" element={<AdminRegisterLog />} />
           <Route path="/admin/remote-workstation" element={<AdminRemoteWorkstation />} />
+          <Route path="/admin/discounts" element={<AdminDiscounts />} />
         </Route>
       </Route>
 

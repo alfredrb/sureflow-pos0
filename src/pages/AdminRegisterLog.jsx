@@ -1,8 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, ChevronDown, ChevronUp, Settings } from "lucide-react";
+import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+const exportToCSV = (data, filename) => {
+  const keys = ["event_type", "operator_name", "operator_id", "register_id", "detail", "transaction_id", "transaction_total", "created_date"];
+  const csv = [keys.join(","), ...data.map(l => keys.map(k => {
+    const val = l[k] ?? "";
+    return typeof val === "string" && val.includes(",") ? `"${val}"` : val;
+  }).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};
 
 const EVENT_CONFIG = {
   login:       { label: "Login",       color: "bg-green-500/20 text-green-300 border-green-500/30",  icon: LogIn },
@@ -69,7 +85,10 @@ export default function AdminRegisterLog() {
             <p className="text-gray-500 text-sm">Logins, transactions, overrides and system events</p>
           </div>
         </div>
-        <span className="text-gray-400 text-sm">{filtered.length} events</span>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => exportToCSV(filtered, "register-log.csv")} variant="outline" size="sm" className="border-gray-300"><Download className="w-4 h-4 mr-1" /> Export</Button>
+          <span className="text-gray-400 text-sm">{filtered.length} events</span>
+        </div>
       </div>
 
       {/* Filters */}
