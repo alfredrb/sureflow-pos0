@@ -936,7 +936,10 @@ export default function POSRegister() {
               <ShoppingCart className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="text-white font-bold text-sm">SurePOS</span>
-            <span className="text-blue-300/40 text-[10px]">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
+            <div className="text-right leading-tight">
+              <span className="text-blue-300/40 text-[10px] block">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
+              <span className="text-blue-300/25 text-[9px] block">OP: {operator?.operator_id || "—"}</span>
+            </div>
           </div>
 
           {/* Mode Buttons */}
@@ -964,7 +967,14 @@ export default function POSRegister() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-blue-200/60 text-xs">{operator?.full_name} ({operator?.role})</span>
+          <div className="flex items-center gap-2">
+            <span className="text-blue-200/60 text-xs">{operator?.full_name}</span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              operator?.role === "manager" ? "bg-red-500/20 text-red-300" :
+              operator?.role === "csm" ? "bg-amber-500/20 text-amber-300" :
+              "bg-blue-500/20 text-blue-300"
+            }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : "Cashier"}</span>
+          </div>
           <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
             <LogOut className="w-3.5 h-3.5" />
           </button>
