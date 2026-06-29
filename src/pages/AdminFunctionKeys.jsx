@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 
 const actions = [
@@ -20,20 +19,39 @@ const actions = [
 
 const colors = ["#374151", "#dc2626", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0891b2", "#be185d"];
 
+const ROLE_CONFIG = {
+  none:    { label: "None",    badge: "bg-gray-100 text-gray-500" },
+  csm:     { label: "CSM",     badge: "bg-amber-100 text-amber-700" },
+  manager: { label: "Manager", badge: "bg-red-100 text-red-700" },
+};
+
+// Resolve effective required role (handles legacy requires_supervisor field)
+function getRequiredRole(fk) {
+  if (fk.requires_role && fk.requires_role !== "none") return fk.requires_role;
+  if (fk.requires_supervisor) return "csm"; // legacy fallback
+  return "none";
+}
+
 export default function AdminFunctionKeys() {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ label: "", action: "none", color: "#374151", requires_supervisor: false });
+  const [form, setForm] = useState({ label: "", action: "none", color: "#374151", requires_role: "none" });
   const { toast } = useToast();
 
   const load = async () => { setKeys((await base44.entities.FunctionKey.list("key_number")).sort((a, b) => a.key_number - b.key_number)); setLoading(false); };
   useEffect(() => { load(); }, []);
 
-  const openEdit = (fk) => { setEditing(fk); setForm({ label: fk.label, action: fk.action, color: fk.color, requires_supervisor: fk.requires_supervisor }); };
+  const openEdit = (fk) => {
+    setEditing(fk);
+    setForm({ label: fk.label, action: fk.action, color: fk.color, requires_role: getRequiredRole(fk) });
+  };
 
   const save = async () => {
-    await base44.entities.FunctionKey.update(editing.id, form);
+    await base44.entities.FunctionKey.update(editing.id, {
+      ...form,
+      requires_supervisor: form.requires_role !== "none", // keep legacy field in sync
+    });
     toast({ title: "Function key updated" });
     setEditing(null); load();
   };
@@ -60,21 +78,23 @@ export default function AdminFunctionKeys() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[60px_1fr_1fr_100px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-          <span>Key</span><span>Label</span><span>Action</span><span>Supervisor</span><span></span>
+        <div className="grid grid-cols-[60px_1fr_1fr_120px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <span>Key</span><span>Label</span><span>Action</span><span>Required Role</span><span></span>
         </div>
         <div className="divide-y divide-gray-50">
-          {keys.map(fk => (
-            <div key={fk.id} className="grid grid-cols-[60px_1fr_1fr_100px_80px] gap-4 px-5 py-3 items-center hover:bg-gray-50/50">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: fk.color }}>F{fk.key_number}</div>
-              <p className="text-sm font-medium text-gray-900">{fk.label}</p>
-              <p className="text-sm text-gray-500">{actions.find(a => a.value === fk.action)?.label || fk.action}</p>
-              <span className={`text-xs px-2 py-1 rounded-full w-fit ${fk.requires_supervisor ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                {fk.requires_supervisor ? "Yes" : "No"}
-              </span>
-              <button onClick={() => openEdit(fk)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-            </div>
-          ))}
+          {keys.map(fk => {
+            const role = getRequiredRole(fk);
+            const cfg = ROLE_CONFIG[role];
+            return (
+              <div key={fk.id} className="grid grid-cols-[60px_1fr_1fr_120px_80px] gap-4 px-5 py-3 items-center hover:bg-gray-50/50">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: fk.color }}>F{fk.key_number}</div>
+                <p className="text-sm font-medium text-gray-900">{fk.label}</p>
+                <p className="text-sm text-gray-500">{actions.find(a => a.value === fk.action)?.label || fk.action}</p>
+                <span className={`text-xs px-2 py-1 rounded-full w-fit font-medium ${cfg.badge}`}>{cfg.label}</span>
+                <button onClick={() => openEdit(fk)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -100,9 +120,16 @@ export default function AdminFunctionKeys() {
                 ))}
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700">Requires Supervisor</label>
-              <Switch checked={form.requires_supervisor} onCheckedChange={v => setForm({ ...form, requires_supervisor: v })} />
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Required Role</label>
+              <Select value={form.requires_role} onValueChange={v => setForm({ ...form, requires_role: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None — Any operator can use</SelectItem>
+                  <SelectItem value="csm">Requires CSM</SelectItem>
+                  <SelectItem value="manager">Requires Manager</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700"><Save className="w-4 h-4 mr-2" /> Save Changes</Button>
           </div>

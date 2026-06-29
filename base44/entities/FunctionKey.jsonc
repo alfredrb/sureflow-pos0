@@ -35,7 +35,18 @@
     },
     "requires_supervisor": {
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "Legacy field \u2014 use requires_role instead"
+    },
+    "requires_role": {
+      "type": "string",
+      "enum": [
+        "none",
+        "csm",
+        "manager"
+      ],
+      "default": "none",
+      "description": "Minimum role required to use this key without override"
     }
   },
   "required": [

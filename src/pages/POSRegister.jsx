@@ -783,7 +783,11 @@ export default function POSRegister() {
   };
 
   const handleFunctionKey = (fkey) => {
-    if (fkey.requires_supervisor && (operator?.role === "cashier")) {
+    const effectiveRole = fkey.requires_role || (fkey.requires_supervisor ? "csm" : "none");
+    const needsOverride =
+      (effectiveRole === "csm" && operator?.role === "cashier") ||
+      (effectiveRole === "manager" && (operator?.role === "cashier" || operator?.role === "csm"));
+    if (needsOverride) {
       setPendingFunctionKey(fkey);
       setSupOverridePin("");
       setSupOverrideError("");
@@ -796,9 +800,12 @@ export default function POSRegister() {
   const handleSupOverrideSubmit = async () => {
     setSupOverrideError("");
     const ops = await base44.entities.Operator.filter({ pin: supOverridePin });
-    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+    const requiredRole = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
+    const sup = ops.find(o =>
+      requiredRole === "manager" ? o.role === "manager" : (o.role === "csm" || o.role === "manager")
+    );
     if (!sup) {
-      setSupOverrideError("Invalid PIN or insufficient role");
+      setSupOverrideError(requiredRole === "manager" ? "Invalid PIN — Manager required" : "Invalid PIN — CSM or Manager required");
       return;
     }
     setSupOverrideDialog(false);
@@ -1155,8 +1162,11 @@ export default function POSRegister() {
                         style={{ backgroundColor: fk.color }}
                       >
                         <span className="text-center leading-tight">{fk.label}</span>
-                        {fk.requires_supervisor && (
-                          <span className="text-[8px] font-normal opacity-60 bg-black/20 px-1.5 py-0.5 rounded-full">SUP</span>
+                        {(fk.requires_role === "manager" || (fk.requires_supervisor && !fk.requires_role)) && (
+                          <span className="text-[8px] font-normal opacity-70 bg-black/20 px-1.5 py-0.5 rounded-full">MGR</span>
+                        )}
+                        {fk.requires_role === "csm" && (
+                          <span className="text-[8px] font-normal opacity-70 bg-black/20 px-1.5 py-0.5 rounded-full">CSM</span>
                         )}
                       </button>
                     ) : (
