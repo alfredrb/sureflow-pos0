@@ -35,46 +35,46 @@ export default function AdminDashboard() {
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">System overview and recent activity</p>
+    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-500 text-xs sm:text-sm mt-1">System overview and recent activity</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4 mb-6 sm:mb-8">
         {cards.map(c => {
           const Icon = c.icon;
           return (
-            <div key={c.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className={`w-9 h-9 ${c.color} rounded-xl flex items-center justify-center mb-3`}>
-                <Icon className="w-4 h-4 text-white" />
+            <div key={c.label} className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-100 shadow-sm">
+              <div className={`w-8 sm:w-9 h-8 sm:h-9 ${c.color} rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-3`}>
+                <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" />
               </div>
-              <p className="text-2xl font-bold text-gray-900">{c.value}</p>
-              <p className="text-gray-500 text-xs mt-0.5">{c.label}</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{c.value}</p>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5">{c.label}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-        <div className="p-5 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Recent Transactions</h2>
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-3 sm:p-5 border-b border-gray-100">
+          <h2 className="font-semibold text-sm sm:text-base text-gray-900">Recent Transactions</h2>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-gray-50 overflow-x-auto">
           {recentTx.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">No transactions yet</div>
+            <div className="p-6 sm:p-8 text-center text-gray-400 text-xs sm:text-sm">No transactions yet</div>
           ) : recentTx.map(tx => (
-            <div key={tx.id} className="px-5 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${tx.status === "completed" ? "bg-emerald-500" : tx.status === "voided" ? "bg-red-500" : "bg-amber-500"}`} />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{tx.transaction_id}</p>
-                  <p className="text-xs text-gray-400">{tx.operator_name} • {tx.register_id}</p>
+            <div key={tx.id} className="px-3 sm:px-5 py-2 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${tx.status === "completed" ? "bg-emerald-500" : tx.status === "voided" ? "bg-red-500" : "bg-amber-500"}`} />
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{tx.transaction_id}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-400 truncate">{tx.operator_name} • {tx.register_id}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">${(tx.total || 0).toFixed(2)}</p>
-                <p className="text-xs text-gray-400">{tx.payment_method}</p>
+              <div className="text-right flex-shrink-0">
+                <p className="text-xs sm:text-sm font-semibold text-gray-900">${(tx.total || 0).toFixed(2)}</p>
+                <p className="text-[10px] sm:text-xs text-gray-400">{tx.payment_method}</p>
               </div>
             </div>
           ))}
