@@ -61,7 +61,8 @@
       "enum": [
         "completed",
         "voided",
-        "refunded"
+        "refunded",
+        "exchanged"
       ],
       "default": "completed"
     },
@@ -69,9 +70,10 @@
       "type": "string",
       "enum": [
         "partial",
-        "total"
+        "total",
+        "exchange"
       ],
-      "description": "Set on refunded transactions"
+      "description": "Set on refunded/exchanged transactions"
     },
     "amount_tendered": {
       "type": "number"

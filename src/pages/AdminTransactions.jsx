@@ -1,10 +1,87 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Search, Eye, ChevronDown } from "lucide-react";
+import { Search, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import moment from "moment";
+
+const STATUS_BADGE = {
+  completed:  { label: "Completed",  cls: "bg-emerald-100 text-emerald-700" },
+  voided:     { label: "Voided",     cls: "bg-red-100 text-red-700" },
+  refunded:   { label: "Refunded",   cls: "bg-amber-100 text-amber-700" },
+  exchanged:  { label: "Exchanged",  cls: "bg-teal-100 text-teal-700" },
+};
+
+const REFUND_BADGE = {
+  partial:  { label: "Partial Refund", cls: "bg-orange-100 text-orange-700" },
+  total:    { label: "Total Refund",   cls: "bg-amber-100 text-amber-700" },
+  exchange: { label: "Exchange",       cls: "bg-teal-100 text-teal-700" },
+};
+
+function getStatusBadge(tx) {
+  if (tx.refund_type && REFUND_BADGE[tx.refund_type]) return REFUND_BADGE[tx.refund_type];
+  return STATUS_BADGE[tx.status] || { label: tx.status, cls: "bg-gray-100 text-gray-600" };
+}
+
+function groupByDate(transactions) {
+  const today = moment().startOf("day");
+  const yesterday = moment().subtract(1, "day").startOf("day");
+  const groups = { Today: [], Yesterday: [], Older: {} };
+
+  for (const tx of transactions) {
+    const d = moment(tx.created_date);
+    if (d.isSameOrAfter(today)) {
+      groups.Today.push(tx);
+    } else if (d.isSameOrAfter(yesterday)) {
+      groups.Yesterday.push(tx);
+    } else {
+      const key = d.format("MMMM D, YYYY");
+      if (!groups.Older[key]) groups.Older[key] = [];
+      groups.Older[key].push(tx);
+    }
+  }
+  return groups;
+}
+
+function TxRow({ tx, onView }) {
+  const badge = getStatusBadge(tx);
+  return (
+    <tr className="hover:bg-gray-50/50">
+      <td className="px-5 py-3 font-mono text-xs font-medium text-gray-900">{tx.transaction_id}</td>
+      <td className="px-3 py-3 text-gray-700">
+        <p className="text-sm font-medium leading-tight">{tx.operator_name || "—"}</p>
+        <p className="text-[11px] text-gray-400">{tx.operator_id}</p>
+      </td>
+      <td className="px-3 py-3 text-gray-500 text-sm">{tx.register_id}</td>
+      <td className="px-3 py-3 text-gray-500 capitalize text-sm">{tx.payment_method}</td>
+      <td className="px-3 py-3">
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${badge.cls}`}>{badge.label}</span>
+      </td>
+      <td className="px-3 py-3 text-right font-semibold text-sm">${(tx.total || 0).toFixed(2)}</td>
+      <td className="px-3 py-3 text-gray-400 text-xs">{moment(tx.created_date).format("h:mm A")}</td>
+      <td className="px-3 py-3">
+        <button onClick={() => onView(tx)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors">
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function DateSection({ label, transactions, onView }) {
+  if (transactions.length === 0) return null;
+  return (
+    <>
+      <tr>
+        <td colSpan={8} className="px-5 pt-5 pb-1">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
+        </td>
+      </tr>
+      {transactions.map(tx => <TxRow key={tx.id} tx={tx} onView={onView} />)}
+    </>
+  );
+}
 
 export default function AdminTransactions() {
   const [transactions, setTransactions] = useState([]);
@@ -15,26 +92,29 @@ export default function AdminTransactions() {
 
   useEffect(() => {
     (async () => {
-      setTransactions(await base44.entities.Transaction.list("-created_date", 50));
+      setTransactions(await base44.entities.Transaction.list("-created_date", 200));
       setLoading(false);
     })();
   }, []);
 
   const filtered = transactions.filter(t => {
-    const matchSearch = !search || t.transaction_id?.toLowerCase().includes(search.toLowerCase()) || t.operator_name?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "all" || t.status === statusFilter;
+    const matchSearch = !search ||
+      t.transaction_id?.toLowerCase().includes(search.toLowerCase()) ||
+      t.operator_name?.toLowerCase().includes(search.toLowerCase()) ||
+      t.operator_id?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || t.status === statusFilter || t.refund_type === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  const statusColor = { completed: "bg-emerald-100 text-emerald-700", voided: "bg-red-100 text-red-700", refunded: "bg-amber-100 text-amber-700" };
+  const groups = groupByDate(filtered);
+  const olderKeys = Object.keys(groups.Older).sort((a, b) => moment(b, "MMMM D, YYYY") - moment(a, "MMMM D, YYYY"));
+  const hasRows = filtered.length > 0;
 
-  const getRefundLabel = (tx) => {
-    if (tx.status !== "refunded") return null;
-    if (tx.refund_type === "partial") return { label: "Partial Refund", cls: "bg-orange-100 text-orange-700" };
-    return { label: "Total Refund", cls: "bg-amber-100 text-amber-700" };
-  };
-
-  if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-full">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  );
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl">
@@ -46,15 +126,16 @@ export default function AdminTransactions() {
       <div className="flex gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="Search by TX ID or operator..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Search by TX ID, operator name or ID..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="voided">Voided</SelectItem>
             <SelectItem value="refunded">Refunded</SelectItem>
+            <SelectItem value="exchanged">Exchanged</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -70,30 +151,22 @@ export default function AdminTransactions() {
                 <th className="px-3 py-3 text-left">Payment</th>
                 <th className="px-3 py-3 text-left">Status</th>
                 <th className="px-3 py-3 text-right">Total</th>
-                <th className="px-3 py-3 text-left">Date</th>
+                <th className="px-3 py-3 text-left">Time</th>
                 <th className="px-3 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+              {!hasRows ? (
                 <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">No transactions found</td></tr>
-              ) : filtered.map(tx => (
-                <tr key={tx.id} className="hover:bg-gray-50/50">
-                  <td className="px-5 py-3 font-medium text-gray-900">{tx.transaction_id}</td>
-                  <td className="px-3 py-3 text-gray-500">{tx.operator_name || tx.operator_id}</td>
-                  <td className="px-3 py-3 text-gray-500">{tx.register_id}</td>
-                  <td className="px-3 py-3 text-gray-500 capitalize">{tx.payment_method}</td>
-                  <td className="px-3 py-3">
-                    {(() => { const r = getRefundLabel(tx); return r
-                      ? <span className={`text-xs font-medium px-2 py-1 rounded-full ${r.cls}`}>{r.label}</span>
-                      : <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColor[tx.status] || "bg-gray-100 text-gray-600"}`}>{tx.status}</span>;
-                    })()}
-                  </td>
-                  <td className="px-3 py-3 text-right font-semibold">${(tx.total || 0).toFixed(2)}</td>
-                  <td className="px-3 py-3 text-gray-400 text-xs">{moment(tx.created_date).format("MMM D, h:mm A")}</td>
-                  <td className="px-3 py-3"><button onClick={() => setDetail(tx)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Eye className="w-3.5 h-3.5" /></button></td>
-                </tr>
-              ))}
+              ) : (
+                <>
+                  <DateSection label="Today" transactions={groups.Today} onView={setDetail} />
+                  <DateSection label="Yesterday" transactions={groups.Yesterday} onView={setDetail} />
+                  {olderKeys.map(key => (
+                    <DateSection key={key} label={key} transactions={groups.Older[key]} onView={setDetail} />
+                  ))}
+                </>
+              )}
             </tbody>
           </table>
         </div>
@@ -105,10 +178,18 @@ export default function AdminTransactions() {
           {detail && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-gray-500">Operator:</span> <span className="font-medium">{detail.operator_name}</span></div>
-                <div><span className="text-gray-500">Register:</span> <span className="font-medium">{detail.register_id}</span></div>
-                <div><span className="text-gray-500">Payment:</span> <span className="font-medium capitalize">{detail.payment_method}</span></div>
-                <div><span className="text-gray-500">Status:</span> <span className="font-medium capitalize">{detail.status === "refunded" ? (detail.refund_type === "partial" ? "Partial Refund" : "Total Refund") : detail.status}</span></div>
+                <div>
+                  <span className="text-gray-500 block text-xs">Operator</span>
+                  <span className="font-medium">{detail.operator_name || "—"}</span>
+                  <span className="text-gray-400 text-xs ml-1">({detail.operator_id})</span>
+                </div>
+                <div><span className="text-gray-500 block text-xs">Register</span><span className="font-medium">{detail.register_id}</span></div>
+                <div><span className="text-gray-500 block text-xs">Payment</span><span className="font-medium capitalize">{detail.payment_method}</span></div>
+                <div>
+                  <span className="text-gray-500 block text-xs">Status</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStatusBadge(detail).cls}`}>{getStatusBadge(detail).label}</span>
+                </div>
+                <div><span className="text-gray-500 block text-xs">Date</span><span className="font-medium">{moment(detail.created_date).format("MMM D, YYYY h:mm A")}</span></div>
               </div>
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 uppercase">Items</div>
