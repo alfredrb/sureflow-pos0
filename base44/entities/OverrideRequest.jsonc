@@ -1,0 +1,51 @@
+{
+  "name": "OverrideRequest",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string",
+      "description": "The action/function key label needing override"
+    },
+    "requested_by_operator_id": {
+      "type": "string"
+    },
+    "requested_by_operator_name": {
+      "type": "string"
+    },
+    "approved_by_operator_id": {
+      "type": "string"
+    },
+    "approved_by_operator_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "declined",
+        "expired"
+      ],
+      "default": "pending"
+    },
+    "note": {
+      "type": "string",
+      "description": "Optional note from the approver"
+    },
+    "expires_at": {
+      "type": "string",
+      "description": "ISO timestamp when this request expires"
+    }
+  },
+  "required": [
+    "register_id",
+    "action",
+    "status"
+  ]
+}

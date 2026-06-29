@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw, Headphones, ArrowLeftRight } from "lucide-react";
@@ -668,6 +668,10 @@ export default function POSRegister() {
   const [supOverridePin, setSupOverridePin] = useState("");
   const [supOverrideError, setSupOverrideError] = useState("");
   const [pendingFunctionKey, setPendingFunctionKey] = useState(null);
+  // Remote override
+  const [remoteRequestSent, setRemoteRequestSent] = useState(null); // { requestId, action }
+  const [remotePolling, setRemotePolling] = useState(false);
+  const remotePollingRef = React.useRef(null);
   // Top-level mode: "sale" | "returns" | "cs"
   const [posMode, setPosMode] = useState("sale");
   // Preview data from returns/exchange panels shown in the left panel
@@ -810,6 +814,57 @@ export default function POSRegister() {
       setPendingFunctionKey(null);
     }
   };
+
+  const sendRemoteOverrideRequest = async () => {
+    if (!pendingFunctionKey) return;
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const req = await base44.entities.OverrideRequest.create({
+      register_id: registerId,
+      action: pendingFunctionKey.label,
+      requested_by_operator_id: operator?.operator_id || "",
+      requested_by_operator_name: operator?.full_name || "",
+      status: "pending"
+    });
+    setRemoteRequestSent({ requestId: req.id, action: pendingFunctionKey.label });
+    setSupOverrideDialog(false);
+    setSupOverridePin("");
+    // Poll for approval
+    setRemotePolling(true);
+    remotePollingRef.current = setInterval(async () => {
+      const updated = await base44.entities.OverrideRequest.filter({ id: req.id });
+      if (updated.length > 0) {
+        const r = updated[0];
+        if (r.status === "approved") {
+          clearInterval(remotePollingRef.current);
+          setRemotePolling(false);
+          setRemoteRequestSent(null);
+          toast({ title: "Remote Override Approved", description: `"${r.action}" approved remotely by ${r.approved_by_operator_name}` });
+          writeLog("override", `Remote override for "${r.action}" approved by ${r.approved_by_operator_name}`, {
+            override_operator_id: r.approved_by_operator_id,
+            override_operator_name: r.approved_by_operator_name,
+            override_action: r.action
+          });
+          executeFunctionKey(pendingFunctionKey);
+          setPendingFunctionKey(null);
+        } else if (r.status === "declined" || r.status === "expired") {
+          clearInterval(remotePollingRef.current);
+          setRemotePolling(false);
+          setRemoteRequestSent(null);
+          toast({ title: "Remote Override Declined", description: r.note || "Request was declined or expired", variant: "destructive" });
+          setPendingFunctionKey(null);
+        }
+      }
+    }, 3000);
+    // Auto-cancel polling after 5 minutes
+    setTimeout(() => {
+      clearInterval(remotePollingRef.current);
+      setRemotePolling(false);
+      setRemoteRequestSent(null);
+    }, 5 * 60 * 1000);
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => () => clearInterval(remotePollingRef.current), []);
 
   const completeSale = async () => {
     if (cart.length === 0) return;
@@ -1233,7 +1288,7 @@ export default function POSRegister() {
             <DialogTitle className="text-red-400 text-sm">Supervisor Authorization Required</DialogTitle>
           </DialogHeader>
           <p className="text-blue-300/60 text-xs">
-            <span className="text-white font-bold">"{pendingFunctionKey?.label}"</span> requires supervisor or admin authorization. Enter a supervisor PIN to proceed.
+            <span className="text-white font-bold">"{pendingFunctionKey?.label}"</span> requires supervisor or admin authorization. Enter a supervisor PIN or send a remote override request.
           </p>
           <Input
             type="password"
@@ -1249,8 +1304,27 @@ export default function POSRegister() {
             <Button onClick={() => setSupOverrideDialog(false)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Cancel</Button>
             <Button onClick={handleSupOverrideSubmit} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">Authorize</Button>
           </div>
+          <div className="border-t border-blue-500/10 pt-3">
+            <p className="text-blue-300/40 text-[10px] text-center mb-2">No supervisor present?</p>
+            <Button onClick={sendRemoteOverrideRequest} variant="outline" className="w-full border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-xs">
+              📡 Send Remote Override Request
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Remote Override Pending Banner */}
+      {remoteRequestSent && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-violet-700 text-white rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3 border border-violet-400/30">
+          <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+          <div>
+            <p className="text-xs font-bold">Remote Override Pending</p>
+            <p className="text-[10px] text-violet-200">Waiting for admin approval of "{remoteRequestSent.action}"…</p>
+          </div>
+          <button onClick={() => { clearInterval(remotePollingRef.current); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
+            className="ml-2 text-violet-300 hover:text-white text-xs">✕</button>
+        </div>
+      )}
 
       {/* Tab Switch Guard Dialog */}
       <Dialog open={!!switchGuard} onOpenChange={v => { if (!v) setSwitchGuard(null); }}>
