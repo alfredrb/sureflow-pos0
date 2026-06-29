@@ -663,6 +663,11 @@ export default function POSRegister() {
   const [qtyValue, setQtyValue] = useState("1");
   const [activeSection, setActiveSection] = useState("sale");
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
+  // Supervisor override for function keys
+  const [supOverrideDialog, setSupOverrideDialog] = useState(false);
+  const [supOverridePin, setSupOverridePin] = useState("");
+  const [supOverrideError, setSupOverrideError] = useState("");
+  const [pendingFunctionKey, setPendingFunctionKey] = useState(null);
   // Top-level mode: "sale" | "returns" | "cs"
   const [posMode, setPosMode] = useState("sale");
   // Preview data from returns/exchange panels shown in the left panel
@@ -719,11 +724,7 @@ export default function POSRegister() {
   const tax = cart.reduce((s, i) => s + (i.total * (i.tax_rate / 100)), 0);
   const total = subtotal + tax;
 
-  const handleFunctionKey = (fkey) => {
-    if (fkey.requires_supervisor && operator?.role === "cashier") {
-      toast({ title: "Supervisor Required", description: "This action requires supervisor authorization", variant: "destructive" });
-      return;
-    }
+  const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
       case "void_transaction": setCart([]); toast({ title: "Transaction Voided" }); break;
       case "void_item":
@@ -751,6 +752,31 @@ export default function POSRegister() {
         break;
       default: break;
     }
+  };
+
+  const handleFunctionKey = (fkey) => {
+    if (fkey.requires_supervisor && operator?.role === "cashier") {
+      setPendingFunctionKey(fkey);
+      setSupOverridePin("");
+      setSupOverrideError("");
+      setSupOverrideDialog(true);
+      return;
+    }
+    executeFunctionKey(fkey);
+  };
+
+  const handleSupOverrideSubmit = async () => {
+    setSupOverrideError("");
+    const ops = await base44.entities.Operator.filter({ pin: supOverridePin });
+    const sup = ops.find(o => o.role === "supervisor" || o.role === "admin");
+    if (!sup) {
+      setSupOverrideError("Invalid PIN or insufficient role");
+      return;
+    }
+    setSupOverrideDialog(false);
+    setSupOverridePin("");
+    toast({ title: "Override Granted", description: `${sup.full_name} authorized the action` });
+    if (pendingFunctionKey) { executeFunctionKey(pendingFunctionKey); setPendingFunctionKey(null); }
   };
 
   const completeSale = async () => {
@@ -1159,6 +1185,32 @@ export default function POSRegister() {
               className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl">
               Complete Sale
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supervisor Override Dialog */}
+      <Dialog open={supOverrideDialog} onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}>
+        <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 text-sm">Supervisor Authorization Required</DialogTitle>
+          </DialogHeader>
+          <p className="text-blue-300/60 text-xs">
+            <span className="text-white font-bold">"{pendingFunctionKey?.label}"</span> requires supervisor or admin authorization. Enter a supervisor PIN to proceed.
+          </p>
+          <Input
+            type="password"
+            placeholder="Supervisor PIN"
+            value={supOverridePin}
+            onChange={e => setSupOverridePin(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSupOverrideSubmit()}
+            className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
+            autoFocus
+          />
+          {supOverrideError && <p className="text-red-400 text-xs text-center">{supOverrideError}</p>}
+          <div className="flex gap-2">
+            <Button onClick={() => setSupOverrideDialog(false)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Cancel</Button>
+            <Button onClick={handleSupOverrideSubmit} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">Authorize</Button>
           </div>
         </DialogContent>
       </Dialog>
