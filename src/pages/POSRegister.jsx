@@ -667,6 +667,8 @@ export default function POSRegister() {
   const [posMode, setPosMode] = useState("sale");
   // Preview data from returns/exchange panels shown in the left panel
   const [sidePreview, setSidePreview] = useState(null);
+  // Tab-switch guard
+  const [switchGuard, setSwitchGuard] = useState(null); // { targetMode } when pending confirmation
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -824,7 +826,16 @@ export default function POSRegister() {
             {modeTabs.map(({ id, label, icon: Icon, activeColor, inactiveColor }) => (
               <button
                 key={id}
-                onClick={() => { setPosMode(id); setSidePreview(null); }}
+                onClick={() => {
+                  if (id === posMode) return;
+                  // Check if current mode has an active transaction
+                  const hasActive =
+                    (posMode === "sale" && cart.length > 0) ||
+                    (posMode === "returns" && sidePreview && sidePreview.items && sidePreview.items.length > 0) ||
+                    (posMode === "exchange" && sidePreview && (sidePreview.returnedItems?.length > 0 || sidePreview.replaceCart?.length > 0));
+                  if (hasActive) { setSwitchGuard({ targetMode: id }); }
+                  else { setPosMode(id); setSidePreview(null); }
+                }}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${posMode === id ? activeColor : inactiveColor}`}
               >
                 <Icon className="w-3 h-3" />
@@ -1147,6 +1158,34 @@ export default function POSRegister() {
             <Button onClick={completeSale} disabled={paymentMethod === "cash" && parseFloat(amountTendered || 0) < total}
               className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl">
               Complete Sale
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tab Switch Guard Dialog */}
+      <Dialog open={!!switchGuard} onOpenChange={v => { if (!v) setSwitchGuard(null); }}>
+        <DialogContent className="bg-[#111638] border-amber-500/30 text-white max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-amber-400 text-sm flex items-center gap-2">
+              ⚠ Active Transaction
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-blue-300/70 text-xs leading-relaxed">
+            You have an active transaction in the{" "}
+            <span className="text-white font-bold capitalize">{posMode}</span> tab.
+            Switching tabs will not automatically cancel it, but you may lose unsaved progress.
+          </p>
+          <p className="text-blue-300/50 text-xs">Complete or cancel the current transaction before switching, or continue anyway.</p>
+          <div className="flex gap-2 mt-1">
+            <Button onClick={() => setSwitchGuard(null)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
+              Stay Here
+            </Button>
+            <Button
+              onClick={() => { setPosMode(switchGuard.targetMode); setSidePreview(null); setSwitchGuard(null); }}
+              className="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
+            >
+              Switch Anyway
             </Button>
           </div>
         </DialogContent>
