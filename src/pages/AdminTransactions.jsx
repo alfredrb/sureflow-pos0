@@ -28,6 +28,12 @@ export default function AdminTransactions() {
 
   const statusColor = { completed: "bg-emerald-100 text-emerald-700", voided: "bg-red-100 text-red-700", refunded: "bg-amber-100 text-amber-700" };
 
+  const getRefundLabel = (tx) => {
+    if (tx.status !== "refunded") return null;
+    if (tx.refund_type === "partial") return { label: "Partial Refund", cls: "bg-orange-100 text-orange-700" };
+    return { label: "Total Refund", cls: "bg-amber-100 text-amber-700" };
+  };
+
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
@@ -77,7 +83,12 @@ export default function AdminTransactions() {
                   <td className="px-3 py-3 text-gray-500">{tx.operator_name || tx.operator_id}</td>
                   <td className="px-3 py-3 text-gray-500">{tx.register_id}</td>
                   <td className="px-3 py-3 text-gray-500 capitalize">{tx.payment_method}</td>
-                  <td className="px-3 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColor[tx.status] || "bg-gray-100 text-gray-600"}`}>{tx.status}</span></td>
+                  <td className="px-3 py-3">
+                    {(() => { const r = getRefundLabel(tx); return r
+                      ? <span className={`text-xs font-medium px-2 py-1 rounded-full ${r.cls}`}>{r.label}</span>
+                      : <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColor[tx.status] || "bg-gray-100 text-gray-600"}`}>{tx.status}</span>;
+                    })()}
+                  </td>
                   <td className="px-3 py-3 text-right font-semibold">${(tx.total || 0).toFixed(2)}</td>
                   <td className="px-3 py-3 text-gray-400 text-xs">{moment(tx.created_date).format("MMM D, h:mm A")}</td>
                   <td className="px-3 py-3"><button onClick={() => setDetail(tx)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Eye className="w-3.5 h-3.5" /></button></td>
@@ -97,7 +108,7 @@ export default function AdminTransactions() {
                 <div><span className="text-gray-500">Operator:</span> <span className="font-medium">{detail.operator_name}</span></div>
                 <div><span className="text-gray-500">Register:</span> <span className="font-medium">{detail.register_id}</span></div>
                 <div><span className="text-gray-500">Payment:</span> <span className="font-medium capitalize">{detail.payment_method}</span></div>
-                <div><span className="text-gray-500">Status:</span> <span className="font-medium capitalize">{detail.status}</span></div>
+                <div><span className="text-gray-500">Status:</span> <span className="font-medium capitalize">{detail.status === "refunded" ? (detail.refund_type === "partial" ? "Partial Refund" : "Total Refund") : detail.status}</span></div>
               </div>
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 uppercase">Items</div>

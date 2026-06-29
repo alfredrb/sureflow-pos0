@@ -65,6 +65,14 @@
       ],
       "default": "completed"
     },
+    "refund_type": {
+      "type": "string",
+      "enum": [
+        "partial",
+        "total"
+      ],
+      "description": "Set on refunded transactions"
+    },
     "amount_tendered": {
       "type": "number"
     },

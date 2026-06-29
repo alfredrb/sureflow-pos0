@@ -34,48 +34,84 @@ function ReturnsPanel({ operator, loadData, toast }) {
   const [returnTxId, setReturnTxId] = useState("");
   const [returnTransaction, setReturnTransaction] = useState(null);
   const [searching, setSearching] = useState(false);
+  // selectedItems: { [index]: returnQty }
+  const [selectedItems, setSelectedItems] = useState({});
 
   const lookUp = async () => {
     if (!returnTxId) return;
     setSearching(true);
     setReturnTransaction(null);
+    setSelectedItems({});
     const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId, status: "completed" });
     if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
     else setReturnTransaction(results[0]);
     setSearching(false);
   };
 
+  const toggleItem = (i, item) => {
+    setSelectedItems(prev => {
+      if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
+      return { ...prev, [i]: item.qty };
+    });
+  };
+
+  const setReturnQty = (i, qty, maxQty) => {
+    const val = Math.min(Math.max(1, parseInt(qty) || 1), maxQty);
+    setSelectedItems(prev => ({ ...prev, [i]: val }));
+  };
+
+  const items = returnTransaction?.items || [];
+  const selectedCount = Object.keys(selectedItems).length;
+  const returnItems = items.filter((_, i) => selectedItems[i] !== undefined).map((item, _i) => {
+    const origIdx = items.indexOf(item);
+    const qty = selectedItems[origIdx];
+    const total = +(qty * item.price).toFixed(2);
+    return { ...item, qty, total };
+  });
+  const returnSubtotal = returnItems.reduce((s, i) => s + i.total, 0);
+  const returnTax = returnItems.reduce((s, i) => s + (i.total * ((i.tax_rate || 0) / 100)), 0);
+  const returnTotal = +(returnSubtotal + returnTax).toFixed(2);
+  const isPartial = selectedCount > 0 && (selectedCount < items.length || returnItems.some((ri, idx) => ri.qty < items[idx]?.qty));
+
   const confirmReturn = async () => {
+    if (selectedCount === 0) { toast({ title: "No items selected", variant: "destructive" }); return; }
     const txId = "RET-" + Date.now().toString(36).toUpperCase();
+    const refundType = isPartial ? "partial" : "total";
     await base44.entities.Transaction.create({
       transaction_id: txId,
       operator_id: operator.operator_id,
       operator_name: operator.full_name,
       register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
-      items: returnTransaction.items,
-      subtotal: returnTransaction.subtotal,
-      tax: returnTransaction.tax,
-      total: returnTransaction.total,
+      items: returnItems,
+      subtotal: returnSubtotal,
+      tax: returnTax,
+      total: returnTotal,
       payment_method: returnTransaction.payment_method,
       status: "refunded",
-      amount_tendered: returnTransaction.total,
+      refund_type: refundType,
+      amount_tendered: returnTotal,
       change_due: 0
     });
-    await base44.entities.Transaction.update(returnTransaction.id, { status: "refunded" });
-    toast({ title: "Return Processed", description: `Refund ${txId} — $${returnTransaction.total?.toFixed(2)} returned` });
-    setReturnTxId(""); setReturnTransaction(null);
+    // Only mark original as refunded if it's a total return
+    if (!isPartial) {
+      await base44.entities.Transaction.update(returnTransaction.id, { status: "refunded", refund_type: "total" });
+    } else {
+      await base44.entities.Transaction.update(returnTransaction.id, { refund_type: "partial" });
+    }
+    toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned` });
+    setReturnTxId(""); setReturnTransaction(null); setSelectedItems({});
     loadData();
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+    <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
       <div className="flex items-center gap-2 flex-shrink-0">
         <RotateCcw className="w-4 h-4 text-purple-400" />
         <p className="text-purple-300 text-xs uppercase tracking-widest font-bold">Returns / Refunds</p>
       </div>
 
       {/* Search */}
-      <div className="bg-[#111638] rounded-xl border border-purple-500/10 p-4 space-y-3 flex-shrink-0">
+      <div className="bg-[#111638] rounded-xl border border-purple-500/10 p-3 space-y-2 flex-shrink-0">
         <label className="text-blue-300/50 text-[10px] uppercase tracking-wider block">Look Up Transaction</label>
         <div className="flex gap-2">
           <Input
@@ -85,11 +121,7 @@ function ReturnsPanel({ operator, loadData, toast }) {
             placeholder="TX-XXXXXXXX"
             className="bg-[#0a0e27] border-purple-500/20 text-white font-mono placeholder:text-blue-300/20"
           />
-          <Button
-            disabled={searching || !returnTxId}
-            onClick={lookUp}
-            className="bg-purple-600 hover:bg-purple-500 flex-shrink-0"
-          >
+          <Button disabled={searching || !returnTxId} onClick={lookUp} className="bg-purple-600 hover:bg-purple-500 flex-shrink-0">
             {searching ? "..." : "Look Up"}
           </Button>
         </div>
@@ -97,48 +129,70 @@ function ReturnsPanel({ operator, loadData, toast }) {
 
       {/* Result */}
       {returnTransaction ? (
-        <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-4 space-y-3 flex-shrink-0">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <p className="text-blue-300/40 text-[10px]">Transaction ID</p>
-              <p className="text-white font-mono">{returnTransaction.transaction_id}</p>
-            </div>
-            <div>
-              <p className="text-blue-300/40 text-[10px]">Operator</p>
-              <p className="text-white">{returnTransaction.operator_name}</p>
-            </div>
-            <div>
-              <p className="text-blue-300/40 text-[10px]">Payment Method</p>
-              <p className="text-white capitalize">{returnTransaction.payment_method}</p>
-            </div>
-            <div>
-              <p className="text-blue-300/40 text-[10px]">Total Paid</p>
-              <p className="text-purple-300 font-bold text-base">${returnTransaction.total?.toFixed(2)}</p>
+        <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+          {/* TX summary */}
+          <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div><p className="text-blue-300/40 text-[10px]">TX ID</p><p className="text-white font-mono text-[10px]">{returnTransaction.transaction_id}</p></div>
+              <div><p className="text-blue-300/40 text-[10px]">Payment</p><p className="text-white capitalize">{returnTransaction.payment_method}</p></div>
+              <div><p className="text-blue-300/40 text-[10px]">Original Total</p><p className="text-purple-300 font-bold">${returnTransaction.total?.toFixed(2)}</p></div>
             </div>
           </div>
-          <div className="border-t border-purple-500/10 pt-3 space-y-1">
-            <p className="text-blue-300/40 text-[10px] uppercase tracking-wider mb-2">Items</p>
-            {(returnTransaction.items || []).map((item, i) => (
-              <div key={i} className="flex justify-between text-xs">
-                <span className="text-blue-200/70">{item.qty}× {item.name}</span>
-                <span className="text-blue-200/70">${item.total?.toFixed(2)}</span>
+
+          {/* Item selection */}
+          <div className="flex-1 overflow-y-auto bg-[#111638] rounded-xl border border-purple-500/20 p-3">
+            <p className="text-blue-300/40 text-[10px] uppercase tracking-wider mb-2">Select Items to Return</p>
+            <div className="space-y-2">
+              {items.map((item, i) => {
+                const checked = selectedItems[i] !== undefined;
+                return (
+                  <div key={i} className={`flex items-center gap-3 p-2 rounded-lg border transition-colors cursor-pointer ${checked ? "border-purple-500/40 bg-purple-500/10" : "border-blue-500/10 bg-[#0a0e27] hover:border-blue-500/20"}`}
+                    onClick={() => toggleItem(i, item)}>
+                    {/* Checkbox */}
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-purple-600 border-purple-500" : "border-blue-500/30"}`}>
+                      {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-xs font-medium truncate">{item.name}</p>
+                      <p className="text-blue-300/40 text-[10px]">${item.price?.toFixed(2)} ea · orig qty: {item.qty}</p>
+                    </div>
+                    {checked && (
+                      <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) - 1, item.qty)}
+                          className="w-5 h-5 rounded bg-purple-600/30 text-purple-300 flex items-center justify-center hover:bg-purple-600/50 text-xs">−</button>
+                        <span className="text-white text-xs w-5 text-center font-bold">{selectedItems[i]}</span>
+                        <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) + 1, item.qty)}
+                          className="w-5 h-5 rounded bg-purple-600/30 text-purple-300 flex items-center justify-center hover:bg-purple-600/50 text-xs">+</button>
+                      </div>
+                    )}
+                    <p className="text-purple-300 text-xs font-semibold w-14 text-right flex-shrink-0">
+                      {checked ? `$${(selectedItems[i] * item.price).toFixed(2)}` : `$${item.total?.toFixed(2)}`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isPartial ? "bg-amber-500/20 text-amber-300" : "bg-purple-500/20 text-purple-300"}`}>
+                  {selectedCount === 0 ? "NO ITEMS SELECTED" : isPartial ? "PARTIAL REFUND" : "TOTAL REFUND"}
+                </span>
+                <span className="text-blue-300/40 text-[10px]">{selectedCount} item{selectedCount !== 1 ? "s" : ""} selected</span>
               </div>
-            ))}
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button
-              onClick={() => { setReturnTxId(""); setReturnTransaction(null); }}
-              variant="outline"
-              className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmReturn}
-              className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold"
-            >
-              Confirm Return — ${returnTransaction.total?.toFixed(2)}
-            </Button>
+              <span className="text-white font-bold text-base">${returnTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => { setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); }}
+                variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10">Cancel</Button>
+              <Button onClick={confirmReturn} disabled={selectedCount === 0}
+                className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold disabled:opacity-40">
+                Confirm Return — ${returnTotal.toFixed(2)}
+              </Button>
+            </div>
           </div>
         </div>
       ) : (
