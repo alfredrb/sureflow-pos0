@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, ChevronDown, ChevronUp, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -10,7 +10,8 @@ const EVENT_CONFIG = {
   override:    { label: "Override",    color: "bg-red-500/20 text-red-300 border-red-500/30",        icon: ShieldAlert },
   transaction: { label: "Transaction", color: "bg-blue-500/20 text-blue-300 border-blue-500/30",     icon: ShoppingCart },
   void:        { label: "Void",        color: "bg-amber-500/20 text-amber-300 border-amber-500/30",  icon: Slash },
-  no_sale:     { label: "No Sale",     color: "bg-purple-500/20 text-purple-300 border-purple-500/30", icon: Ban },
+  no_sale:        { label: "No Sale",        color: "bg-purple-500/20 text-purple-300 border-purple-500/30", icon: Ban },
+  register_change: { label: "Reg. Change",   color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",     icon: Settings },
 };
 
 function groupByDate(logs) {
@@ -136,8 +137,15 @@ export default function AdminRegisterLog() {
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-xs font-mono text-gray-500 whitespace-nowrap">{time}</td>
-                        <td className="px-4 py-2.5 text-sm font-medium text-gray-700 max-w-[8rem] truncate">{log.operator_name || "—"}</td>
-                        <td className="px-4 py-2.5 text-xs font-mono text-gray-500 truncate">{log.operator_id || "—"}</td>
+                        <td className="px-4 py-2.5 text-sm font-medium max-w-[8rem] truncate">
+                          {log.event_type === "register_change"
+                            ? <span className="text-cyan-600 font-bold">ADMIN</span>
+                            : <span className="text-gray-700">{log.operator_name || "—"}</span>
+                          }
+                        </td>
+                        <td className="px-4 py-2.5 text-xs font-mono text-gray-500 truncate">
+                          {log.event_type === "register_change" ? "—" : log.operator_id || "—"}
+                        </td>
                         <td className="px-4 py-2.5 text-xs text-gray-500">{log.register_id || "—"}</td>
                         <td className="px-4 py-2.5 text-xs text-gray-500 max-w-xs truncate">{log.detail || "—"}</td>
                         <td className="px-4 py-2.5 text-sm font-bold text-gray-700 text-right whitespace-nowrap">
@@ -171,8 +179,17 @@ export default function AdminRegisterLog() {
               <div className="grid grid-cols-2 gap-2">
                 <div><p className="text-gray-400 text-xs">Time</p><p className="font-medium">{new Date(selectedLog.created_date).toLocaleString()}</p></div>
                 <div><p className="text-gray-400 text-xs">Register</p><p className="font-medium">{selectedLog.register_id}</p></div>
-                <div><p className="text-gray-400 text-xs">Operator</p><p className="font-medium">{selectedLog.operator_name}</p></div>
-                <div><p className="text-gray-400 text-xs">Operator ID</p><p className="font-mono text-xs">{selectedLog.operator_id}</p></div>
+                <div>
+                  <p className="text-gray-400 text-xs">Operator</p>
+                  {selectedLog.event_type === "register_change"
+                    ? <p className="font-bold text-cyan-600">ADMIN</p>
+                    : <p className="font-medium">{selectedLog.operator_name}</p>
+                  }
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Operator ID</p>
+                  <p className="font-mono text-xs">{selectedLog.event_type === "register_change" ? "—" : selectedLog.operator_id}</p>
+                </div>
                 <div><p className="text-gray-400 text-xs">Role</p><p className="font-medium capitalize">{selectedLog.operator_role}</p></div>
               </div>
               {selectedLog.detail && (

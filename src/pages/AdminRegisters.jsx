@@ -37,10 +37,29 @@ export default function AdminRegisters() {
     setDialogOpen(true);
   };
 
+  const logRegisterChange = (action, reg) => {
+    base44.entities.RegisterLog.create({
+      event_type: "register_change",
+      operator_id: "",
+      operator_name: "ADMIN",
+      operator_role: "admin",
+      register_id: reg.register_id || form.register_id || "—",
+      register_name: reg.name || form.name || "",
+      detail: action
+    });
+  };
+
   const save = async () => {
     try {
-      if (editing) { await base44.entities.Register.update(editing.id, form); toast({ title: "Register updated" }); }
-      else { await base44.entities.Register.create(form); toast({ title: "Register added" }); }
+      if (editing) {
+        await base44.entities.Register.update(editing.id, form);
+        logRegisterChange(`Register edited: ${form.name} (${form.register_id}) — status: ${form.status}`, form);
+        toast({ title: "Register updated" });
+      } else {
+        await base44.entities.Register.create(form);
+        logRegisterChange(`Register created: ${form.name} (${form.register_id})`, form);
+        toast({ title: "Register added" });
+      }
       setDialogOpen(false); load();
     } catch (e) { toast({ title: "Error", variant: "destructive" }); }
   };
@@ -48,6 +67,7 @@ export default function AdminRegisters() {
   const remove = async (r) => {
     if (!confirm(`Delete ${r.name}?`)) return;
     await base44.entities.Register.delete(r.id);
+    logRegisterChange(`Register deleted: ${r.name} (${r.register_id})`, r);
     toast({ title: "Register deleted" }); load();
   };
 

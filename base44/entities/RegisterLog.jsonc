@@ -10,7 +10,8 @@
         "override",
         "transaction",
         "void",
-        "no_sale"
+        "no_sale",
+        "register_change"
       ],
       "description": "Type of event logged"
     },
