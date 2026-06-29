@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { Monitor, Loader2, Wifi, WifiOff } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function POSLogin() {
@@ -11,6 +11,11 @@ export default function POSLogin() {
   const [loading, setLoading] = useState(false);
   const [time, setTime] = useState(new Date());
   const [online, setOnline] = useState(navigator.onLine);
+  const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "REG-001");
+  const [showConfig, setShowConfig] = useState(false);
+  const [configPin, setConfigPin] = useState("");
+  const [configUnlocked, setConfigUnlocked] = useState(false);
+  const [tempRegNum, setTempRegNum] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -24,6 +29,38 @@ export default function POSLogin() {
   }, []);
 
   const numpad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "ENT"];
+
+  const handleConfigOpen = () => {
+    setShowConfig(true);
+    setConfigPin("");
+    setConfigUnlocked(false);
+    setTempRegNum(registerNum);
+  };
+
+  const handleConfigUnlock = async () => {
+    try {
+      const supervisors = await base44.entities.Operator.filter({ role: "supervisor", status: "active" });
+      const admins = await base44.entities.Operator.filter({ role: "admin", status: "active" });
+      const all = [...supervisors, ...admins];
+      if (all.some(op => op.pin === configPin)) {
+        setConfigUnlocked(true);
+      } else {
+        toast({ title: "Access Denied", description: "Invalid supervisor/admin PIN", variant: "destructive" });
+        setConfigPin("");
+      }
+    } catch {
+      toast({ title: "Error", description: "Could not verify PIN", variant: "destructive" });
+    }
+  };
+
+  const handleConfigSave = () => {
+    if (tempRegNum.trim()) {
+      setRegisterNum(tempRegNum.trim());
+      sessionStorage.setItem("pos_register_num", tempRegNum.trim());
+      setShowConfig(false);
+      toast({ title: "Saved", description: `Register set to ${tempRegNum.trim()}` });
+    }
+  };
 
   const handleKey = (key) => {
     if (step === "id") {
@@ -58,7 +95,7 @@ export default function POSLogin() {
   };
 
   return (
-    <div className="h-screen bg-[#0a0e27] flex flex-col max-w-[1024px] max-h-[768px] mx-auto overflow-hidden">
+    <div className="h-screen bg-[#0a0e27] flex flex-col max-w-[1024px] max-h-[768px] mx-auto overflow-hidden relative">
 
       {/* Status Bar */}
       <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
@@ -84,7 +121,7 @@ export default function POSLogin() {
             </span>
           </div>
           <div className="text-right">
-            <p className="text-blue-200/60 text-xs font-mono">REG-001</p>
+            <p className="text-blue-200/60 text-xs font-mono">{registerNum}</p>
             <p className="text-blue-300/20 text-[10px] font-mono">192.168.1.10</p>
           </div>
         </div>
@@ -138,6 +175,67 @@ export default function POSLogin() {
 
         <p className="text-blue-300/20 text-[10px] mt-6">v4.2.1 — Terminal Ready</p>
       </div>
+
+      {/* Config Button — bottom right */}
+      <button
+        onClick={handleConfigOpen}
+        className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
+      >
+        <Lock className="w-3 h-3" />
+        <span>Configuration</span>
+      </button>
+
+      {/* Config Modal */}
+      {showConfig && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
+          <div className="bg-[#111638] border border-blue-500/10 rounded-2xl p-6 w-full max-w-xs space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Settings className="w-4 h-4 text-blue-400" />
+              <h3 className="text-white font-semibold text-sm">Configuration Options</h3>
+            </div>
+
+            {!configUnlocked ? (
+              <div className="space-y-3">
+                <p className="text-blue-300/50 text-xs">Enter supervisor or admin PIN to unlock:</p>
+                <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-blue-500/10 min-h-[44px] flex items-center justify-center">
+                  {"•".repeat(configPin.length) || <span className="text-blue-500/20">----</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
+                    <button key={k} onClick={() => {
+                      if (k === "CLR") setConfigPin("");
+                      else if (k === "ENT" && configPin.length > 0) handleConfigUnlock();
+                      else if (k !== "ENT" && configPin.length < 6) setConfigPin(p => p + k);
+                    }}
+                    className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 ${
+                      k === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
+                      k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
+                      "bg-[#1a1f4a] text-white border border-blue-500/10"
+                    }`}>{k}</button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label className="text-blue-300/60 text-xs">Register Number</label>
+                <input
+                  type="text"
+                  value={tempRegNum}
+                  onChange={e => setTempRegNum(e.target.value)}
+                  className="w-full bg-[#0a0e27] border border-blue-500/10 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-blue-500/30"
+                />
+                <button onClick={handleConfigSave} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                  Save
+                </button>
+              </div>
+            )}
+
+            <button onClick={() => setShowConfig(false)} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center mt-2">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
