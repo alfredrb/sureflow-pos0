@@ -25,6 +25,7 @@ import AdminFunctionKeys from '@/pages/AdminFunctionKeys';
 import AdminReceipt from '@/pages/AdminReceipt';
 import AdminRegisters from '@/pages/AdminRegisters';
 import AdminNetwork from '@/pages/AdminNetwork';
+import AdminRegisterLog from '@/pages/AdminRegisterLog';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -67,6 +68,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/receipt" element={<AdminReceipt />} />
           <Route path="/admin/registers" element={<AdminRegisters />} />
           <Route path="/admin/network" element={<AdminNetwork />} />
+          <Route path="/admin/register-log" element={<AdminRegisterLog />} />
         </Route>
       </Route>
 

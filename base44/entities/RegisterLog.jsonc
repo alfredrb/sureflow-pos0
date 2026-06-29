@@ -1,0 +1,59 @@
+{
+  "name": "RegisterLog",
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "login",
+        "logout",
+        "override",
+        "transaction",
+        "void",
+        "no_sale"
+      ],
+      "description": "Type of event logged"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "operator_role": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "detail": {
+      "type": "string",
+      "description": "Human-readable detail about the event"
+    },
+    "transaction_id": {
+      "type": "string",
+      "description": "Linked transaction ID if applicable"
+    },
+    "transaction_total": {
+      "type": "number",
+      "description": "Transaction amount if applicable"
+    },
+    "override_operator_id": {
+      "type": "string"
+    },
+    "override_operator_name": {
+      "type": "string"
+    },
+    "override_action": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_type",
+    "operator_id",
+    "register_id"
+  ]
+}

@@ -677,10 +677,34 @@ export default function POSRegister() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const writeLog = (eventType, detail, extra = {}) => {
+    const op = operator || JSON.parse(sessionStorage.getItem("pos_operator") || "{}");
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    base44.entities.RegisterLog.create({
+      event_type: eventType,
+      operator_id: op.operator_id || "",
+      operator_name: op.full_name || "",
+      operator_role: op.role || "",
+      register_id: registerId,
+      detail,
+      ...extra
+    });
+  };
+
   useEffect(() => {
     const op = sessionStorage.getItem("pos_operator");
     if (!op) { navigate("/pos/login"); return; }
-    setOperator(JSON.parse(op));
+    const parsed = JSON.parse(op);
+    setOperator(parsed);
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    base44.entities.RegisterLog.create({
+      event_type: "login",
+      operator_id: parsed.operator_id || "",
+      operator_name: parsed.full_name || "",
+      operator_role: parsed.role || "",
+      register_id: registerId,
+      detail: `${parsed.full_name} logged into ${registerId}`
+    });
     loadData();
   }, []);
 
@@ -726,13 +750,13 @@ export default function POSRegister() {
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
-      case "void_transaction": setCart([]); toast({ title: "Transaction Voided" }); break;
+      case "void_transaction": setCart([]); toast({ title: "Transaction Voided" }); writeLog("void", "Entire transaction voided"); break;
       case "void_item":
-        if (cart.length > 0) { removeFromCart(cart[cart.length - 1].sku); toast({ title: "Last Item Voided" }); }
+        if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); toast({ title: "Last Item Voided" }); writeLog("void", `Item voided: ${voided.name}`); }
         break;
       case "subtotal": toast({ title: "Subtotal", description: `$${subtotal.toFixed(2)}` }); break;
       case "quantity": setQtyDialog(true); break;
-      case "no_sale": toast({ title: "No Sale", description: "Cash drawer opened" }); break;
+      case "no_sale": toast({ title: "No Sale", description: "Cash drawer opened" }); writeLog("no_sale", "No Sale — cash drawer opened"); break;
       case "tax_exempt":
         setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
         toast({ title: "Tax Exempt Applied" });
@@ -776,7 +800,15 @@ export default function POSRegister() {
     setSupOverrideDialog(false);
     setSupOverridePin("");
     toast({ title: "Override Granted", description: `${sup.full_name} authorized the action` });
-    if (pendingFunctionKey) { executeFunctionKey(pendingFunctionKey); setPendingFunctionKey(null); }
+    if (pendingFunctionKey) {
+      writeLog("override", `Override for "${pendingFunctionKey.label}" authorized by ${sup.full_name}`, {
+        override_operator_id: sup.operator_id,
+        override_operator_name: sup.full_name,
+        override_action: pendingFunctionKey.label
+      });
+      executeFunctionKey(pendingFunctionKey);
+      setPendingFunctionKey(null);
+    }
   };
 
   const completeSale = async () => {
@@ -795,6 +827,7 @@ export default function POSRegister() {
         if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
       }
       toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
+      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total });
       setCart([]); setPaymentOpen(false); setAmountTendered("");
       loadData();
     } catch (e) {
@@ -802,7 +835,11 @@ export default function POSRegister() {
     }
   };
 
-  const logout = () => { sessionStorage.removeItem("pos_operator"); navigate("/pos"); };
+  const logout = () => {
+    writeLog("logout", `${operator?.full_name} logged out of ${sessionStorage.getItem("pos_register_num") || "REG-001"}`);
+    sessionStorage.removeItem("pos_operator");
+    navigate("/pos");
+  };
 
   const filteredProducts = products.filter(p => {
     const matchSearch = !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch);
