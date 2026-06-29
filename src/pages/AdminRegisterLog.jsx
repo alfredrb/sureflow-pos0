@@ -218,9 +218,29 @@ export default function AdminRegisterLog() {
                 </div>
               )}
               {selectedLog.transaction_id && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div><p className="text-gray-400 text-xs">Transaction ID</p><p className="font-mono text-xs">{selectedLog.transaction_id}</p></div>
-                  {selectedLog.transaction_total != null && <div><p className="text-gray-400 text-xs">Amount</p><p className="font-bold text-green-600">${selectedLog.transaction_total?.toFixed(2)}</p></div>}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><p className="text-gray-400 text-xs">Transaction ID</p><p className="font-mono text-xs">{selectedLog.transaction_id}</p></div>
+                    {selectedLog.transaction_total != null && <div><p className="text-gray-400 text-xs">Amount</p><p className="font-bold text-green-600">${selectedLog.transaction_total?.toFixed(2)}</p></div>}
+                  </div>
+                  {selectedLog.items && selectedLog.items.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <p className="text-gray-400 text-xs font-bold uppercase">Items</p>
+                      {selectedLog.items.map((item, i) => (
+                        <div key={i} className="border-t border-gray-200 pt-2 first:border-t-0 first:pt-0">
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-gray-700 font-medium">{item.name} × {item.qty}</span>
+                            <span className="font-bold text-gray-900">${item.total?.toFixed(2)}</span>
+                          </div>
+                          {item.discount_type && (
+                            <div className="text-[11px] text-green-600">
+                              {item.discount_type} -{item.discount_percentage}%: Saved ${(((item.original_price || item.price) - item.price) * item.qty).toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {selectedLog.override_operator_name && (

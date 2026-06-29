@@ -919,7 +919,21 @@ export default function POSRegister() {
         if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
       }
       toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
-      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total });
+      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { 
+        transaction_id: txId, 
+        transaction_total: total,
+        items: cart.map(item => ({
+          sku: item.sku,
+          name: item.name,
+          qty: item.qty,
+          price: item.price,
+          total: item.total,
+          tax_rate: item.tax_rate,
+          discount_type: item.discount_type || null,
+          discount_percentage: item.discount_percentage || 0,
+          original_price: item.original_price || item.price
+        }))
+      });
       setCart([]); setPaymentOpen(false); setAmountTendered("");
       loadData();
     } catch (e) {
