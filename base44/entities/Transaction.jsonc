@@ -80,7 +80,14 @@
       "items": {
         "type": "string"
       },
-      "description": "SKUs that have already been refunded from this transaction"
+      "description": "Legacy: SKUs fully refunded"
+    },
+    "refunded_qty": {
+      "type": "object",
+      "description": "Map of sku -> qty already refunded from this transaction",
+      "additionalProperties": {
+        "type": "number"
+      }
     },
     "amount_tendered": {
       "type": "number"

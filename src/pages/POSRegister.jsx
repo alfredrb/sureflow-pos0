@@ -77,26 +77,29 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
     setSearching(false);
   };
 
-  const alreadyRefundedSkus = returnTransaction?.refunded_skus || [];
+  // refunded_qty: { [sku]: qty already refunded }
+  const refundedQty = returnTransaction?.refunded_qty || {};
 
-  const isItemRefunded = (item) => alreadyRefundedSkus.includes(item.sku);
+  // How many of this item can still be returned
+  const remainingQty = (item) => item.qty - (refundedQty[item.sku] || 0);
+  const isItemFullyRefunded = (item) => remainingQty(item) <= 0;
   const isItemExpired = (i) => expiredItems.includes(i);
 
   const toggleItem = (i, item) => {
-    if (isItemRefunded(item)) return; // blocked
+    if (isItemFullyRefunded(item)) return; // blocked
     if (isItemExpired(i) && !overrideOperator) {
-      // Prompt for override
       setOverrideDialog(true);
       return;
     }
     setSelectedItems(prev => {
       if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
-      return { ...prev, [i]: item.qty };
+      return { ...prev, [i]: remainingQty(item) }; // default to max returnable qty
     });
   };
 
-  const setReturnQty = (i, qty, maxQty) => {
-    const val = Math.min(Math.max(1, parseInt(qty) || 1), maxQty);
+  const setReturnQty = (i, qty, item) => {
+    const max = remainingQty(item);
+    const val = Math.min(Math.max(1, parseInt(qty) || 1), max);
     setSelectedItems(prev => ({ ...prev, [i]: val }));
   };
 
@@ -116,7 +119,7 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
 
   const items = returnTransaction?.items || [];
   const selectedCount = Object.keys(selectedItems).length;
-  const returnItems = items.filter((_, i) => selectedItems[i] !== undefined).map((item) => {
+  const returnItems = items.filter((_, i) => selectedItems[i] !== undefined).map((item, _, arr) => {
     const origIdx = items.indexOf(item);
     const qty = selectedItems[origIdx];
     const total = +(qty * item.price).toFixed(2);
@@ -126,15 +129,29 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
   const returnTax = returnItems.reduce((s, i) => s + (i.total * ((i.tax_rate || 0) / 100)), 0);
   const returnTotal = +(returnSubtotal + returnTax).toFixed(2);
 
-  // Determine if all returnable items are now covered
-  const returnableItems = items.filter(item => !isItemRefunded(item));
-  const isPartial = selectedCount > 0 && selectedCount < returnableItems.length;
+  // An item is "returnable" if it still has qty remaining
+  const returnableItems = items.filter(item => !isItemFullyRefunded(item));
+  // Partial if not all returnable items are selected, or selected qty < remaining qty for any item
+  const isPartial = selectedCount > 0 && (
+    selectedCount < returnableItems.length ||
+    returnItems.some(ri => {
+      const origItem = items.find(it => it.sku === ri.sku);
+      return origItem && ri.qty < remainingQty(origItem);
+    })
+  );
 
   const confirmReturn = async () => {
     if (selectedCount === 0) { toast({ title: "No items selected", variant: "destructive" }); return; }
     const txId = "RET-" + Date.now().toString(36).toUpperCase();
-    const newRefundedSkus = [...new Set([...alreadyRefundedSkus, ...returnItems.map(i => i.sku)])];
-    const allRefunded = returnableItems.every(item => newRefundedSkus.includes(item.sku));
+
+    // Build updated refunded_qty map
+    const newRefundedQty = { ...refundedQty };
+    returnItems.forEach(ri => {
+      newRefundedQty[ri.sku] = (newRefundedQty[ri.sku] || 0) + ri.qty;
+    });
+
+    // All refunded if every item's total qty is covered
+    const allRefunded = items.every(item => (newRefundedQty[item.sku] || 0) >= item.qty);
 
     await base44.entities.Transaction.create({
       transaction_id: txId,
@@ -156,7 +173,7 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
     await base44.entities.Transaction.update(returnTransaction.id, {
       status: allRefunded ? "refunded" : "completed",
       refund_type: isPartial ? "partial" : "total",
-      refunded_skus: newRefundedSkus,
+      refunded_qty: newRefundedQty,
       ...(overrideOperator ? { override_operator_id: overrideOperator.operator_id, override_operator_name: overrideOperator.full_name } : {})
     });
 
@@ -194,10 +211,10 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
         <div className="flex-1 flex flex-col gap-3 overflow-hidden">
           {/* TX summary */}
           <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0 space-y-2">
-            {alreadyRefundedSkus.length > 0 && (
+            {Object.keys(refundedQty).length > 0 && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
                 <span className="text-amber-400 text-[10px] font-bold uppercase tracking-wider">⚠ Partial Refund Already Issued</span>
-                <span className="text-amber-300/70 text-[10px]">— grayed items already refunded</span>
+                <span className="text-amber-300/70 text-[10px]">— remaining qty shown per item</span>
               </div>
             )}
             {overrideOperator && (
@@ -224,14 +241,16 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
             <p className="text-blue-300/40 text-[10px] uppercase tracking-wider mb-2">Select Items to Return</p>
             <div className="space-y-2">
               {items.map((item, i) => {
-                const refunded = isItemRefunded(item);
+                const fullyRefunded = isItemFullyRefunded(item);
                 const expired = isItemExpired(i);
                 const needsOverride = expired && !overrideOperator;
                 const checked = selectedItems[i] !== undefined;
+                const alreadyReturnedQty = refundedQty[item.sku] || 0;
+                const maxReturnable = remainingQty(item);
                 return (
                   <div key={i}
                     className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${
-                      refunded
+                      fullyRefunded
                         ? "border-gray-700/30 bg-gray-800/20 opacity-40 cursor-not-allowed"
                         : needsOverride
                         ? "border-red-500/30 bg-red-500/5 cursor-pointer hover:border-red-500/50"
@@ -239,36 +258,41 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
                         ? "border-purple-500/40 bg-purple-500/10 cursor-pointer"
                         : "border-blue-500/10 bg-[#0a0e27] hover:border-blue-500/20 cursor-pointer"
                     }`}
-                    onClick={() => !refunded && toggleItem(i, item)}>
+                    onClick={() => !fullyRefunded && toggleItem(i, item)}>
                     {/* Checkbox / status icon */}
                     <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                      refunded ? "border-gray-600 bg-gray-700" :
+                      fullyRefunded ? "border-gray-600 bg-gray-700" :
                       needsOverride ? "border-red-500/50" :
                       checked ? "bg-purple-600 border-purple-500" : "border-blue-500/30"
                     }`}>
-                      {refunded && <span className="text-gray-400 text-[10px]">✕</span>}
-                      {!refunded && checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                      {fullyRefunded && <span className="text-gray-400 text-[10px]">✕</span>}
+                      {!fullyRefunded && checked && <span className="text-white text-[10px] font-bold">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-medium truncate ${refunded ? "text-gray-500" : "text-white"}`}>{item.name}</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-blue-300/40 text-[10px]">${item.price?.toFixed(2)} ea · orig qty: {item.qty}</p>
-                        {refunded && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already Refunded</span>}
+                      <p className={`text-xs font-medium truncate ${fullyRefunded ? "text-gray-500" : "text-white"}`}>{item.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-blue-300/40 text-[10px]">${item.price?.toFixed(2)} ea</p>
+                        {alreadyReturnedQty > 0 && !fullyRefunded
+                          ? <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyReturnedQty} of {item.qty} returned · {maxReturnable} left</span>
+                          : fullyRefunded
+                          ? <span className="text-[9px] text-red-400/70 font-bold uppercase">All {item.qty} returned</span>
+                          : <span className="text-blue-300/30 text-[10px]">qty: {item.qty}</span>
+                        }
                         {needsOverride && <span className="text-[9px] text-red-400 font-bold uppercase">⚠ Past Return Period</span>}
                       </div>
                     </div>
-                    {checked && !refunded && (
+                    {checked && !fullyRefunded && (
                       <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) - 1, item.qty)}
+                        <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) - 1, item)}
                           className="w-5 h-5 rounded bg-purple-600/30 text-purple-300 flex items-center justify-center hover:bg-purple-600/50 text-xs">−</button>
                         <span className="text-white text-xs w-5 text-center font-bold">{selectedItems[i]}</span>
-                        <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) + 1, item.qty)}
+                        <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) + 1, item)}
                           className="w-5 h-5 rounded bg-purple-600/30 text-purple-300 flex items-center justify-center hover:bg-purple-600/50 text-xs">+</button>
                       </div>
                     )}
-                    {!refunded && (
+                    {!fullyRefunded && (
                       <p className="text-purple-300 text-xs font-semibold w-14 text-right flex-shrink-0">
-                        {checked ? `$${(selectedItems[i] * item.price).toFixed(2)}` : `$${item.total?.toFixed(2)}`}
+                        {checked ? `$${(selectedItems[i] * item.price).toFixed(2)}` : `$${(maxReturnable * item.price).toFixed(2)}`}
                       </p>
                     )}
                   </div>
