@@ -120,7 +120,8 @@ export default function AdminRegisterLog() {
                           {cfg.label}
                         </span>
                         <span className="text-gray-400 text-xs font-mono w-20 flex-shrink-0">{time}</span>
-                        <span className="text-gray-700 text-sm font-medium w-36 truncate flex-shrink-0">{log.operator_name || "—"}</span>
+                        <span className="text-gray-700 text-sm font-medium w-28 truncate flex-shrink-0">{log.operator_name || "—"}</span>
+                        <span className="text-gray-400 text-xs font-mono w-20 truncate flex-shrink-0">{log.operator_id || "—"}</span>
                         <span className="text-gray-400 text-xs w-24 flex-shrink-0">{log.register_id}</span>
                         <span className="text-gray-500 text-xs flex-1 truncate">{log.detail}</span>
                         {log.transaction_total != null && (
@@ -155,6 +156,7 @@ export default function AdminRegisterLog() {
                 <div><p className="text-gray-400 text-xs">Time</p><p className="font-medium">{new Date(selectedLog.created_date).toLocaleString()}</p></div>
                 <div><p className="text-gray-400 text-xs">Register</p><p className="font-medium">{selectedLog.register_id}</p></div>
                 <div><p className="text-gray-400 text-xs">Operator</p><p className="font-medium">{selectedLog.operator_name}</p></div>
+                <div><p className="text-gray-400 text-xs">Operator ID</p><p className="font-mono text-xs">{selectedLog.operator_id}</p></div>
                 <div><p className="text-gray-400 text-xs">Role</p><p className="font-medium capitalize">{selectedLog.operator_role}</p></div>
               </div>
               {selectedLog.detail && (
