@@ -82,9 +82,9 @@ export default function AdminRemoteWorkstation() {
     setPinError("");
     setActionLoading(true);
     const ops = await base44.entities.Operator.filter({ pin: pinInput });
-    const sup = ops.find(o => o.role === "supervisor" || o.role === "admin");
+    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
     if (!sup) {
-      setPinError("Invalid PIN or insufficient role (supervisor/admin required)");
+      setPinError("Invalid PIN or insufficient role (CSM or Manager required)");
       setActionLoading(false);
       return;
     }
@@ -345,7 +345,7 @@ export default function AdminRemoteWorkstation() {
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Supervisor/Admin PIN</label>
+                <label className="text-sm font-medium text-gray-700 block mb-1">CSM / Manager PIN</label>
                 <Input
                   type="password"
                   placeholder="Enter PIN"
