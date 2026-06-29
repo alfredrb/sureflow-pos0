@@ -1,0 +1,43 @@
+{
+  "name": "CashAdvance",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string",
+      "description": "Register ID receiving the advance"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Amount of cash advanced"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for the cash advance"
+    },
+    "approved_by_id": {
+      "type": "string",
+      "description": "User ID who approved the advance"
+    },
+    "approved_by_name": {
+      "type": "string",
+      "description": "Name of user who approved the advance"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "withdrawn"
+      ],
+      "default": "pending",
+      "description": "Status of the cash advance"
+    }
+  },
+  "required": [
+    "register_id",
+    "amount"
+  ]
+}

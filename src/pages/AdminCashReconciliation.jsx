@@ -2,27 +2,62 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { TrendingDown, TrendingUp, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TrendingDown, TrendingUp, DollarSign, Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminCashReconciliation() {
   const [deposits, setDeposits] = useState([]);
+  const [registers, setRegisters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [advanceDialog, setAdvanceDialog] = useState(false);
+  const [advanceForm, setAdvanceForm] = useState({ register_id: "", amount: "", reason: "" });
+  const [advances, setAdvances] = useState([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    loadDeposits();
+    loadData();
   }, []);
 
-  const loadDeposits = async () => {
+  const loadData = async () => {
     try {
-      const data = await base44.entities.EODCashDeposit.list("-report_date");
-      setDeposits(data);
+      const [depositsData, registersData, advancesData] = await Promise.all([
+        base44.entities.EODCashDeposit.list("-report_date"),
+        base44.entities.Register.list(),
+        base44.entities.CashAdvance.list("-created_date")
+      ]);
+      setDeposits(depositsData);
+      setRegisters(registersData);
+      setAdvances(advancesData);
       setLoading(false);
     } catch (e) {
-      toast({ title: "Error loading deposits", variant: "destructive" });
+      toast({ title: "Error loading data", variant: "destructive" });
       setLoading(false);
+    }
+  };
+
+  const handleAdvance = async () => {
+    if (!advanceForm.register_id || !advanceForm.amount) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    try {
+      const register = registers.find(r => r.id === advanceForm.register_id);
+      await base44.entities.CashAdvance.create({
+        register_id: register?.register_id || "",
+        register_name: register?.name || "",
+        amount: parseFloat(advanceForm.amount),
+        reason: advanceForm.reason,
+        status: "approved"
+      });
+      toast({ title: "Cash advance recorded", description: `$${parseFloat(advanceForm.amount).toFixed(2)} to ${register?.name}` });
+      setAdvanceForm({ register_id: "", amount: "", reason: "" });
+      setAdvanceDialog(false);
+      loadData();
+    } catch (e) {
+      toast({ title: "Error creating advance", variant: "destructive" });
     }
   };
 
@@ -53,9 +88,14 @@ export default function AdminCashReconciliation() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Cash Reconciliation</h1>
-        <p className="text-gray-500 mt-2">Track register cash deposits, longs, and shorts</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Cash Reconciliation</h1>
+          <p className="text-gray-500 mt-2">Track register cash deposits, longs, shorts, and cash advances</p>
+        </div>
+        <Button onClick={() => setAdvanceDialog(true)} className="bg-blue-600 hover:bg-blue-700 flex gap-2">
+          <Plus className="w-4 h-4" /> Cash Advance
+        </Button>
       </div>
 
       <div className="space-y-4">
@@ -130,6 +170,57 @@ export default function AdminCashReconciliation() {
           })
         )}
       </div>
+
+      {/* Cash Advance Dialog */}
+      <Dialog open={advanceDialog} onOpenChange={setAdvanceDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Cash Advance</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Register</label>
+              <select
+                value={advanceForm.register_id}
+                onChange={(e) => setAdvanceForm({ ...advanceForm, register_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a register</option>
+                {registers.map((reg) => (
+                  <option key={reg.id} value={reg.id}>{reg.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={advanceForm.amount}
+                  onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+                  className="pl-7"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+              <Input
+                placeholder="e.g., Low cash float, unexpected spike"
+                value={advanceForm.reason}
+                onChange={(e) => setAdvanceForm({ ...advanceForm, reason: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setAdvanceDialog(false)} className="flex-1">Cancel</Button>
+              <Button onClick={handleAdvance} className="flex-1 bg-blue-600 hover:bg-blue-700">Record Advance</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
