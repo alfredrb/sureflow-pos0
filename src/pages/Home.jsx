@@ -4,7 +4,7 @@ import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Net
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex flex-col items-center justify-center p-6">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex flex-col items-center justify-center p-6 max-w-[1024px] max-h-[768px] mx-auto overflow-hidden">
       <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/30">
         <Monitor className="w-7 h-7 text-white" />
       </div>

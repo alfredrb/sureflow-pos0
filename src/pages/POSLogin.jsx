@@ -48,7 +48,7 @@ export default function POSLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] flex flex-col items-center justify-center p-4">
+    <div className="h-screen bg-[#0a0e27] flex flex-col items-center justify-center p-4 max-w-[1024px] max-h-[768px] mx-auto overflow-hidden">
       <div className="w-full max-w-sm">
         <button onClick={() => navigate("/pos")} className="text-blue-400/60 hover:text-blue-300 flex items-center gap-1 text-sm mb-8 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back

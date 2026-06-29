@@ -11,7 +11,7 @@ export default function POSWelcome() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="h-screen bg-[#0a0e27] flex flex-col items-center justify-center relative overflow-hidden max-w-[1024px] max-h-[768px] mx-auto">
       {/* Scanline effect */}
       <div className="absolute inset-0 pointer-events-none" style={{
         background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)"

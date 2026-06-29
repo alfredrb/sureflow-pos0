@@ -19,7 +19,7 @@ export default function AdminLayout() {
   const location = useLocation();
 
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className="h-screen flex bg-gray-50 max-w-[1366px] mx-auto">
       {/* Sidebar */}
       <aside className={`bg-[#0f172a] text-white flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-64"} flex-shrink-0`}>
         <div className="p-4 flex items-center justify-between border-b border-white/5">
