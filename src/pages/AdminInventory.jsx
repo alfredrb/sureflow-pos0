@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 
-const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active" };
+const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "" };
 
 export default function AdminInventory() {
   const [products, setProducts] = useState([]);
@@ -22,7 +22,7 @@ export default function AdminInventory() {
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditing(null); setForm({ ...emptyProduct }); setDialogOpen(true); };
-  const openEdit = (p) => { setEditing(p); setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active" }); setDialogOpen(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active", return_period_days: p.return_period_days ?? "" }); setDialogOpen(true); };
 
   const save = async () => {
     try {
@@ -132,6 +132,11 @@ export default function AdminInventory() {
                   <SelectItem value="discontinued">Discontinued</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Return Period (days)</label>
+              <Input type="number" min="0" placeholder="e.g. 30 — leave blank for no restriction" value={form.return_period_days} onChange={e => setForm({ ...form, return_period_days: e.target.value === "" ? "" : parseInt(e.target.value) || 0 })} />
+              <p className="text-xs text-gray-400 mt-1">Returns past this many days will require a supervisor override.</p>
             </div>
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Add"} Product</Button>
           </div>

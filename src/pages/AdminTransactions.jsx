@@ -212,6 +212,11 @@ export default function AdminTransactions() {
                     <div className="flex justify-between text-emerald-600 font-medium"><span>Change</span><span>${(detail.change_due || 0).toFixed(2)}</span></div>
                   </>
                 )}
+                {detail.override_operator_name && (
+                  <div className="flex justify-between text-amber-600 font-medium pt-1 border-t">
+                    <span>Return Override By</span><span>{detail.override_operator_name} ({detail.override_operator_id})</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

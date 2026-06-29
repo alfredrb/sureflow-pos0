@@ -30,40 +30,65 @@ function getKeysForSection(sectionId, functionKeys) {
 }
 
 // ── Returns Panel ────────────────────────────────────────────────────────────
-function ReturnsPanel({ operator, loadData, toast }) {
+function ReturnsPanel({ operator, products, loadData, toast }) {
   const [returnTxId, setReturnTxId] = useState("");
   const [returnTransaction, setReturnTransaction] = useState(null);
   const [searching, setSearching] = useState(false);
-  // selectedItems: { [index]: returnQty }
-  const [selectedItems, setSelectedItems] = useState({});
+  const [selectedItems, setSelectedItems] = useState({}); // { [index]: returnQty }
+  // Override flow
+  const [overrideDialog, setOverrideDialog] = useState(false);
+  const [overridePin, setOverridePin] = useState("");
+  const [overrideError, setOverrideError] = useState("");
+  const [overrideOperator, setOverrideOperator] = useState(null); // set after successful override
+  const [expiredItems, setExpiredItems] = useState([]); // indices of items past return period
 
   const lookUp = async () => {
     if (!returnTxId) return;
     setSearching(true);
     setReturnTransaction(null);
     setSelectedItems({});
+    setOverrideOperator(null);
+    setExpiredItems([]);
     const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId });
     if (results.length === 0) {
       toast({ title: "Not Found", description: "No transaction with that ID", variant: "destructive" });
     } else {
       const tx = results[0];
-      if (tx.status === "refunded") {
-        toast({ title: "Already Refunded", description: "This transaction has already been fully refunded and cannot be returned again.", variant: "destructive" });
-      } else if (tx.status === "voided") {
+      if (tx.status === "voided") {
         toast({ title: "Transaction Voided", description: "This transaction was voided and is not eligible for a return.", variant: "destructive" });
-      } else if (tx.refund_type === "partial") {
-        // Partial refund already applied — still allow but show warning
-        setReturnTransaction({ ...tx, _alreadyPartialRefund: true });
-      } else if (tx.status !== "completed") {
+      } else if (tx.status !== "completed" && tx.status !== "refunded") {
         toast({ title: "Not Eligible", description: `This transaction has status "${tx.status}" and cannot be returned.`, variant: "destructive" });
       } else {
+        // Check which items are past their return period
+        const txDate = new Date(tx.created_date);
+        const now = new Date();
+        const daysSinceTx = (now - txDate) / (1000 * 60 * 60 * 24);
+        const expired = [];
+        (tx.items || []).forEach((item, i) => {
+          const prod = products.find(p => p.sku === item.sku);
+          if (prod && prod.return_period_days && prod.return_period_days > 0) {
+            if (daysSinceTx > prod.return_period_days) expired.push(i);
+          }
+        });
+        setExpiredItems(expired);
         setReturnTransaction(tx);
       }
     }
     setSearching(false);
   };
 
+  const alreadyRefundedSkus = returnTransaction?.refunded_skus || [];
+
+  const isItemRefunded = (item) => alreadyRefundedSkus.includes(item.sku);
+  const isItemExpired = (i) => expiredItems.includes(i);
+
   const toggleItem = (i, item) => {
+    if (isItemRefunded(item)) return; // blocked
+    if (isItemExpired(i) && !overrideOperator) {
+      // Prompt for override
+      setOverrideDialog(true);
+      return;
+    }
     setSelectedItems(prev => {
       if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
       return { ...prev, [i]: item.qty };
@@ -75,9 +100,23 @@ function ReturnsPanel({ operator, loadData, toast }) {
     setSelectedItems(prev => ({ ...prev, [i]: val }));
   };
 
+  const handleOverrideSubmit = async () => {
+    setOverrideError("");
+    const ops = await base44.entities.Operator.filter({ pin: overridePin });
+    const sup = ops.find(o => o.role === "supervisor" || o.role === "admin");
+    if (!sup) {
+      setOverrideError("Invalid PIN or insufficient role (supervisor/admin required)");
+      return;
+    }
+    setOverrideOperator(sup);
+    setOverrideDialog(false);
+    setOverridePin("");
+    toast({ title: "Override Granted", description: `${sup.full_name} approved the return period override` });
+  };
+
   const items = returnTransaction?.items || [];
   const selectedCount = Object.keys(selectedItems).length;
-  const returnItems = items.filter((_, i) => selectedItems[i] !== undefined).map((item, _i) => {
+  const returnItems = items.filter((_, i) => selectedItems[i] !== undefined).map((item) => {
     const origIdx = items.indexOf(item);
     const qty = selectedItems[origIdx];
     const total = +(qty * item.price).toFixed(2);
@@ -86,12 +125,17 @@ function ReturnsPanel({ operator, loadData, toast }) {
   const returnSubtotal = returnItems.reduce((s, i) => s + i.total, 0);
   const returnTax = returnItems.reduce((s, i) => s + (i.total * ((i.tax_rate || 0) / 100)), 0);
   const returnTotal = +(returnSubtotal + returnTax).toFixed(2);
-  const isPartial = selectedCount > 0 && (selectedCount < items.length || returnItems.some((ri, idx) => ri.qty < items[idx]?.qty));
+
+  // Determine if all returnable items are now covered
+  const returnableItems = items.filter(item => !isItemRefunded(item));
+  const isPartial = selectedCount > 0 && selectedCount < returnableItems.length;
 
   const confirmReturn = async () => {
     if (selectedCount === 0) { toast({ title: "No items selected", variant: "destructive" }); return; }
     const txId = "RET-" + Date.now().toString(36).toUpperCase();
-    const refundType = isPartial ? "partial" : "total";
+    const newRefundedSkus = [...new Set([...alreadyRefundedSkus, ...returnItems.map(i => i.sku)])];
+    const allRefunded = returnableItems.every(item => newRefundedSkus.includes(item.sku));
+
     await base44.entities.Transaction.create({
       transaction_id: txId,
       operator_id: operator.operator_id,
@@ -103,17 +147,21 @@ function ReturnsPanel({ operator, loadData, toast }) {
       total: returnTotal,
       payment_method: returnTransaction.payment_method,
       status: "refunded",
-      refund_type: refundType,
+      refund_type: isPartial ? "partial" : "total",
       amount_tendered: returnTotal,
-      change_due: 0
+      change_due: 0,
+      ...(overrideOperator ? { override_operator_id: overrideOperator.operator_id, override_operator_name: overrideOperator.full_name } : {})
     });
-    // Mark original as refunded in both cases — status blocks further returns
+
     await base44.entities.Transaction.update(returnTransaction.id, {
-      status: "refunded",
-      refund_type: isPartial ? "partial" : "total"
+      status: allRefunded ? "refunded" : "completed",
+      refund_type: isPartial ? "partial" : "total",
+      refunded_skus: newRefundedSkus,
+      ...(overrideOperator ? { override_operator_id: overrideOperator.operator_id, override_operator_name: overrideOperator.full_name } : {})
     });
+
     toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned` });
-    setReturnTxId(""); setReturnTransaction(null); setSelectedItems({});
+    setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]);
     loadData();
   };
 
@@ -146,10 +194,22 @@ function ReturnsPanel({ operator, loadData, toast }) {
         <div className="flex-1 flex flex-col gap-3 overflow-hidden">
           {/* TX summary */}
           <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0 space-y-2">
-            {returnTransaction._alreadyPartialRefund && (
+            {alreadyRefundedSkus.length > 0 && (
               <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
                 <span className="text-amber-400 text-[10px] font-bold uppercase tracking-wider">⚠ Partial Refund Already Issued</span>
-                <span className="text-amber-300/70 text-[10px]">— only unreturned items are eligible</span>
+                <span className="text-amber-300/70 text-[10px]">— grayed items already refunded</span>
+              </div>
+            )}
+            {overrideOperator && (
+              <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                <span className="text-green-400 text-[10px] font-bold uppercase tracking-wider">✓ Override Approved</span>
+                <span className="text-green-300/70 text-[10px]">by {overrideOperator.full_name}</span>
+              </div>
+            )}
+            {expiredItems.length > 0 && !overrideOperator && (
+              <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">⚠ Return Period Expired</span>
+                <span className="text-red-300/70 text-[10px]">— flagged items require supervisor override to select</span>
               </div>
             )}
             <div className="grid grid-cols-3 gap-2 text-xs">
@@ -164,19 +224,40 @@ function ReturnsPanel({ operator, loadData, toast }) {
             <p className="text-blue-300/40 text-[10px] uppercase tracking-wider mb-2">Select Items to Return</p>
             <div className="space-y-2">
               {items.map((item, i) => {
+                const refunded = isItemRefunded(item);
+                const expired = isItemExpired(i);
+                const needsOverride = expired && !overrideOperator;
                 const checked = selectedItems[i] !== undefined;
                 return (
-                  <div key={i} className={`flex items-center gap-3 p-2 rounded-lg border transition-colors cursor-pointer ${checked ? "border-purple-500/40 bg-purple-500/10" : "border-blue-500/10 bg-[#0a0e27] hover:border-blue-500/20"}`}
-                    onClick={() => toggleItem(i, item)}>
-                    {/* Checkbox */}
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-purple-600 border-purple-500" : "border-blue-500/30"}`}>
-                      {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                  <div key={i}
+                    className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${
+                      refunded
+                        ? "border-gray-700/30 bg-gray-800/20 opacity-40 cursor-not-allowed"
+                        : needsOverride
+                        ? "border-red-500/30 bg-red-500/5 cursor-pointer hover:border-red-500/50"
+                        : checked
+                        ? "border-purple-500/40 bg-purple-500/10 cursor-pointer"
+                        : "border-blue-500/10 bg-[#0a0e27] hover:border-blue-500/20 cursor-pointer"
+                    }`}
+                    onClick={() => !refunded && toggleItem(i, item)}>
+                    {/* Checkbox / status icon */}
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                      refunded ? "border-gray-600 bg-gray-700" :
+                      needsOverride ? "border-red-500/50" :
+                      checked ? "bg-purple-600 border-purple-500" : "border-blue-500/30"
+                    }`}>
+                      {refunded && <span className="text-gray-400 text-[10px]">✕</span>}
+                      {!refunded && checked && <span className="text-white text-[10px] font-bold">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs font-medium truncate">{item.name}</p>
-                      <p className="text-blue-300/40 text-[10px]">${item.price?.toFixed(2)} ea · orig qty: {item.qty}</p>
+                      <p className={`text-xs font-medium truncate ${refunded ? "text-gray-500" : "text-white"}`}>{item.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-blue-300/40 text-[10px]">${item.price?.toFixed(2)} ea · orig qty: {item.qty}</p>
+                        {refunded && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already Refunded</span>}
+                        {needsOverride && <span className="text-[9px] text-red-400 font-bold uppercase">⚠ Past Return Period</span>}
+                      </div>
                     </div>
-                    {checked && (
+                    {checked && !refunded && (
                       <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                         <button onClick={() => setReturnQty(i, (selectedItems[i] || 1) - 1, item.qty)}
                           className="w-5 h-5 rounded bg-purple-600/30 text-purple-300 flex items-center justify-center hover:bg-purple-600/50 text-xs">−</button>
@@ -185,9 +266,11 @@ function ReturnsPanel({ operator, loadData, toast }) {
                           className="w-5 h-5 rounded bg-purple-600/30 text-purple-300 flex items-center justify-center hover:bg-purple-600/50 text-xs">+</button>
                       </div>
                     )}
-                    <p className="text-purple-300 text-xs font-semibold w-14 text-right flex-shrink-0">
-                      {checked ? `$${(selectedItems[i] * item.price).toFixed(2)}` : `$${item.total?.toFixed(2)}`}
-                    </p>
+                    {!refunded && (
+                      <p className="text-purple-300 text-xs font-semibold w-14 text-right flex-shrink-0">
+                        {checked ? `$${(selectedItems[i] * item.price).toFixed(2)}` : `$${item.total?.toFixed(2)}`}
+                      </p>
+                    )}
                   </div>
                 );
               })}
@@ -206,7 +289,7 @@ function ReturnsPanel({ operator, loadData, toast }) {
               <span className="text-white font-bold text-base">${returnTotal.toFixed(2)}</span>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => { setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); }}
+              <Button onClick={() => { setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); }}
                 variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10">Cancel</Button>
               <Button onClick={confirmReturn} disabled={selectedCount === 0}
                 className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold disabled:opacity-40">
@@ -221,6 +304,24 @@ function ReturnsPanel({ operator, loadData, toast }) {
           <p className="text-xs">Enter a Transaction ID above to begin a return</p>
         </div>
       )}
+
+      {/* Override Dialog */}
+      <Dialog open={overrideDialog} onOpenChange={v => { setOverrideDialog(v); if (!v) { setOverridePin(""); setOverrideError(""); } }}>
+        <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
+          <DialogHeader><DialogTitle className="text-red-400 text-sm">Return Period Override</DialogTitle></DialogHeader>
+          <p className="text-blue-300/60 text-xs">This item is past its return period. A supervisor or admin PIN is required to proceed.</p>
+          <Input
+            type="password"
+            placeholder="Supervisor PIN"
+            value={overridePin}
+            onChange={e => setOverridePin(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleOverrideSubmit()}
+            className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
+          />
+          {overrideError && <p className="text-red-400 text-xs text-center">{overrideError}</p>}
+          <Button onClick={handleOverrideSubmit} className="w-full bg-red-600 hover:bg-red-500 text-white">Authorize Override</Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -778,7 +879,7 @@ export default function POSRegister() {
           )}
 
           {posMode === "returns" && (
-            <ReturnsPanel operator={operator} loadData={loadData} toast={toast} />
+            <ReturnsPanel operator={operator} products={products} loadData={loadData} toast={toast} />
           )}
 
           {posMode === "exchange" && (

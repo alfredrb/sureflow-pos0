@@ -75,11 +75,26 @@
       ],
       "description": "Set on refunded/exchanged transactions"
     },
+    "refunded_skus": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "SKUs that have already been refunded from this transaction"
+    },
     "amount_tendered": {
       "type": "number"
     },
     "change_due": {
       "type": "number"
+    },
+    "override_operator_id": {
+      "type": "string",
+      "description": "Operator who approved a return-period override"
+    },
+    "override_operator_name": {
+      "type": "string",
+      "description": "Name of operator who approved a return-period override"
     }
   },
   "required": [
