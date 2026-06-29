@@ -106,9 +106,9 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
   const handleOverrideSubmit = async () => {
     setOverrideError("");
     const ops = await base44.entities.Operator.filter({ pin: overridePin });
-    const sup = ops.find(o => o.role === "supervisor" || o.role === "admin");
+    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
     if (!sup) {
-      setOverrideError("Invalid PIN or insufficient role (supervisor/admin required)");
+      setOverrideError("Invalid PIN or insufficient role (CSM/Manager required)");
       return;
     }
     setOverrideOperator(sup);
@@ -783,7 +783,7 @@ export default function POSRegister() {
   };
 
   const handleFunctionKey = (fkey) => {
-    if (fkey.requires_supervisor && operator?.role === "cashier") {
+    if (fkey.requires_supervisor && (operator?.role === "cashier")) {
       setPendingFunctionKey(fkey);
       setSupOverridePin("");
       setSupOverrideError("");
@@ -796,7 +796,7 @@ export default function POSRegister() {
   const handleSupOverrideSubmit = async () => {
     setSupOverrideError("");
     const ops = await base44.entities.Operator.filter({ pin: supOverridePin });
-    const sup = ops.find(o => o.role === "supervisor" || o.role === "admin");
+    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
     if (!sup) {
       setSupOverrideError("Invalid PIN or insufficient role");
       return;

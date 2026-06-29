@@ -17,8 +17,8 @@
       "type": "string",
       "enum": [
         "cashier",
-        "supervisor",
-        "admin"
+        "csm",
+        "manager"
       ],
       "default": "cashier"
     },

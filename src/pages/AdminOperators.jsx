@@ -48,7 +48,8 @@ export default function AdminOperators() {
 
   const filtered = operators.filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search));
 
-  const roleBadge = { admin: "bg-red-100 text-red-700", supervisor: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700" };
+  const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700" };
+  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier" };
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
@@ -79,7 +80,7 @@ export default function AdminOperators() {
                 <p className="text-xs text-gray-400">ID: {op.operator_id}</p>
               </div>
               <p className="text-sm text-gray-500">{op.email || "—"}</p>
-              <span className={`text-xs font-medium px-2 py-1 rounded-full w-fit ${roleBadge[op.role] || "bg-gray-100 text-gray-600"}`}>{op.role}</span>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full w-fit ${roleBadge[op.role] || "bg-gray-100 text-gray-600"}`}>{roleLabel[op.role] || op.role}</span>
               <div className="flex items-center gap-1.5">
                 {op.status === "active" ? <UserCheck className="w-3.5 h-3.5 text-emerald-500" /> : <UserX className="w-3.5 h-3.5 text-red-400" />}
                 <span className="text-xs text-gray-500">{op.status}</span>
@@ -122,8 +123,8 @@ export default function AdminOperators() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cashier">Cashier</SelectItem>
-                    <SelectItem value="supervisor">Supervisor</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="csm">CSM</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
