@@ -285,7 +285,7 @@ function ExchangePanel({ operator, products, loadData, toast }) {
     await base44.entities.Transaction.update(origTx.id, { refund_type: "exchange" });
     const msg = diff > 0 ? `Customer owes $${diff.toFixed(2)}` : diff < 0 ? `Refund $${Math.abs(diff).toFixed(2)} to customer` : "Even exchange";
     toast({ title: "Exchange Processed", description: `${exTxId} — ${msg}` });
-    setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart({}); setStep("lookup");
+    setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup");
     loadData();
   };
 
