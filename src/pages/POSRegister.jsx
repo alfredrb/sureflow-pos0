@@ -679,8 +679,14 @@ export default function POSRegister() {
   const [sidePreview, setSidePreview] = useState(null);
   // Tab-switch guard
   const [switchGuard, setSwitchGuard] = useState(null); // { targetMode } when pending confirmation
+  const [currentTime, setCurrentTime] = useState(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const writeLog = (eventType, detail, extra = {}) => {
     const op = operator || JSON.parse(sessionStorage.getItem("pos_operator") || "{}");
@@ -937,7 +943,7 @@ export default function POSRegister() {
     <div className="h-screen bg-[#0a0e27] flex flex-col overflow-hidden max-w-[1024px] max-h-[768px] mx-auto">
 
       {/* Top bar */}
-      <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0 relative">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -972,6 +978,11 @@ export default function POSRegister() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="absolute left-1/2 -translate-x-1/2 text-center leading-tight pointer-events-none">
+          <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
+          <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</p>
         </div>
 
         <div className="flex items-center gap-3">
