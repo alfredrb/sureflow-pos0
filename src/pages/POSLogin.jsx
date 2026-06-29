@@ -19,6 +19,7 @@ export default function POSLogin() {
   const [availableRegisters, setAvailableRegisters] = useState([]);
   const [detectedIp, setDetectedIp] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
+  const [forceConfig, setForceConfig] = useState(false); // true = skip PIN, auto-open register select
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -28,14 +29,30 @@ export default function POSLogin() {
     const onOffline = () => setOnline(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
-    // Load IP for current register on mount
-    const currentReg = sessionStorage.getItem("pos_register_num") || "REG-001";
-    base44.entities.Register.filter({ register_id: currentReg }).then(results => {
-      if (results.length > 0 && results[0].ip_address) {
-        setRegisterIp(results[0].ip_address);
-        sessionStorage.setItem("pos_register_ip", results[0].ip_address);
-      }
-    }).catch(() => {});
+    // Validate stored register on mount
+    const currentReg = sessionStorage.getItem("pos_register_num");
+    if (!currentReg) {
+      // No register configured at all — force config immediately
+      openForcedConfig();
+    } else {
+      base44.entities.Register.filter({ register_id: currentReg }).then(results => {
+        if (results.length === 0) {
+          // Register was deleted
+          toast({ title: "Register Not Found", description: `Register "${currentReg}" no longer exists. Please select a new register.`, variant: "destructive" });
+          openForcedConfig();
+        } else {
+          const reg = results[0];
+          if (reg.ip_address) {
+            setRegisterIp(reg.ip_address);
+            sessionStorage.setItem("pos_register_ip", reg.ip_address);
+          }
+          if (reg.status === "offline" || reg.status === "maintenance") {
+            toast({ title: "Register Unavailable", description: `Register "${currentReg}" is ${reg.status}. Please select an available register.`, variant: "destructive" });
+            openForcedConfig();
+          }
+        }
+      }).catch(() => {});
+    }
     return () => { clearInterval(t); window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
   }, []);
 
@@ -53,7 +70,22 @@ export default function POSLogin() {
     setTimeout(() => resolve(null), 3000);
   });
 
+  const openForcedConfig = async () => {
+    setForceConfig(true);
+    setShowConfig(true);
+    setConfigUnlocked(true);
+    setConfigLoading(true);
+    const [registers, ip] = await Promise.all([
+      base44.entities.Register.list(),
+      getLocalIP()
+    ]);
+    setAvailableRegisters(registers);
+    setDetectedIp(ip);
+    setConfigLoading(false);
+  };
+
   const handleConfigOpen = () => {
+    setForceConfig(false);
     setShowConfig(true);
     setConfigPin("");
     setConfigUnlocked(false);
@@ -235,7 +267,7 @@ export default function POSLogin() {
           <div className="bg-[#111638] border border-blue-500/10 rounded-2xl p-6 w-full max-w-xs space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Settings className="w-4 h-4 text-blue-400" />
-              <h3 className="text-white font-semibold text-sm">Configuration Options</h3>
+              <h3 className="text-white font-semibold text-sm">{forceConfig ? "Select Register" : "Configuration Options"}</h3>
             </div>
 
             {!configUnlocked ? (
@@ -309,9 +341,11 @@ export default function POSLogin() {
               </div>
             )}
 
-            <button onClick={() => setShowConfig(false)} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center mt-2">
-              Cancel
-            </button>
+            {!forceConfig && (
+              <button onClick={() => setShowConfig(false)} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center mt-2">
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       )}
