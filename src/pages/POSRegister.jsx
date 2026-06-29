@@ -42,9 +42,24 @@ function ReturnsPanel({ operator, loadData, toast }) {
     setSearching(true);
     setReturnTransaction(null);
     setSelectedItems({});
-    const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId, status: "completed" });
-    if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
-    else setReturnTransaction(results[0]);
+    const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId });
+    if (results.length === 0) {
+      toast({ title: "Not Found", description: "No transaction with that ID", variant: "destructive" });
+    } else {
+      const tx = results[0];
+      if (tx.status === "refunded") {
+        toast({ title: "Already Refunded", description: "This transaction has already been fully refunded and cannot be returned again.", variant: "destructive" });
+      } else if (tx.status === "voided") {
+        toast({ title: "Transaction Voided", description: "This transaction was voided and is not eligible for a return.", variant: "destructive" });
+      } else if (tx.refund_type === "partial") {
+        // Partial refund already applied — still allow but show warning
+        setReturnTransaction({ ...tx, _alreadyPartialRefund: true });
+      } else if (tx.status !== "completed") {
+        toast({ title: "Not Eligible", description: `This transaction has status "${tx.status}" and cannot be returned.`, variant: "destructive" });
+      } else {
+        setReturnTransaction(tx);
+      }
+    }
     setSearching(false);
   };
 
@@ -92,12 +107,11 @@ function ReturnsPanel({ operator, loadData, toast }) {
       amount_tendered: returnTotal,
       change_due: 0
     });
-    // Only mark original as refunded if it's a total return
-    if (!isPartial) {
-      await base44.entities.Transaction.update(returnTransaction.id, { status: "refunded", refund_type: "total" });
-    } else {
-      await base44.entities.Transaction.update(returnTransaction.id, { refund_type: "partial" });
-    }
+    // Mark original as refunded in both cases — status blocks further returns
+    await base44.entities.Transaction.update(returnTransaction.id, {
+      status: "refunded",
+      refund_type: isPartial ? "partial" : "total"
+    });
     toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned` });
     setReturnTxId(""); setReturnTransaction(null); setSelectedItems({});
     loadData();
@@ -131,7 +145,13 @@ function ReturnsPanel({ operator, loadData, toast }) {
       {returnTransaction ? (
         <div className="flex-1 flex flex-col gap-3 overflow-hidden">
           {/* TX summary */}
-          <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0">
+          <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0 space-y-2">
+            {returnTransaction._alreadyPartialRefund && (
+              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                <span className="text-amber-400 text-[10px] font-bold uppercase tracking-wider">⚠ Partial Refund Already Issued</span>
+                <span className="text-amber-300/70 text-[10px]">— only unreturned items are eligible</span>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div><p className="text-blue-300/40 text-[10px]">TX ID</p><p className="text-white font-mono text-[10px]">{returnTransaction.transaction_id}</p></div>
               <div><p className="text-blue-300/40 text-[10px]">Payment</p><p className="text-white capitalize">{returnTransaction.payment_method}</p></div>
