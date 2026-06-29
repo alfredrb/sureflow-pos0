@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench } from "lucide-react";
+import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench, ToggleLeft, ToggleRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 
-const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "" };
+const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", feature_returns: false, feature_customer_service: false };
+
+const FEATURES = [
+  { key: "feature_returns", label: "Returns / Refunds", description: "Allow cashiers to process item returns" },
+  { key: "feature_customer_service", label: "Customer Service Mode", description: "Enable CS mode features (baseline)" },
+];
 
 export default function AdminRegisters() {
   const [registers, setRegisters] = useState([]);
@@ -27,7 +32,7 @@ export default function AdminRegisters() {
   const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
-    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "" });
+    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false });
     setDialogOpen(true);
   };
 
@@ -119,6 +124,28 @@ export default function AdminRegisters() {
                   {operators.map(op => <SelectItem key={op.id} value={op.full_name}>{op.full_name} ({op.operator_id})</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Feature Configuration</h3>
+              <div className="space-y-2">
+                {FEATURES.map(f => (
+                  <div key={f.key} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 bg-gray-50">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{f.label}</p>
+                      <p className="text-xs text-gray-400">{f.description}</p>
+                    </div>
+                    <button
+                      onClick={() => setForm(prev => ({ ...prev, [f.key]: !prev[f.key] }))}
+                      className="flex-shrink-0"
+                    >
+                      {form[f.key]
+                        ? <ToggleRight className="w-8 h-8 text-blue-600" />
+                        : <ToggleLeft className="w-8 h-8 text-gray-300" />
+                      }
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="border-t pt-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Network Configuration</h3>

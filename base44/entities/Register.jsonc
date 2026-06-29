@@ -31,6 +31,16 @@
     },
     "assigned_operator": {
       "type": "string"
+    },
+    "feature_returns": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable Returns / Refunds on this register"
+    },
+    "feature_customer_service": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable Customer Service Mode on this register"
     }
   },
   "required": [

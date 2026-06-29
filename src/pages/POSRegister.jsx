@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
-const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund"];
+const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "return"];
 const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [
@@ -45,6 +45,11 @@ export default function POSRegister() {
   const [qtyDialog, setQtyDialog] = useState(false);
   const [qtyValue, setQtyValue] = useState("1");
   const [activeSection, setActiveSection] = useState("sale");
+  const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false });
+  const [returnDialog, setReturnDialog] = useState(false);
+  const [returnTxId, setReturnTxId] = useState("");
+  const [returnTransaction, setReturnTransaction] = useState(null);
+  const [returnSearchLoading, setReturnSearchLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -56,12 +61,17 @@ export default function POSRegister() {
   }, []);
 
   const loadData = async () => {
-    const [prods, fkeys] = await Promise.all([
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const [prods, fkeys, regs] = await Promise.all([
       base44.entities.Product.filter({ status: "active" }),
-      base44.entities.FunctionKey.list("key_number")
+      base44.entities.FunctionKey.list("key_number"),
+      base44.entities.Register.filter({ register_id: registerId })
     ]);
     setProducts(prods);
     setFunctionKeys(fkeys);
+    if (regs.length > 0) {
+      setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false });
+    }
     const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
     setCategories(cats);
     setLoading(false);
@@ -103,6 +113,13 @@ export default function POSRegister() {
       case "subtotal": toast({ title: "Subtotal", description: `$${subtotal.toFixed(2)}` }); break;
       case "quantity": setQtyDialog(true); break;
       case "no_sale": toast({ title: "No Sale", description: "Cash drawer opened" }); break;
+      case "return":
+        if (!registerFeatures.feature_returns) {
+          toast({ title: "Feature Disabled", description: "Returns are not enabled on this register", variant: "destructive" });
+        } else {
+          setReturnDialog(true); setReturnTxId(""); setReturnTransaction(null);
+        }
+        break;
       case "tax_exempt":
         setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
         toast({ title: "Tax Exempt Applied" });
@@ -163,7 +180,19 @@ export default function POSRegister() {
     }
   };
 
-  const visibleKeys = getKeysForSection(activeSection, functionKeys);
+  // Build dynamic non-sale keys including register-feature-gated ones
+  const getEffectiveKeys = (sectionId) => {
+    const keys = getKeysForSection(sectionId, functionKeys);
+    if (sectionId === "non_sale" && registerFeatures.feature_returns) {
+      const hasReturn = keys.some(k => k.action === "return");
+      if (!hasReturn) {
+        keys.push({ id: "builtin-return", key_number: 99, label: "Return", action: "return", color: "#7c3aed", requires_supervisor: true });
+      }
+    }
+    return keys;
+  };
+
+  const visibleKeys = getEffectiveKeys(activeSection);
   // Pad to 9 slots for 3x3 grid
   const gridSlots = [...visibleKeys.slice(0, 9)];
   while (gridSlots.length < 9) gridSlots.push(null);
@@ -184,7 +213,9 @@ export default function POSRegister() {
             <ShoppingCart className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-white font-bold text-sm">SurePOS</span>
-          <span className="text-blue-300/40 text-[10px]">REG-001</span>
+          <span className="text-blue-300/40 text-[10px]">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
+          {registerFeatures.feature_returns && <span className="text-[9px] bg-purple-600/20 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-full">RETURNS</span>}
+          {registerFeatures.feature_customer_service && <span className="text-[9px] bg-amber-600/20 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full">CS MODE</span>}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-blue-200/60 text-xs">{operator?.full_name} ({operator?.role})</span>
@@ -388,6 +419,97 @@ export default function POSRegister() {
               className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl">
               Complete Sale
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return Dialog */}
+      <Dialog open={returnDialog} onOpenChange={v => { setReturnDialog(v); if (!v) { setReturnTxId(""); setReturnTransaction(null); } }}>
+        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white text-sm flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-purple-400" /> Process Return
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-blue-300/60 text-[10px] mb-1 block uppercase tracking-wider">Transaction ID</label>
+              <div className="flex gap-2">
+                <Input
+                  value={returnTxId}
+                  onChange={e => setReturnTxId(e.target.value.toUpperCase())}
+                  placeholder="TX-XXXXXXXX"
+                  className="bg-[#0a0e27] border-blue-500/10 text-white font-mono"
+                />
+                <Button
+                  disabled={returnSearchLoading || !returnTxId}
+                  onClick={async () => {
+                    setReturnSearchLoading(true);
+                    setReturnTransaction(null);
+                    try {
+                      const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId, status: "completed" });
+                      if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
+                      else setReturnTransaction(results[0]);
+                    } catch { toast({ title: "Error", variant: "destructive" }); }
+                    setReturnSearchLoading(false);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-500 flex-shrink-0"
+                >
+                  Look Up
+                </Button>
+              </div>
+            </div>
+
+            {returnTransaction && (
+              <div className="bg-[#0a0e27] rounded-xl p-3 border border-blue-500/10 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-300/50">Transaction</span>
+                  <span className="text-white font-mono">{returnTransaction.transaction_id}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-300/50">Operator</span>
+                  <span className="text-white">{returnTransaction.operator_name}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-300/50">Total Paid</span>
+                  <span className="text-white font-semibold">${returnTransaction.total?.toFixed(2)}</span>
+                </div>
+                <div className="border-t border-blue-500/10 pt-2 space-y-1">
+                  {(returnTransaction.items || []).map((item, i) => (
+                    <div key={i} className="flex justify-between text-[10px]">
+                      <span className="text-blue-200/60">{item.qty}× {item.name}</span>
+                      <span className="text-blue-200/60">${item.total?.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold mt-1"
+                  onClick={async () => {
+                    const txId = "RET-" + Date.now().toString(36).toUpperCase();
+                    await base44.entities.Transaction.create({
+                      transaction_id: txId,
+                      operator_id: operator.operator_id,
+                      operator_name: operator.full_name,
+                      register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+                      items: returnTransaction.items,
+                      subtotal: returnTransaction.subtotal,
+                      tax: returnTransaction.tax,
+                      total: returnTransaction.total,
+                      payment_method: returnTransaction.payment_method,
+                      status: "refunded",
+                      amount_tendered: returnTransaction.total,
+                      change_due: 0
+                    });
+                    await base44.entities.Transaction.update(returnTransaction.id, { status: "refunded" });
+                    toast({ title: "Return Processed", description: `Refund ${txId} — $${returnTransaction.total?.toFixed(2)} returned` });
+                    setReturnDialog(false); setReturnTxId(""); setReturnTransaction(null);
+                    loadData();
+                  }}
+                >
+                  Confirm Return — ${returnTransaction.total?.toFixed(2)}
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
