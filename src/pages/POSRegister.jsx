@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import POSCartItem from "@/components/POSCartItem";
+import SODProtocolModal from "@/components/SODProtocolModal";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund"];
@@ -682,6 +683,7 @@ export default function POSRegister() {
   const [switchGuard, setSwitchGuard] = useState(null); // { targetMode } when pending confirmation
   const [currentTime, setCurrentTime] = useState(new Date());
   const [discounts, setDiscounts] = useState([]);
+  const [sodModal, setSODModal] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -722,6 +724,20 @@ export default function POSRegister() {
     const parsed = JSON.parse(op);
     setOperator(parsed);
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    
+    // Check if SOD is needed
+    const checkSOD = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const sodRecord = await base44.entities.SODProtocol.filter({ 
+        protocol_date: today, 
+        register_id: registerId,
+        status: "completed"
+      });
+      if (sodRecord.length === 0) {
+        setSODModal(true);
+      }
+    };
+    
     base44.entities.RegisterLog.create({
       event_type: "login",
       operator_id: parsed.operator_id || "",
@@ -731,6 +747,7 @@ export default function POSRegister() {
       detail: `${parsed.full_name} logged into ${registerId}`
     });
     loadData();
+    checkSOD();
   }, []);
 
   const loadData = async () => {
@@ -1450,6 +1467,18 @@ export default function POSRegister() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* SOD Protocol Modal */}
+      {operator && (
+        <SODProtocolModal 
+          isOpen={sodModal} 
+          registerId={sessionStorage.getItem("pos_register_num") || "REG-001"}
+          registerName={operator?.register_name || "REG-001"}
+          operatorId={operator?.operator_id || ""}
+          operatorName={operator?.full_name || ""}
+          onComplete={() => setSODModal(false)}
+        />
+      )}
 
       {/* Quantity Dialog */}
       <Dialog open={qtyDialog} onOpenChange={setQtyDialog}>

@@ -1,0 +1,44 @@
+{
+  "name": "EODCashDeposit",
+  "type": "object",
+  "properties": {
+    "report_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the EOD report"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "expected_cash": {
+      "type": "number",
+      "description": "Expected cash from transactions (revenue minus credit/debit)"
+    },
+    "actual_cash_deposited": {
+      "type": "number",
+      "description": "Actual cash operator deposited"
+    },
+    "difference": {
+      "type": "number",
+      "description": "Difference: actual - expected (positive=over/long, negative=short)"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Operator notes about variance"
+    }
+  },
+  "required": [
+    "report_date",
+    "register_id",
+    "operator_id"
+  ]
+}

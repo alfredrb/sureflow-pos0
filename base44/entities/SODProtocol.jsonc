@@ -1,0 +1,42 @@
+{
+  "name": "SODProtocol",
+  "type": "object",
+  "properties": {
+    "protocol_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the SOD"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "cash_deposited_from_eod": {
+      "type": "number",
+      "description": "Total cash deposited at previous EOD"
+    },
+    "till_starting_balance": {
+      "type": "number",
+      "description": "Starting cash in till for new day"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "pending"
+      ],
+      "default": "pending",
+      "description": "SOD completion status"
+    }
+  },
+  "required": [
+    "protocol_date",
+    "register_id",
+    "operator_id"
+  ]
+}

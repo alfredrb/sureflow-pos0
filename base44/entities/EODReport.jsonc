@@ -1,0 +1,80 @@
+{
+  "name": "EODReport",
+  "type": "object",
+  "properties": {
+    "report_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the EOD report (YYYY-MM-DD)"
+    },
+    "total_transactions": {
+      "type": "number",
+      "description": "Total number of transactions"
+    },
+    "total_revenue": {
+      "type": "number",
+      "description": "Total revenue from all transactions"
+    },
+    "total_refunds": {
+      "type": "number",
+      "description": "Total refund amount"
+    },
+    "net_revenue": {
+      "type": "number",
+      "description": "Revenue minus refunds"
+    },
+    "total_items_sold": {
+      "type": "number",
+      "description": "Total quantity of items sold"
+    },
+    "category_sales": {
+      "type": "object",
+      "description": "Items sold by category: {category: qty}",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "category_revenue": {
+      "type": "object",
+      "description": "Revenue by category: {category: amount}",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "register_details": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "register_id": {
+            "type": "string"
+          },
+          "register_name": {
+            "type": "string"
+          },
+          "transactions": {
+            "type": "number"
+          },
+          "revenue": {
+            "type": "number"
+          },
+          "refunds": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true
+      },
+      "description": "Sales details per register"
+    },
+    "payment_breakdown": {
+      "type": "object",
+      "description": "Revenue by payment method: {method: amount}",
+      "additionalProperties": {
+        "type": "number"
+      }
+    }
+  },
+  "required": [
+    "report_date"
+  ]
+}
