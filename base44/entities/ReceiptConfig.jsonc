@@ -1,0 +1,50 @@
+{
+  "name": "ReceiptConfig",
+  "type": "object",
+  "properties": {
+    "store_name": {
+      "type": "string"
+    },
+    "store_address": {
+      "type": "string"
+    },
+    "store_phone": {
+      "type": "string"
+    },
+    "header_line_1": {
+      "type": "string"
+    },
+    "header_line_2": {
+      "type": "string"
+    },
+    "footer_line_1": {
+      "type": "string"
+    },
+    "footer_line_2": {
+      "type": "string"
+    },
+    "show_operator_name": {
+      "type": "boolean",
+      "default": true
+    },
+    "show_date_time": {
+      "type": "boolean",
+      "default": true
+    },
+    "show_register_id": {
+      "type": "boolean",
+      "default": true
+    },
+    "show_tax_breakdown": {
+      "type": "boolean",
+      "default": true
+    },
+    "show_barcode": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "store_name"
+  ]
+}

@@ -1,228 +1,83 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import AuthLayout from "@/components/AuthLayout";
-import GoogleIcon from "@/components/GoogleIcon";
-import { toast } from "@/components/ui/use-toast";
+import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Monitor, Loader2 } from 'lucide-react';
 
 export default function Register() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState('register');
   const [loading, setLoading] = useState(false);
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    setError("");
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-    setLoading(true);
+    if (password !== confirm) { setError('Passwords do not match'); return; }
+    setLoading(true); setError('');
     try {
       await base44.auth.register({ email, password });
-      setShowOtp(true);
+      setStep('otp');
     } catch (err) {
-      setError(err.message || "Registration failed");
-    } finally {
-      setLoading(false);
+      setError(err.message || 'Registration failed');
     }
+    setLoading(false);
   };
 
-  const handleVerify = async () => {
-    setError("");
-    setLoading(true);
+  const handleOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-      }
-      window.location.href = "/";
+      const { access_token } = await base44.auth.verifyOtp({ email, otpCode: otp });
+      base44.auth.setToken(access_token);
+      window.location.href = '/';
     } catch (err) {
-      setError(err.message || "Invalid verification code");
-    } finally {
-      setLoading(false);
+      setError(err.message || 'Invalid code');
     }
+    setLoading(false);
   };
 
-  const handleResend = async () => {
-    setError("");
-    try {
-      await base44.auth.resendOtp(email);
-      toast({
-        title: "Code sent",
-        description: "Check your email for the new code.",
-      });
-    } catch (err) {
-      setError(err.message || "Failed to resend code");
-    }
+  const resend = async () => {
+    try { await base44.auth.resendOtp(email); } catch {}
   };
-
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
-  };
-
-  if (showOtp) {
-    return (
-      <AuthLayout
-        icon={Mail}
-        title="Verify your email"
-        subtitle={`We sent a code to ${email}`}
-      >
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-            {error}
-          </div>
-        )}
-        <div className="flex justify-center mb-6">
-          <InputOTP
-            maxLength={6}
-            value={otpCode}
-            onChange={setOtpCode}
-            autoFocus
-            autoComplete="one-time-code"
-          >
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
-        </div>
-        <Button
-          className="w-full h-12 font-medium"
-          onClick={handleVerify}
-          disabled={loading || otpCode.length < 6}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            "Verify"
-          )}
-        </Button>
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          Didn't receive the code?{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Resend
-          </button>
-        </p>
-      </AuthLayout>
-    );
-  }
 
   return (
-    <AuthLayout
-      icon={UserPlus}
-      title="Create your account"
-      subtitle="Sign up to get started"
-      footer={
-        <>
-          Already have an account?{" "}
-          <Link to="/login" className="text-primary font-medium hover:underline">
-            Log in
-          </Link>
-        </>
-      }
-    >
-      <Button
-        variant="outline"
-        className="w-full h-12 text-sm font-medium mb-6"
-        onClick={handleGoogle}
-      >
-        <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
-      </Button>
-
-      <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-3 justify-center mb-8">
+          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center"><Monitor className="w-5 h-5 text-white" /></div>
+          <span className="text-white text-xl font-bold">SurePOS</span>
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-3 text-muted-foreground">or</span>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              autoFocus
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirm">Confirm Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="confirm"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
-        </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-          {loading ? (
+        <div className="bg-white rounded-2xl p-6 shadow-xl">
+          {step === 'register' ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating account...
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Create Account</h2>
+              <p className="text-gray-500 text-sm mb-6">Register for management access</p>
+              {error && <p className="text-red-600 text-sm mb-4 bg-red-50 p-3 rounded-lg">{error}</p>}
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div><label className="text-sm font-medium text-gray-700 mb-1 block">Email</label><Input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <div><label className="text-sm font-medium text-gray-700 mb-1 block">Password</label><Input type="password" value={password} onChange={e => setPassword(e.target.value)} required /></div>
+                <div><label className="text-sm font-medium text-gray-700 mb-1 block">Confirm Password</label><Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required /></div>
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Register"}</Button>
+              </form>
+              <p className="mt-4 text-center text-sm text-gray-500">Already have an account? <a href="/login" className="text-blue-600 hover:underline">Sign in</a></p>
             </>
           ) : (
-            "Create account"
+            <>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Verify Email</h2>
+              <p className="text-gray-500 text-sm mb-6">Enter the code sent to {email}</p>
+              {error && <p className="text-red-600 text-sm mb-4 bg-red-50 p-3 rounded-lg">{error}</p>}
+              <form onSubmit={handleOtp} className="space-y-4">
+                <Input value={otp} onChange={e => setOtp(e.target.value)} placeholder="Enter code" className="text-center text-xl tracking-widest" required />
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify"}</Button>
+              </form>
+              <button onClick={resend} className="mt-3 text-sm text-blue-600 hover:underline w-full text-center">Resend code</button>
+            </>
           )}
-        </Button>
-      </form>
-    </AuthLayout>
+        </div>
+      </div>
+    </div>
   );
 }

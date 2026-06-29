@@ -1,0 +1,40 @@
+{
+  "name": "Register",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "online",
+        "offline",
+        "maintenance"
+      ],
+      "default": "offline"
+    },
+    "ip_address": {
+      "type": "string"
+    },
+    "subnet_mask": {
+      "type": "string"
+    },
+    "gateway": {
+      "type": "string"
+    },
+    "assigned_operator": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "register_id",
+    "name"
+  ]
+}

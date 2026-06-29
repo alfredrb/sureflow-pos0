@@ -1,0 +1,81 @@
+{
+  "name": "Transaction",
+  "type": "object",
+  "properties": {
+    "transaction_id": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number"
+    },
+    "tax": {
+      "type": "number"
+    },
+    "total": {
+      "type": "number"
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "cash",
+        "credit",
+        "debit",
+        "check"
+      ],
+      "default": "cash"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "voided",
+        "refunded"
+      ],
+      "default": "completed"
+    },
+    "amount_tendered": {
+      "type": "number"
+    },
+    "change_due": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "transaction_id",
+    "operator_id",
+    "register_id",
+    "total"
+  ]
+}

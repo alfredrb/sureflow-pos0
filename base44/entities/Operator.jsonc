@@ -1,0 +1,43 @@
+{
+  "name": "Operator",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string",
+      "description": "Unique operator login ID"
+    },
+    "full_name": {
+      "type": "string"
+    },
+    "pin": {
+      "type": "string",
+      "description": "Login PIN"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "cashier",
+        "supervisor",
+        "admin"
+      ],
+      "default": "cashier"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active"
+    },
+    "email": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "operator_id",
+    "full_name",
+    "pin",
+    "role"
+  ]
+}

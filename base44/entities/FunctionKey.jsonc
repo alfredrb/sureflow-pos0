@@ -1,0 +1,46 @@
+{
+  "name": "FunctionKey",
+  "type": "object",
+  "properties": {
+    "key_number": {
+      "type": "number"
+    },
+    "label": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "void_item",
+        "void_transaction",
+        "discount_item",
+        "discount_total",
+        "price_check",
+        "no_sale",
+        "subtotal",
+        "tax_exempt",
+        "price_override",
+        "quantity",
+        "repeat_last",
+        "suspend",
+        "resume",
+        "refund",
+        "none"
+      ],
+      "default": "none"
+    },
+    "color": {
+      "type": "string",
+      "default": "#374151"
+    },
+    "requires_supervisor": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "key_number",
+    "label",
+    "action"
+  ]
+}

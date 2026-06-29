@@ -1,0 +1,147 @@
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Plus, Edit2, Trash2, Search, UserCheck, UserX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
+
+export default function AdminOperators() {
+  const [operators, setOperators] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" });
+  const { toast } = useToast();
+
+  const load = async () => {
+    setOperators(await base44.entities.Operator.list());
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" }); setDialogOpen(true); };
+  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "" }); setDialogOpen(true); };
+
+  const save = async () => {
+    try {
+      if (editing) {
+        await base44.entities.Operator.update(editing.id, form);
+        toast({ title: "Operator updated" });
+      } else {
+        await base44.entities.Operator.create(form);
+        toast({ title: "Operator created" });
+      }
+      setDialogOpen(false); load();
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
+  };
+
+  const remove = async (op) => {
+    if (!confirm(`Delete operator ${op.full_name}?`)) return;
+    await base44.entities.Operator.delete(op.id);
+    toast({ title: "Operator deleted" }); load();
+  };
+
+  const filtered = operators.filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search));
+
+  const roleBadge = { admin: "bg-red-100 text-red-700", supervisor: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700" };
+
+  if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
+
+  return (
+    <div className="p-6 lg:p-8 max-w-5xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Operator Management</h1>
+          <p className="text-gray-500 text-sm mt-1">{operators.length} operators</p>
+        </div>
+        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> Add Operator</Button>
+      </div>
+
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Input placeholder="Search operators..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[1fr_1fr_100px_100px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <span>Operator</span><span>Email</span><span>Role</span><span>Status</span><span></span>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {filtered.map(op => (
+            <div key={op.id} className="grid grid-cols-[1fr_1fr_100px_100px_80px] gap-4 px-5 py-3.5 items-center hover:bg-gray-50/50">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{op.full_name}</p>
+                <p className="text-xs text-gray-400">ID: {op.operator_id}</p>
+              </div>
+              <p className="text-sm text-gray-500">{op.email || "—"}</p>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full w-fit ${roleBadge[op.role] || "bg-gray-100 text-gray-600"}`}>{op.role}</span>
+              <div className="flex items-center gap-1.5">
+                {op.status === "active" ? <UserCheck className="w-3.5 h-3.5 text-emerald-500" /> : <UserX className="w-3.5 h-3.5 text-red-400" />}
+                <span className="text-xs text-gray-500">{op.status}</span>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editing ? "Edit Operator" : "New Operator"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Operator ID</label>
+                <Input value={form.operator_id} onChange={e => setForm({ ...form, operator_id: e.target.value })} placeholder="e.g. 004" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">PIN</label>
+                <Input value={form.pin} onChange={e => setForm({ ...form, pin: e.target.value })} placeholder="e.g. 1234" type="password" />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Full Name</label>
+              <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
+              <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Role</label>
+                <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cashier">Cashier</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
+                <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Create"} Operator</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

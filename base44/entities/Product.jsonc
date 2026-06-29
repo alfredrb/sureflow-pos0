@@ -1,0 +1,45 @@
+{
+  "name": "Product",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "price": {
+      "type": "number"
+    },
+    "cost": {
+      "type": "number"
+    },
+    "category": {
+      "type": "string"
+    },
+    "barcode": {
+      "type": "string"
+    },
+    "stock_qty": {
+      "type": "number",
+      "default": 0
+    },
+    "tax_rate": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "discontinued"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "sku",
+    "name",
+    "price"
+  ]
+}
