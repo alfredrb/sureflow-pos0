@@ -366,21 +366,29 @@ function ExchangePanel({ operator, products, loadData, toast }) {
     if (!txId) return;
     setSearching(true);
     setOrigTx(null); setReturnSel({}); setReplaceCart([]);
-    const results = await base44.entities.Transaction.filter({ transaction_id: txId, status: "completed" });
-    if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
-    else { setOrigTx(results[0]); setStep("select"); }
+    // Allow looking up completed OR partially-refunded (still "completed") transactions
+    const results = await base44.entities.Transaction.filter({ transaction_id: txId });
+    const valid = results.filter(t => t.status === "completed");
+    if (valid.length === 0) toast({ title: "Not Found", description: "No eligible transaction with that ID", variant: "destructive" });
+    else { setOrigTx(valid[0]); setStep("select"); }
     setSearching(false);
   };
 
+  const refundedQty = origTx?.refunded_qty || {};
+  const remainingQty = (item) => item.qty - (refundedQty[item.sku] || 0);
+  const isFullyRefunded = (item) => remainingQty(item) <= 0;
+
   const toggleReturn = (i, item) => {
+    if (isFullyRefunded(item)) return;
     setReturnSel(prev => {
       if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
-      return { ...prev, [i]: item.qty };
+      return { ...prev, [i]: remainingQty(item) };
     });
   };
 
-  const setReturnQty = (i, qty, maxQty) => {
-    setReturnSel(prev => ({ ...prev, [i]: Math.min(Math.max(1, parseInt(qty) || 1), maxQty) }));
+  const setReturnQty = (i, qty, item) => {
+    const max = remainingQty(item);
+    setReturnSel(prev => ({ ...prev, [i]: Math.min(Math.max(1, parseInt(qty) || 1), max) }));
   };
 
   const addReplace = (product) => {
@@ -427,7 +435,15 @@ function ExchangePanel({ operator, products, loadData, toast }) {
       amount_tendered: Math.max(0, diff),
       change_due: diff < 0 ? Math.abs(diff) : 0
     });
-    await base44.entities.Transaction.update(origTx.id, { refund_type: "exchange" });
+    // Track exchanged quantities the same way as refunds
+    const newRefundedQty = { ...refundedQty };
+    returnedItems.forEach(ri => { newRefundedQty[ri.sku] = (newRefundedQty[ri.sku] || 0) + ri.qty; });
+    const allExchanged = origItems.every(item => (newRefundedQty[item.sku] || 0) >= item.qty);
+    await base44.entities.Transaction.update(origTx.id, {
+      refund_type: "exchange",
+      refunded_qty: newRefundedQty,
+      status: allExchanged ? "exchanged" : "completed"
+    });
     const msg = diff > 0 ? `Customer owes $${diff.toFixed(2)}` : diff < 0 ? `Refund $${Math.abs(diff).toFixed(2)} to customer` : "Even exchange";
     toast({ title: "Exchange Processed", description: `${exTxId} — ${msg}` });
     setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup");
@@ -469,27 +485,43 @@ function ExchangePanel({ operator, products, loadData, toast }) {
             <p className="text-blue-300/40 text-[10px] uppercase tracking-wider flex-shrink-0">① Select Items to Return</p>
             <div className="flex-1 overflow-y-auto bg-[#111638] rounded-xl border border-teal-500/20 p-2 space-y-1.5">
               {origItems.map((item, i) => {
+                const fullyRefunded = isFullyRefunded(item);
                 const checked = returnSel[i] !== undefined;
+                const alreadyRet = refundedQty[item.sku] || 0;
+                const maxQty = remainingQty(item);
                 return (
-                  <div key={i} onClick={() => toggleReturn(i, item)}
-                    className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${checked ? "border-teal-500/40 bg-teal-500/10" : "border-blue-500/10 bg-[#0a0e27] hover:border-teal-500/20"}`}>
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? "bg-teal-600 border-teal-500" : "border-blue-500/30"}`}>
-                      {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                  <div key={i} onClick={() => !fullyRefunded && toggleReturn(i, item)}
+                    className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
+                      fullyRefunded
+                        ? "border-gray-700/30 bg-gray-800/20 opacity-40 cursor-not-allowed"
+                        : checked
+                        ? "border-teal-500/40 bg-teal-500/10 cursor-pointer"
+                        : "border-blue-500/10 bg-[#0a0e27] hover:border-teal-500/20 cursor-pointer"
+                    }`}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${fullyRefunded ? "border-gray-600 bg-gray-700" : checked ? "bg-teal-600 border-teal-500" : "border-blue-500/30"}`}>
+                      {fullyRefunded && <span className="text-gray-400 text-[10px]">✕</span>}
+                      {!fullyRefunded && checked && <span className="text-white text-[10px] font-bold">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-[10px] font-medium truncate">{item.name}</p>
-                      <p className="text-blue-300/40 text-[9px]">${item.price?.toFixed(2)} · qty {item.qty}</p>
+                      <p className={`text-[10px] font-medium truncate ${fullyRefunded ? "text-gray-500" : "text-white"}`}>{item.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-blue-300/40 text-[9px]">${item.price?.toFixed(2)} ea</p>
+                        {alreadyRet > 0 && !fullyRefunded && <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyRet} refunded · {maxQty} left</span>}
+                        {fullyRefunded && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already refunded</span>}
+                      </div>
                     </div>
                     {checked && (
                       <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setReturnQty(i, returnSel[i] - 1, item.qty)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>
+                        <button onClick={() => setReturnQty(i, returnSel[i] - 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>
                         <span className="text-white text-[10px] w-4 text-center">{returnSel[i]}</span>
-                        <button onClick={() => setReturnQty(i, returnSel[i] + 1, item.qty)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>
+                        <button onClick={() => setReturnQty(i, returnSel[i] + 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>
                       </div>
                     )}
-                    <p className="text-teal-300 text-[10px] font-semibold w-10 text-right flex-shrink-0">
-                      ${checked ? (returnSel[i] * item.price).toFixed(2) : item.total?.toFixed(2)}
-                    </p>
+                    {!fullyRefunded && (
+                      <p className="text-teal-300 text-[10px] font-semibold w-10 text-right flex-shrink-0">
+                        ${checked ? (returnSel[i] * item.price).toFixed(2) : (maxQty * item.price).toFixed(2)}
+                      </p>
+                    )}
                   </div>
                 );
               })}
