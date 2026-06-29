@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TrendingDown, TrendingUp, DollarSign, Plus } from "lucide-react";
+import { TrendingDown, TrendingUp, DollarSign, Plus, Minus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminCashReconciliation() {
@@ -15,6 +15,9 @@ export default function AdminCashReconciliation() {
   const [advanceDialog, setAdvanceDialog] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({ register_id: "", amount: "", reason: "" });
   const [advances, setAdvances] = useState([]);
+  const [pickupDialog, setPickupDialog] = useState(false);
+  const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
+  const [pickups, setPickups] = useState([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -23,14 +26,16 @@ export default function AdminCashReconciliation() {
 
   const loadData = async () => {
     try {
-      const [depositsData, registersData, advancesData] = await Promise.all([
+      const [depositsData, registersData, advancesData, pickupsData] = await Promise.all([
         base44.entities.EODCashDeposit.list("-report_date"),
         base44.entities.Register.list(),
-        base44.entities.CashAdvance.list("-created_date")
+        base44.entities.CashAdvance.list("-created_date"),
+        base44.entities.CashPickup.list("-created_date")
       ]);
       setDeposits(depositsData);
       setRegisters(registersData);
       setAdvances(advancesData);
+      setPickups(pickupsData);
       setLoading(false);
     } catch (e) {
       toast({ title: "Error loading data", variant: "destructive" });
@@ -58,6 +63,29 @@ export default function AdminCashReconciliation() {
       loadData();
     } catch (e) {
       toast({ title: "Error creating advance", variant: "destructive" });
+    }
+  };
+
+  const handlePickup = async () => {
+    if (!pickupForm.register_id || !pickupForm.amount) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    try {
+      const register = registers.find(r => r.id === pickupForm.register_id);
+      await base44.entities.CashPickup.create({
+        register_id: register?.register_id || "",
+        register_name: register?.name || "",
+        amount: parseFloat(pickupForm.amount),
+        reason: pickupForm.reason,
+        status: "approved"
+      });
+      toast({ title: "Cash pickup recorded", description: `$${parseFloat(pickupForm.amount).toFixed(2)} from ${register?.name}` });
+      setPickupForm({ register_id: "", amount: "", reason: "" });
+      setPickupDialog(false);
+      loadData();
+    } catch (e) {
+      toast({ title: "Error creating pickup", variant: "destructive" });
     }
   };
 
@@ -91,11 +119,16 @@ export default function AdminCashReconciliation() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Cash Reconciliation</h1>
-          <p className="text-gray-500 mt-2">Track register cash deposits, longs, shorts, and cash advances</p>
+          <p className="text-gray-500 mt-2">Track register cash deposits, longs, shorts, advances, and pickups</p>
         </div>
-        <Button onClick={() => setAdvanceDialog(true)} className="bg-blue-600 hover:bg-blue-700 flex gap-2">
-          <Plus className="w-4 h-4" /> Cash Advance
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setAdvanceDialog(true)} className="bg-blue-600 hover:bg-blue-700 flex gap-2">
+            <Plus className="w-4 h-4" /> Cash Advance
+          </Button>
+          <Button onClick={() => setPickupDialog(true)} className="bg-amber-600 hover:bg-amber-700 flex gap-2">
+            <Minus className="w-4 h-4" /> Cash Pickup
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -217,6 +250,57 @@ export default function AdminCashReconciliation() {
             <div className="flex gap-2 pt-4">
               <Button variant="outline" onClick={() => setAdvanceDialog(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleAdvance} className="flex-1 bg-blue-600 hover:bg-blue-700">Record Advance</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cash Pickup Dialog */}
+      <Dialog open={pickupDialog} onOpenChange={setPickupDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Cash Pickup</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Register</label>
+              <select
+                value={pickupForm.register_id}
+                onChange={(e) => setPickupForm({ ...pickupForm, register_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              >
+                <option value="">Select a register</option>
+                {registers.map((reg) => (
+                  <option key={reg.id} value={reg.id}>{reg.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={pickupForm.amount}
+                  onChange={(e) => setPickupForm({ ...pickupForm, amount: e.target.value })}
+                  className="pl-7"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
+              <Input
+                placeholder="e.g., Excess cash, daily deposit"
+                value={pickupForm.reason}
+                onChange={(e) => setPickupForm({ ...pickupForm, reason: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setPickupDialog(false)} className="flex-1">Cancel</Button>
+              <Button onClick={handlePickup} className="flex-1 bg-amber-600 hover:bg-amber-700">Record Pickup</Button>
             </div>
           </div>
         </DialogContent>

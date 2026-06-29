@@ -1,0 +1,43 @@
+{
+  "name": "CashPickup",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string",
+      "description": "Register ID from which cash is being picked up"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Amount of cash picked up"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for the cash pickup"
+    },
+    "approved_by_id": {
+      "type": "string",
+      "description": "User ID who approved the pickup"
+    },
+    "approved_by_name": {
+      "type": "string",
+      "description": "Name of user who approved the pickup"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "completed"
+      ],
+      "default": "pending",
+      "description": "Status of the cash pickup"
+    }
+  },
+  "required": [
+    "register_id",
+    "amount"
+  ]
+}
