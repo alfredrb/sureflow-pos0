@@ -12,6 +12,7 @@ export default function POSLogin() {
   const [time, setTime] = useState(new Date());
   const [online, setOnline] = useState(navigator.onLine);
   const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "REG-001");
+  const [registerIp, setRegisterIp] = useState(sessionStorage.getItem("pos_register_ip") || "—");
   const [showConfig, setShowConfig] = useState(false);
   const [configPin, setConfigPin] = useState("");
   const [configUnlocked, setConfigUnlocked] = useState(false);
@@ -25,6 +26,14 @@ export default function POSLogin() {
     const onOffline = () => setOnline(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    // Load IP for current register on mount
+    const currentReg = sessionStorage.getItem("pos_register_num") || "REG-001";
+    base44.entities.Register.filter({ register_id: currentReg }).then(results => {
+      if (results.length > 0 && results[0].ip_address) {
+        setRegisterIp(results[0].ip_address);
+        sessionStorage.setItem("pos_register_ip", results[0].ip_address);
+      }
+    }).catch(() => {});
     return () => { clearInterval(t); window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
   }, []);
 
@@ -53,13 +62,29 @@ export default function POSLogin() {
     }
   };
 
-  const handleConfigSave = () => {
-    if (tempRegNum.trim()) {
-      setRegisterNum(tempRegNum.trim());
-      sessionStorage.setItem("pos_register_num", tempRegNum.trim());
-      setShowConfig(false);
-      toast({ title: "Saved", description: `Register set to ${tempRegNum.trim()}` });
+  const handleConfigSave = async () => {
+    const newRegId = tempRegNum.trim();
+    if (!newRegId) return;
+    try {
+      const results = await base44.entities.Register.filter({ register_id: newRegId });
+      if (results.length === 0) {
+        toast({ title: "Not Found", description: `No register with ID "${newRegId}" found in admin panel`, variant: "destructive" });
+        return;
+      }
+      const reg = results[0];
+      // Mark register as online
+      await base44.entities.Register.update(reg.id, { status: "online" });
+      // Update IP display
+      const ip = reg.ip_address || "—";
+      setRegisterIp(ip);
+      sessionStorage.setItem("pos_register_ip", ip);
+    } catch {
+      toast({ title: "Warning", description: "Could not sync register info", variant: "destructive" });
     }
+    setRegisterNum(newRegId);
+    sessionStorage.setItem("pos_register_num", newRegId);
+    setShowConfig(false);
+    toast({ title: "Saved", description: `Register set to ${newRegId}` });
   };
 
   const handleKey = (key) => {
@@ -122,7 +147,7 @@ export default function POSLogin() {
           </div>
           <div className="text-right">
             <p className="text-blue-200/60 text-xs font-mono">{registerNum}</p>
-            <p className="text-blue-300/20 text-[10px] font-mono">192.168.1.10</p>
+            <p className="text-blue-300/20 text-[10px] font-mono">{registerIp}</p>
           </div>
         </div>
       </div>
