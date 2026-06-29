@@ -232,7 +232,7 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
             {expiredItems.length > 0 && !overrideOperator && (
               <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
                 <span className="text-red-400 text-[10px] font-bold uppercase tracking-wider">⚠ Return Period Expired</span>
-                <span className="text-red-300/70 text-[10px]">— flagged items require supervisor override to select</span>
+                <span className="text-red-300/70 text-[10px]">— flagged items require CSM or Manager override to select</span>
               </div>
             )}
             <div className="grid grid-cols-3 gap-2 text-xs">
@@ -339,10 +339,10 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
       <Dialog open={overrideDialog} onOpenChange={v => { setOverrideDialog(v); if (!v) { setOverridePin(""); setOverrideError(""); } }}>
         <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
           <DialogHeader><DialogTitle className="text-red-400 text-sm">Return Period Override</DialogTitle></DialogHeader>
-          <p className="text-blue-300/60 text-xs">This item is past its return period. A supervisor or admin PIN is required to proceed.</p>
+          <p className="text-blue-300/60 text-xs">This item is past its return period. A CSM or Manager PIN is required to proceed.</p>
           <Input
             type="password"
-            placeholder="Supervisor PIN"
+            placeholder="CSM / Manager PIN"
             value={overridePin}
             onChange={e => setOverridePin(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleOverrideSubmit()}
@@ -672,6 +672,7 @@ export default function POSRegister() {
   const [remoteRequestSent, setRemoteRequestSent] = useState(null); // { requestId, action }
   const [remotePolling, setRemotePolling] = useState(false);
   const remotePollingRef = React.useRef(null);
+  const [remoteResultDialog, setRemoteResultDialog] = useState(null); // { approved, action, by, note }
   // Top-level mode: "sale" | "returns" | "cs"
   const [posMode, setPosMode] = useState("sale");
   // Preview data from returns/exchange panels shown in the left panel
@@ -845,7 +846,6 @@ export default function POSRegister() {
           clearInterval(remotePollingRef.current);
           setRemotePolling(false);
           setRemoteRequestSent(null);
-          toast({ title: "Remote Override Approved", description: `"${r.action}" approved remotely by ${r.approved_by_operator_name}` });
           writeLog("override", `Remote override for "${r.action}" approved by ${r.approved_by_operator_name}`, {
             override_operator_id: r.approved_by_operator_id,
             override_operator_name: r.approved_by_operator_name,
@@ -853,12 +853,13 @@ export default function POSRegister() {
           });
           executeFunctionKey(pendingFunctionKey);
           setPendingFunctionKey(null);
+          setRemoteResultDialog({ approved: true, action: r.action, by: r.approved_by_operator_name, note: r.note || "" });
         } else if (r.status === "declined" || r.status === "expired") {
           clearInterval(remotePollingRef.current);
           setRemotePolling(false);
           setRemoteRequestSent(null);
-          toast({ title: "Remote Override Declined", description: r.note || "Request was declined or expired", variant: "destructive" });
           setPendingFunctionKey(null);
+          setRemoteResultDialog({ approved: false, action: r.action, by: r.approved_by_operator_name || null, note: r.note || "", expired: r.status === "expired" });
         }
       }
     }, 3000);
@@ -1301,18 +1302,30 @@ export default function POSRegister() {
         </DialogContent>
       </Dialog>
 
-      {/* Supervisor Override Dialog */}
+      {/* Override Authorization Dialog */}
       <Dialog open={supOverrideDialog} onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}>
         <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
           <DialogHeader>
-            <DialogTitle className="text-red-400 text-sm">Supervisor Authorization Required</DialogTitle>
+            <DialogTitle className="text-red-400 text-sm">
+              {(() => {
+                const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
+                return role === "manager" ? "Manager Authorization Required" : "CSM / Manager Authorization Required";
+              })()}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-blue-300/60 text-xs">
-            <span className="text-white font-bold">"{pendingFunctionKey?.label}"</span> requires supervisor or admin authorization. Enter a supervisor PIN or send a remote override request.
+            <span className="text-white font-bold">"{pendingFunctionKey?.label}"</span>{" "}
+            {(() => {
+              const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
+              return role === "manager" ? "requires Manager authorization." : "requires CSM or Manager authorization.";
+            })()} Enter their PIN or send a remote override request.
           </p>
           <Input
             type="password"
-            placeholder="Supervisor PIN"
+            placeholder={(() => {
+              const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
+              return role === "manager" ? "Manager PIN" : "CSM / Manager PIN";
+            })()}
             value={supOverridePin}
             onChange={e => setSupOverridePin(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSupOverrideSubmit()}
@@ -1325,9 +1338,43 @@ export default function POSRegister() {
             <Button onClick={handleSupOverrideSubmit} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">Authorize</Button>
           </div>
           <div className="border-t border-blue-500/10 pt-3">
-            <p className="text-blue-300/40 text-[10px] text-center mb-2">No supervisor present?</p>
+            <p className="text-blue-300/40 text-[10px] text-center mb-2">No one present to authorize?</p>
             <Button onClick={sendRemoteOverrideRequest} variant="outline" className="w-full border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-xs">
               📡 Send Remote Override Request
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remote Override Result Dialog */}
+      <Dialog open={!!remoteResultDialog} onOpenChange={v => { if (!v) setRemoteResultDialog(null); }}>
+        <DialogContent className={`bg-[#111638] text-white max-w-xs ${remoteResultDialog?.approved ? "border-green-500/30" : "border-red-500/30"}`}>
+          <DialogHeader>
+            <DialogTitle className={`text-sm flex items-center gap-2 ${remoteResultDialog?.approved ? "text-green-400" : "text-red-400"}`}>
+              {remoteResultDialog?.approved ? "✓ Remote Override Approved" : remoteResultDialog?.expired ? "⏱ Override Request Expired" : "✕ Remote Override Declined"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className={`rounded-lg border p-3 space-y-1.5 ${remoteResultDialog?.approved ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}`}>
+              <div className="flex justify-between text-xs">
+                <span className="text-blue-300/50">Action</span>
+                <span className="text-white font-bold">"{remoteResultDialog?.action}"</span>
+              </div>
+              {remoteResultDialog?.by && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-300/50">{remoteResultDialog?.approved ? "Approved by" : "Declined by"}</span>
+                  <span className="text-white font-medium">{remoteResultDialog?.by}</span>
+                </div>
+              )}
+              {remoteResultDialog?.note && (
+                <div className="pt-1.5 border-t border-white/10">
+                  <p className="text-blue-300/50 text-[10px] uppercase tracking-wider mb-1">Note</p>
+                  <p className="text-white/80 text-xs">{remoteResultDialog?.note}</p>
+                </div>
+              )}
+            </div>
+            <Button onClick={() => setRemoteResultDialog(null)} className={`w-full text-white font-bold text-xs ${remoteResultDialog?.approved ? "bg-green-600 hover:bg-green-500" : "bg-red-600 hover:bg-red-500"}`}>
+              OK
             </Button>
           </div>
         </DialogContent>
