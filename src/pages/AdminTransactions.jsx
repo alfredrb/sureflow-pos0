@@ -58,7 +58,9 @@ function TxRow({ tx, onView }) {
       <td className="px-3 py-3">
         <span className={`text-xs font-medium px-2 py-1 rounded-full ${badge.cls}`}>{badge.label}</span>
       </td>
-      <td className="px-3 py-3 text-right font-semibold text-sm">${(tx.total || 0).toFixed(2)}</td>
+      <td className={`px-3 py-3 text-right font-semibold text-sm ${tx.status === "refunded" || tx.status === "exchanged" ? "text-red-600" : "text-emerald-600"}`}>
+        {(tx.status === "refunded" || tx.status === "exchanged") ? "−" : ""}${(Math.abs(tx.total) || 0).toFixed(2)}
+      </td>
       <td className="px-3 py-3 text-gray-400 text-xs">{moment(tx.created_date).format("h:mm A")}</td>
       <td className="px-3 py-3">
         <button onClick={() => onView(tx)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors">
@@ -205,7 +207,10 @@ export default function AdminTransactions() {
               <div className="space-y-1 text-sm border-t pt-3">
                 <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>${(detail.subtotal || 0).toFixed(2)}</span></div>
                 <div className="flex justify-between text-gray-500"><span>Tax</span><span>${(detail.tax || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>${(detail.total || 0).toFixed(2)}</span></div>
+                <div className={`flex justify-between font-bold text-lg ${detail.status === "refunded" || detail.status === "exchanged" ? "text-red-600" : "text-emerald-600"}`}>
+                  <span>Total</span>
+                  <span>{(detail.status === "refunded" || detail.status === "exchanged") ? "−" : ""}${(Math.abs(detail.total) || 0).toFixed(2)}</span>
+                </div>
                 {detail.payment_method === "cash" && (
                   <>
                     <div className="flex justify-between text-gray-500"><span>Tendered</span><span>${(detail.amount_tendered || 0).toFixed(2)}</span></div>

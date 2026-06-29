@@ -73,7 +73,9 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-xs sm:text-sm font-semibold text-gray-900">${(tx.total || 0).toFixed(2)}</p>
+                <p className={`text-xs sm:text-sm font-semibold ${tx.status === "refunded" || tx.status === "exchanged" ? "text-red-600" : "text-emerald-600"}`}>
+                  {(tx.status === "refunded" || tx.status === "exchanged") ? "−" : ""}${(Math.abs(tx.total) || 0).toFixed(2)}
+                </p>
                 <p className="text-[10px] sm:text-xs text-gray-400">{tx.payment_method}</p>
               </div>
             </div>
