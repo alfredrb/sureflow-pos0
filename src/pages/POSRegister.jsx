@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Minus, Plus, Search, List, RotateCcw, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
-const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "return"];
+const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund"];
 const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [
@@ -29,6 +29,161 @@ function getKeysForSection(sectionId, functionKeys) {
   }
 }
 
+// ── Returns Panel ────────────────────────────────────────────────────────────
+function ReturnsPanel({ operator, loadData, toast }) {
+  const [returnTxId, setReturnTxId] = useState("");
+  const [returnTransaction, setReturnTransaction] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  const lookUp = async () => {
+    if (!returnTxId) return;
+    setSearching(true);
+    setReturnTransaction(null);
+    const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId, status: "completed" });
+    if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
+    else setReturnTransaction(results[0]);
+    setSearching(false);
+  };
+
+  const confirmReturn = async () => {
+    const txId = "RET-" + Date.now().toString(36).toUpperCase();
+    await base44.entities.Transaction.create({
+      transaction_id: txId,
+      operator_id: operator.operator_id,
+      operator_name: operator.full_name,
+      register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+      items: returnTransaction.items,
+      subtotal: returnTransaction.subtotal,
+      tax: returnTransaction.tax,
+      total: returnTransaction.total,
+      payment_method: returnTransaction.payment_method,
+      status: "refunded",
+      amount_tendered: returnTransaction.total,
+      change_due: 0
+    });
+    await base44.entities.Transaction.update(returnTransaction.id, { status: "refunded" });
+    toast({ title: "Return Processed", description: `Refund ${txId} — $${returnTransaction.total?.toFixed(2)} returned` });
+    setReturnTxId(""); setReturnTransaction(null);
+    loadData();
+  };
+
+  return (
+    <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <RotateCcw className="w-4 h-4 text-purple-400" />
+        <p className="text-purple-300 text-xs uppercase tracking-widest font-bold">Returns / Refunds</p>
+      </div>
+
+      {/* Search */}
+      <div className="bg-[#111638] rounded-xl border border-purple-500/10 p-4 space-y-3 flex-shrink-0">
+        <label className="text-blue-300/50 text-[10px] uppercase tracking-wider block">Look Up Transaction</label>
+        <div className="flex gap-2">
+          <Input
+            value={returnTxId}
+            onChange={e => setReturnTxId(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === "Enter" && lookUp()}
+            placeholder="TX-XXXXXXXX"
+            className="bg-[#0a0e27] border-purple-500/20 text-white font-mono placeholder:text-blue-300/20"
+          />
+          <Button
+            disabled={searching || !returnTxId}
+            onClick={lookUp}
+            className="bg-purple-600 hover:bg-purple-500 flex-shrink-0"
+          >
+            {searching ? "..." : "Look Up"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Result */}
+      {returnTransaction ? (
+        <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-4 space-y-3 flex-shrink-0">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <p className="text-blue-300/40 text-[10px]">Transaction ID</p>
+              <p className="text-white font-mono">{returnTransaction.transaction_id}</p>
+            </div>
+            <div>
+              <p className="text-blue-300/40 text-[10px]">Operator</p>
+              <p className="text-white">{returnTransaction.operator_name}</p>
+            </div>
+            <div>
+              <p className="text-blue-300/40 text-[10px]">Payment Method</p>
+              <p className="text-white capitalize">{returnTransaction.payment_method}</p>
+            </div>
+            <div>
+              <p className="text-blue-300/40 text-[10px]">Total Paid</p>
+              <p className="text-purple-300 font-bold text-base">${returnTransaction.total?.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="border-t border-purple-500/10 pt-3 space-y-1">
+            <p className="text-blue-300/40 text-[10px] uppercase tracking-wider mb-2">Items</p>
+            {(returnTransaction.items || []).map((item, i) => (
+              <div key={i} className="flex justify-between text-xs">
+                <span className="text-blue-200/70">{item.qty}× {item.name}</span>
+                <span className="text-blue-200/70">${item.total?.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button
+              onClick={() => { setReturnTxId(""); setReturnTransaction(null); }}
+              variant="outline"
+              className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmReturn}
+              className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold"
+            >
+              Confirm Return — ${returnTransaction.total?.toFixed(2)}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-blue-300/20 gap-3">
+          <RotateCcw className="w-12 h-12" />
+          <p className="text-xs">Enter a Transaction ID above to begin a return</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CS Mode Panel ────────────────────────────────────────────────────────────
+function CSModePanel({ toast }) {
+  return (
+    <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Headphones className="w-4 h-4 text-amber-400" />
+        <p className="text-amber-300 text-xs uppercase tracking-widest font-bold">Customer Service Mode</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "Price Match", color: "#b45309", action: () => toast({ title: "Price Match", description: "Enter competitor price to match" }) },
+          { label: "Loyalty Lookup", color: "#0369a1", action: () => toast({ title: "Loyalty Lookup", description: "Scan or enter loyalty card number" }) },
+          { label: "Gift Receipt", color: "#047857", action: () => toast({ title: "Gift Receipt", description: "Re-print last receipt as gift receipt" }) },
+          { label: "Rain Check", color: "#6d28d9", action: () => toast({ title: "Rain Check", description: "Issue rain check for out-of-stock item" }) },
+        ].map(({ label, color, action }) => (
+          <button
+            key={label}
+            onClick={action}
+            className="rounded-xl text-white font-bold text-sm uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex items-center justify-center p-4 shadow-lg h-20"
+            style={{ backgroundColor: color }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 flex items-center justify-center text-amber-300/20">
+        <p className="text-xs">Additional CS functions can be added via Admin Panel</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function POSRegister() {
   const [operator, setOperator] = useState(null);
   const [products, setProducts] = useState([]);
@@ -46,10 +201,8 @@ export default function POSRegister() {
   const [qtyValue, setQtyValue] = useState("1");
   const [activeSection, setActiveSection] = useState("sale");
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false });
-  const [returnDialog, setReturnDialog] = useState(false);
-  const [returnTxId, setReturnTxId] = useState("");
-  const [returnTransaction, setReturnTransaction] = useState(null);
-  const [returnSearchLoading, setReturnSearchLoading] = useState(false);
+  // Top-level mode: "sale" | "returns" | "cs"
+  const [posMode, setPosMode] = useState("sale");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -113,13 +266,6 @@ export default function POSRegister() {
       case "subtotal": toast({ title: "Subtotal", description: `$${subtotal.toFixed(2)}` }); break;
       case "quantity": setQtyDialog(true); break;
       case "no_sale": toast({ title: "No Sale", description: "Cash drawer opened" }); break;
-      case "return":
-        if (!registerFeatures.feature_returns) {
-          toast({ title: "Feature Disabled", description: "Returns are not enabled on this register", variant: "destructive" });
-        } else {
-          setReturnDialog(true); setReturnTxId(""); setReturnTransaction(null);
-        }
-        break;
       case "tax_exempt":
         setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
         toast({ title: "Tax Exempt Applied" });
@@ -148,7 +294,7 @@ export default function POSRegister() {
     try {
       await base44.entities.Transaction.create({
         transaction_id: txId, operator_id: operator.operator_id, operator_name: operator.full_name,
-        register_id: "REG-001", items: cart, subtotal, tax, total,
+        register_id: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total,
         payment_method: paymentMethod, status: "completed",
         amount_tendered: parseFloat(amountTendered || total), change_due: changeDue
       });
@@ -173,29 +319,20 @@ export default function POSRegister() {
   });
 
   const handleSectionClick = (sectionId) => {
-    if (sectionId === "item_list") {
-      setItemListOpen(true);
-    } else {
-      setActiveSection(sectionId);
-    }
+    if (sectionId === "item_list") setItemListOpen(true);
+    else setActiveSection(sectionId);
   };
 
-  // Build dynamic non-sale keys including register-feature-gated ones
-  const getEffectiveKeys = (sectionId) => {
-    const keys = getKeysForSection(sectionId, functionKeys);
-    if (sectionId === "non_sale" && registerFeatures.feature_returns) {
-      const hasReturn = keys.some(k => k.action === "return");
-      if (!hasReturn) {
-        keys.push({ id: "builtin-return", key_number: 99, label: "Return", action: "return", color: "#7c3aed", requires_supervisor: true });
-      }
-    }
-    return keys;
-  };
-
-  const visibleKeys = getEffectiveKeys(activeSection);
-  // Pad to 9 slots for 3x3 grid
+  const visibleKeys = getKeysForSection(activeSection, functionKeys);
   const gridSlots = [...visibleKeys.slice(0, 9)];
   while (gridSlots.length < 9) gridSlots.push(null);
+
+  // Build mode buttons dynamically based on enabled features
+  const modeTabs = [
+    { id: "sale", label: "Sale", icon: ShoppingCart, activeColor: "bg-blue-600 text-white", inactiveColor: "bg-[#0a0e27] text-blue-300/50 border border-blue-500/10 hover:border-blue-500/30" },
+    ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
+    ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "CS Mode", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
+  ];
 
   if (loading) return (
     <div className="min-h-screen bg-[#0a0e27] flex items-center justify-center">
@@ -208,15 +345,30 @@ export default function POSRegister() {
 
       {/* Top bar */}
       <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-            <ShoppingCart className="w-3.5 h-3.5 text-white" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+              <ShoppingCart className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-white font-bold text-sm">SurePOS</span>
+            <span className="text-blue-300/40 text-[10px]">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
           </div>
-          <span className="text-white font-bold text-sm">SurePOS</span>
-          <span className="text-blue-300/40 text-[10px]">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
-          {registerFeatures.feature_returns && <span className="text-[9px] bg-purple-600/20 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-full">RETURNS</span>}
-          {registerFeatures.feature_customer_service && <span className="text-[9px] bg-amber-600/20 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full">CS MODE</span>}
+
+          {/* Mode Buttons */}
+          <div className="flex items-center gap-1">
+            {modeTabs.map(({ id, label, icon: Icon, activeColor, inactiveColor }) => (
+              <button
+                key={id}
+                onClick={() => setPosMode(id)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${posMode === id ? activeColor : inactiveColor}`}
+              >
+                <Icon className="w-3 h-3" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+
         <div className="flex items-center gap-3">
           <span className="text-blue-200/60 text-xs">{operator?.full_name} ({operator?.role})</span>
           <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
@@ -228,7 +380,7 @@ export default function POSRegister() {
       {/* Main body */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* LEFT — Current Transaction */}
+        {/* LEFT — Current Transaction (always visible) */}
         <div className="w-[340px] bg-[#111638] border-r border-blue-500/10 flex flex-col flex-shrink-0">
           <div className="px-3 py-2 border-b border-blue-500/10">
             <p className="text-blue-300/40 text-[10px] uppercase tracking-widest">Current Transaction</p>
@@ -283,53 +435,65 @@ export default function POSRegister() {
           </div>
         </div>
 
-        {/* RIGHT — Function Key Grid + Section Menu */}
+        {/* RIGHT — switches based on posMode */}
         <div className="flex-1 flex flex-col overflow-hidden">
 
-          {/* 3x3 Function Key Grid */}
-          <div className="flex-1 p-3 flex flex-col">
-            <p className="text-blue-300/30 text-[10px] uppercase tracking-widest mb-2">
-              {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
-            </p>
-            <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
-              {gridSlots.map((fk, idx) => (
-                fk ? (
-                  <button
-                    key={fk.id}
-                    onClick={() => handleFunctionKey(fk)}
-                    className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg"
-                    style={{ backgroundColor: fk.color }}
-                  >
-                    <span className="text-center leading-tight">{fk.label}</span>
-                    {fk.requires_supervisor && (
-                      <span className="text-[8px] font-normal opacity-60 bg-black/20 px-1.5 py-0.5 rounded-full">SUP</span>
-                    )}
-                  </button>
-                ) : (
-                  <div key={`empty-${idx}`} className="rounded-xl border border-blue-500/5 bg-[#111638]/50" />
-                )
-              ))}
-            </div>
-          </div>
+          {posMode === "sale" && (
+            <>
+              {/* 3x3 Function Key Grid */}
+              <div className="flex-1 p-3 flex flex-col">
+                <p className="text-blue-300/30 text-[10px] uppercase tracking-widest mb-2">
+                  {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
+                </p>
+                <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
+                  {gridSlots.map((fk, idx) => (
+                    fk ? (
+                      <button
+                        key={fk.id}
+                        onClick={() => handleFunctionKey(fk)}
+                        className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg"
+                        style={{ backgroundColor: fk.color }}
+                      >
+                        <span className="text-center leading-tight">{fk.label}</span>
+                        {fk.requires_supervisor && (
+                          <span className="text-[8px] font-normal opacity-60 bg-black/20 px-1.5 py-0.5 rounded-full">SUP</span>
+                        )}
+                      </button>
+                    ) : (
+                      <div key={`empty-${idx}`} className="rounded-xl border border-blue-500/5 bg-[#111638]/50" />
+                    )
+                  ))}
+                </div>
+              </div>
 
-          {/* Section Menu */}
-          <div className="flex-shrink-0 border-t border-blue-500/10 bg-[#111638]">
-            <div className="grid grid-cols-5">
-              {SECTION_TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => handleSectionClick(tab.id)}
-                  className={`py-3 text-xs font-bold uppercase tracking-wider transition-colors border-t-2 ${
-                    activeSection === tab.id && tab.id !== "item_list"
-                      ? "border-blue-500 text-blue-400 bg-blue-500/10"
-                      : "border-transparent text-blue-300/40 hover:text-blue-200 hover:bg-white/5"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
+              {/* Section Menu */}
+              <div className="flex-shrink-0 border-t border-blue-500/10 bg-[#111638]">
+                <div className="grid grid-cols-5">
+                  {SECTION_TABS.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleSectionClick(tab.id)}
+                      className={`py-3 text-xs font-bold uppercase tracking-wider transition-colors border-t-2 ${
+                        activeSection === tab.id && tab.id !== "item_list"
+                          ? "border-blue-500 text-blue-400 bg-blue-500/10"
+                          : "border-transparent text-blue-300/40 hover:text-blue-200 hover:bg-white/5"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {posMode === "returns" && (
+            <ReturnsPanel operator={operator} loadData={loadData} toast={toast} />
+          )}
+
+          {posMode === "cs" && (
+            <CSModePanel toast={toast} />
+          )}
         </div>
       </div>
 
@@ -419,97 +583,6 @@ export default function POSRegister() {
               className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl">
               Complete Sale
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Return Dialog */}
-      <Dialog open={returnDialog} onOpenChange={v => { setReturnDialog(v); if (!v) { setReturnTxId(""); setReturnTransaction(null); } }}>
-        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white text-sm flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-purple-400" /> Process Return
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-blue-300/60 text-[10px] mb-1 block uppercase tracking-wider">Transaction ID</label>
-              <div className="flex gap-2">
-                <Input
-                  value={returnTxId}
-                  onChange={e => setReturnTxId(e.target.value.toUpperCase())}
-                  placeholder="TX-XXXXXXXX"
-                  className="bg-[#0a0e27] border-blue-500/10 text-white font-mono"
-                />
-                <Button
-                  disabled={returnSearchLoading || !returnTxId}
-                  onClick={async () => {
-                    setReturnSearchLoading(true);
-                    setReturnTransaction(null);
-                    try {
-                      const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId, status: "completed" });
-                      if (results.length === 0) toast({ title: "Not Found", description: "No completed transaction with that ID", variant: "destructive" });
-                      else setReturnTransaction(results[0]);
-                    } catch { toast({ title: "Error", variant: "destructive" }); }
-                    setReturnSearchLoading(false);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-500 flex-shrink-0"
-                >
-                  Look Up
-                </Button>
-              </div>
-            </div>
-
-            {returnTransaction && (
-              <div className="bg-[#0a0e27] rounded-xl p-3 border border-blue-500/10 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-blue-300/50">Transaction</span>
-                  <span className="text-white font-mono">{returnTransaction.transaction_id}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-blue-300/50">Operator</span>
-                  <span className="text-white">{returnTransaction.operator_name}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-blue-300/50">Total Paid</span>
-                  <span className="text-white font-semibold">${returnTransaction.total?.toFixed(2)}</span>
-                </div>
-                <div className="border-t border-blue-500/10 pt-2 space-y-1">
-                  {(returnTransaction.items || []).map((item, i) => (
-                    <div key={i} className="flex justify-between text-[10px]">
-                      <span className="text-blue-200/60">{item.qty}× {item.name}</span>
-                      <span className="text-blue-200/60">${item.total?.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold mt-1"
-                  onClick={async () => {
-                    const txId = "RET-" + Date.now().toString(36).toUpperCase();
-                    await base44.entities.Transaction.create({
-                      transaction_id: txId,
-                      operator_id: operator.operator_id,
-                      operator_name: operator.full_name,
-                      register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
-                      items: returnTransaction.items,
-                      subtotal: returnTransaction.subtotal,
-                      tax: returnTransaction.tax,
-                      total: returnTransaction.total,
-                      payment_method: returnTransaction.payment_method,
-                      status: "refunded",
-                      amount_tendered: returnTransaction.total,
-                      change_due: 0
-                    });
-                    await base44.entities.Transaction.update(returnTransaction.id, { status: "refunded" });
-                    toast({ title: "Return Processed", description: `Refund ${txId} — $${returnTransaction.total?.toFixed(2)} returned` });
-                    setReturnDialog(false); setReturnTxId(""); setReturnTransaction(null);
-                    loadData();
-                  }}
-                >
-                  Confirm Return — ${returnTransaction.total?.toFixed(2)}
-                </Button>
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>
