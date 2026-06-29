@@ -8,7 +8,7 @@ export default function Home() {
       <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/30">
         <Monitor className="w-7 h-7 text-white" />
       </div>
-      <h1 className="text-4xl font-bold text-white mb-2">SurePOS</h1>
+      <h1 className="text-4xl font-bold text-white mb-2">Supermart</h1>
       <p className="text-blue-300/50 text-sm mb-12">Point of Sale Management System</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
