@@ -30,7 +30,7 @@ function getKeysForSection(sectionId, functionKeys) {
 }
 
 // ── Returns Panel ────────────────────────────────────────────────────────────
-function ReturnsPanel({ operator, products, loadData, toast }) {
+function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) {
   const [returnTxId, setReturnTxId] = useState("");
   const [returnTransaction, setReturnTransaction] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -129,6 +129,11 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
   const returnTax = returnItems.reduce((s, i) => s + (i.total * ((i.tax_rate || 0) / 100)), 0);
   const returnTotal = +(returnSubtotal + returnTax).toFixed(2);
 
+  // Notify parent of preview state
+  useEffect(() => {
+    onPreviewChange({ items: returnItems, subtotal: returnSubtotal, tax: returnTax, total: returnTotal, type: "return" });
+  }, [returnItems.length, returnTotal]);
+
   // An item is "returnable" if it still has qty remaining
   const returnableItems = items.filter(item => !isItemFullyRefunded(item));
   // Partial if not all returnable items are selected, or selected qty < remaining qty for any item
@@ -179,6 +184,7 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
 
     toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned` });
     setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]);
+    onPreviewChange(null);
     loadData();
   };
 
@@ -313,7 +319,7 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
               <span className="text-white font-bold text-base">${returnTotal.toFixed(2)}</span>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => { setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); }}
+              <Button onClick={() => { setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); onPreviewChange(null); }}
                 variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10">Cancel</Button>
               <Button onClick={confirmReturn} disabled={selectedCount === 0}
                 className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold disabled:opacity-40">
@@ -351,7 +357,7 @@ function ReturnsPanel({ operator, products, loadData, toast }) {
 }
 
 // ── Exchange Panel ────────────────────────────────────────────────────────────
-function ExchangePanel({ operator, products, loadData, toast }) {
+function ExchangePanel({ operator, products, loadData, toast, onPreviewChange }) {
   const [txId, setTxId] = useState("");
   const [origTx, setOrigTx] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -411,6 +417,15 @@ function ExchangePanel({ operator, products, loadData, toast }) {
   const replaceValue = replaceCart.reduce((s, i) => s + i.total, 0);
   const diff = +(replaceValue - returnValue).toFixed(2);
 
+  // Notify parent of exchange preview
+  useEffect(() => {
+    if (returnedItems.length > 0 || replaceCart.length > 0) {
+      onPreviewChange({ returnedItems, replaceCart, returnValue, replaceValue, diff, type: "exchange" });
+    } else {
+      onPreviewChange(null);
+    }
+  }, [returnedItems.length, replaceCart.length, diff]);
+
   const filteredProducts = products.filter(p =>
     !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch)
   );
@@ -447,10 +462,11 @@ function ExchangePanel({ operator, products, loadData, toast }) {
     const msg = diff > 0 ? `Customer owes $${diff.toFixed(2)}` : diff < 0 ? `Refund $${Math.abs(diff).toFixed(2)} to customer` : "Even exchange";
     toast({ title: "Exchange Processed", description: `${exTxId} — ${msg}` });
     setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup");
+    onPreviewChange(null);
     loadData();
   };
 
-  const reset = () => { setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup"); };
+  const reset = () => { setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup"); onPreviewChange(null); };
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
@@ -649,6 +665,8 @@ export default function POSRegister() {
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
   // Top-level mode: "sale" | "returns" | "cs"
   const [posMode, setPosMode] = useState("sale");
+  // Preview data from returns/exchange panels shown in the left panel
+  const [sidePreview, setSidePreview] = useState(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -806,7 +824,7 @@ export default function POSRegister() {
             {modeTabs.map(({ id, label, icon: Icon, activeColor, inactiveColor }) => (
               <button
                 key={id}
-                onClick={() => setPosMode(id)}
+                onClick={() => { setPosMode(id); setSidePreview(null); }}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${posMode === id ? activeColor : inactiveColor}`}
               >
                 <Icon className="w-3 h-3" />
@@ -830,56 +848,152 @@ export default function POSRegister() {
         {/* LEFT — Current Transaction (always visible) */}
         <div className="w-[340px] bg-[#111638] border-r border-blue-500/10 flex flex-col flex-shrink-0">
           <div className="px-3 py-2 border-b border-blue-500/10">
-            <p className="text-blue-300/40 text-[10px] uppercase tracking-widest">Current Transaction</p>
+            <p className="text-blue-300/40 text-[10px] uppercase tracking-widest">
+              {posMode === "returns" ? "Return Summary" : posMode === "exchange" ? "Exchange Summary" : "Current Transaction"}
+            </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-blue-300/20 gap-2">
-                <ShoppingCart className="w-8 h-8" />
-                <p className="text-xs">No items scanned</p>
+          {/* SALE mode — normal cart */}
+          {posMode === "sale" && (
+            <>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-blue-300/20 gap-2">
+                    <ShoppingCart className="w-8 h-8" />
+                    <p className="text-xs">No items scanned</p>
+                  </div>
+                ) : cart.map((item) => (
+                  <div key={item.sku} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-blue-500/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-xs truncate font-medium">{item.name}</p>
+                      <p className="text-blue-300/40 text-[10px]">${item.price.toFixed(2)} ea</p>
+                    </div>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <button onClick={() => updateQty(item.sku, -1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
+                        <Minus className="w-2.5 h-2.5" />
+                      </button>
+                      <span className="text-white text-xs w-5 text-center">{item.qty}</span>
+                      <button onClick={() => updateQty(item.sku, 1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
+                        <Plus className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                    <p className="text-white font-semibold text-xs w-12 text-right flex-shrink-0">${item.total.toFixed(2)}</p>
+                    <button onClick={() => removeFromCart(item.sku)} className="text-red-400/40 hover:text-red-400 flex-shrink-0">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ) : cart.map((item) => (
-              <div key={item.sku} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-blue-500/5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs truncate font-medium">{item.name}</p>
-                  <p className="text-blue-300/40 text-[10px]">${item.price.toFixed(2)} ea</p>
+              <div className="border-t border-blue-500/10 p-3 space-y-1 flex-shrink-0">
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  <button onClick={() => updateQty(item.sku, -1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
-                    <Minus className="w-2.5 h-2.5" />
-                  </button>
-                  <span className="text-white text-xs w-5 text-center">{item.qty}</span>
-                  <button onClick={() => updateQty(item.sku, 1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
-                    <Plus className="w-2.5 h-2.5" />
-                  </button>
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Tax</span><span>${tax.toFixed(2)}</span>
                 </div>
-                <p className="text-white font-semibold text-xs w-12 text-right flex-shrink-0">${item.total.toFixed(2)}</p>
-                <button onClick={() => removeFromCart(item.sku)} className="text-red-400/40 hover:text-red-400 flex-shrink-0">
-                  <X className="w-3 h-3" />
-                </button>
+                <div className="flex justify-between text-white text-xl font-bold pt-1.5 border-t border-blue-500/10">
+                  <span>TOTAL</span><span>${total.toFixed(2)}</span>
+                </div>
+                <Button
+                  onClick={() => cart.length > 0 && setPaymentOpen(true)}
+                  disabled={cart.length === 0}
+                  className="w-full h-11 bg-green-600 hover:bg-green-500 text-white font-bold text-lg mt-1.5 rounded-xl disabled:opacity-30"
+                >
+                  <DollarSign className="w-5 h-5 mr-1" /> PAY
+                </Button>
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
-          <div className="border-t border-blue-500/10 p-3 space-y-1 flex-shrink-0">
-            <div className="flex justify-between text-blue-300/50 text-xs">
-              <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-blue-300/50 text-xs">
-              <span>Tax</span><span>${tax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-white text-xl font-bold pt-1.5 border-t border-blue-500/10">
-              <span>TOTAL</span><span>${total.toFixed(2)}</span>
-            </div>
-            <Button
-              onClick={() => cart.length > 0 && setPaymentOpen(true)}
-              disabled={cart.length === 0}
-              className="w-full h-11 bg-green-600 hover:bg-green-500 text-white font-bold text-lg mt-1.5 rounded-xl disabled:opacity-30"
-            >
-              <DollarSign className="w-5 h-5 mr-1" /> PAY
-            </Button>
-          </div>
+          {/* RETURNS mode — show selected return items */}
+          {posMode === "returns" && (
+            <>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {!sidePreview || sidePreview.items.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-purple-300/20 gap-2">
+                    <RotateCcw className="w-8 h-8" />
+                    <p className="text-xs text-center">Select items to return on the right</p>
+                  </div>
+                ) : sidePreview.items.map((item, i) => (
+                  <div key={i} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-purple-500/10">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-xs truncate font-medium">{item.name}</p>
+                      <p className="text-purple-300/40 text-[10px]">${item.price.toFixed(2)} ea · qty {item.qty}</p>
+                    </div>
+                    <p className="text-purple-300 font-semibold text-xs w-14 text-right flex-shrink-0">−${item.total.toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-purple-500/10 p-3 space-y-1 flex-shrink-0">
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Subtotal</span><span>−${(sidePreview?.subtotal || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Tax</span><span>−${(sidePreview?.tax || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-purple-300 text-xl font-bold pt-1.5 border-t border-purple-500/10">
+                  <span>REFUND</span><span>${(sidePreview?.total || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* EXCHANGE mode — show returning + replacement items */}
+          {posMode === "exchange" && (
+            <>
+              <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {!sidePreview ? (
+                  <div className="flex flex-col items-center justify-center h-full text-teal-300/20 gap-2">
+                    <ArrowLeftRight className="w-8 h-8" />
+                    <p className="text-xs text-center">Select items to exchange on the right</p>
+                  </div>
+                ) : (
+                  <>
+                    {sidePreview.returnedItems.length > 0 && (
+                      <div>
+                        <p className="text-purple-300/50 text-[9px] uppercase tracking-wider px-1 mb-1">Returning</p>
+                        {sidePreview.returnedItems.map((item, i) => (
+                          <div key={i} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-purple-500/10 mb-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-xs truncate font-medium">{item.name}</p>
+                              <p className="text-purple-300/40 text-[10px]">${item.price.toFixed(2)} · qty {item.qty}</p>
+                            </div>
+                            <p className="text-purple-300 font-semibold text-xs w-14 text-right flex-shrink-0">−${item.total.toFixed(2)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {sidePreview.replaceCart.length > 0 && (
+                      <div>
+                        <p className="text-teal-300/50 text-[9px] uppercase tracking-wider px-1 mb-1">Replacement</p>
+                        {sidePreview.replaceCart.map((item, i) => (
+                          <div key={i} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-teal-500/10 mb-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-xs truncate font-medium">{item.name}</p>
+                              <p className="text-teal-300/40 text-[10px]">${item.price.toFixed(2)} · qty {item.qty}</p>
+                            </div>
+                            <p className="text-teal-300 font-semibold text-xs w-14 text-right flex-shrink-0">+${item.total.toFixed(2)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="border-t border-teal-500/10 p-3 space-y-1 flex-shrink-0">
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Return Value</span><span>−${(sidePreview?.returnValue || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Replace Value</span><span>+${(sidePreview?.replaceValue || 0).toFixed(2)}</span>
+                </div>
+                <div className={`flex justify-between text-xl font-bold pt-1.5 border-t border-teal-500/10 ${(sidePreview?.diff || 0) > 0 ? "text-green-400" : (sidePreview?.diff || 0) < 0 ? "text-red-400" : "text-teal-300"}`}>
+                  <span>{(sidePreview?.diff || 0) > 0 ? "OWES" : (sidePreview?.diff || 0) < 0 ? "REFUND" : "EVEN"}</span>
+                  <span>${Math.abs(sidePreview?.diff || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* RIGHT — switches based on posMode */}
@@ -935,11 +1049,11 @@ export default function POSRegister() {
           )}
 
           {posMode === "returns" && (
-            <ReturnsPanel operator={operator} products={products} loadData={loadData} toast={toast} />
+            <ReturnsPanel operator={operator} products={products} loadData={loadData} toast={toast} onPreviewChange={setSidePreview} />
           )}
 
           {posMode === "exchange" && (
-            <ExchangePanel operator={operator} products={products} loadData={loadData} toast={toast} />
+            <ExchangePanel operator={operator} products={products} loadData={loadData} toast={toast} onPreviewChange={setSidePreview} />
           )}
 
           {posMode === "cs" && (
