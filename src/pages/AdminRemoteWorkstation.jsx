@@ -277,7 +277,6 @@ export default function AdminRemoteWorkstation() {
   };
 
   const pendingRequests = requests.filter(r => r.status === "pending");
-  const recentHistory = requests.filter(r => r.status !== "pending").sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 50);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -528,46 +527,7 @@ export default function AdminRemoteWorkstation() {
         </div>
       </div>
 
-      {/* Override History */}
-      {recentHistory.length > 0 && (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3 flex-shrink-0">Override History</h2>
-          <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
-                <tr>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Register</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Requested By</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Approved By</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentHistory.map((req, i) => {
-                  const cfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.expired;
-                  return (
-                    <tr key={req.id} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${cfg.color}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{req.register_id}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">"{req.action}"</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{req.requested_by_operator_name || "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{req.approved_by_operator_name || "—"}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-400">{new Date(req.created_date).toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
 
       {/* Approve Dialog */}
       <Dialog open={approveDialog} onOpenChange={v => { setApproveDialog(v); if (!v) { setPinInput(""); setPinError(""); setNote(""); } }}>
