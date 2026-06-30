@@ -8,9 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/components/ui/use-toast";
 import POSCartItem from "@/components/POSCartItem";
 import SODProtocolModal from "@/components/SODProtocolModal";
+import POSCashManagement from "@/components/POSCashManagement";
+import ExportCashHistory from "@/components/ExportCashHistory";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
-const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund"];
+const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management"];
 const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [
@@ -684,6 +686,8 @@ export default function POSRegister() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [discounts, setDiscounts] = useState([]);
   const [sodModal, setSODModal] = useState(false);
+  const [cashMgmtDialog, setCashMgmtDialog] = useState(false);
+  const [exportCashDialog, setExportCashDialog] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -797,29 +801,26 @@ export default function POSRegister() {
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
-      case "void_transaction": setCart([]); toast({ title: "Transaction Voided" }); writeLog("void", "Entire transaction voided"); break;
+      case "void_transaction": setCart([]); writeLog("void", "Entire transaction voided"); break;
       case "void_item":
-        if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); toast({ title: "Last Item Voided" }); writeLog("void", `Item voided: ${voided.name}`); }
+        if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); writeLog("void", `Item voided: ${voided.name}`); }
         break;
-      case "subtotal": toast({ title: "Subtotal", description: `$${subtotal.toFixed(2)}` }); break;
+      case "subtotal": break;
       case "quantity": setQtyDialog(true); break;
-      case "no_sale": toast({ title: "No Sale", description: "Cash drawer opened" }); writeLog("no_sale", "No Sale — cash drawer opened"); break;
+      case "no_sale": writeLog("no_sale", "No Sale — cash drawer opened"); break;
+      case "cash_management": setCashMgmtDialog(true); break;
       case "tax_exempt":
         setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
-        toast({ title: "Tax Exempt Applied" });
         break;
       case "discount_item":
         if (cart.length > 0) {
           setCart(prev => prev.map((item, idx) => idx === prev.length - 1 ? { ...item, price: +(item.price * 0.9).toFixed(2), total: +(item.qty * item.price * 0.9).toFixed(2) } : item));
-          toast({ title: "10% Discount Applied to Last Item" });
         }
         break;
       case "discount_total":
         setCart(prev => prev.map(item => ({ ...item, price: +(item.price * 0.9).toFixed(2), total: +(item.qty * item.price * 0.9).toFixed(2) })));
-        toast({ title: "10% Discount Applied to All Items" });
         break;
       case "price_check":
-        toast({ title: "Price Check", description: "Scan or select an item to check price" });
         break;
       default: break;
     }
@@ -1479,6 +1480,12 @@ export default function POSRegister() {
           onComplete={() => setSODModal(false)}
         />
       )}
+
+      {/* Cash Management Dialog */}
+      <POSCashManagement operator={operator} isOpen={cashMgmtDialog} onClose={() => setCashMgmtDialog(false)} />
+
+      {/* Export Cash History Dialog */}
+      <ExportCashHistory isOpen={exportCashDialog} onClose={() => setExportCashDialog(false)} />
 
       {/* Quantity Dialog */}
       <Dialog open={qtyDialog} onOpenChange={setQtyDialog}>

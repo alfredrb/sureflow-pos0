@@ -30,6 +30,7 @@ import AdminRemoteWorkstation from '@/pages/AdminRemoteWorkstation';
 import AdminDiscounts from '@/pages/AdminDiscounts';
 import AdminEODReports from '@/pages/AdminEODReports';
 import AdminCashReconciliation from '@/pages/AdminCashReconciliation';
+import POSCashExport from '@/pages/POSCashExport';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -77,6 +78,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/discounts" element={<AdminDiscounts />} />
           <Route path="/admin/eod-reports" element={<AdminEODReports />} />
           <Route path="/admin/cash-reconciliation" element={<AdminCashReconciliation />} />
+          <Route path="/admin/cash-export" element={<POSCashExport />} />
         </Route>
       </Route>
 
