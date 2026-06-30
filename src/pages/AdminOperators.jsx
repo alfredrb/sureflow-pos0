@@ -17,9 +17,18 @@ export default function AdminOperators() {
   const { toast } = useToast();
 
   const load = async () => {
-    setOperators(await base44.entities.Operator.list());
-    setLoading(false);
+    try {
+      const data = await base44.entities.Operator.list();
+      setOperators(data);
+    } catch (e) {
+      if (e.message?.includes("Rate limit")) {
+        toast({ title: "Rate limit hit", description: "Please wait before making another change", variant: "destructive" });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
+  
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" }); setDialogOpen(true); };
@@ -34,7 +43,8 @@ export default function AdminOperators() {
         await base44.entities.Operator.create(form);
         toast({ title: "Operator created" });
       }
-      setDialogOpen(false); load();
+      setDialogOpen(false);
+      setTimeout(() => load(), 500);
     } catch (e) {
       toast({ title: "Error", description: "Failed to save", variant: "destructive" });
     }
@@ -42,8 +52,13 @@ export default function AdminOperators() {
 
   const remove = async (op) => {
     if (!confirm(`Delete operator ${op.full_name}?`)) return;
-    await base44.entities.Operator.delete(op.id);
-    toast({ title: "Operator deleted" }); load();
+    try {
+      await base44.entities.Operator.delete(op.id);
+      toast({ title: "Operator deleted" });
+      setTimeout(() => load(), 500);
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
+    }
   };
 
   const filtered = operators.filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search));
