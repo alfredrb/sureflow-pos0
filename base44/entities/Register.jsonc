@@ -46,6 +46,11 @@
       "type": "boolean",
       "default": false,
       "description": "Enable Item Exchange on this register"
+    },
+    "paused": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this register is paused (locked from use)"
     }
   },
   "required": [

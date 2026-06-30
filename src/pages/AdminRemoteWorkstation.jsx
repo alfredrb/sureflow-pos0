@@ -163,6 +163,13 @@ export default function AdminRemoteWorkstation() {
     setDeclineDialog(true);
   };
 
+  const togglePause = async (reg) => {
+    const newPaused = !reg.paused;
+    await base44.entities.Register.update(reg.id, { paused: newPaused });
+    toast({ title: `${reg.name} ${newPaused ? "paused" : "unpaused"}` });
+    loadRegisters();
+  };
+
   const pendingRequests = requests.filter(r => r.status === "pending");
   const recentHistory = requests.filter(r => r.status !== "pending").slice(0, 30);
 
@@ -265,6 +272,14 @@ export default function AdminRemoteWorkstation() {
                   </div>
                 </div>
 
+                {/* Paused badge */}
+                {reg.paused && (
+                  <div className="mb-3 flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    <span className="text-red-700 text-xs font-bold">PAUSED — Register Locked</span>
+                  </div>
+                )}
+
                 {/* Pending override badge */}
                 {pending.length > 0 && (
                   <div className="mb-3 flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
@@ -272,6 +287,13 @@ export default function AdminRemoteWorkstation() {
                     <span className="text-amber-700 text-xs font-bold">{pending.length} override request{pending.length !== 1 ? "s" : ""} pending</span>
                   </div>
                 )}
+
+                {/* Action buttons */}
+                <div className="mb-3 flex gap-2">
+                  <Button onClick={() => togglePause(reg)} size="sm" variant={reg.paused ? "default" : "outline"} className={`flex-1 text-xs ${reg.paused ? "bg-red-600 hover:bg-red-700 text-white" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
+                    {reg.paused ? "Unpause" : "Pause"}
+                  </Button>
+                </div>
 
                 {/* Last transaction */}
                 <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">

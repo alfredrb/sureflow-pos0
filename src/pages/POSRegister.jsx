@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -693,6 +693,9 @@ export default function POSRegister() {
   const [receiptData, setReceiptData] = useState(null);
   const [storeConfig, setStoreConfig] = useState(null);
   const [lastReceipt, setLastReceipt] = useState(null);
+  const [registerPaused, setRegisterPaused] = useState(false);
+  const [pauseUnlockPin, setPauseUnlockPin] = useState("");
+  const [pauseUnlockError, setPauseUnlockError] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -793,6 +796,7 @@ export default function POSRegister() {
     if (config.length > 0) setStoreConfig(config[0]);
     if (regs.length > 0) {
       setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
+      setRegisterPaused(regs[0].paused || false);
       // Auto-detect and update IP address
       try {
         const ipResponse = await fetch('https://api.ipify.org?format=json');
@@ -961,6 +965,40 @@ export default function POSRegister() {
   // Cleanup polling on unmount
   useEffect(() => () => clearInterval(remotePollingRef.current), []);
 
+  // Poll for pause status every 5 seconds
+  useEffect(() => {
+    const pauseCheckInterval = setInterval(async () => {
+      const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+      try {
+        const regs = await base44.entities.Register.filter({ register_id: registerId });
+        if (regs.length > 0) {
+          setRegisterPaused(regs[0].paused || false);
+        }
+      } catch (e) {
+        console.error("Error checking pause status:", e);
+      }
+    }, 5000);
+    return () => clearInterval(pauseCheckInterval);
+  }, []);
+
+  const handlePauseUnlock = async () => {
+    setPauseUnlockError("");
+    const ops = await base44.entities.Operator.filter({ pin: pauseUnlockPin });
+    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+    if (!sup) {
+      setPauseUnlockError("Invalid PIN or insufficient role (CSM/Manager required)");
+      return;
+    }
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const regs = await base44.entities.Register.filter({ register_id: registerId });
+    if (regs.length > 0) {
+      await base44.entities.Register.update(regs[0].id, { paused: false });
+      setRegisterPaused(false);
+      setPauseUnlockPin("");
+      toast({ title: "Register Unlocked", description: `${sup.full_name} unpaused the register` });
+    }
+  };
+
   const completeSale = async () => {
     if (cart.length === 0) return;
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
@@ -1060,6 +1098,40 @@ export default function POSRegister() {
   if (loading) return (
     <div className="min-h-screen bg-[#0a0e27] flex items-center justify-center">
       <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+    </div>
+  );
+
+  if (registerPaused) return (
+    <div className="h-screen bg-[#0a0e27] flex items-center justify-center max-w-[1024px] max-h-[768px] mx-auto">
+      <div className="flex flex-col items-center gap-6 text-center">
+        <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
+          <AlertTriangle className="w-8 h-8 text-red-400" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-white">Register Paused</h1>
+          <p className="text-blue-300/60 text-sm">This register has been locked by an administrator</p>
+        </div>
+        
+        <Dialog open={true} onOpenChange={() => {}}>
+          <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
+            <DialogHeader>
+              <DialogTitle className="text-red-400 text-sm">Unlock Register</DialogTitle>
+            </DialogHeader>
+            <p className="text-blue-300/60 text-xs">A CSM or Manager PIN is required to unlock this register.</p>
+            <Input
+              type="password"
+              placeholder="CSM / Manager PIN"
+              value={pauseUnlockPin}
+              onChange={e => setPauseUnlockPin(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handlePauseUnlock()}
+              className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
+              autoFocus
+            />
+            {pauseUnlockError && <p className="text-red-400 text-xs text-center">{pauseUnlockError}</p>}
+            <Button onClick={handlePauseUnlock} className="w-full bg-red-600 hover:bg-red-500 text-white">Unlock Register</Button>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 
