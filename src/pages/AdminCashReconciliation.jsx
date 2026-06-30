@@ -26,6 +26,8 @@ export default function AdminCashReconciliation() {
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
   const [selectedRegister, setSelectedRegister] = useState("all");
+  const [auditDialog, setAuditDialog] = useState(false);
+  const [auditForm, setAuditForm] = useState({ register_id: "", total_counted: "" });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -121,6 +123,34 @@ export default function AdminCashReconciliation() {
     }
   };
 
+  const handleManualAudit = async () => {
+    if (!auditForm.register_id || !auditForm.total_counted) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    try {
+      const register = registers.find(r => r.id === auditForm.register_id);
+      await base44.entities.CashAudit.create({
+        register_id: register?.register_id || "",
+        register_name: register?.name || "",
+        operator_id: "",
+        operator_name: "Manual Audit",
+        total_counted: parseFloat(auditForm.total_counted),
+        expected_amount: 0,
+        discrepancy: 0,
+        audit_date: new Date().toISOString(),
+        notes: "Manual audit initiated by admin",
+        status: "pending"
+      });
+      toast({ title: "Manual audit created", description: `Audit created for ${register?.name}` });
+      setAuditForm({ register_id: "", total_counted: "" });
+      setAuditDialog(false);
+      loadData();
+    } catch (e) {
+      toast({ title: "Error creating audit", variant: "destructive" });
+    }
+  };
+
   const groupByDate = () => {
     const grouped = {};
     deposits.forEach((deposit) => {
@@ -154,6 +184,9 @@ export default function AdminCashReconciliation() {
           <p className="text-gray-500 mt-2">Track register cash deposits, longs, shorts, advances, and pickups</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setAuditDialog(true)} className="bg-purple-600 hover:bg-purple-700 flex gap-2">
+            <Plus className="w-4 h-4" /> Manual Audit
+          </Button>
           <Button onClick={() => setAdvanceDialog(true)} className="bg-blue-600 hover:bg-blue-700 flex gap-2">
             <Plus className="w-4 h-4" /> Cash Advance
           </Button>
@@ -982,6 +1015,53 @@ export default function AdminCashReconciliation() {
       </Dialog>
 
       {/* Print Slip Dialog */}
+      {/* Manual Audit Dialog */}
+      <Dialog open={auditDialog} onOpenChange={setAuditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Manual Audit</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Register</label>
+              <select
+                value={auditForm.register_id}
+                onChange={(e) => setAuditForm({ ...auditForm, register_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+              >
+                <option value="">Select a register</option>
+                {registers.length > 0 ? (
+                  registers.map((reg) => (
+                    <option key={reg.id} value={reg.id}>{reg.name}</option>
+                  ))
+                ) : (
+                  <option disabled>No registers available</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Total Counted ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={auditForm.total_counted}
+                  onChange={(e) => setAuditForm({ ...auditForm, total_counted: e.target.value })}
+                  className="pl-7"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" onClick={() => setAuditDialog(false)} className="flex-1">Cancel</Button>
+              <Button onClick={handleManualAudit} className="flex-1 bg-purple-600 hover:bg-purple-700">Create Audit</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {printData && (
         <Dialog open={!!printData} onOpenChange={(open) => !open && setPrintData(null)}>
           <DialogContent className="max-w-sm">
