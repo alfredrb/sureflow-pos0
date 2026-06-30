@@ -65,7 +65,7 @@ export default function AdminRemoteWorkstation() {
   };
 
   const loadTransactions = async () => {
-    const txs = await base44.entities.Transaction.list("-created_date", 100);
+    const txs = await base44.entities.Transaction.list("-created_date", 30);
     setTransactions(txs);
   };
 
