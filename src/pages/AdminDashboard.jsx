@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
+import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0 });
@@ -62,6 +63,10 @@ export default function AdminDashboard() {
 
       <div className="mb-6 sm:mb-8">
         <ShiftCalendarView />
+      </div>
+
+      <div className="mb-6 sm:mb-8">
+        <StaffingVsRevenueChart />
       </div>
 
       <div className="mb-6 sm:mb-8 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-6">
