@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { AlertTriangle, Check, Clock } from "lucide-react";
+import { AlertTriangle, Check, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
@@ -41,6 +41,16 @@ export default function AdminEmergencyLog() {
       loadAlerts();
     } catch (e) {
       toast({ title: "Error acknowledging alert", variant: "destructive" });
+    }
+  };
+
+  const dismissAlert = async (alert) => {
+    try {
+      await base44.entities.EmergencyAlert.delete(alert.id);
+      toast({ title: "Alert dismissed" });
+      loadAlerts();
+    } catch (e) {
+      toast({ title: "Error dismissing alert", variant: "destructive" });
     }
   };
 
@@ -93,15 +103,24 @@ export default function AdminEmergencyLog() {
                     {new Date(alert.timestamp).toLocaleString()}
                   </p>
                 </div>
-                <Button
-                  onClick={() => {
-                    setSelectedAlert(alert);
-                    setAcknowledgeDialog(true);
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white ml-4 flex-shrink-0"
-                >
-                  <Check className="w-4 h-4 mr-1" /> Acknowledge
-                </Button>
+                <div className="flex gap-2 ml-4 flex-shrink-0">
+                  <Button
+                    onClick={() => dismissAlert(alert)}
+                    variant="outline"
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    <X className="w-4 h-4 mr-1" /> Dismiss
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setSelectedAlert(alert);
+                      setAcknowledgeDialog(true);
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Check className="w-4 h-4 mr-1" /> Acknowledge
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
