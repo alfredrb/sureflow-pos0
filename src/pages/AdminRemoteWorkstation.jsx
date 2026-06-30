@@ -364,6 +364,30 @@ export default function AdminRemoteWorkstation() {
         </div>
       </div>
 
+      {/* Mandatory Audits — highest priority */}
+      {audits.filter(a => a.status === "pending").length > 0 && (
+        <div className="bg-red-50 border border-red-400 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-400">
+          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> MANDATORY AUDITS PENDING ({audits.filter(a => a.status === "pending").length})
+          </p>
+          <div className="space-y-2">
+            {audits.filter(a => a.status === "pending").slice(0, 5).map(audit => (
+              <div key={audit.id} className="bg-white rounded-xl border border-red-300 p-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">
+                    <span className="text-red-600">{audit.register_name}</span> — audit pending review
+                  </p>
+                  <p className="text-gray-500 text-xs">Operator: {audit.operator_name} · ${audit.total_counted?.toFixed(2)} counted · {new Date(audit.audit_date).toLocaleDateString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Cash Limit Alerts — high priority */}
       {cashLimitAlerts.filter(a => a.status === "active").length > 0 && (
         <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-200">

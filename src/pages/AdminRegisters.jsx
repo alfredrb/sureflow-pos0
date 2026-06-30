@@ -117,9 +117,9 @@ export default function AdminRegisters() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Register" : "New Register"}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 pb-6">
             <div className="grid grid-cols-2 gap-4">
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Register ID</label><Input value={form.register_id} onChange={e => setForm({ ...form, register_id: e.target.value })} placeholder="REG-004" /></div>
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Name</label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>

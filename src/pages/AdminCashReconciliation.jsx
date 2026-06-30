@@ -40,7 +40,7 @@ export default function AdminCashReconciliation() {
         base44.entities.CashAdvance.list("-created_date"),
         base44.entities.CashPickup.list("-created_date"),
         base44.entities.Robbery.list("-created_date"),
-        base44.entities.CashAudit.list("-audit_date", 100),
+        base44.entities.CashAudit.list("-audit_date", 200),
         base44.entities.CashLimitAlert.list("-triggered_at", 100)
       ]);
       setDeposits(depositsData);
@@ -605,15 +605,18 @@ export default function AdminCashReconciliation() {
        {activeTab === "report" && (
          <div className="space-y-4">
            {(() => {
-             const totalDeposits = deposits.length;
-             const totalExpected = deposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
-             const totalDeposited = deposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
-             const totalVariance = deposits.reduce((sum, d) => sum + (d.difference || 0), 0);
-             const shortages = deposits.filter(d => (d.difference || 0) < 0).length;
-             const overages = deposits.filter(d => (d.difference || 0) > 0).length;
-             const totalAdvances = advances.reduce((sum, a) => sum + (a.amount || 0), 0);
-             const totalPickups = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
-             const totalStolen = robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0);
+                 const totalDeposits = deposits.length;
+                 const totalExpected = deposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
+                 const totalDeposited = deposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
+                 const totalVariance = deposits.reduce((sum, d) => sum + (d.difference || 0), 0);
+                 const shortages = deposits.filter(d => (d.difference || 0) < 0).length;
+                 const overages = deposits.filter(d => (d.difference || 0) > 0).length;
+                 const totalAdvances = advances.reduce((sum, a) => sum + (a.amount || 0), 0);
+                 const totalPickups = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
+                 const totalStolen = robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0);
+                 const totalAudits = audits.length;
+                 const pendingAudits = audits.filter(a => a.status === "pending").length;
+                 const totalAuditedAmount = audits.reduce((sum, a) => sum + (a.total_counted || 0), 0);
 
              return (
                <>
@@ -650,7 +653,19 @@ export default function AdminCashReconciliation() {
                      <p className="text-gray-500 text-xs font-medium">Total Pickups</p>
                      <p className="text-2xl font-bold text-amber-600">${totalPickups.toFixed(2)}</p>
                    </div>
-                 </div>
+                   <div className="bg-white rounded-lg p-4 border border-green-100">
+                     <p className="text-gray-500 text-xs font-medium">Total Audits</p>
+                     <p className="text-2xl font-bold text-green-600">{totalAudits}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-yellow-100">
+                     <p className="text-gray-500 text-xs font-medium">Pending Audits</p>
+                     <p className="text-2xl font-bold text-yellow-600">{pendingAudits}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-purple-100">
+                     <p className="text-gray-500 text-xs font-medium">Audited Amount</p>
+                     <p className="text-2xl font-bold text-purple-600">${totalAuditedAmount.toFixed(2)}</p>
+                   </div>
+                   </div>
 
                  <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
                    <div className="flex items-center justify-between">
@@ -673,7 +688,7 @@ export default function AdminCashReconciliation() {
                          <FileText className="w-4 h-4" /> Text
                        </Button>
                        <Button onClick={() => {
-                         const csvContent = `Cash Reconciliation Report,${new Date().toLocaleString()}\n\nDeposits,\nTotal Deposits,${totalDeposits}\nExpected Total,$${totalExpected.toFixed(2)}\nDeposited Total,$${totalDeposited.toFixed(2)}\nTotal Variance,$${totalVariance.toFixed(2)}\nShortages,${shortages}\nOverages,${overages}\n\nCash Movements,\nTotal Advances,$${totalAdvances.toFixed(2)}\nAdvance Count,${advances.length}\nTotal Pickups,$${totalPickups.toFixed(2)}\nPickup Count,${pickups.length}\n\nIncidents,\nTotal Robberies,${robberies.length}\nTotal Amount Stolen,$${totalStolen.toFixed(2)}`;
+                         const csvContent = `Cash Reconciliation Report,${new Date().toLocaleString()}\n\nDeposits,\nTotal Deposits,${totalDeposits}\nExpected Total,$${totalExpected.toFixed(2)}\nDeposited Total,$${totalDeposited.toFixed(2)}\nTotal Variance,$${totalVariance.toFixed(2)}\nShortages,${shortages}\nOverages,${overages}\n\nCash Movements,\nTotal Advances,$${totalAdvances.toFixed(2)}\nAdvance Count,${advances.length}\nTotal Pickups,$${totalPickups.toFixed(2)}\nPickup Count,${pickups.length}\n\nCash Audits,\nTotal Audits,${totalAudits}\nPending Audits,${pendingAudits}\nAudited Amount,$${totalAuditedAmount.toFixed(2)}\n\nIncidents,\nTotal Robberies,${robberies.length}\nTotal Amount Stolen,$${totalStolen.toFixed(2)}`;
 
                          const blob = new Blob([csvContent], { type: "text/csv" });
                          const url = window.URL.createObjectURL(blob);
@@ -687,6 +702,22 @@ export default function AdminCashReconciliation() {
                          toast({ title: "Report exported as CSV" });
                        }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
                          <Download className="w-4 h-4" /> CSV
+                       </Button>
+                       <Button onClick={() => {
+                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\n\n=== CASH AUDITS ===\nTotal Audits: ${totalAudits}\nPending Audits: ${pendingAudits}\nTotal Audited Amount: $${totalAuditedAmount.toFixed(2)}\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
+
+                         const blob = new Blob([report], { type: "text/plain" });
+                         const url = window.URL.createObjectURL(blob);
+                         const a = document.createElement("a");
+                         a.href = url;
+                         a.download = `cash_report_${new Date().toISOString().split("T")[0]}.txt`;
+                         document.body.appendChild(a);
+                         a.click();
+                         window.URL.revokeObjectURL(url);
+                         document.body.removeChild(a);
+                         toast({ title: "Report exported as TXT" });
+                       }} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+                         <FileText className="w-4 h-4" /> TXT
                        </Button>
                      </div>
                    </div>
