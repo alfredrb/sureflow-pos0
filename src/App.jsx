@@ -34,6 +34,7 @@ import POSCashExport from '@/pages/POSCashExport';
 import AdminStaffReport from '@/pages/AdminStaffReport';
 import AdminEmergencyLog from '@/pages/AdminEmergencyLog';
 import AdminShiftScheduling from '@/pages/AdminShiftScheduling';
+import AdminPayrollReport from '@/pages/AdminPayrollReport';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -85,6 +86,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/staff-report" element={<AdminStaffReport />} />
           <Route path="/admin/emergency-log" element={<AdminEmergencyLog />} />
           <Route path="/admin/shift-scheduling" element={<AdminShiftScheduling />} />
+          <Route path="/admin/payroll" element={<AdminPayrollReport />} />
         </Route>
       </Route>
 

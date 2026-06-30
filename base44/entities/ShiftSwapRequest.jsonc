@@ -1,0 +1,61 @@
+{
+  "name": "ShiftSwapRequest",
+  "type": "object",
+  "properties": {
+    "requester_operator_id": {
+      "type": "string",
+      "description": "ID of operator requesting the swap"
+    },
+    "requester_operator_name": {
+      "type": "string",
+      "description": "Name of operator requesting the swap"
+    },
+    "target_operator_id": {
+      "type": "string",
+      "description": "ID of operator being asked to swap"
+    },
+    "target_operator_name": {
+      "type": "string",
+      "description": "Name of operator being asked to swap"
+    },
+    "shift_id": {
+      "type": "string",
+      "description": "ID of the shift being requested"
+    },
+    "shift_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the shift"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason for swap request"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "description": "Status of the swap request"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the request was approved"
+    },
+    "approved_by_admin": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether admin has finalized the swap"
+    }
+  },
+  "required": [
+    "requester_operator_id",
+    "target_operator_id",
+    "shift_date",
+    "status"
+  ]
+}

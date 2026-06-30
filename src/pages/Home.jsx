@@ -1,20 +1,34 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle } from "lucide-react";
+import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Home() {
   const { user } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
+  const [shiftLookupOpen, setShiftLookupOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const [currentOperator, setCurrentOperator] = useState(null);
+  const [currentShift, setCurrentShift] = useState(null);
+  const [operators, setOperators] = useState([]);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [selectedSwapOperator, setSelectedSwapOperator] = useState("");
+  const [swapReason, setSwapReason] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkAlerts = async () => {
       try {
-        const [requests, deposits, eodReports] = await Promise.all([
+        const [requests, deposits, eodReports, operatorsData] = await Promise.all([
           base44.entities.OverrideRequest.filter({ status: "pending" }),
           base44.entities.EODCashDeposit.list("-created_date", 100),
-          base44.entities.EODReport.list("-report_date", 30)
+          base44.entities.EODReport.list("-report_date", 30),
+          base44.entities.Operator.list()
         ]);
         
         let count = requests.length;
@@ -27,6 +41,7 @@ export default function Home() {
         const pendingEODCount = lastEODDate !== today ? 1 : 0;
         
         setPendingCount(count + unresolvedCount + pendingEODCount);
+        setOperators(operatorsData);
       } catch (e) {
         // silently fail
       }
@@ -35,6 +50,60 @@ export default function Home() {
     const interval = setInterval(checkAlerts, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleShiftLookup = async () => {
+    if (!pin) {
+      toast({ title: "Please enter your PIN", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const foundOperator = operators.find(op => op.pin === pin);
+      if (!foundOperator) {
+        toast({ title: "Invalid PIN", variant: "destructive" });
+        setPin("");
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const shifts = await base44.entities.Shift.filter({ 
+        operator_id: foundOperator.operator_id,
+        date: today
+      });
+
+      setCurrentOperator(foundOperator);
+      setCurrentShift(shifts[0] || null);
+      setPin("");
+    } catch (e) {
+      toast({ title: "Error looking up shift", variant: "destructive" });
+    }
+  };
+
+  const handleShiftSwapRequest = async () => {
+    if (!selectedSwapOperator || !currentShift) return;
+
+    try {
+      await base44.entities.ShiftSwapRequest.create({
+        requester_operator_id: currentOperator.operator_id,
+        requester_operator_name: currentOperator.full_name,
+        target_operator_id: selectedSwapOperator,
+        target_operator_name: operators.find(op => op.operator_id === selectedSwapOperator)?.full_name || "",
+        shift_id: currentShift.id,
+        shift_date: currentShift.date,
+        reason: swapReason,
+        status: "pending"
+      });
+
+      toast({ title: "Shift swap request submitted", description: "Awaiting approval" });
+      setSwapOpen(false);
+      setCurrentOperator(null);
+      setCurrentShift(null);
+      setSelectedSwapOperator("");
+      setSwapReason("");
+    } catch (e) {
+      toast({ title: "Error creating swap request", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex flex-col items-center justify-center p-6 max-w-[1024px] max-h-[768px] mx-auto overflow-hidden">
@@ -92,6 +161,131 @@ export default function Home() {
           );
         })}
       </div>
+
+      <Button 
+        onClick={() => setShiftLookupOpen(true)}
+        variant="outline"
+        className="mt-8 gap-2 border-blue-500/30 text-blue-300 hover:bg-blue-500/10">
+        <Calendar className="w-4 h-4" /> Shift Lookup
+      </Button>
+
+      {/* Shift Lookup Modal */}
+      <Dialog open={shiftLookupOpen} onOpenChange={setShiftLookupOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5" /> Shift Lookup
+            </DialogTitle>
+          </DialogHeader>
+
+          {!currentOperator ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Enter Your PIN</label>
+                <Input
+                  type="password"
+                  placeholder="****"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && handleShiftLookup()}
+                  maxLength="4"
+                />
+              </div>
+              <Button onClick={handleShiftLookup} className="w-full bg-blue-600 hover:bg-blue-700">
+                Look Up Shift
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-sm font-medium text-gray-700">Operator: {currentOperator.full_name}</p>
+                {currentShift ? (
+                  <>
+                    <p className="text-xs text-gray-600 mt-2">Shift Date: {currentShift.date}</p>
+                    <p className="text-xs text-gray-600">Time: {currentShift.start_time} - {currentShift.end_time}</p>
+                    <p className="text-xs text-gray-600">Register: {currentShift.register_name}</p>
+                    {currentShift.status && (
+                      <p className="text-xs font-semibold mt-2 text-blue-600">Status: {currentShift.status}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-2">No shifts scheduled for today</p>
+                )}
+              </div>
+
+              {currentShift && (
+                <Button 
+                  onClick={() => setSwapOpen(true)}
+                  className="w-full bg-amber-600 hover:bg-amber-700">
+                  Request Shift Swap
+                </Button>
+              )}
+
+              <Button 
+                onClick={() => {
+                  setCurrentOperator(null);
+                  setCurrentShift(null);
+                }}
+                variant="outline"
+                className="w-full">
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift Swap Modal */}
+      <Dialog open={swapOpen} onOpenChange={setSwapOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Request Shift Swap</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Swap With Operator</label>
+              <select
+                value={selectedSwapOperator}
+                onChange={(e) => setSelectedSwapOperator(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                <option value="">Select an operator</option>
+                {operators
+                  .filter(op => op.operator_id !== currentOperator?.operator_id)
+                  .map(op => (
+                    <option key={op.operator_id} value={op.operator_id}>
+                      {op.full_name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Reason (optional)</label>
+              <Input
+                placeholder="e.g., Family emergency, illness"
+                value={swapReason}
+                onChange={(e) => setSwapReason(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setSwapOpen(false)}
+                variant="outline"
+                className="flex-1">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleShiftSwapRequest}
+                disabled={!selectedSwapOperator}
+                className="flex-1 bg-amber-600 hover:bg-amber-700">
+                Send Request
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
