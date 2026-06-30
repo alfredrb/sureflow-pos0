@@ -45,6 +45,7 @@ export default function AdminFunctionKeys() {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState({ label: "", action: "none", color: "#374151", requires_role: "none", key_number: 1 });
   const [gridView, setGridView] = useState(false);
   const { toast } = useToast();
@@ -53,17 +54,39 @@ export default function AdminFunctionKeys() {
   useEffect(() => { load(); }, []);
 
   const openEdit = (fk) => {
+    setIsCreating(false);
     setEditing(fk);
     setForm({ label: fk.label, action: fk.action, color: fk.color, requires_role: getRequiredRole(fk), key_number: fk.key_number });
   };
 
+  const openCreate = () => {
+    setIsCreating(true);
+    const nextKeyNumber = keys.length > 0 ? Math.max(...keys.map(k => k.key_number)) + 1 : 1;
+    setEditing({});
+    setForm({ label: "", action: "none", color: "#374151", requires_role: "none", key_number: nextKeyNumber });
+  };
+
   const save = async () => {
-    await base44.entities.FunctionKey.update(editing.id, {
-      ...form,
-      requires_supervisor: form.requires_role !== "none",
-    });
-    toast({ title: "Function key updated" });
-    setEditing(null); load();
+    if (!form.label.trim()) {
+      toast({ title: "Error", description: "Label is required", variant: "destructive" });
+      return;
+    }
+    if (isCreating) {
+      await base44.entities.FunctionKey.create({
+        ...form,
+        requires_supervisor: form.requires_role !== "none",
+      });
+      toast({ title: "Function key created" });
+    } else {
+      await base44.entities.FunctionKey.update(editing.id, {
+        ...form,
+        requires_supervisor: form.requires_role !== "none",
+      });
+      toast({ title: "Function key updated" });
+    }
+    setEditing(null);
+    setIsCreating(false);
+    load();
   };
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
@@ -75,7 +98,7 @@ export default function AdminFunctionKeys() {
         <p className="text-gray-500 text-sm mt-1">Customize the POS function key bar</p>
       </div>
 
-      {/* View Toggle */}
+      {/* View Toggle & Add Button */}
       <div className="mb-6 flex gap-2">
         <button
           onClick={() => setGridView(false)}
@@ -88,6 +111,12 @@ export default function AdminFunctionKeys() {
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${gridView ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
         >
           Grid View
+        </button>
+        <button
+          onClick={openCreate}
+          className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+        >
+          + Add Function Key
         </button>
       </div>
 
@@ -157,9 +186,9 @@ export default function AdminFunctionKeys() {
         </div>
       )}
 
-      <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
+      <Dialog open={!!editing} onOpenChange={() => { setEditing(null); setIsCreating(false); }}>
          <DialogContent>
-           <DialogHeader><DialogTitle>Edit Function Key F{editing?.key_number}</DialogTitle></DialogHeader>
+           <DialogHeader><DialogTitle>{isCreating ? "Add Function Key" : `Edit Function Key F${editing?.key_number}`}</DialogTitle></DialogHeader>
            <div className="space-y-4">
              <div>
                <label className="text-sm font-medium text-gray-700 mb-1 block">Key Number</label>
