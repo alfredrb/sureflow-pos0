@@ -1,0 +1,104 @@
+{
+  "name": "Shift",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "HH:MM format (24-hour)"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "HH:MM format (24-hour)"
+    },
+    "break_start": {
+      "type": "string",
+      "description": "HH:MM format for break start"
+    },
+    "break_end": {
+      "type": "string",
+      "description": "HH:MM format for break end"
+    },
+    "lunch_start": {
+      "type": "string",
+      "description": "HH:MM format for lunch start"
+    },
+    "lunch_end": {
+      "type": "string",
+      "description": "HH:MM format for lunch end"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Assigned register for this shift"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "active",
+        "on_break",
+        "on_lunch",
+        "completed",
+        "overtime"
+      ],
+      "default": "scheduled",
+      "description": "Current shift status"
+    },
+    "actual_start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When operator actually logged in"
+    },
+    "actual_end": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When operator actually logged out"
+    },
+    "break_taken": {
+      "type": "boolean",
+      "default": false
+    },
+    "lunch_taken": {
+      "type": "boolean",
+      "default": false
+    },
+    "overtime_minutes": {
+      "type": "number",
+      "default": 0,
+      "description": "Minutes worked past scheduled end time"
+    },
+    "overtime_approved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether overtime was approved via override"
+    },
+    "overtime_approved_by_id": {
+      "type": "string"
+    },
+    "overtime_approved_by_name": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "operator_id",
+    "operator_name",
+    "date",
+    "start_time",
+    "end_time"
+  ]
+}

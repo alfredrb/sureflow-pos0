@@ -1,0 +1,69 @@
+{
+  "name": "ShiftAlert",
+  "type": "object",
+  "properties": {
+    "shift_id": {
+      "type": "string",
+      "description": "Reference to Shift record"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "alert_type": {
+      "type": "string",
+      "enum": [
+        "break_due",
+        "lunch_due",
+        "shift_ending",
+        "break_overtime",
+        "lunch_overtime",
+        "shift_overtime"
+      ],
+      "description": "Type of shift alert"
+    },
+    "scheduled_time": {
+      "type": "string",
+      "description": "When the event was scheduled (HH:MM)"
+    },
+    "triggered_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the alert was triggered"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether alert is still pending"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "override_requested": {
+      "type": "boolean",
+      "default": false
+    },
+    "override_approved": {
+      "type": "boolean",
+      "default": false
+    },
+    "override_approved_by_id": {
+      "type": "string"
+    },
+    "override_reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "shift_id",
+    "operator_id",
+    "alert_type",
+    "triggered_at"
+  ]
+}

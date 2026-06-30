@@ -21,6 +21,7 @@ export default function AdminRemoteWorkstation() {
   const [logs, setLogs] = useState([]);
   const [robberies, setRobberies] = useState([]);
   const [audits, setAudits] = useState([]);
+  const [shiftAlerts, setShiftAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approveDialog, setApproveDialog] = useState(false);
@@ -62,6 +63,8 @@ export default function AdminRemoteWorkstation() {
       await loadRobberies();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadAudits();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadShiftAlerts();
       setLastRefresh(new Date());
     };
     pollRef.current = setInterval(refresh, 5000);
@@ -84,6 +87,8 @@ export default function AdminRemoteWorkstation() {
       await loadRobberies();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadAudits();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadShiftAlerts();
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -163,6 +168,15 @@ export default function AdminRemoteWorkstation() {
       setAudits(audits);
     } catch (e) {
       console.error("Error loading audits:", e);
+    }
+  };
+
+  const loadShiftAlerts = async () => {
+    try {
+      const alerts = await base44.entities.ShiftAlert.filter({ is_active: true }, "-triggered_at", 50);
+      setShiftAlerts(alerts);
+    } catch (e) {
+      console.error("Error loading shift alerts:", e);
     }
   };
 
@@ -335,6 +349,50 @@ export default function AdminRemoteWorkstation() {
           </div>
         </div>
       </div>
+
+      {/* Shift Alerts — medium-high priority */}
+      {shiftAlerts.filter(a => a.alert_type === "shift_overtime").length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-200">
+          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> SHIFT OVERTIME LOCKOUT ({shiftAlerts.filter(a => a.alert_type === "shift_overtime").length})
+          </p>
+          <div className="space-y-2">
+            {shiftAlerts.filter(a => a.alert_type === "shift_overtime").slice(0, 5).map(alert => (
+              <div key={alert.id} className="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm text-red-600">{alert.operator_name} — 30+ min past shift</p>
+                  <p className="text-gray-500 text-xs">{alert.register_id} · {new Date(alert.triggered_at).toLocaleTimeString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Shift Break/Lunch Alerts */}
+      {shiftAlerts.filter(a => ["break_overtime", "lunch_overtime"].includes(a.alert_type)).length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-amber-200">
+          <p className="text-amber-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <Clock className="w-5 h-5" /> BREAK/LUNCH OVERDUE ({shiftAlerts.filter(a => ["break_overtime", "lunch_overtime"].includes(a.alert_type)).length})
+          </p>
+          <div className="space-y-2">
+            {shiftAlerts.filter(a => ["break_overtime", "lunch_overtime"].includes(a.alert_type)).slice(0, 5).map(alert => (
+              <div key={alert.id} className="bg-white rounded-xl border border-amber-200 p-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">{alert.operator_name} — {alert.alert_type === "break_overtime" ? "Break" : "Lunch"} overdue</p>
+                  <p className="text-gray-500 text-xs">{alert.register_id} · {new Date(alert.triggered_at).toLocaleTimeString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Cash Audit Alerts — medium priority */}
       {audits.length > 0 && (

@@ -102,6 +102,20 @@
     "override_operator_name": {
       "type": "string",
       "description": "Name of operator who approved a return-period override"
+    },
+    "shift_id": {
+      "type": "string",
+      "description": "Shift record ID for tracking who was on duty"
+    },
+    "shift_status": {
+      "type": "string",
+      "enum": [
+        "on_shift",
+        "on_break",
+        "on_lunch",
+        "overtime"
+      ],
+      "description": "Operator's shift status during transaction"
     }
   },
   "required": [

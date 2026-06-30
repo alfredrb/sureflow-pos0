@@ -28,15 +28,24 @@ export default function AdminStaffReport() {
         if (!grouped[opName]) {
           grouped[opName] = {
             operator_name: opName,
+            operator_id: tx.operator_id,
             completed_sales: 0,
             completed_count: 0,
             refund_count: 0,
             refund_amount: 0,
+            overtime_count: 0,
+            shift_status_breakdown: { on_shift: 0, on_break: 0, on_lunch: 0, overtime: 0 },
             all_transactions: []
           };
         }
         grouped[opName].all_transactions.push(tx);
-        
+
+        // Track shift status
+        if (tx.shift_status) {
+          grouped[opName].shift_status_breakdown[tx.shift_status] = (grouped[opName].shift_status_breakdown[tx.shift_status] || 0) + 1;
+          if (tx.shift_status === "overtime") grouped[opName].overtime_count += 1;
+        }
+
         if (tx.status === "completed") {
           grouped[opName].completed_sales += tx.total || 0;
           grouped[opName].completed_count += 1;
@@ -143,12 +152,13 @@ export default function AdminStaffReport() {
 
       {/* Staff Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
           <span>Staff Member</span>
           <span>Total Sales</span>
           <span>Refunds</span>
           <span>Avg Value</span>
           <span>Transactions</span>
+          <span>Overtime</span>
           <span>Net Sales</span>
         </div>
         <div className="divide-y divide-gray-50">
@@ -156,12 +166,13 @@ export default function AdminStaffReport() {
             <div className="px-5 py-8 text-center text-gray-500 text-sm">No transactions found for this date range</div>
           ) : (
             staffStats.map((stat, idx) => (
-              <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 items-center hover:bg-gray-50/50">
+              <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 items-center hover:bg-gray-50/50">
                 <p className="text-sm font-medium text-gray-900">{stat.operator_name}</p>
                 <p className="text-sm text-green-600 font-semibold">${stat.total_sales.toFixed(2)}</p>
                 <p className="text-sm text-red-600">${stat.total_refunds.toFixed(2)} ({stat.refund_count})</p>
                 <p className="text-sm text-gray-600">${stat.avg_transaction.toFixed(2)}</p>
                 <p className="text-sm text-gray-600">{stat.transaction_count}</p>
+                <p className={`text-sm font-semibold ${stat.overtime_count > 0 ? "text-red-600" : "text-gray-600"}`}>{stat.overtime_count} txs</p>
                 <p className="text-sm font-semibold text-gray-900">${stat.net_sales.toFixed(2)}</p>
               </div>
             ))
