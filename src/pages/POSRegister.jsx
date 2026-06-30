@@ -12,6 +12,7 @@ import SODProtocolModal from "@/components/SODProtocolModal";
 import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
 import POSReceipt from "@/components/POSReceipt";
+import GiftCardSeller from "@/components/GiftCardSeller";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt"];
@@ -620,7 +621,9 @@ function ExchangePanel({ operator, products, loadData, toast, onPreviewChange })
 }
 
 // ── CS Mode Panel ────────────────────────────────────────────────────────────
-function CSModePanel({ toast }) {
+function CSModePanel({ operator, onGiftCardSale, toast }) {
+  const [showGiftCardSeller, setShowGiftCardSeller] = useState(false);
+
   return (
     <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -629,6 +632,7 @@ function CSModePanel({ toast }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         {[
+          { label: "Sell Gift Card", color: "#059669", action: () => setShowGiftCardSeller(true) },
           { label: "Price Match", color: "#b45309", action: () => toast({ title: "Price Match", description: "Enter competitor price to match" }) },
           { label: "Loyalty Lookup", color: "#0369a1", action: () => toast({ title: "Loyalty Lookup", description: "Scan or enter loyalty card number" }) },
           { label: "Gift Receipt", color: "#047857", action: () => toast({ title: "Gift Receipt", description: "Re-print last receipt as gift receipt" }) },
@@ -647,6 +651,14 @@ function CSModePanel({ toast }) {
       <div className="flex-1 flex items-center justify-center text-amber-300/20">
         <p className="text-xs">Additional CS functions can be added via Admin Panel</p>
       </div>
+
+      {showGiftCardSeller && (
+        <GiftCardSeller 
+          operator={operator} 
+          onGiftCardCreated={onGiftCardSale}
+          onClose={() => setShowGiftCardSeller(false)} 
+        />
+      )}
     </div>
   );
 }
@@ -700,6 +712,7 @@ export default function POSRegister() {
   const [robberyDialog, setRobberyDialog] = useState(false);
   const [calculatedRobberyAmount, setCalculatedRobberyAmount] = useState(0);
   const [robberyLoading, setRobberyLoading] = useState(false);
+  const [trainingMode, setTrainingMode] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1016,7 +1029,8 @@ export default function POSRegister() {
           discount_type: item.discount_type || null, discount_percentage: item.discount_percentage || 0, original_price: item.original_price || item.price
         })),
         subtotal, tax, total, payment_method: paymentMethod, status: "completed",
-        amount_tendered: parseFloat(amountTendered || total), change_due: changeDue
+        amount_tendered: parseFloat(amountTendered || total), change_due: changeDue,
+        training_mode: trainingMode
       });
       for (const item of cart) {
         const prod = products.find(p => p.sku === item.sku);
@@ -1240,7 +1254,12 @@ export default function POSRegister() {
 
       {/* Top bar */}
       <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0 relative">
-        <div className="flex items-center gap-3">
+        {trainingMode && (
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 via-orange-500/5 to-orange-500/0 border-b-2 border-orange-500/50 flex items-center justify-center">
+            <span className="text-orange-400 font-bold text-sm uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED</span>
+          </div>
+        )}
+        <div className="flex items-center gap-3 relative z-10">
           <div className="flex items-center gap-1.5">
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
               <ShoppingCart className="w-3.5 h-3.5 text-white" />
@@ -1281,7 +1300,13 @@ export default function POSRegister() {
           <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 relative z-10">
+          <button 
+            onClick={() => setTrainingMode(!trainingMode)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${trainingMode ? "bg-orange-600 hover:bg-orange-500 text-white" : "bg-[#0a0e27] border border-blue-500/20 text-blue-300 hover:border-orange-500/50"}`}
+          >
+            {trainingMode ? "EXIT TRAINING" : "TRAINING"}
+          </button>
           <div className="flex items-center gap-2">
             <span className="text-blue-200/60 text-xs">{operator?.full_name}</span>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -1511,7 +1536,7 @@ export default function POSRegister() {
           )}
 
           {posMode === "cs" && (
-            <CSModePanel toast={toast} />
+           <CSModePanel operator={operator} onGiftCardSale={() => {}} toast={toast} />
           )}
         </div>
       </div>
@@ -1569,7 +1594,7 @@ export default function POSRegister() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              {[{ m: "cash", icon: Banknote, label: "Cash" }, { m: "credit", icon: CreditCard, label: "Credit" }, { m: "debit", icon: CreditCard, label: "Debit" }].map(({ m, icon: Icon, label }) => (
+              {[{ m: "cash", icon: Banknote, label: "Cash" }, { m: "credit", icon: CreditCard, label: "Credit" }, { m: "debit", icon: CreditCard, label: "Debit" }, { m: "check", icon: CreditCard, label: "Check" }, { m: "store_credit", icon: CreditCard, label: "Store Credit" }, { m: "giftcard", icon: CreditCard, label: "Gift Card" }].map(({ m, icon: Icon, label }) => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
                   className={`py-2.5 rounded-xl border flex flex-col items-center gap-1 transition-colors ${paymentMethod === m ? "bg-blue-600 border-blue-500 text-white" : "bg-[#0a0e27] border-blue-500/10 text-blue-300/50 hover:border-blue-500/30"}`}
                 >

@@ -36,6 +36,7 @@ import AdminStaffReport from '@/pages/AdminStaffReport';
 import AdminEmergencyLog from '@/pages/AdminEmergencyLog';
 import AdminShiftScheduling from '@/pages/AdminShiftScheduling';
 import AdminPayrollReport from '@/pages/AdminPayrollReport';
+import AdminGiftCardManager from '@/pages/AdminGiftCardManager';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -89,6 +90,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/emergency-log" element={<AdminEmergencyLog />} />
           <Route path="/admin/shift-scheduling" element={<AdminShiftScheduling />} />
           <Route path="/admin/payroll" element={<AdminPayrollReport />} />
+          <Route path="/admin/gift-cards" element={<AdminGiftCardManager />} />
         </Route>
       </Route>
 

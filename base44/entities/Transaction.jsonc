@@ -52,9 +52,20 @@
         "cash",
         "credit",
         "debit",
-        "check"
+        "check",
+        "store_credit",
+        "giftcard"
       ],
       "default": "cash"
+    },
+    "giftcard_number": {
+      "type": "string",
+      "description": "Gift card number if payment_method is giftcard"
+    },
+    "training_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this transaction was in training mode and not recorded in financial logs"
     },
     "status": {
       "type": "string",

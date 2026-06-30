@@ -1,0 +1,97 @@
+{
+  "name": "GiftCard",
+  "type": "object",
+  "properties": {
+    "card_number": {
+      "type": "string",
+      "description": "Unique gift card number (e.g., GC-1234567890)"
+    },
+    "balance": {
+      "type": "number",
+      "description": "Current card balance"
+    },
+    "original_amount": {
+      "type": "number",
+      "description": "Original purchase amount"
+    },
+    "purchase_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the gift card was purchased"
+    },
+    "purchased_by_operator_id": {
+      "type": "string",
+      "description": "Operator who sold the gift card"
+    },
+    "purchased_by_operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register where gift card was sold"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "expired"
+      ],
+      "default": "active",
+      "description": "Card status"
+    },
+    "expiration_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Optional expiration date"
+    },
+    "transactions": {
+      "type": "array",
+      "description": "Transaction history for this card",
+      "items": {
+        "type": "object",
+        "properties": {
+          "transaction_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "operator_id": {
+            "type": "string"
+          },
+          "operator_name": {
+            "type": "string"
+          },
+          "register_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "redemption",
+              "refund"
+            ],
+            "description": "Type of transaction"
+          },
+          "remaining_balance": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "card_number",
+    "original_amount",
+    "purchase_date"
+  ]
+}
