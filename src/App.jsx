@@ -16,6 +16,7 @@ import Home from '@/pages/Home';
 import POSWelcome from '@/pages/POSWelcome';
 import POSLogin from '@/pages/POSLogin';
 import POSRegister from '@/pages/POSRegister';
+import AdminLogin from '@/pages/AdminLogin';
 import AdminLayout from '@/components/AdminLayout';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AdminOperators from '@/pages/AdminOperators';
@@ -68,6 +69,7 @@ const AuthenticatedApp = () => {
         <Route path="/pos" element={<POSLogin />} />
         <Route path="/pos/login" element={<POSLogin />} />
         <Route path="/pos/register" element={<POSRegister />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/operators" element={<AdminOperators />} />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ const STATUS_CONFIG = {
 export default function AdminRemoteWorkstation() {
   const [registers, setRegisters] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [transactions, setTransactions] = useState([]); // latest completed tx per register
+  const [transactions, setTransactions] = useState([]);
   const [operators, setOperators] = useState([]);
   const [logs, setLogs] = useState([]);
   const [robberies, setRobberies] = useState([]);
@@ -27,8 +28,6 @@ export default function AdminRemoteWorkstation() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approveDialog, setApproveDialog] = useState(false);
   const [declineDialog, setDeclineDialog] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
   const [note, setNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -37,13 +36,21 @@ export default function AdminRemoteWorkstation() {
   const [selectedRegisterLogout, setSelectedRegisterLogout] = useState(null);
   const [logoutReason, setLogoutReason] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [adminOperator, setAdminOperator] = useState(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
   const pollRef = useRef(null);
 
   useEffect(() => {
+    const storedOperator = sessionStorage.getItem("admin_operator");
+    if (!storedOperator) {
+      navigate("/admin/login");
+    } else {
+      setAdminOperator(JSON.parse(storedOperator));
+    }
     loadAll();
     setLastRefresh(new Date());
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (!autoRefresh) {
@@ -253,36 +260,32 @@ export default function AdminRemoteWorkstation() {
   };
 
   const handleApprove = async () => {
-    if (!selectedRequest) return;
-    setPinError("");
+    if (!selectedRequest || !adminOperator) return;
     setActionLoading(true);
-    const ops = await base44.entities.Operator.filter({ pin: pinInput });
-    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
-    if (!sup) {
-      setPinError("Invalid PIN or insufficient role (CSM or Manager required)");
-      setActionLoading(false);
-      return;
+    try {
+      await base44.entities.OverrideRequest.update(selectedRequest.id, {
+        status: "approved",
+        approved_by_operator_id: adminOperator.operator_id,
+        approved_by_operator_name: adminOperator.full_name,
+        note: note || ""
+      });
+      // Log it
+      await base44.entities.RegisterLog.create({
+        event_type: "override",
+        operator_id: adminOperator.operator_id,
+        operator_name: adminOperator.full_name,
+        operator_role: adminOperator.role,
+        register_id: selectedRequest.register_id,
+        detail: `Remote override APPROVED for "${selectedRequest.action}" (requested by ${selectedRequest.requested_by_operator_name || selectedRequest.register_id})`,
+        override_operator_id: adminOperator.operator_id,
+        override_operator_name: adminOperator.full_name,
+        override_action: selectedRequest.action
+      });
+      toast({ title: "Override Approved", description: `${adminOperator.full_name} approved "${selectedRequest.action}"` });
+      setApproveDialog(false); setNote(""); setSelectedRequest(null);
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to approve override", variant: "destructive" });
     }
-    await base44.entities.OverrideRequest.update(selectedRequest.id, {
-      status: "approved",
-      approved_by_operator_id: sup.operator_id,
-      approved_by_operator_name: sup.full_name,
-      note: note || ""
-    });
-    // Log it
-    await base44.entities.RegisterLog.create({
-      event_type: "override",
-      operator_id: sup.operator_id,
-      operator_name: sup.full_name,
-      operator_role: sup.role,
-      register_id: selectedRequest.register_id,
-      detail: `Remote override APPROVED for "${selectedRequest.action}" (requested by ${selectedRequest.requested_by_operator_name || selectedRequest.register_id})`,
-      override_operator_id: sup.operator_id,
-      override_operator_name: sup.full_name,
-      override_action: selectedRequest.action
-    });
-    toast({ title: "Override Approved", description: `${sup.full_name} approved "${selectedRequest.action}"` });
-    setApproveDialog(false); setPinInput(""); setNote(""); setSelectedRequest(null);
     setActionLoading(false);
     await new Promise(resolve => setTimeout(resolve, 300));
     await loadRequests();
@@ -303,7 +306,7 @@ export default function AdminRemoteWorkstation() {
 
   const openApprove = (req) => {
     setSelectedRequest(req);
-    setPinInput(""); setPinError(""); setNote("");
+    setNote("");
     setApproveDialog(true);
   };
 
@@ -730,7 +733,7 @@ export default function AdminRemoteWorkstation() {
 
 
       {/* Approve Dialog */}
-      <Dialog open={approveDialog} onOpenChange={v => { setApproveDialog(v); if (!v) { setPinInput(""); setPinError(""); setNote(""); } }}>
+      <Dialog open={approveDialog} onOpenChange={v => { setApproveDialog(v); if (!v) setNote(""); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm text-green-700">
@@ -746,26 +749,20 @@ export default function AdminRemoteWorkstation() {
                   <p className="text-xs text-gray-500">Requested by: <span className="font-medium text-gray-800">{selectedRequest.requested_by_operator_name}</span></p>
                 )}
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">CSM / Manager PIN</label>
-                <Input
-                  type="password"
-                  placeholder="Enter PIN"
-                  value={pinInput}
-                  onChange={e => setPinInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleApprove()}
-                  className="text-center text-lg tracking-widest"
-                  autoFocus
-                />
-                {pinError && <p className="text-red-500 text-xs mt-1">{pinError}</p>}
-              </div>
+              {adminOperator && (
+                <div className="bg-blue-50 rounded-xl p-3 space-y-1">
+                  <p className="text-xs text-gray-500">Approving as:</p>
+                  <p className="text-sm font-bold text-blue-700">{adminOperator.full_name}</p>
+                  <p className="text-xs text-gray-500">{adminOperator.operator_id} · {adminOperator.role}</p>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Note (optional)</label>
                 <Input placeholder="Add a note..." value={note} onChange={e => setNote(e.target.value)} />
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setApproveDialog(false)} className="flex-1">Cancel</Button>
-                <Button onClick={handleApprove} disabled={!pinInput || actionLoading} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
+                <Button onClick={handleApprove} disabled={actionLoading} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
                   {actionLoading ? "Approving..." : "Approve Override"}
                 </Button>
               </div>

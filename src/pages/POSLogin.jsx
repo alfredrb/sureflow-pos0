@@ -291,7 +291,7 @@ export default function POSLogin() {
           <span>Shift Lookup</span>
         </button>
         <button
-          onClick={() => navigate("/admin")}
+          onClick={() => navigate("/admin/login")}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
         >
           <LayoutDashboard className="w-3 h-3" />

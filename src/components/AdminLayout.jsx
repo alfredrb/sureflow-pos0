@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX, AlertTriangle, Clock } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
@@ -28,7 +28,18 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [soundEnabled, setSoundEnabledState] = useState(getSoundEnabled());
+  const [adminOperator, setAdminOperator] = useState(null);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const storedOperator = sessionStorage.getItem("admin_operator");
+    if (!storedOperator) {
+      navigate("/admin/login");
+    } else {
+      setAdminOperator(JSON.parse(storedOperator));
+    }
+  }, [navigate]);
 
   useEffect(() => {
     let previousCount = 0;
@@ -78,11 +89,18 @@ export default function AdminLayout() {
       <aside className={`bg-[#0f172a] text-white flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-64"} flex-shrink-0`}>
         <div className="p-4 flex items-center justify-between border-b border-white/5">
           {!collapsed && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Settings className="w-4 h-4" />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-sm">SurePOS Admin</span>
               </div>
-              <span className="font-bold text-sm">SurePOS Admin</span>
+              {adminOperator && (
+                <div className="text-xs text-blue-300/70 pl-10">
+                  {adminOperator.full_name}
+                </div>
+              )}
             </div>
           )}
           <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 hover:bg-white/5 rounded-lg transition-colors">
@@ -119,23 +137,37 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className="p-3 border-t border-white/5 space-y-1">
-           <button 
-             onClick={() => { setSoundEnabledState(!soundEnabled); setSoundEnabled(!soundEnabled); }}
-             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full ${soundEnabled ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-300/50 hover:bg-white/5"}`}
-           >
-             {soundEnabled ? <Volume2 className="w-4 h-4 flex-shrink-0" /> : <VolumeX className="w-4 h-4 flex-shrink-0" />}
-             {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
-           </button>
-           <Link to="/pos" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors`}>
-             <Monitor className="w-4 h-4 flex-shrink-0" />
-             {!collapsed && <span>Open POS</span>}
-           </Link>
-           <button onClick={() => base44.auth.logout("/")} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full`}>
-             <LogOut className="w-4 h-4 flex-shrink-0" />
-             {!collapsed && <span>Logout</span>}
-           </button>
-         </div>
+        <div className="p-3 border-t border-white/5 space-y-2">
+          {/* Sound Toggle */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 px-3 py-1">
+              {soundEnabled ? <Volume2 className="w-3 h-3 text-blue-400" /> : <VolumeX className="w-3 h-3 text-blue-300/50" />}
+              {!collapsed && <span className="text-xs text-blue-300/50">Sound</span>}
+            </div>
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="1" 
+              checked={soundEnabled}
+              onChange={(e) => { setSoundEnabledState(e.target.value === "1"); setSoundEnabled(e.target.value === "1"); }}
+              className="w-full accent-blue-600 cursor-pointer"
+              style={{ width: collapsed ? "40px" : "100%" }}
+            />
+          </div>
+
+          {/* Navigation */}
+          <div className="space-y-1 pt-2 border-t border-white/10">
+            <Link to="/pos" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors`}>
+              <Monitor className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && <span>Open POS</span>}
+            </Link>
+            <button onClick={() => { sessionStorage.removeItem("admin_operator"); base44.auth.logout("/"); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full`}>
+              <LogOut className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && <span>Logout</span>}
+            </button>
+          </div>
+        </div>
       </aside>
 
       {/* Main */}
