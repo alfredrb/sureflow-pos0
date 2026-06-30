@@ -17,6 +17,8 @@ export default function AdminRemoteWorkstation() {
   const [registers, setRegisters] = useState([]);
   const [requests, setRequests] = useState([]);
   const [transactions, setTransactions] = useState([]); // latest completed tx per register
+  const [operators, setOperators] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approveDialog, setApproveDialog] = useState(false);
@@ -44,10 +46,14 @@ export default function AdminRemoteWorkstation() {
     setLoading(true);
     try {
       await loadRegisters();
-      await new Promise(resolve => setTimeout(resolve, 300)); // Small delay between requests
+      await new Promise(resolve => setTimeout(resolve, 300));
       await loadRequests();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadTransactions();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadOperators();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadLogs();
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -94,6 +100,24 @@ export default function AdminRemoteWorkstation() {
     }
   };
 
+  const loadOperators = async () => {
+    try {
+      const ops = await base44.entities.Operator.list();
+      setOperators(ops);
+    } catch (e) {
+      console.error("Error loading operators:", e);
+    }
+  };
+
+  const loadLogs = async () => {
+    try {
+      const logRecords = await base44.entities.RegisterLog.list("-created_date", 100);
+      setLogs(logRecords);
+    } catch (e) {
+      console.error("Error loading logs:", e);
+    }
+  };
+
   // Get the most recent transaction for a register
   const getRegisterTransaction = (registerId) =>
     transactions.find(tx => tx.register_id === registerId);
@@ -101,6 +125,24 @@ export default function AdminRemoteWorkstation() {
   // Get pending requests for a register
   const getRegisterPendingRequests = (registerId) =>
     requests.filter(r => r.register_id === registerId && r.status === "pending");
+
+  // Get current logged-in operator for a register
+  const getCurrentOperator = (registerId) => {
+    const loginLog = logs
+      .filter(l => l.register_id === registerId && (l.event_type === "login" || l.event_type === "logout"))
+      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
+    if (loginLog && loginLog.event_type === "login") {
+      return operators.find(o => o.operator_id === loginLog.operator_id) || { operator_id: loginLog.operator_id, full_name: loginLog.operator_name, role: loginLog.operator_role };
+    }
+    return null;
+  };
+
+  // Get active transaction for a register (most recent non-completed)
+  const getActiveTransaction = (registerId) => {
+    return transactions
+      .filter(t => t.register_id === registerId && t.status !== "completed" && t.status !== "voided" && t.status !== "refunded")
+      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0] || null;
+  };
 
   const handleApprove = async () => {
     if (!selectedRequest) return;
@@ -255,6 +297,8 @@ export default function AdminRemoteWorkstation() {
           {registers.map(reg => {
             const tx = getRegisterTransaction(reg.register_id);
             const pending = getRegisterPendingRequests(reg.register_id);
+            const currentOp = getCurrentOperator(reg.register_id);
+            const activeTx = getActiveTransaction(reg.register_id);
             return (
               <div key={reg.id} className={`bg-white rounded-2xl border p-4 shadow-sm ${pending.length > 0 ? "border-amber-300 ring-2 ring-amber-200" : "border-gray-100"}`}>
                 {/* Register header */}
@@ -294,6 +338,49 @@ export default function AdminRemoteWorkstation() {
                     {reg.paused ? "Unpause" : "Pause"}
                   </Button>
                 </div>
+
+                {/* Current Operator */}
+                {currentOp ? (
+                  <div className="mb-3 bg-blue-50 rounded-xl p-3 space-y-1.5 border border-blue-100">
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Logged In Operator</p>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-gray-900">{currentOp.full_name}</p>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-500">ID: {currentOp.operator_id}</span>
+                        <span className={`font-bold px-1.5 py-0.5 rounded ${
+                          currentOp.role === "manager" ? "bg-red-100 text-red-700" :
+                          currentOp.role === "csm" ? "bg-amber-100 text-amber-700" :
+                          "bg-blue-100 text-blue-700"
+                        }`}>{currentOp.role === "manager" ? "Manager" : currentOp.role === "csm" ? "CSM" : "Cashier"}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-3 bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Not Logged In</p>
+                  </div>
+                )}
+
+                {/* Active Transaction */}
+                {activeTx ? (
+                  <div className="mb-3 bg-green-50 rounded-xl p-3 space-y-1.5 border border-green-100">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Active Transaction</p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono text-xs text-gray-600">{activeTx.transaction_id}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-200 text-green-700">In Progress</span>
+                      </div>
+                      <div className="text-xs">
+                        <p className="text-gray-800">{activeTx.items?.length || 0} item{activeTx.items?.length !== 1 ? "s" : ""}</p>
+                        <p className="text-gray-600 text-[10px]">Subtotal: ${(activeTx.subtotal || 0).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-3 bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">No Active Transaction</p>
+                  </div>
+                )}
 
                 {/* Last transaction */}
                 <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
