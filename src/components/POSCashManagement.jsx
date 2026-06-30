@@ -1,16 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DollarSign, Printer } from "lucide-react";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
+import QuickReconcileModal from "@/components/QuickReconcileModal";
 
 export default function POSCashManagement({ operator, isOpen, onClose }) {
-  const [type, setType] = useState("advance"); // "advance" or "pickup"
+  const [type, setType] = useState("advance"); // "advance", "pickup", or "reconcile"
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [printData, setPrintData] = useState(null);
+  const [register, setRegister] = useState(null);
+  const [showReconcile, setShowReconcile] = useState(false);
+
+  useEffect(() => {
+    const loadRegister = async () => {
+      const regId = sessionStorage.getItem("pos_register_num") || "REG-001";
+      try {
+        const regs = await base44.entities.Register.filter({ register_id: regId });
+        if (regs.length > 0) setRegister(regs[0]);
+      } catch (e) {
+        console.error("Error loading register:", e);
+      }
+    };
+    if (isOpen) loadRegister();
+  }, [isOpen]);
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -71,7 +87,13 @@ export default function POSCashManagement({ operator, isOpen, onClose }) {
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <QuickReconcileModal 
+        isOpen={showReconcile} 
+        onClose={() => setShowReconcile(false)} 
+        operator={operator}
+        register={register}
+      />
+      <Dialog open={isOpen && !showReconcile} onOpenChange={onClose}>
         <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
@@ -82,28 +104,34 @@ export default function POSCashManagement({ operator, isOpen, onClose }) {
           
           <div className="space-y-4">
             {/* Type selector */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setType("advance")}
-                className={`py-3 rounded-lg font-bold text-sm transition-colors border-2 ${
-                  type === "advance"
-                    ? "bg-blue-600 border-blue-500 text-white"
-                    : "bg-[#0a0e27] border-blue-500/10 text-blue-300/50 hover:border-blue-500/30"
-                }`}
-              >
-                Cash Advance
-              </button>
-              <button
-                onClick={() => setType("pickup")}
-                className={`py-3 rounded-lg font-bold text-sm transition-colors border-2 ${
-                  type === "pickup"
-                    ? "bg-amber-600 border-amber-500 text-white"
-                    : "bg-[#0a0e27] border-amber-500/10 text-amber-300/50 hover:border-amber-500/30"
-                }`}
-              >
-                Cash Pickup
-              </button>
-            </div>
+             <div className="grid grid-cols-3 gap-2">
+               <button
+                 onClick={() => setType("advance")}
+                 className={`py-3 rounded-lg font-bold text-sm transition-colors border-2 ${
+                   type === "advance"
+                     ? "bg-blue-600 border-blue-500 text-white"
+                     : "bg-[#0a0e27] border-blue-500/10 text-blue-300/50 hover:border-blue-500/30"
+                 }`}
+               >
+                 Advance
+               </button>
+               <button
+                 onClick={() => setType("pickup")}
+                 className={`py-3 rounded-lg font-bold text-sm transition-colors border-2 ${
+                   type === "pickup"
+                     ? "bg-amber-600 border-amber-500 text-white"
+                     : "bg-[#0a0e27] border-amber-500/10 text-amber-300/50 hover:border-amber-500/30"
+                 }`}
+               >
+                 Pickup
+               </button>
+               <button
+                 onClick={() => { setShowReconcile(true); onClose(); }}
+                 className="py-3 rounded-lg font-bold text-sm transition-colors border-2 bg-[#0a0e27] border-green-500/10 text-green-300/50 hover:border-green-500/30"
+               >
+                 Reconcile
+               </button>
+             </div>
 
             {/* Amount */}
             <div>

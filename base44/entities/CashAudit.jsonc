@@ -1,0 +1,52 @@
+{
+  "name": "CashAudit",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "total_counted": {
+      "type": "number",
+      "description": "Total cash counted in the drawer"
+    },
+    "denominations": {
+      "type": "object",
+      "description": "Breakdown by coin/bill: {denomination: count}",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "audit_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "acknowledged",
+        "reviewed"
+      ],
+      "default": "pending",
+      "description": "Status of the audit alert"
+    }
+  },
+  "required": [
+    "register_id",
+    "operator_id",
+    "total_counted",
+    "audit_date"
+  ]
+}

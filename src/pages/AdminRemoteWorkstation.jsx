@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +20,7 @@ export default function AdminRemoteWorkstation() {
   const [operators, setOperators] = useState([]);
   const [logs, setLogs] = useState([]);
   const [robberies, setRobberies] = useState([]);
+  const [audits, setAudits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approveDialog, setApproveDialog] = useState(false);
@@ -59,6 +60,8 @@ export default function AdminRemoteWorkstation() {
       await loadLogs();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadRobberies();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadAudits();
       setLastRefresh(new Date());
     };
     pollRef.current = setInterval(refresh, 5000);
@@ -79,6 +82,8 @@ export default function AdminRemoteWorkstation() {
       await loadLogs();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadRobberies();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadAudits();
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -149,6 +154,15 @@ export default function AdminRemoteWorkstation() {
       setRobberies(alerts);
     } catch (e) {
       console.error("Error loading robberies:", e);
+    }
+  };
+
+  const loadAudits = async () => {
+    try {
+      const audits = await base44.entities.CashAudit.filter({ status: "pending" }, "-created_date", 50);
+      setAudits(audits);
+    } catch (e) {
+      console.error("Error loading audits:", e);
     }
   };
 
@@ -321,6 +335,34 @@ export default function AdminRemoteWorkstation() {
           </div>
         </div>
       </div>
+
+      {/* Cash Audit Alerts — medium priority */}
+      {audits.length > 0 && (
+        <div className="bg-orange-50 border border-orange-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-orange-200">
+          <p className="text-orange-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> CASH AUDIT REQUIRED ({audits.length})
+          </p>
+          <div className="space-y-2">
+            {audits.slice(0, 5).map(audit => (
+              <div key={audit.id} className="bg-white rounded-xl border border-orange-200 p-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-4 h-4 text-orange-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">
+                    <span className="text-orange-600 font-bold">${audit.total_counted?.toFixed(2) || '0.00'}</span>
+                    {" counted at "}
+                    <span className="text-violet-600">{audit.register_name || audit.register_id}</span>
+                  </p>
+                  <p className="text-gray-500 text-xs">
+                    {audit.operator_name} ({audit.operator_id}) · {new Date(audit.audit_date).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Robbery Alerts — critical priority */}
       {robberies.length > 0 && (

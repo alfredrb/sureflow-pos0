@@ -60,6 +60,11 @@
     "remote_logout_reason": {
       "type": "string",
       "description": "Reason for remote logout to display on POS"
+    },
+    "cash_limit": {
+      "type": "number",
+      "default": 5000,
+      "description": "Maximum cash allowed in register drawer before audit required"
     }
   },
   "required": [
