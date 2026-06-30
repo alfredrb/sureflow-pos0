@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight } from "lucide-react";
+import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -698,6 +699,25 @@ export default function POSRegister() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (receiptData) {
+      const barcodeId = `barcode-${receiptData.transactionId}`;
+      const barcodeElement = document.getElementById(barcodeId);
+      if (barcodeElement) {
+        try {
+          JsBarcode(`#${barcodeId}`, receiptData.transactionId, {
+            format: "CODE128",
+            width: 2,
+            height: 50,
+            displayValue: true
+          });
+        } catch (e) {
+          console.error("Barcode generation error:", e);
+        }
+      }
+    }
+  }, [receiptData]);
 
   // Get applicable discounts
   const getApplicableDiscounts = (productCategory) => {
@@ -1556,9 +1576,12 @@ export default function POSRegister() {
                   </div>
                 )}
                 <div className="text-center text-[10px] border-t pt-2 text-blue-300/60">
-                  Thank You!
+                   Thank You!
+                 </div>
+                 <div className="flex justify-center pt-3">
+                   <svg id={`barcode-${receiptData.transactionId}`} style={{ maxWidth: "100%" }}></svg>
+                 </div>
                 </div>
-              </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setReceiptData(null)} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
                   Done

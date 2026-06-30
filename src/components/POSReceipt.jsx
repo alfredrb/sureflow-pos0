@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import JsBarcode from "jsbarcode";
 
 export default function POSReceipt({
   transactionId,
@@ -15,6 +16,23 @@ export default function POSReceipt({
   changeDue,
   storeConfig
 }) {
+  const barcodeRef = useRef(null);
+
+  useEffect(() => {
+    if (barcodeRef.current) {
+      try {
+        JsBarcode(barcodeRef.current, transactionId, {
+          format: "CODE128",
+          width: 2,
+          height: 50,
+          displayValue: true
+        });
+      } catch (e) {
+        console.error("Barcode generation error:", e);
+      }
+    }
+  }, [transactionId]);
+
   const handlePrint = () => {
     const receiptWindow = window.open("", "", "width=400,height=600");
     
@@ -115,7 +133,20 @@ export default function POSReceipt({
           <div class="thank-you">Thank You!</div>
           ${footerLine1 ? `<div class="footer">${footerLine1}</div>` : ""}
           ${footerLine2 ? `<div class="footer">${footerLine2}</div>` : ""}
+          
+          <div style="margin-top: 15px; text-align: center;">
+            <svg id="barcode"></svg>
+          </div>
         </div>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
+        <script>
+          JsBarcode("#barcode", "${transactionId}", {
+            format: "CODE128",
+            width: 2,
+            height: 50,
+            displayValue: true
+          });
+        <\/script>
       </body>
       </html>
     `;
