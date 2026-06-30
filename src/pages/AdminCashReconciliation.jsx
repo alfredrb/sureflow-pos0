@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download } from "lucide-react";
+import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function AdminCashReconciliation() {
   const [deposits, setDeposits] = useState([]);
@@ -22,6 +23,7 @@ export default function AdminCashReconciliation() {
   const [robberies, setRobberies] = useState([]);
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
+  const [selectedRegister, setSelectedRegister] = useState("all");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -188,6 +190,26 @@ export default function AdminCashReconciliation() {
           Emergency {robberies.length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-red-600 text-white rounded-full w-5 h-5 text-xs font-bold">{robberies.length}</span>}
         </button>
         <button
+          onClick={() => setActiveTab("discrepancies")}
+          className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
+            activeTab === "discrepancies"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Discrepancies
+        </button>
+        <button
+          onClick={() => setActiveTab("report")}
+          className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
+            activeTab === "report"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Quick Report
+        </button>
+        <button
           onClick={() => setActiveTab("export")}
           className={`px-4 py-2 font-medium border-b-2 transition ${
             activeTab === "export"
@@ -197,7 +219,7 @@ export default function AdminCashReconciliation() {
         >
           Export
         </button>
-      </div>
+        </div>
 
       {/* Deposits Tab */}
       {activeTab === "deposits" && (
@@ -462,8 +484,158 @@ export default function AdminCashReconciliation() {
          </div>
        )}
 
+       {/* Discrepancies Tab */}
+       {activeTab === "discrepancies" && (
+         <div className="space-y-4">
+           <div className="flex gap-3">
+             <select
+               value={selectedRegister}
+               onChange={(e) => setSelectedRegister(e.target.value)}
+               className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+             >
+               <option value="all">All Registers</option>
+               {[...new Set(deposits.map(d => d.register_id).filter(Boolean))].map(rid => (
+                 <option key={rid} value={rid}>{rid}</option>
+               ))}
+             </select>
+             <span className="text-sm text-gray-500 flex items-center">{deposits.length} records</span>
+           </div>
+
+           {deposits.length > 0 ? (
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+               <div className="bg-white rounded-xl border border-gray-200 p-4">
+                 <h2 className="text-sm font-semibold text-gray-900 mb-3">Discrepancy Trend</h2>
+                 <ResponsiveContainer width="100%" height={300}>
+                   <LineChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), difference: d.difference || 0 }))}>
+                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                     <YAxis tick={{ fontSize: 12 }} />
+                     <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
+                     <Legend />
+                     <Line type="monotone" dataKey="difference" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                   </LineChart>
+                 </ResponsiveContainer>
+               </div>
+
+               <div className="bg-white rounded-xl border border-gray-200 p-4">
+                 <h2 className="text-sm font-semibold text-gray-900 mb-3">Expected vs Actual</h2>
+                 <ResponsiveContainer width="100%" height={300}>
+                   <BarChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).slice(-10).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), expected: d.expected_cash || 0, actual: d.actual_cash_deposited || 0 }))}>
+                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                     <YAxis tick={{ fontSize: 12 }} />
+                     <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
+                     <Legend />
+                     <Bar dataKey="expected" fill="#3b82f6" />
+                     <Bar dataKey="actual" fill="#10b981" />
+                   </BarChart>
+                 </ResponsiveContainer>
+               </div>
+             </div>
+           ) : (
+             <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center text-gray-500">No discrepancy data available</div>
+           )}
+         </div>
+       )}
+
+       {/* Quick Report Tab */}
+       {activeTab === "report" && (
+         <div className="space-y-4">
+           {(() => {
+             const totalDeposits = deposits.length;
+             const totalExpected = deposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
+             const totalDeposited = deposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
+             const totalVariance = deposits.reduce((sum, d) => sum + (d.difference || 0), 0);
+             const shortages = deposits.filter(d => (d.difference || 0) < 0).length;
+             const overages = deposits.filter(d => (d.difference || 0) > 0).length;
+             const totalAdvances = advances.reduce((sum, a) => sum + (a.amount || 0), 0);
+             const totalPickups = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
+             const totalStolen = robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0);
+
+             return (
+               <>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                   <div className="bg-white rounded-lg p-4 border border-gray-100">
+                     <p className="text-gray-500 text-xs font-medium">Total Deposits</p>
+                     <p className="text-2xl font-bold text-gray-900">{totalDeposits}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-gray-100">
+                     <p className="text-gray-500 text-xs font-medium">Expected Total</p>
+                     <p className="text-2xl font-bold text-gray-900">${totalExpected.toFixed(2)}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-gray-100">
+                     <p className="text-gray-500 text-xs font-medium">Deposited Total</p>
+                     <p className="text-2xl font-bold text-gray-900">${totalDeposited.toFixed(2)}</p>
+                   </div>
+                   <div className={`bg-white rounded-lg p-4 border ${totalVariance < 0 ? "border-red-200" : "border-green-200"}`}>
+                     <p className="text-gray-500 text-xs font-medium">Total Variance</p>
+                     <p className={`text-2xl font-bold ${totalVariance < 0 ? "text-red-600" : "text-green-600"}`}>{totalVariance < 0 ? "−" : "+"}${Math.abs(totalVariance).toFixed(2)}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-red-100">
+                     <p className="text-gray-500 text-xs font-medium">Shortages</p>
+                     <p className="text-2xl font-bold text-red-600">{shortages}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-green-100">
+                     <p className="text-gray-500 text-xs font-medium">Overages</p>
+                     <p className="text-2xl font-bold text-green-600">{overages}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-blue-100">
+                     <p className="text-gray-500 text-xs font-medium">Total Advances</p>
+                     <p className="text-2xl font-bold text-blue-600">${totalAdvances.toFixed(2)}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-amber-100">
+                     <p className="text-gray-500 text-xs font-medium">Total Pickups</p>
+                     <p className="text-2xl font-bold text-amber-600">${totalPickups.toFixed(2)}</p>
+                   </div>
+                 </div>
+
+                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+                   <div className="flex items-center justify-between">
+                     <h3 className="font-semibold text-lg text-gray-900">Generate & Export Report</h3>
+                     <div className="flex gap-2 flex-wrap">
+                       <Button onClick={() => {
+                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
+
+                         const blob = new Blob([report], { type: "text/plain" });
+                         const url = window.URL.createObjectURL(blob);
+                         const a = document.createElement("a");
+                         a.href = url;
+                         a.download = `cash_report_${new Date().toISOString().split("T")[0]}.txt`;
+                         document.body.appendChild(a);
+                         a.click();
+                         window.URL.revokeObjectURL(url);
+                         document.body.removeChild(a);
+                         toast({ title: "Report exported as TXT" });
+                       }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                         <FileText className="w-4 h-4" /> Text
+                       </Button>
+                       <Button onClick={() => {
+                         const csvContent = `Cash Reconciliation Report,${new Date().toLocaleString()}\n\nDeposits,\nTotal Deposits,${totalDeposits}\nExpected Total,$${totalExpected.toFixed(2)}\nDeposited Total,$${totalDeposited.toFixed(2)}\nTotal Variance,$${totalVariance.toFixed(2)}\nShortages,${shortages}\nOverages,${overages}\n\nCash Movements,\nTotal Advances,$${totalAdvances.toFixed(2)}\nAdvance Count,${advances.length}\nTotal Pickups,$${totalPickups.toFixed(2)}\nPickup Count,${pickups.length}\n\nIncidents,\nTotal Robberies,${robberies.length}\nTotal Amount Stolen,$${totalStolen.toFixed(2)}`;
+
+                         const blob = new Blob([csvContent], { type: "text/csv" });
+                         const url = window.URL.createObjectURL(blob);
+                         const a = document.createElement("a");
+                         a.href = url;
+                         a.download = `cash_report_${new Date().toISOString().split("T")[0]}.csv`;
+                         document.body.appendChild(a);
+                         a.click();
+                         window.URL.revokeObjectURL(url);
+                         document.body.removeChild(a);
+                         toast({ title: "Report exported as CSV" });
+                       }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+                         <Download className="w-4 h-4" /> CSV
+                       </Button>
+                     </div>
+                   </div>
+                 </div>
+               </>
+             );
+           })()}
+         </div>
+       )}
+
        {/* History Tab */}
-        {activeTab === "history" && (
+         {activeTab === "history" && (
         <div className="space-y-4">
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">

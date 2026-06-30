@@ -33,7 +33,6 @@ import AdminCashReconciliation from '@/pages/AdminCashReconciliation';
 import POSCashExport from '@/pages/POSCashExport';
 import AdminStaffReport from '@/pages/AdminStaffReport';
 import AdminEmergencyLog from '@/pages/AdminEmergencyLog';
-import AdminCashDiscrepancies from '@/pages/AdminCashDiscrepancies';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -84,7 +83,6 @@ const AuthenticatedApp = () => {
           <Route path="/admin/cash-export" element={<POSCashExport />} />
           <Route path="/admin/staff-report" element={<AdminStaffReport />} />
           <Route path="/admin/emergency-log" element={<AdminEmergencyLog />} />
-          <Route path="/admin/cash-discrepancies" element={<AdminCashDiscrepancies />} />
         </Route>
       </Route>
 
