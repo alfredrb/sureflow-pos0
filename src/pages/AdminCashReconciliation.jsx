@@ -670,43 +670,86 @@ export default function AdminCashReconciliation() {
                className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
              >
                <option value="all">All Registers</option>
-               {[...new Set(deposits.map(d => d.register_id).filter(Boolean))].map(rid => (
+               {[...new Set([...deposits.map(d => d.register_id), ...tillCheckouts.map(t => t.register_id)].filter(Boolean))].map(rid => (
                  <option key={rid} value={rid}>{rid}</option>
                ))}
              </select>
-             <span className="text-sm text-gray-500 flex items-center">{deposits.length} records</span>
+             <span className="text-sm text-gray-500 flex items-center">{deposits.length + tillCheckouts.filter(t => t.status === "checked_in" && t.discrepancy !== undefined).length} records</span>
            </div>
 
-           {deposits.length > 0 ? (
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                 <h2 className="text-sm font-semibold text-gray-900 mb-3">Discrepancy Trend</h2>
-                 <ResponsiveContainer width="100%" height={300}>
-                   <LineChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), difference: d.difference || 0 }))}>
-                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                     <YAxis tick={{ fontSize: 12 }} />
-                     <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
-                     <Legend />
-                     <Line type="monotone" dataKey="difference" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                   </LineChart>
-                 </ResponsiveContainer>
-               </div>
+           {deposits.length > 0 || tillCheckouts.some(t => t.status === "checked_in" && t.discrepancy !== undefined) ? (
+             <div className="space-y-6">
+               {/* Deposit Discrepancies Chart */}
+               {deposits.length > 0 && (
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                   <div className="bg-white rounded-xl border border-gray-200 p-4">
+                     <h2 className="text-sm font-semibold text-gray-900 mb-3">Deposit Discrepancy Trend</h2>
+                     <ResponsiveContainer width="100%" height={300}>
+                       <LineChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), difference: d.difference || 0 }))}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                         <YAxis tick={{ fontSize: 12 }} />
+                         <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
+                         <Legend />
+                         <Line type="monotone" dataKey="difference" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                       </LineChart>
+                     </ResponsiveContainer>
+                   </div>
 
-               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                 <h2 className="text-sm font-semibold text-gray-900 mb-3">Expected vs Actual</h2>
-                 <ResponsiveContainer width="100%" height={300}>
-                   <BarChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).slice(-10).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), expected: d.expected_cash || 0, actual: d.actual_cash_deposited || 0 }))}>
-                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                     <YAxis tick={{ fontSize: 12 }} />
-                     <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
-                     <Legend />
-                     <Bar dataKey="expected" fill="#3b82f6" />
-                     <Bar dataKey="actual" fill="#10b981" />
-                   </BarChart>
-                 </ResponsiveContainer>
-               </div>
+                   <div className="bg-white rounded-xl border border-gray-200 p-4">
+                     <h2 className="text-sm font-semibold text-gray-900 mb-3">Expected vs Actual</h2>
+                     <ResponsiveContainer width="100%" height={300}>
+                       <BarChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).slice(-10).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), expected: d.expected_cash || 0, actual: d.actual_cash_deposited || 0 }))}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                         <YAxis tick={{ fontSize: 12 }} />
+                         <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
+                         <Legend />
+                         <Bar dataKey="expected" fill="#3b82f6" />
+                         <Bar dataKey="actual" fill="#10b981" />
+                       </BarChart>
+                     </ResponsiveContainer>
+                   </div>
+                 </div>
+               )}
+
+               {/* Till Check-In Discrepancies Table */}
+               {tillCheckouts.some(t => t.status === "checked_in" && t.discrepancy !== undefined) && (
+                 <div className="bg-white rounded-xl border border-gray-200 p-6">
+                   <h2 className="text-sm font-semibold text-gray-900 mb-4">Till Check-In Discrepancies</h2>
+                   <div className="rounded-lg border border-gray-200 overflow-hidden">
+                     <table className="w-full text-sm">
+                       <thead className="bg-gray-50 border-b border-gray-200">
+                         <tr>
+                           <th className="text-left px-4 py-3 font-bold text-gray-700">Date & Time</th>
+                           <th className="text-left px-4 py-3 font-bold text-gray-700">Register</th>
+                           <th className="text-left px-4 py-3 font-bold text-gray-700">Operator</th>
+                           <th className="text-right px-4 py-3 font-bold text-gray-700">Expected ($250)</th>
+                           <th className="text-right px-4 py-3 font-bold text-gray-700">Actual</th>
+                           <th className="text-right px-4 py-3 font-bold text-gray-700">Discrepancy</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {tillCheckouts
+                           .filter(t => t.status === "checked_in" && t.discrepancy !== undefined && (selectedRegister === "all" || t.register_id === selectedRegister))
+                           .sort((a, b) => new Date(b.checkin_date) - new Date(a.checkin_date))
+                           .map((till, idx) => (
+                             <tr key={till.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                               <td className="px-4 py-3 text-gray-900 font-medium">{new Date(till.checkin_date).toLocaleString()}</td>
+                               <td className="px-4 py-3 font-mono text-gray-600">{till.register_name}</td>
+                               <td className="px-4 py-3 text-gray-600">{till.operator_name}</td>
+                               <td className="px-4 py-3 text-right font-medium text-gray-900">$250.00</td>
+                               <td className="px-4 py-3 text-right font-medium text-gray-900">${till.checkin_total.toFixed(2)}</td>
+                               <td className={`px-4 py-3 text-right font-bold ${till.discrepancy < 0 ? "text-red-600" : "text-green-600"}`}>
+                                 {till.discrepancy >= 0 ? "+" : ""}${till.discrepancy.toFixed(2)}
+                               </td>
+                             </tr>
+                           ))}
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
+               )}
              </div>
            ) : (
              <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center text-gray-500">No discrepancy data available</div>
