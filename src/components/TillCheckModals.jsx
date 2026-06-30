@@ -58,6 +58,15 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
                 const user = await base44.auth.me();
                 const register = registers.find(r => r.id === selectedRegister);
                 
+                // Clear any previous checked-in till for this register
+                const existingCheckIns = await base44.entities.TillCheckout.filter({
+                  register_id: selectedRegister,
+                  status: "checked_in"
+                });
+                for (const till of existingCheckIns) {
+                  await base44.entities.TillCheckout.delete(till.id);
+                }
+                
                 await base44.entities.TillCheckout.create({
                   register_id: selectedRegister,
                   register_name: register?.name,
