@@ -621,7 +621,7 @@ function ExchangePanel({ operator, products, loadData, toast, onPreviewChange })
 }
 
 // ── CS Mode Panel ────────────────────────────────────────────────────────────
-function CSModePanel({ operator, onGiftCardSale, toast }) {
+function CSModePanel({ operator, onAddGiftCard, toast }) {
   const [showGiftCardSeller, setShowGiftCardSeller] = useState(false);
 
   return (
@@ -655,7 +655,7 @@ function CSModePanel({ operator, onGiftCardSale, toast }) {
       {showGiftCardSeller && (
         <GiftCardSeller 
           operator={operator} 
-          onGiftCardCreated={onGiftCardSale}
+          onAddToCart={onAddGiftCard}
           onClose={() => setShowGiftCardSeller(false)} 
         />
       )}
@@ -1282,7 +1282,8 @@ export default function POSRegister() {
                   const hasActive =
                     (posMode === "sale" && cart.length > 0) ||
                     (posMode === "returns" && sidePreview && sidePreview.items && sidePreview.items.length > 0) ||
-                    (posMode === "exchange" && sidePreview && (sidePreview.returnedItems?.length > 0 || sidePreview.replaceCart?.length > 0));
+                    (posMode === "exchange" && sidePreview && (sidePreview.returnedItems?.length > 0 || sidePreview.replaceCart?.length > 0)) ||
+                    (posMode === "cs" && cart.length > 0);
                   if (hasActive) { setSwitchGuard({ targetMode: id }); }
                   else { setPosMode(id); setSidePreview(null); }
                 }}
@@ -1293,12 +1294,15 @@ export default function POSRegister() {
               </button>
             ))}
           </div>
+
+          {/* Clock */}
+          <div className="text-center leading-tight pointer-events-none">
+            <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
+            <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</p>
+          </div>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 text-center leading-tight pointer-events-none">
-          <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
-          <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</p>
-        </div>
+
 
         <div className="flex items-center gap-3 relative z-10">
           <button 
@@ -1348,7 +1352,7 @@ export default function POSRegister() {
           </div>
 
           {/* SALE mode — normal cart */}
-          {posMode === "sale" && (
+          {(posMode === "sale" || posMode === "cs") && (
             <>
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                 {cart.length === 0 ? (
@@ -1536,7 +1540,7 @@ export default function POSRegister() {
           )}
 
           {posMode === "cs" && (
-           <CSModePanel operator={operator} onGiftCardSale={() => {}} toast={toast} />
+           <CSModePanel operator={operator} onAddGiftCard={(giftCard) => { setCart(prev => [...prev, giftCard]); }} toast={toast} />
           )}
         </div>
       </div>
@@ -1818,13 +1822,16 @@ export default function POSRegister() {
                     </div>
                   </div>
                 )}
-                <div className="text-center text-[10px] border-t pt-2 text-blue-300/60">
-                   Thank You!
-                 </div>
-                 <div className="flex justify-center pt-3">
-                   <svg id={`barcode-${receiptData.transactionId}`} style={{ maxWidth: "100%" }}></svg>
-                 </div>
+                <div className="flex justify-center pt-3">
+                  <svg id={`barcode-${receiptData.transactionId}`} style={{ maxWidth: "100%" }}></svg>
                 </div>
+                <div className="text-center text-[9px] border-t pt-2 text-blue-300/60 space-y-1">
+                  <p>Thank You!</p>
+                  {receiptData.items.some(i => i.is_giftcard) && (
+                    <p className="text-amber-400 font-bold">⚠ GIFT CARDS ARE NOT REFUNDABLE</p>
+                  )}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setReceiptData(null)} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
                   Done
