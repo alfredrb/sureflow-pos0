@@ -928,6 +928,7 @@ export default function POSRegister() {
   const [giftCardValidating, setGiftCardValidating] = useState(false);
   const [giftCardError, setGiftCardError] = useState("");
   const [giftCardResult, setGiftCardResult] = useState(null); // { approved: bool, card: {...}, message: string }
+  const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1014,35 +1015,43 @@ export default function POSRegister() {
   }, []);
 
   const loadData = async () => {
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const [prods, fkeys, regs, discs, config] = await Promise.all([
-      base44.entities.Product.filter({ status: "active" }),
-      base44.entities.FunctionKey.list("key_number"),
-      base44.entities.Register.filter({ register_id: registerId }),
-      base44.entities.DiscountType.list(),
-      base44.entities.ReceiptConfig.list()
-    ]);
-    setProducts(prods);
-    setFunctionKeys(fkeys);
-    setDiscounts(discs);
-    if (config.length > 0) setStoreConfig(config[0]);
-    if (regs.length > 0) {
-      setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
-      setRegisterPaused(regs[0].paused || false);
-      // Auto-detect and update IP address
+    if (loadDataDebounceRef.current) clearTimeout(loadDataDebounceRef.current);
+    loadDataDebounceRef.current = setTimeout(async () => {
       try {
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        if (ipData.ip && ipData.ip !== regs[0].ip_address) {
-          await base44.entities.Register.update(regs[0].id, { ip_address: ipData.ip });
+        const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+        const [prods, fkeys, regs, discs, config] = await Promise.all([
+          base44.entities.Product.filter({ status: "active" }),
+          base44.entities.FunctionKey.list("key_number"),
+          base44.entities.Register.filter({ register_id: registerId }),
+          base44.entities.DiscountType.list(),
+          base44.entities.ReceiptConfig.list()
+        ]);
+        setProducts(prods);
+        setFunctionKeys(fkeys);
+        setDiscounts(discs);
+        if (config.length > 0) setStoreConfig(config[0]);
+        if (regs.length > 0) {
+          setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
+          setRegisterPaused(regs[0].paused || false);
+          // Auto-detect and update IP address
+          try {
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipResponse.json();
+            if (ipData.ip && ipData.ip !== regs[0].ip_address) {
+              await base44.entities.Register.update(regs[0].id, { ip_address: ipData.ip });
+            }
+          } catch (e) {
+            console.error("Could not auto-detect IP:", e);
+          }
         }
+        const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
+        setCategories(cats);
+        setLoading(false);
       } catch (e) {
-        console.error("Could not auto-detect IP:", e);
+        console.error("Error loading data:", e);
+        setLoading(false);
       }
-    }
-    const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
-    setCategories(cats);
-    setLoading(false);
+    }, 500);
   };
 
   const addToCart = (product) => {
@@ -1216,8 +1225,13 @@ export default function POSRegister() {
     }, 5 * 60 * 1000);
   };
 
-  // Cleanup polling on unmount
-  useEffect(() => () => clearInterval(remotePollingRef.current), []);
+  // Cleanup polling and debounce on unmount
+  useEffect(() => {
+    return () => {
+      clearInterval(remotePollingRef.current);
+      if (loadDataDebounceRef.current) clearTimeout(loadDataDebounceRef.current);
+    };
+  }, []);
 
   // Poll for pause status every 5 seconds
   useEffect(() => {
