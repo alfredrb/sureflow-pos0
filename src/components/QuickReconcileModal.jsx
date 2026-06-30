@@ -38,7 +38,7 @@ export default function QuickReconcileModal({ isOpen, onClose, operator, registe
         }
       });
 
-      // Create cash audit record
+      // Create cash audit record with "complete" status
       await base44.entities.CashAudit.create({
         register_id: register.register_id,
         register_name: register.name,
@@ -48,8 +48,19 @@ export default function QuickReconcileModal({ isOpen, onClose, operator, registe
         denominations,
         audit_date: new Date().toISOString(),
         notes: notes || "",
-        status: "pending"
+        status: "complete"
       });
+
+      // Mark any pending manual audits for this register as complete
+      const pendingAudits = await base44.entities.CashAudit.filter({
+        register_id: register.register_id,
+        status: "pending",
+        operator_name: "Manual Audit"
+      });
+      
+      for (const audit of pendingAudits) {
+        await base44.entities.CashAudit.update(audit.id, { status: "complete" });
+      }
 
       // Log the audit
       await base44.entities.RegisterLog.create({

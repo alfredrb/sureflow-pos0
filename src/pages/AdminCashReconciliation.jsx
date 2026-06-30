@@ -302,8 +302,9 @@ export default function AdminCashReconciliation() {
                     <p className="text-sm">{audit.triggered_by_cash_limit ? "Yes" : "No"}</p>
                     <p className={`text-xs font-medium px-2 py-1 rounded-full ${
                       audit.status === "pending" ? "bg-yellow-100 text-yellow-700" :
+                      audit.status === "complete" ? "bg-green-100 text-green-700" :
                       audit.status === "acknowledged" ? "bg-blue-100 text-blue-700" :
-                      audit.status === "resolved" ? "bg-green-100 text-green-700" :
+                      audit.status === "resolved" ? "bg-emerald-100 text-emerald-700" :
                       "bg-gray-100 text-gray-700"
                     }`}>
                       {audit.status}
