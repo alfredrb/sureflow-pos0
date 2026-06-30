@@ -52,7 +52,7 @@ export default function AdminRegisterLog() {
 
   const loadLogs = async () => {
     setLoading(true);
-    const data = await base44.entities.RegisterLog.list("-created_date", 500);
+    const data = await base44.entities.RegisterLog.list("-created_date", 100);
     setLogs(data);
     setLoading(false);
   };
