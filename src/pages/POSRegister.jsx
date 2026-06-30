@@ -698,7 +698,8 @@ export default function POSRegister() {
   const [pauseUnlockError, setPauseUnlockError] = useState("");
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [robberyDialog, setRobberyDialog] = useState(false);
-  const [robberyAmount, setRobberyAmount] = useState("");
+  const [calculatedRobberyAmount, setCalculatedRobberyAmount] = useState(0);
+  const [robberyLoading, setRobberyLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1104,11 +1105,43 @@ export default function POSRegister() {
     setHelpMenuOpen(false);
   };
 
-  const reportRobbery = async () => {
-    if (!robberyAmount || parseFloat(robberyAmount) <= 0) {
-      toast({ title: "Invalid Amount", description: "Please enter the amount stolen", variant: "destructive" });
-      return;
+  const calculateStolenAmount = async () => {
+    setRobberyLoading(true);
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const today = new Date().toISOString().split("T")[0];
+    try {
+      // Get SOD for today
+      const sodRecords = await base44.entities.SODProtocol.filter({
+        protocol_date: today,
+        register_id: registerId,
+        status: "completed"
+      });
+      const sodStartingBalance = sodRecords.length > 0 ? sodRecords[0].till_starting_balance || 0 : 0;
+
+      // Get all cash transactions for today
+      const txs = await base44.entities.Transaction.filter({ register_id: registerId });
+      const todayTxs = txs.filter(t => t.created_date.split("T")[0] === today && t.status === "completed");
+      const totalSales = todayTxs.reduce((sum, t) => sum + (t.payment_method === "cash" ? t.total : 0), 0);
+
+      // Get cash advances (money given to register)
+      const advances = await base44.entities.CashAdvance.filter({ register_id: registerId, status: "approved" });
+      const todayAdvances = advances.filter(a => a.created_date.split("T")[0] === today).reduce((sum, a) => sum + (a.amount || 0), 0);
+
+      // Get cash pickups (money taken from register)
+      const pickups = await base44.entities.CashPickup.filter({ register_id: registerId, status: "approved" });
+      const todayPickups = pickups.filter(p => p.created_date.split("T")[0] === today).reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      // Calculate expected cash: SOD + Sales + Advances - Pickups
+      const expectedCash = sodStartingBalance + totalSales + todayAdvances - todayPickups;
+      setCalculatedRobberyAmount(Math.max(0, expectedCash));
+      setRobberyDialog(true);
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to calculate amount", variant: "destructive" });
     }
+    setRobberyLoading(false);
+  };
+
+  const confirmRobbery = async () => {
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     try {
       await base44.entities.Robbery.create({
@@ -1116,12 +1149,12 @@ export default function POSRegister() {
         register_name: sessionStorage.getItem("pos_register_name") || "REG-001",
         operator_id: operator?.operator_id || "",
         operator_name: operator?.full_name || "",
-        amount_stolen: parseFloat(robberyAmount),
+        amount_stolen: calculatedRobberyAmount,
         report_date: new Date().toISOString().split("T")[0]
       });
-      writeLog("robbery", `Robbery reported — $${parseFloat(robberyAmount).toFixed(2)} stolen`);
+      writeLog("robbery", `Robbery reported — $${calculatedRobberyAmount.toFixed(2)} stolen (calculated)`);
       toast({ title: "Robbery Reported", description: "Alert sent to admin", variant: "default" });
-      setRobberyAmount("");
+      setCalculatedRobberyAmount(0);
       setRobberyDialog(false);
       setHelpMenuOpen(false);
     } catch (e) {
@@ -1245,8 +1278,8 @@ export default function POSRegister() {
                 <button onClick={requestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 rounded-t-lg transition-colors">
                   Request CSM
                 </button>
-                <button onClick={() => setRobberyDialog(true)} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors">
-                  Report Robbery
+                <button onClick={calculateStolenAmount} disabled={robberyLoading} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors disabled:opacity-50">
+                  {robberyLoading ? "Calculating..." : "Report Robbery"}
                 </button>
               </div>
             )}
@@ -1787,30 +1820,20 @@ export default function POSRegister() {
       </Dialog>
 
       {/* Robbery Report Dialog */}
-      <Dialog open={robberyDialog} onOpenChange={setRobberyDialog}>
+      <Dialog open={robberyDialog} onOpenChange={v => { setRobberyDialog(v); if (!v) setCalculatedRobberyAmount(0); }}>
         <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
-          <DialogHeader><DialogTitle className="text-red-400 text-sm">Report Robbery</DialogTitle></DialogHeader>
-          <p className="text-blue-300/60 text-xs">Enter the amount of cash stolen</p>
-          <div className="relative">
-            <span className="absolute left-3 top-2.5 text-gray-400">$</span>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              value={robberyAmount}
-              onChange={e => setRobberyAmount(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && reportRobbery()}
-              className="bg-[#0a0e27] border-red-500/20 text-white text-lg h-12 text-center pl-7"
-              autoFocus
-            />
+          <DialogHeader><DialogTitle className="text-red-400 text-sm">Confirm Robbery Report</DialogTitle></DialogHeader>
+          <p className="text-blue-300/60 text-xs">Calculated amount stolen based on SOD, transactions, and cash movements:</p>
+          <div className="bg-[#0a0e27] border border-red-500/30 rounded-lg p-4 text-center">
+            <p className="text-red-400 text-sm font-bold">Amount Stolen</p>
+            <p className="text-white text-3xl font-bold mt-2">${calculatedRobberyAmount.toFixed(2)}</p>
           </div>
           <div className="flex gap-2 pt-2">
-            <Button onClick={() => { setRobberyDialog(false); setRobberyAmount(""); }} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
+            <Button onClick={() => { setRobberyDialog(false); setCalculatedRobberyAmount(0); }} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
               Cancel
             </Button>
-            <Button onClick={reportRobbery} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">
-              Report
+            <Button onClick={confirmRobbery} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">
+              Confirm & Report
             </Button>
           </div>
         </DialogContent>
