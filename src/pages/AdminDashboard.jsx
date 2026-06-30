@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
+import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0 });
@@ -61,6 +62,14 @@ export default function AdminDashboard() {
 
       <div className="mb-6 sm:mb-8">
         <ShiftCalendarView />
+      </div>
+
+      <div className="mb-6 sm:mb-8 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Inventory Reorder Suggestions</h2>
+          <p className="text-sm text-gray-500 mt-1">Based on peak time sales patterns</p>
+        </div>
+        <InventoryReorderSuggestions />
       </div>
 
       <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

@@ -708,7 +708,37 @@ export default function AdminCashReconciliation() {
                      <h3 className="font-semibold text-lg text-gray-900">Generate & Export Report</h3>
                      <div className="flex gap-2 flex-wrap">
                        <Button onClick={() => {
-                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
+                         const registerGroups = {};
+                         [...deposits, ...advances.map(a => ({ ...a, type: "advance" })), ...pickups.map(p => ({ ...p, type: "pickup" })), ...audits.map(a => ({ ...a, type: "audit" })), ...robberies.map(r => ({ ...r, type: "robbery" }))].forEach(item => {
+                           const regId = item.register_id || "Unknown";
+                           if (!registerGroups[regId]) {
+                             registerGroups[regId] = { deposits: 0, expectedCash: 0, depositedCash: 0, variance: 0, advances: 0, pickups: 0, audits: 0, auditAmount: 0, robberies: 0, stolenAmount: 0 };
+                           }
+                           if (item.report_date) registerGroups[regId].deposits += 1;
+                           if (item.expected_cash) registerGroups[regId].expectedCash += item.expected_cash;
+                           if (item.actual_cash_deposited) registerGroups[regId].depositedCash += item.actual_cash_deposited;
+                           if (item.difference) registerGroups[regId].variance += item.difference;
+                           if (item.type === "advance") registerGroups[regId].advances += item.amount || 0;
+                           if (item.type === "pickup") registerGroups[regId].pickups += item.amount || 0;
+                           if (item.type === "audit") registerGroups[regId].audits += 1;
+                           if (item.type === "audit" && item.total_counted) registerGroups[regId].auditAmount += item.total_counted;
+                           if (item.type === "robbery") registerGroups[regId].robberies += 1;
+                           if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
+                         });
+
+                         let reportContent = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n`;
+                         reportContent += `SUMMARY BY REGISTER\n`;
+                         reportContent += `\nRegister | Deposits | Expected | Deposited | Variance | Advances | Pickups | Audits | Audit Amount | Robberies | Stolen\n`;
+                         reportContent += `${"─".repeat(130)}\n`;
+
+                         Object.entries(registerGroups).forEach(([regId, data]) => {
+                           reportContent += `${regId.padEnd(15)} | ${String(data.deposits).padEnd(8)} | $${data.expectedCash.toFixed(2).padEnd(9)} | $${data.depositedCash.toFixed(2).padEnd(10)} | $${data.variance.toFixed(2).padEnd(8)} | $${data.advances.toFixed(2).padEnd(8)} | $${data.pickups.toFixed(2).padEnd(8)} | ${String(data.audits).padEnd(6)} | $${data.auditAmount.toFixed(2).padEnd(13)} | ${String(data.robberies).padEnd(10)} | $${data.stolenAmount.toFixed(2)}\n`;
+                         });
+
+                         reportContent += `${"─".repeat(130)}\n`;
+                         reportContent += `TOTALS${" ".repeat(9)} | ${String(totalDeposits).padEnd(8)} | $${totalExpected.toFixed(2).padEnd(9)} | $${totalDeposited.toFixed(2).padEnd(10)} | $${totalVariance.toFixed(2).padEnd(8)} | $${totalAdvances.toFixed(2).padEnd(8)} | $${totalPickups.toFixed(2).padEnd(8)} | ${String(totalAudits).padEnd(6)} | $${totalAuditedAmount.toFixed(2).padEnd(13)} | ${String(robberies.length).padEnd(10)} | $${totalStolen.toFixed(2)}\n`;
+
+                         const report = reportContent;
 
                          const blob = new Blob([report], { type: "text/plain" });
                          const url = window.URL.createObjectURL(blob);
@@ -724,7 +754,29 @@ export default function AdminCashReconciliation() {
                          <FileText className="w-4 h-4" /> Text
                        </Button>
                        <Button onClick={() => {
-                         const csvContent = `Cash Reconciliation Report,${new Date().toLocaleString()}\n\nDeposits,\nTotal Deposits,${totalDeposits}\nExpected Total,$${totalExpected.toFixed(2)}\nDeposited Total,$${totalDeposited.toFixed(2)}\nTotal Variance,$${totalVariance.toFixed(2)}\nShortages,${shortages}\nOverages,${overages}\n\nCash Movements,\nTotal Advances,$${totalAdvances.toFixed(2)}\nAdvance Count,${advances.length}\nTotal Pickups,$${totalPickups.toFixed(2)}\nPickup Count,${pickups.length}\n\nCash Audits,\nTotal Audits,${totalAudits}\nPending Audits,${pendingAudits}\nAudited Amount,$${totalAuditedAmount.toFixed(2)}\n\nIncidents,\nTotal Robberies,${robberies.length}\nTotal Amount Stolen,$${totalStolen.toFixed(2)}`;
+                         const registerGroups = {};
+                         [...deposits, ...advances.map(a => ({ ...a, type: "advance" })), ...pickups.map(p => ({ ...p, type: "pickup" })), ...audits.map(a => ({ ...a, type: "audit" })), ...robberies.map(r => ({ ...r, type: "robbery" }))].forEach(item => {
+                           const regId = item.register_id || "Unknown";
+                           if (!registerGroups[regId]) {
+                             registerGroups[regId] = { deposits: 0, expectedCash: 0, depositedCash: 0, variance: 0, advances: 0, pickups: 0, audits: 0, auditAmount: 0, robberies: 0, stolenAmount: 0 };
+                           }
+                           if (item.report_date) registerGroups[regId].deposits += 1;
+                           if (item.expected_cash) registerGroups[regId].expectedCash += item.expected_cash;
+                           if (item.actual_cash_deposited) registerGroups[regId].depositedCash += item.actual_cash_deposited;
+                           if (item.difference) registerGroups[regId].variance += item.difference;
+                           if (item.type === "advance") registerGroups[regId].advances += item.amount || 0;
+                           if (item.type === "pickup") registerGroups[regId].pickups += item.amount || 0;
+                           if (item.type === "audit") registerGroups[regId].audits += 1;
+                           if (item.type === "audit" && item.total_counted) registerGroups[regId].auditAmount += item.total_counted;
+                           if (item.type === "robbery") registerGroups[regId].robberies += 1;
+                           if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
+                         });
+
+                         const csvContent = "Register,Deposits,Expected Cash,Deposited Cash,Variance,Advances,Pickups,Audits,Audit Amount,Robberies,Stolen Amount\n" +
+                           Object.entries(registerGroups).map(([regId, data]) => 
+                             `"${regId}",${data.deposits},$${data.expectedCash.toFixed(2)},$${data.depositedCash.toFixed(2)},$${data.variance.toFixed(2)},$${data.advances.toFixed(2)},$${data.pickups.toFixed(2)},${data.audits},$${data.auditAmount.toFixed(2)},${data.robberies},$${data.stolenAmount.toFixed(2)}`
+                           ).join("\n") + 
+                           `\nTOTAL,${totalDeposits},$${totalExpected.toFixed(2)},$${totalDeposited.toFixed(2)},$${totalVariance.toFixed(2)},$${totalAdvances.toFixed(2)},$${totalPickups.toFixed(2)},${totalAudits},$${totalAuditedAmount.toFixed(2)},${robberies.length},$${totalStolen.toFixed(2)}`;
 
                          const blob = new Blob([csvContent], { type: "text/csv" });
                          const url = window.URL.createObjectURL(blob);
