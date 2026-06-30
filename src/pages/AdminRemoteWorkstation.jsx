@@ -30,6 +30,10 @@ export default function AdminRemoteWorkstation() {
   const [actionLoading, setActionLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [logoutDialog, setLogoutDialog] = useState(false);
+  const [selectedRegisterLogout, setSelectedRegisterLogout] = useState(null);
+  const [logoutReason, setLogoutReason] = useState("");
+  const [logoutLoading, setLogoutLoading] = useState(false);
   const { toast } = useToast();
   const pollRef = useRef(null);
 
@@ -114,7 +118,7 @@ export default function AdminRemoteWorkstation() {
 
   const loadTransactions = async () => {
     try {
-      const txs = await base44.entities.Transaction.list("-created_date", 30);
+      const txs = await base44.entities.Transaction.list("-created_date", 100);
       setTransactions(txs);
     } catch (e) {
       console.error("Error loading transactions:", e);
@@ -169,9 +173,39 @@ export default function AdminRemoteWorkstation() {
 
   // Get active transaction for a register (most recent non-completed)
   const getActiveTransaction = (registerId) => {
-    return transactions
+    const active = transactions
       .filter(t => t.register_id === registerId && t.status !== "completed" && t.status !== "voided" && t.status !== "refunded")
-      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0] || null;
+      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
+    return active || null;
+  };
+
+  const handleRemoteLogout = async () => {
+    if (!selectedRegisterLogout) return;
+    setLogoutLoading(true);
+    try {
+      await base44.entities.Register.update(selectedRegisterLogout.id, {
+        remote_logout_requested: true,
+        remote_logout_reason: logoutReason || "Remote logout requested"
+      });
+      await base44.entities.RegisterLog.create({
+        event_type: "register_change",
+        operator_id: "admin",
+        operator_name: "Remote Admin",
+        operator_role: "manager",
+        register_id: selectedRegisterLogout.register_id,
+        register_name: selectedRegisterLogout.name,
+        detail: `Remote logout requested: ${logoutReason || "No reason provided"}`
+      });
+      toast({ title: "Remote logout initiated", description: `${selectedRegisterLogout.name} will logout after active transaction completes` });
+      setLogoutDialog(false);
+      setLogoutReason("");
+      setSelectedRegisterLogout(null);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadRegisters();
+    } catch (e) {
+      toast({ title: "Error initiating logout", variant: "destructive" });
+    }
+    setLogoutLoading(false);
   };
 
   const handleApprove = async () => {
@@ -407,6 +441,9 @@ export default function AdminRemoteWorkstation() {
                   <Button onClick={() => togglePause(reg)} size="sm" variant={reg.paused ? "default" : "outline"} className={`flex-1 text-xs ${reg.paused ? "bg-red-600 hover:bg-red-700 text-white" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
                     {reg.paused ? "Unpause" : "Pause"}
                   </Button>
+                  <Button onClick={() => { setSelectedRegisterLogout(reg); setLogoutReason(""); setLogoutDialog(true); }} size="sm" variant="outline" className="flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50">
+                    Logout
+                  </Button>
                 </div>
 
                 {/* Current Operator */}
@@ -605,6 +642,42 @@ export default function AdminRemoteWorkstation() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
+
+      {/* Remote Logout Dialog */}
+      <Dialog open={logoutDialog} onOpenChange={v => { setLogoutDialog(v); if (!v) { setLogoutReason(""); setSelectedRegisterLogout(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm text-blue-700">
+              <AlertTriangle className="w-4 h-4" /> Remote Logout
+            </DialogTitle>
+          </DialogHeader>
+          {selectedRegisterLogout && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+                <p className="text-xs text-gray-500">Register: <span className="font-bold text-gray-800">{selectedRegisterLogout.name}</span></p>
+                <p className="text-xs text-gray-500 font-mono">{selectedRegisterLogout.register_id}</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-700"><span className="font-semibold">Note:</span> Operator will be logged out after any active transaction completes.</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Reason to display on POS</label>
+                <Input 
+                  placeholder="e.g., Go to lunch, Break, End of shift" 
+                  value={logoutReason} 
+                  onChange={e => setLogoutReason(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setLogoutDialog(false)} className="flex-1">Cancel</Button>
+                <Button onClick={handleRemoteLogout} disabled={logoutLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+                  {logoutLoading ? "Initiating..." : "Confirm Logout"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      </div>
+      );
+      }

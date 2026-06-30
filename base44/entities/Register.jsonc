@@ -51,6 +51,15 @@
       "type": "boolean",
       "default": false,
       "description": "Whether this register is paused (locked from use)"
+    },
+    "remote_logout_requested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flag indicating a remote logout has been requested by admin"
+    },
+    "remote_logout_reason": {
+      "type": "string",
+      "description": "Reason for remote logout to display on POS"
     }
   },
   "required": [
