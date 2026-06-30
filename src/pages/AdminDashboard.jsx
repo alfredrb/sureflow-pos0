@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell } from "lucide-react";
-import RegisterCashDashboard from "@/components/RegisterCashDashboard";
+import ShiftCalendarView from "@/components/ShiftCalendarView";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0 });
@@ -60,7 +60,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mb-6 sm:mb-8">
-        <RegisterCashDashboard />
+        <ShiftCalendarView />
       </div>
 
       <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
