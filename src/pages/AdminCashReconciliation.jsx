@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import CashSlipReceipt from "@/components/CashSlipReceipt";
 
 export default function AdminCashReconciliation() {
   const [deposits, setDeposits] = useState([]);
@@ -19,6 +20,7 @@ export default function AdminCashReconciliation() {
   const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
   const [pickups, setPickups] = useState([]);
   const [activeTab, setActiveTab] = useState("deposits");
+  const [printData, setPrintData] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -58,6 +60,15 @@ export default function AdminCashReconciliation() {
         reason: advanceForm.reason,
         status: "approved"
       });
+      // Set print data
+      setPrintData({
+        type: "advance",
+        registerName: register?.name || "",
+        registerId: register?.register_id || "",
+        amount: advanceForm.amount,
+        reason: advanceForm.reason,
+        date: new Date().toISOString()
+      });
       toast({ title: "Cash advance recorded", description: `$${parseFloat(advanceForm.amount).toFixed(2)} to ${register?.name}` });
       setAdvanceForm({ register_id: "", amount: "", reason: "" });
       setAdvanceDialog(false);
@@ -80,6 +91,15 @@ export default function AdminCashReconciliation() {
         amount: parseFloat(pickupForm.amount),
         reason: pickupForm.reason,
         status: "approved"
+      });
+      // Set print data
+      setPrintData({
+        type: "pickup",
+        registerName: register?.name || "",
+        registerId: register?.register_id || "",
+        amount: pickupForm.amount,
+        reason: pickupForm.reason,
+        date: new Date().toISOString()
       });
       toast({ title: "Cash pickup recorded", description: `$${parseFloat(pickupForm.amount).toFixed(2)} from ${register?.name}` });
       setPickupForm({ register_id: "", amount: "", reason: "" });
@@ -332,7 +352,7 @@ export default function AdminCashReconciliation() {
             </div>
             <div className="flex gap-2 pt-4">
               <Button variant="outline" onClick={() => setAdvanceDialog(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handleAdvance} className="flex-1 bg-blue-600 hover:bg-blue-700">Record Advance</Button>
+              <Button onClick={handleAdvance} className="flex-1 bg-blue-600 hover:bg-blue-700">Record & Print</Button>
             </div>
           </div>
         </DialogContent>
@@ -383,11 +403,55 @@ export default function AdminCashReconciliation() {
             </div>
             <div className="flex gap-2 pt-4">
               <Button variant="outline" onClick={() => setPickupDialog(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handlePickup} className="flex-1 bg-amber-600 hover:bg-amber-700">Record Pickup</Button>
+              <Button onClick={handlePickup} className="flex-1 bg-amber-600 hover:bg-amber-700">Record & Print</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Print Slip Dialog */}
+      {printData && (
+        <Dialog open={!!printData} onOpenChange={(open) => !open && setPrintData(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Print Cash {printData.type === "advance" ? "Advance" : "Pickup"} Slip</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2 font-mono text-sm">
+                <div className="text-center font-bold border-b pb-2">
+                  CASH {printData.type === "advance" ? "ADVANCE" : "PICKUP"} SLIP
+                </div>
+                <div className="space-y-1">
+                  <div>Type: {printData.type === "advance" ? "ADVANCE" : "PICKUP"}</div>
+                  <div>Register: {printData.registerId}</div>
+                  <div>Name: {printData.registerName}</div>
+                </div>
+                <div className="border-t border-b py-2 text-center">
+                  <div className="text-2xl font-bold">${parseFloat(printData.amount).toFixed(2)}</div>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div>Date: {new Date(printData.date).toLocaleString()}</div>
+                  {printData.reason && <div>Reason: {printData.reason}</div>}
+                </div>
+                <div className="text-center text-xs border-t pt-2 text-gray-600">
+                  FOR AUDITOR CONFIRMATION
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setPrintData(null)} className="flex-1">Close</Button>
+                <CashSlipReceipt
+                  type={printData.type}
+                  registerName={printData.registerName}
+                  registerId={printData.registerId}
+                  amount={printData.amount}
+                  reason={printData.reason}
+                  date={printData.date}
+                />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
