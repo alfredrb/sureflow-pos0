@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download } from "lucide-react";
+import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ const EVENT_CONFIG = {
   void:        { label: "Void",        color: "bg-amber-500/20 text-amber-300 border-amber-500/30",  icon: Slash },
   no_sale:        { label: "No Sale",        color: "bg-purple-500/20 text-purple-300 border-purple-500/30", icon: Ban },
   register_change: { label: "Reg. Change",   color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",     icon: Settings },
+  robbery:     { label: "Emergency",   color: "bg-red-600/20 text-red-400 border-red-600/30",        icon: AlertTriangle },
 };
 
 function groupByDate(logs) {
