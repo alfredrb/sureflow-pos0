@@ -72,6 +72,39 @@
       "additionalProperties": {
         "type": "number"
       }
+    },
+    "total_robberies": {
+      "type": "number",
+      "description": "Total number of robbery incidents"
+    },
+    "total_stolen": {
+      "type": "number",
+      "description": "Total amount stolen in robberies"
+    },
+    "robbery_details": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "register_id": {
+            "type": "string"
+          },
+          "operator_id": {
+            "type": "string"
+          },
+          "operator_name": {
+            "type": "string"
+          },
+          "amount_stolen": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "description": "Details of robbery incidents"
     }
   },
   "required": [

@@ -19,6 +19,7 @@ export default function AdminCashReconciliation() {
   const [pickupDialog, setPickupDialog] = useState(false);
   const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
   const [pickups, setPickups] = useState([]);
+  const [robberies, setRobberies] = useState([]);
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
   const { toast } = useToast();
@@ -29,16 +30,18 @@ export default function AdminCashReconciliation() {
 
   const loadData = async () => {
     try {
-      const [depositsData, registersData, advancesData, pickupsData] = await Promise.all([
+      const [depositsData, registersData, advancesData, pickupsData, robberiesData] = await Promise.all([
         base44.entities.EODCashDeposit.list("-report_date"),
         base44.entities.Register.list(),
         base44.entities.CashAdvance.list("-created_date"),
-        base44.entities.CashPickup.list("-created_date")
+        base44.entities.CashPickup.list("-created_date"),
+        base44.entities.Robbery.list("-created_date")
       ]);
       setDeposits(depositsData);
       setRegisters(registersData);
       setAdvances(advancesData);
       setPickups(pickupsData);
+      setRobberies(robberiesData);
       setLoading(false);
     } catch (e) {
       toast({ title: "Error loading data", variant: "destructive" });
@@ -173,6 +176,16 @@ export default function AdminCashReconciliation() {
           }`}
         >
           Advances & Pickups
+        </button>
+        <button
+          onClick={() => setActiveTab("emergency")}
+          className={`px-4 py-2 font-medium border-b-2 transition ${
+            activeTab === "emergency"
+              ? "border-red-600 text-red-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Emergency {robberies.length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-red-600 text-white rounded-full w-5 h-5 text-xs font-bold">{robberies.length}</span>}
         </button>
         <button
           onClick={() => setActiveTab("export")}
@@ -403,8 +416,54 @@ export default function AdminCashReconciliation() {
          </div>
        )}
 
+       {/* Emergency Tab — Robberies */}
+       {activeTab === "emergency" && (
+         <div className="space-y-4">
+           {robberies.length === 0 ? (
+             <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-100">
+               <p className="text-sm">No robbery incidents recorded</p>
+             </div>
+           ) : (
+             <div className="rounded-lg border border-gray-200 overflow-hidden">
+               <table className="w-full text-sm">
+                 <thead className="bg-red-50 border-b border-red-200">
+                   <tr>
+                     <th className="text-left px-4 py-3 font-bold text-red-700">Date & Time</th>
+                     <th className="text-left px-4 py-3 font-bold text-red-700">Register</th>
+                     <th className="text-left px-4 py-3 font-bold text-red-700">Operator</th>
+                     <th className="text-right px-4 py-3 font-bold text-red-700">Amount Stolen</th>
+                     <th className="text-left px-4 py-3 font-bold text-red-700">Notes</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {robberies.map((rob, idx) => (
+                     <tr key={rob.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-red-50/20"}`}>
+                       <td className="px-4 py-3 text-gray-900 font-medium">{new Date(rob.created_date).toLocaleString()}</td>
+                       <td className="px-4 py-3 font-mono text-gray-600">{rob.register_id}</td>
+                       <td className="px-4 py-3 text-gray-600">
+                         <div>{rob.operator_name}</div>
+                         <div className="text-gray-400 text-xs">{rob.operator_id}</div>
+                       </td>
+                       <td className="px-4 py-3 font-bold text-right text-red-600">${rob.amount_stolen?.toFixed(2) || '0.00'}</td>
+                       <td className="px-4 py-3 text-gray-600 text-xs">{rob.notes || "—"}</td>
+                     </tr>
+                   ))}
+                 </tbody>
+                 <tfoot className="bg-red-50 border-t border-red-200">
+                   <tr>
+                     <td colSpan="3" className="px-4 py-3 font-bold text-red-700">Total Amount Stolen</td>
+                     <td className="px-4 py-3 font-bold text-right text-red-600">${robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0).toFixed(2)}</td>
+                     <td></td>
+                   </tr>
+                 </tfoot>
+               </table>
+             </div>
+           )}
+         </div>
+       )}
+
        {/* History Tab */}
-       {activeTab === "history" && (
+        {activeTab === "history" && (
         <div className="space-y-4">
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">

@@ -1,0 +1,40 @@
+{
+  "name": "Robbery",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string",
+      "description": "Register ID where robbery occurred"
+    },
+    "register_name": {
+      "type": "string",
+      "description": "Register name"
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator ID who reported the robbery"
+    },
+    "operator_name": {
+      "type": "string",
+      "description": "Operator name who reported the robbery"
+    },
+    "amount_stolen": {
+      "type": "number",
+      "description": "Amount stolen in robbery"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Details about the robbery"
+    },
+    "report_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the robbery report"
+    }
+  },
+  "required": [
+    "register_id",
+    "operator_id",
+    "amount_stolen"
+  ]
+}

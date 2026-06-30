@@ -19,6 +19,7 @@ export default function AdminRemoteWorkstation() {
   const [transactions, setTransactions] = useState([]); // latest completed tx per register
   const [operators, setOperators] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [robberies, setRobberies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approveDialog, setApproveDialog] = useState(false);
@@ -52,6 +53,8 @@ export default function AdminRemoteWorkstation() {
       await loadOperators();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadLogs();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadRobberies();
       setLastRefresh(new Date());
     };
     pollRef.current = setInterval(refresh, 5000);
@@ -70,6 +73,8 @@ export default function AdminRemoteWorkstation() {
       await loadOperators();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadLogs();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadRobberies();
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -131,6 +136,15 @@ export default function AdminRemoteWorkstation() {
       setLogs(logRecords);
     } catch (e) {
       console.error("Error loading logs:", e);
+    }
+  };
+
+  const loadRobberies = async () => {
+    try {
+      const robs = await base44.entities.Robbery.list("-created_date", 50);
+      setRobberies(robs);
+    } catch (e) {
+      console.error("Error loading robberies:", e);
     }
   };
 
@@ -274,6 +288,34 @@ export default function AdminRemoteWorkstation() {
           </div>
         </div>
       </div>
+
+      {/* Robbery Alerts — critical priority */}
+      {robberies.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-200">
+          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 animate-pulse" /> ROBBERY ALERT
+          </p>
+          <div className="space-y-2">
+            {robberies.filter(r => !r.report_date || new Date(r.report_date).toDateString() === new Date().toDateString()).slice(0, 5).map(rob => (
+              <div key={rob.id} className="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">
+                    <span className="text-red-600 font-bold">${rob.amount_stolen?.toFixed(2) || '0.00'}</span>
+                    {" stolen from "}
+                    <span className="text-violet-600">{rob.register_id}</span>
+                  </p>
+                  <p className="text-gray-500 text-xs">
+                    {rob.operator_name} ({rob.operator_id}) · {new Date(rob.created_date).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pending Override Requests — top priority */}
       {pendingRequests.length > 0 && (

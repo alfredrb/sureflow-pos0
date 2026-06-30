@@ -11,7 +11,8 @@
         "transaction",
         "void",
         "no_sale",
-        "register_change"
+        "register_change",
+        "robbery"
       ],
       "description": "Type of event logged"
     },
