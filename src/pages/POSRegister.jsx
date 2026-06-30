@@ -793,6 +793,16 @@ export default function POSRegister() {
     if (config.length > 0) setStoreConfig(config[0]);
     if (regs.length > 0) {
       setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
+      // Auto-detect and update IP address
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        if (ipData.ip && ipData.ip !== regs[0].ip_address) {
+          await base44.entities.Register.update(regs[0].id, { ip_address: ipData.ip });
+        }
+      } catch (e) {
+        console.error("Could not auto-detect IP:", e);
+      }
     }
     const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
     setCategories(cats);
