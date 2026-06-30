@@ -18,6 +18,21 @@ export default function AdminNetwork() {
     toast({ title: `${reg.name} set to ${newStatus}` }); load();
   };
 
+  const updateRegisterIP = async (reg) => {
+    try {
+      // Fetch client IP from an external service
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      const newIP = data.ip;
+      
+      await base44.entities.Register.update(reg.id, { ip_address: newIP });
+      toast({ title: `${reg.name} IP updated to ${newIP}` });
+      load();
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to detect IP address", variant: "destructive" });
+    }
+  };
+
   const online = registers.filter(r => r.status === "online").length;
   const offline = registers.filter(r => r.status === "offline").length;
   const maint = registers.filter(r => r.status === "maintenance").length;
@@ -77,10 +92,15 @@ export default function AdminNetwork() {
                     <span>GW: {r.gateway || "—"}</span>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => toggleStatus(r)}
-                  className={r.status === "online" ? "text-red-600 hover:bg-red-50" : "text-emerald-600 hover:bg-emerald-50"}>
-                  {r.status === "online" ? "Disable" : "Enable"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => updateRegisterIP(r)} title="Detect IP from this device">
+                    <Wifi className="w-3.5 h-3.5 mr-1" /> Update IP
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => toggleStatus(r)}
+                    className={r.status === "online" ? "text-red-600 hover:bg-red-50" : "text-emerald-600 hover:bg-emerald-50"}>
+                    {r.status === "online" ? "Disable" : "Enable"}
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
