@@ -10,13 +10,14 @@ export default function POSCashExport() {
 
   useEffect(() => {
     (async () => {
-      const [adv, pu] = await Promise.all([
-        base44.entities.CashAdvance.list("-created_date", 100),
-        base44.entities.CashPickup.list("-created_date", 100)
-      ]);
-      setAdvances(adv);
-      setPickups(pu);
-      setLoading(false);
+      try {
+        const adv = await base44.entities.CashAdvance.list("-created_date", 50);
+        setAdvances(adv);
+        const pu = await base44.entities.CashPickup.list("-created_date", 50);
+        setPickups(pu);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
