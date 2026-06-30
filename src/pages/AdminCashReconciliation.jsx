@@ -27,7 +27,7 @@ export default function AdminCashReconciliation() {
   const [printData, setPrintData] = useState(null);
   const [selectedRegister, setSelectedRegister] = useState("all");
   const [auditDialog, setAuditDialog] = useState(false);
-  const [auditForm, setAuditForm] = useState({ register_id: "", total_counted: "" });
+  const [auditForm, setAuditForm] = useState({ register_id: "" });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -124,8 +124,8 @@ export default function AdminCashReconciliation() {
   };
 
   const handleManualAudit = async () => {
-    if (!auditForm.register_id || !auditForm.total_counted) {
-      toast({ title: "Please fill in all required fields", variant: "destructive" });
+    if (!auditForm.register_id) {
+      toast({ title: "Please select a register", variant: "destructive" });
       return;
     }
     try {
@@ -135,7 +135,7 @@ export default function AdminCashReconciliation() {
         register_name: register?.name || "",
         operator_id: "",
         operator_name: "Manual Audit",
-        total_counted: parseFloat(auditForm.total_counted),
+        total_counted: 0,
         expected_amount: 0,
         discrepancy: 0,
         audit_date: new Date().toISOString(),
@@ -143,7 +143,7 @@ export default function AdminCashReconciliation() {
         status: "pending"
       });
       toast({ title: "Manual audit created", description: `Audit created for ${register?.name}` });
-      setAuditForm({ register_id: "", total_counted: "" });
+      setAuditForm({ register_id: "" });
       setAuditDialog(false);
       loadData();
     } catch (e) {
@@ -1038,21 +1038,7 @@ export default function AdminCashReconciliation() {
                   <option disabled>No registers available</option>
                 )}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Total Counted ($)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={auditForm.total_counted}
-                  onChange={(e) => setAuditForm({ ...auditForm, total_counted: e.target.value })}
-                  className="pl-7"
-                />
-              </div>
+              <p className="text-xs text-gray-500 mt-2">Cash count will be entered in the POS Cash Management system</p>
             </div>
             <div className="flex gap-2 pt-4">
               <Button variant="outline" onClick={() => setAuditDialog(false)} className="flex-1">Cancel</Button>
