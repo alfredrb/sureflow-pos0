@@ -1253,13 +1253,8 @@ export default function POSRegister() {
     <div className="h-screen bg-[#0a0e27] flex flex-col overflow-hidden max-w-[1024px] max-h-[768px] mx-auto">
 
       {/* Top bar */}
-      <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0 relative">
-        {trainingMode && (
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 via-orange-500/5 to-orange-500/0 border-b-2 border-orange-500/50 flex items-center justify-center">
-            <span className="text-orange-400 font-bold text-sm uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED</span>
-          </div>
-        )}
-        <div className="flex items-center gap-3 relative z-10">
+      <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
               <ShoppingCart className="w-3.5 h-3.5 text-white" />
@@ -1304,13 +1299,7 @@ export default function POSRegister() {
 
 
 
-        <div className="flex items-center gap-3 relative z-10">
-          <button 
-            onClick={() => setTrainingMode(!trainingMode)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${trainingMode ? "bg-orange-600 hover:bg-orange-500 text-white" : "bg-[#0a0e27] border border-blue-500/20 text-blue-300 hover:border-orange-500/50"}`}
-          >
-            {trainingMode ? "EXIT TRAINING" : "TRAINING"}
-          </button>
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="text-blue-200/60 text-xs">{operator?.full_name}</span>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -1324,8 +1313,11 @@ export default function POSRegister() {
               HELP
             </button>
             {helpMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-[#111638] border border-red-500/30 rounded-lg shadow-lg z-50 min-w-[160px]">
-                <button onClick={requestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 rounded-t-lg transition-colors">
+              <div className="absolute right-0 top-full mt-1 bg-[#111638] border border-red-500/30 rounded-lg shadow-lg z-50 min-w-[180px]">
+                <button onClick={() => setTrainingMode(!trainingMode)} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-orange-600 transition-colors border-b border-red-500/10">
+                  {trainingMode ? "Exit Training Mode" : "Enter Training Mode"}
+                </button>
+                <button onClick={requestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
                   Request CSM
                 </button>
                 <button onClick={calculateStolenAmount} disabled={robberyLoading} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors disabled:opacity-50">
@@ -1339,6 +1331,13 @@ export default function POSRegister() {
           </button>
         </div>
       </div>
+
+      {/* Training Mode Banner */}
+      {trainingMode && (
+        <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
+          <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED</span>
+        </div>
+      )}
 
       {/* Main body */}
       <div className="flex flex-1 overflow-hidden">
