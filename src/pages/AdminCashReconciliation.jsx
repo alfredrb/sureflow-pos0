@@ -28,6 +28,7 @@ export default function AdminCashReconciliation() {
   const [selectedRegister, setSelectedRegister] = useState("all");
   const [auditDialog, setAuditDialog] = useState(false);
   const [auditForm, setAuditForm] = useState({ register_id: "" });
+  const [cancelAuditDialog, setCancelAuditDialog] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -148,6 +149,17 @@ export default function AdminCashReconciliation() {
       loadData();
     } catch (e) {
       toast({ title: "Error creating audit", variant: "destructive" });
+    }
+  };
+
+  const handleCancelAudit = async (auditId) => {
+    try {
+      await base44.entities.CashAudit.update(auditId, { status: "canceled" });
+      toast({ title: "Audit canceled", description: "Audit has been marked as canceled" });
+      setCancelAuditDialog(null);
+      loadData();
+    } catch (e) {
+      toast({ title: "Error canceling audit", variant: "destructive" });
     }
   };
 
@@ -277,7 +289,7 @@ export default function AdminCashReconciliation() {
             <div className="text-center py-12 text-gray-500">No cash audits found</div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_80px] gap-4 px-6 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <span>Register & Operator</span>
                 <span>Amount Counted</span>
                 <span>Expected</span>
@@ -285,10 +297,11 @@ export default function AdminCashReconciliation() {
                 <span>Limit Trigger</span>
                 <span>Status</span>
                 <span>Date</span>
+                <span>Action</span>
               </div>
               <div className="divide-y divide-gray-100">
                 {audits.map((audit) => (
-                  <div key={audit.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 items-center hover:bg-gray-50">
+                  <div key={audit.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_80px] gap-4 px-6 py-3 items-center hover:bg-gray-50">
                     <div>
                       <p className="font-semibold text-gray-900">{audit.register_name}</p>
                       <p className="text-xs text-gray-600">{audit.operator_name} ({audit.operator_id})</p>
@@ -305,11 +318,20 @@ export default function AdminCashReconciliation() {
                       audit.status === "complete" ? "bg-green-100 text-green-700" :
                       audit.status === "acknowledged" ? "bg-blue-100 text-blue-700" :
                       audit.status === "resolved" ? "bg-emerald-100 text-emerald-700" :
+                      audit.status === "canceled" ? "bg-red-100 text-red-700" :
                       "bg-gray-100 text-gray-700"
                     }`}>
                       {audit.status}
                     </p>
                     <p className="text-sm text-gray-600">{new Date(audit.audit_date).toLocaleDateString()}</p>
+                    {audit.status !== "canceled" && (
+                      <Button 
+                        onClick={() => setCancelAuditDialog(audit)}
+                        className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 px-2"
+                      >
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1046,6 +1068,29 @@ export default function AdminCashReconciliation() {
               <Button onClick={handleManualAudit} className="flex-1 bg-purple-600 hover:bg-purple-700">Create Audit</Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Audit Confirmation Dialog */}
+      <Dialog open={!!cancelAuditDialog} onOpenChange={(open) => !open && setCancelAuditDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Confirm Audit Cancellation</DialogTitle>
+          </DialogHeader>
+          {cancelAuditDialog && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to cancel the audit for <span className="font-bold">{cancelAuditDialog.register_name}</span>? This action cannot be undone.
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                The audit status will be changed to "Canceled" and it will appear in the audit history log.
+              </div>
+              <div className="flex gap-2 pt-4">
+                <Button variant="outline" onClick={() => setCancelAuditDialog(null)} className="flex-1">Keep Audit</Button>
+                <Button onClick={() => handleCancelAudit(cancelAuditDialog.id)} className="flex-1 bg-red-600 hover:bg-red-700">Confirm Cancel</Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
