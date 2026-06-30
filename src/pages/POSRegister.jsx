@@ -23,7 +23,6 @@ const SECTION_TABS = [
   { id: "item_list", label: "Item List" },
   { id: "misc", label: "Misc" },
   { id: "advance", label: "Advance" },
-  { id: "request_csm", label: "Request CSM" },
 ];
 
 function getKeysForSection(sectionId, functionKeys) {
@@ -1079,25 +1078,26 @@ export default function POSRegister() {
     return matchSearch && matchCat;
   });
 
-  const handleSectionClick = async (sectionId) => {
+  const handleSectionClick = (sectionId) => {
     if (sectionId === "item_list") setItemListOpen(true);
-    else if (sectionId === "request_csm") {
-      const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-      try {
-        await base44.entities.OverrideRequest.create({
-          register_id: registerId,
-          action: "Help Needed",
-          requested_by_operator_id: operator?.operator_id || "",
-          requested_by_operator_name: operator?.full_name || "",
-          status: "pending"
-        });
-        writeLog("override", `CSM Help Requested — ${operator?.full_name || "Unknown operator"}`);
-        toast({ title: "Help Request Sent", description: "CSM has been notified", variant: "default" });
-      } catch (e) {
-        toast({ title: "Error", description: "Failed to send help request", variant: "destructive" });
-      }
-    }
     else setActiveSection(sectionId);
+  };
+
+  const requestCSM = async () => {
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    try {
+      await base44.entities.OverrideRequest.create({
+        register_id: registerId,
+        action: "Help Needed",
+        requested_by_operator_id: operator?.operator_id || "",
+        requested_by_operator_name: operator?.full_name || "",
+        status: "pending"
+      });
+      writeLog("override", `CSM Help Requested — ${operator?.full_name || "Unknown operator"}`);
+      toast({ title: "Help Request Sent", description: "CSM has been notified", variant: "default" });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to send help request", variant: "destructive" });
+    }
   };
 
   const visibleKeys = getKeysForSection(activeSection, functionKeys);
@@ -1207,6 +1207,9 @@ export default function POSRegister() {
               "bg-blue-500/20 text-blue-300"
             }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : "Cashier"}</span>
           </div>
+          <button onClick={requestCSM} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors">
+            CSM
+          </button>
           <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
             <LogOut className="w-3.5 h-3.5" />
           </button>
@@ -1385,7 +1388,7 @@ export default function POSRegister() {
 
               {/* Section Menu */}
               <div className="flex-shrink-0 border-t border-blue-500/10 bg-[#111638]">
-                <div className="grid grid-cols-5">
+                <div className="grid grid-cols-4">
                   {SECTION_TABS.map(tab => (
                     <button
                       key={tab.id}
