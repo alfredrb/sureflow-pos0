@@ -243,7 +243,7 @@ export default function AdminRemoteWorkstation() {
   };
 
   const pendingRequests = requests.filter(r => r.status === "pending");
-  const recentHistory = requests.filter(r => r.status !== "pending").slice(0, 30);
+  const recentHistory = requests.filter(r => r.status !== "pending").sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 50);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
