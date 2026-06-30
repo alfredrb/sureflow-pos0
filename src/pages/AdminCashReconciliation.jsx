@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TillCheckoutModal, TillCheckinModal } from "@/components/TillCheckModals";
-import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText } from "lucide-react";
+import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText, Printer } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -947,20 +947,47 @@ export default function AdminCashReconciliation() {
                          <Download className="w-4 h-4" /> CSV
                        </Button>
                        <Button onClick={() => {
-                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\nGift Card Cashouts: $${totalGiftCardCashout.toFixed(2)} (${giftCardCashouts.length} transactions)\n\n=== CASH AUDITS ===\nTotal Audits: ${totalAudits}\nPending Audits: ${pendingAudits}\nTotal Audited Amount: $${totalAuditedAmount.toFixed(2)}\n\n=== TILL CHECKOUT/CHECKIN ===\nTills Checked Out: ${checkedOutCount}\nChecked Out Expected Total: $${checkedOutExpected.toFixed(2)}\nTills Checked In: ${checkedInCount}\nTill Discrepancies Total: ${totalDiscrepancies >= 0 ? "+" : ""}$${totalDiscrepancies.toFixed(2)}\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
+                         const registerGroups = {};
+                         [...deposits, ...advances.map(a => ({ ...a, type: "advance" })), ...pickups.map(p => ({ ...p, type: "pickup" })), ...audits.map(a => ({ ...a, type: "audit" })), ...robberies.map(r => ({ ...r, type: "robbery" }))].forEach(item => {
+                           const regId = item.register_id || "Unknown";
+                           if (!registerGroups[regId]) {
+                             registerGroups[regId] = { deposits: 0, expectedCash: 0, depositedCash: 0, variance: 0, advances: 0, pickups: 0, audits: 0, auditAmount: 0, robberies: 0, stolenAmount: 0 };
+                           }
+                           if (item.report_date) registerGroups[regId].deposits += 1;
+                           if (item.expected_cash) registerGroups[regId].expectedCash += item.expected_cash;
+                           if (item.actual_cash_deposited) registerGroups[regId].depositedCash += item.actual_cash_deposited;
+                           if (item.difference) registerGroups[regId].variance += item.difference;
+                           if (item.type === "advance") registerGroups[regId].advances += item.amount || 0;
+                           if (item.type === "pickup") registerGroups[regId].pickups += item.amount || 0;
+                           if (item.type === "audit") registerGroups[regId].audits += 1;
+                           if (item.type === "audit" && item.total_counted) registerGroups[regId].auditAmount += item.total_counted;
+                           if (item.type === "robbery") registerGroups[regId].robberies += 1;
+                           if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
+                         });
 
-                         const blob = new Blob([report], { type: "text/plain" });
-                         const url = window.URL.createObjectURL(blob);
-                         const a = document.createElement("a");
-                         a.href = url;
-                         a.download = `cash_report_${new Date().toISOString().split("T")[0]}.txt`;
-                         document.body.appendChild(a);
-                         a.click();
-                         window.URL.revokeObjectURL(url);
-                         document.body.removeChild(a);
-                         toast({ title: "Report exported as TXT" });
-                       }} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
-                         <FileText className="w-4 h-4" /> TXT
+                         let reportContent = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n`;
+                         reportContent += `SUMMARY BY REGISTER\n`;
+                         reportContent += `\nRegister | Deposits | Expected | Deposited | Variance | Advances | Pickups | Audits | Audit Amount | Robberies | Stolen\n`;
+                         reportContent += `${"─".repeat(130)}\n`;
+
+                         Object.entries(registerGroups).forEach(([regId, data]) => {
+                           reportContent += `${regId.padEnd(15)} | ${String(data.deposits).padEnd(8)} | $${data.expectedCash.toFixed(2).padEnd(9)} | $${data.depositedCash.toFixed(2).padEnd(10)} | $${data.variance.toFixed(2).padEnd(8)} | $${data.advances.toFixed(2).padEnd(8)} | $${data.pickups.toFixed(2).padEnd(8)} | ${String(data.audits).padEnd(6)} | $${data.auditAmount.toFixed(2).padEnd(13)} | ${String(data.robberies).padEnd(10)} | $${data.stolenAmount.toFixed(2)}\n`;
+                         });
+
+                         reportContent += `${"─".repeat(130)}\n`;
+                         reportContent += `TOTALS${" ".repeat(9)} | ${String(totalDeposits).padEnd(8)} | $${totalExpected.toFixed(2).padEnd(9)} | $${totalDeposited.toFixed(2).padEnd(10)} | $${totalVariance.toFixed(2).padEnd(8)} | $${totalAdvances.toFixed(2).padEnd(8)} | $${totalPickups.toFixed(2).padEnd(8)} | ${String(totalAudits).padEnd(6)} | $${totalAuditedAmount.toFixed(2).padEnd(13)} | ${String(robberies.length).padEnd(10)} | $${totalStolen.toFixed(2)}\n`;
+
+                         reportContent += `\n=== TILL CHECKOUT/CHECKIN ===\n`;
+                         reportContent += `Tills Checked Out: ${checkedOutCount}\nChecked Out Expected Total: $${checkedOutExpected.toFixed(2)}\nTills Checked In: ${checkedInCount}\nTill Discrepancies Total: ${totalDiscrepancies >= 0 ? "+" : ""}$${totalDiscrepancies.toFixed(2)}\n`;
+
+                         const report = reportContent;
+
+                         const printWindow = window.open('', '', 'width=600,height=700');
+                         printWindow.document.write(`<pre style="font-family: monospace; margin: 20px; font-size: 11px; line-height: 1.5;">${report.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`);
+                         printWindow.document.close();
+                         printWindow.print();
+                       }} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+                         <Printer className="w-4 h-4" /> Print Slip
                        </Button>
                      </div>
                    </div>
