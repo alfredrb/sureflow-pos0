@@ -104,7 +104,7 @@ export default function AdminGiftCardManager() {
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Card Number</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Balance</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Original</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Purchased By</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Sold By</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Date</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Action</th>
