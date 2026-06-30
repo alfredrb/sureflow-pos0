@@ -10,6 +10,7 @@ import POSCartItem from "@/components/POSCartItem";
 import SODProtocolModal from "@/components/SODProtocolModal";
 import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
+import POSReceipt from "@/components/POSReceipt";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management"];
@@ -688,6 +689,8 @@ export default function POSRegister() {
   const [sodModal, setSODModal] = useState(false);
   const [cashMgmtDialog, setCashMgmtDialog] = useState(false);
   const [exportCashDialog, setExportCashDialog] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
+  const [storeConfig, setStoreConfig] = useState(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -756,15 +759,17 @@ export default function POSRegister() {
 
   const loadData = async () => {
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const [prods, fkeys, regs, discs] = await Promise.all([
+    const [prods, fkeys, regs, discs, config] = await Promise.all([
       base44.entities.Product.filter({ status: "active" }),
       base44.entities.FunctionKey.list("key_number"),
       base44.entities.Register.filter({ register_id: registerId }),
-      base44.entities.DiscountType.list()
+      base44.entities.DiscountType.list(),
+      base44.entities.ReceiptConfig.list()
     ]);
     setProducts(prods);
     setFunctionKeys(fkeys);
     setDiscounts(discs);
+    if (config.length > 0) setStoreConfig(config[0]);
     if (regs.length > 0) {
       setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
     }
@@ -937,23 +942,36 @@ export default function POSRegister() {
         if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
       }
       toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
-      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { 
-        transaction_id: txId, 
-        transaction_total: total,
-        items: cart.map(item => ({
-          sku: item.sku,
-          name: item.name,
-          qty: item.qty,
-          price: item.price,
-          total: item.total,
-          tax_rate: item.tax_rate,
-          discount_type: item.discount_type || null,
-          discount_percentage: item.discount_percentage || 0,
-          original_price: item.original_price || item.price
-        }))
-      });
-      setCart([]); setPaymentOpen(false); setAmountTendered("");
-      loadData();
+       writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { 
+         transaction_id: txId, 
+         transaction_total: total,
+         items: cart.map(item => ({
+           sku: item.sku,
+           name: item.name,
+           qty: item.qty,
+           price: item.price,
+           total: item.total,
+           tax_rate: item.tax_rate,
+           discount_type: item.discount_type || null,
+           discount_percentage: item.discount_percentage || 0,
+           original_price: item.original_price || item.price
+         }))
+       });
+       // Show receipt dialog
+       setReceiptData({
+         transactionId: txId,
+         operatorName: operator.full_name,
+         registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+         items: cart,
+         subtotal,
+         tax,
+         total,
+         paymentMethod,
+         amountTendered: parseFloat(amountTendered || total),
+         changeDue
+       });
+       setCart([]); setPaymentOpen(false); setAmountTendered("");
+       loadData();
     } catch (e) {
       toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
     }
@@ -1486,6 +1504,83 @@ export default function POSRegister() {
 
       {/* Export Cash History Dialog */}
       <ExportCashHistory isOpen={exportCashDialog} onClose={() => setExportCashDialog(false)} />
+
+      {/* Receipt Dialog */}
+      {receiptData && (
+        <Dialog open={!!receiptData} onOpenChange={(open) => !open && setReceiptData(null)}>
+          <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-white text-sm">Transaction Complete</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-[#0a0e27] rounded-lg p-4 space-y-2 font-mono text-xs">
+                <div className="text-center font-bold border-b pb-2">RECEIPT</div>
+                <div className="space-y-1">
+                  <div>TX ID: {receiptData.transactionId}</div>
+                  <div>Date: {new Date().toLocaleString()}</div>
+                  <div>Register: {receiptData.registerName}</div>
+                  <div>Operator: {receiptData.operatorName}</div>
+                </div>
+                <div className="border-t border-b py-2 space-y-1">
+                  {receiptData.items.map((item) => (
+                    <div key={item.sku} className="flex justify-between">
+                      <span>{item.qty}x {item.name}</span>
+                      <span>${item.total.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>${receiptData.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax:</span>
+                    <span>${receiptData.tax.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t pt-1">
+                    <span>TOTAL:</span>
+                    <span>${receiptData.total.toFixed(2)}</span>
+                  </div>
+                </div>
+                {receiptData.paymentMethod === "cash" && (
+                  <div className="border-t pt-2 space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span>Tendered:</span>
+                      <span>${receiptData.amountTendered.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold">
+                      <span>Change:</span>
+                      <span>${receiptData.changeDue.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="text-center text-[10px] border-t pt-2 text-blue-300/60">
+                  Thank You!
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setReceiptData(null)} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
+                  Done
+                </Button>
+                <POSReceipt
+                  transactionId={receiptData.transactionId}
+                  operatorName={receiptData.operatorName}
+                  registerName={receiptData.registerName}
+                  items={receiptData.items}
+                  subtotal={receiptData.subtotal}
+                  tax={receiptData.tax}
+                  total={receiptData.total}
+                  paymentMethod={receiptData.paymentMethod}
+                  amountTendered={receiptData.amountTendered}
+                  changeDue={receiptData.changeDue}
+                  storeConfig={storeConfig}
+                />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Quantity Dialog */}
       <Dialog open={qtyDialog} onOpenChange={setQtyDialog}>
