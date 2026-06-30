@@ -780,6 +780,10 @@ export default function AdminCashReconciliation() {
                      }, 0);
                      const checkedOutCount = tillCheckouts.filter(t => t.status === "checked_out").length;
                      const checkedInCount = tillCheckouts.filter(t => t.status === "checked_in").length;
+                     const checkedOutExpected = checkedOutCount * 250;
+                     const totalDiscrepancies = tillCheckouts
+                       .filter(t => t.status === "checked_in" && t.discrepancy !== undefined)
+                       .reduce((sum, t) => sum + t.discrepancy, 0);
                      const totalRegisters = registers.length;
 
              return (
@@ -837,9 +841,17 @@ export default function AdminCashReconciliation() {
                      <p className="text-gray-500 text-xs font-medium">Tills Checked Out</p>
                      <p className="text-2xl font-bold text-blue-600">{checkedOutCount} / {totalRegisters}</p>
                    </div>
+                   <div className="bg-white rounded-lg p-4 border border-cyan-100">
+                     <p className="text-gray-500 text-xs font-medium">Checked Out Expected Total</p>
+                     <p className="text-2xl font-bold text-cyan-600">${checkedOutExpected.toFixed(2)}</p>
+                   </div>
                    <div className="bg-white rounded-lg p-4 border border-green-100">
                      <p className="text-gray-500 text-xs font-medium">Tills Checked In</p>
                      <p className="text-2xl font-bold text-green-600">{checkedInCount} / {totalRegisters}</p>
+                   </div>
+                   <div className={`bg-white rounded-lg p-4 border ${totalDiscrepancies < 0 ? "border-red-100" : "border-orange-100"}`}>
+                     <p className="text-gray-500 text-xs font-medium">Till Discrepancies Total</p>
+                     <p className={`text-2xl font-bold ${totalDiscrepancies < 0 ? "text-red-600" : "text-orange-600"}`}>{totalDiscrepancies >= 0 ? "+" : ""}${totalDiscrepancies.toFixed(2)}</p>
                    </div>
                    </div>
 
@@ -877,6 +889,9 @@ export default function AdminCashReconciliation() {
 
                          reportContent += `${"─".repeat(130)}\n`;
                          reportContent += `TOTALS${" ".repeat(9)} | ${String(totalDeposits).padEnd(8)} | $${totalExpected.toFixed(2).padEnd(9)} | $${totalDeposited.toFixed(2).padEnd(10)} | $${totalVariance.toFixed(2).padEnd(8)} | $${totalAdvances.toFixed(2).padEnd(8)} | $${totalPickups.toFixed(2).padEnd(8)} | ${String(totalAudits).padEnd(6)} | $${totalAuditedAmount.toFixed(2).padEnd(13)} | ${String(robberies.length).padEnd(10)} | $${totalStolen.toFixed(2)}\n`;
+
+                         reportContent += `\n=== TILL CHECKOUT/CHECKIN ===\n`;
+                         reportContent += `Tills Checked Out: ${checkedOutCount}\nChecked Out Expected Total: $${checkedOutExpected.toFixed(2)}\nTills Checked In: ${checkedInCount}\nTill Discrepancies Total: ${totalDiscrepancies >= 0 ? "+" : ""}$${totalDiscrepancies.toFixed(2)}\n`;
 
                          const report = reportContent;
 
@@ -916,7 +931,7 @@ export default function AdminCashReconciliation() {
                            Object.entries(registerGroups).map(([regId, data]) => 
                              `"${regId}",${data.deposits},$${data.expectedCash.toFixed(2)},$${data.depositedCash.toFixed(2)},$${data.variance.toFixed(2)},$${data.advances.toFixed(2)},$${data.pickups.toFixed(2)},$0.00,${data.audits},$${data.auditAmount.toFixed(2)},${data.robberies},$${data.stolenAmount.toFixed(2)}`
                            ).join("\n") + 
-                           `\nTOTAL,${totalDeposits},$${totalExpected.toFixed(2)},$${totalDeposited.toFixed(2)},$${totalVariance.toFixed(2)},$${totalAdvances.toFixed(2)},$${totalPickups.toFixed(2)},$${totalGiftCardCashout.toFixed(2)},${totalAudits},$${totalAuditedAmount.toFixed(2)},${robberies.length},$${totalStolen.toFixed(2)}`;
+                           `\nTOTAL,${totalDeposits},$${totalExpected.toFixed(2)},$${totalDeposited.toFixed(2)},$${totalVariance.toFixed(2)},$${totalAdvances.toFixed(2)},$${totalPickups.toFixed(2)},$${totalGiftCardCashout.toFixed(2)},${totalAudits},$${totalAuditedAmount.toFixed(2)},${robberies.length},$${totalStolen.toFixed(2)}\n\nTILL CHECKOUT/CHECKIN\nTills Checked Out,${checkedOutCount}\nChecked Out Expected Total,$${checkedOutExpected.toFixed(2)}\nTills Checked In,${checkedInCount}\nTill Discrepancies Total,$${totalDiscrepancies.toFixed(2)}`;
 
                          const blob = new Blob([csvContent], { type: "text/csv" });
                          const url = window.URL.createObjectURL(blob);
@@ -932,7 +947,7 @@ export default function AdminCashReconciliation() {
                          <Download className="w-4 h-4" /> CSV
                        </Button>
                        <Button onClick={() => {
-                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\nGift Card Cashouts: $${totalGiftCardCashout.toFixed(2)} (${giftCardCashouts.length} transactions)\n\n=== CASH AUDITS ===\nTotal Audits: ${totalAudits}\nPending Audits: ${pendingAudits}\nTotal Audited Amount: $${totalAuditedAmount.toFixed(2)}\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
+                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\nGift Card Cashouts: $${totalGiftCardCashout.toFixed(2)} (${giftCardCashouts.length} transactions)\n\n=== CASH AUDITS ===\nTotal Audits: ${totalAudits}\nPending Audits: ${pendingAudits}\nTotal Audited Amount: $${totalAuditedAmount.toFixed(2)}\n\n=== TILL CHECKOUT/CHECKIN ===\nTills Checked Out: ${checkedOutCount}\nChecked Out Expected Total: $${checkedOutExpected.toFixed(2)}\nTills Checked In: ${checkedInCount}\nTill Discrepancies Total: ${totalDiscrepancies >= 0 ? "+" : ""}$${totalDiscrepancies.toFixed(2)}\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
 
                          const blob = new Blob([report], { type: "text/plain" });
                          const url = window.URL.createObjectURL(blob);
