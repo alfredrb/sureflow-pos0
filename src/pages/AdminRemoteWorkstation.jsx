@@ -320,7 +320,17 @@ export default function AdminRemoteWorkstation() {
     loadRegisters();
   };
 
+  // Get newly requested audits (created within last 5 minutes)
+  const getNewlyRequestedAudits = () => {
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    return audits.filter(a => {
+      const createdTime = new Date(a.created_date).getTime();
+      return createdTime > fiveMinutesAgo;
+    });
+  };
+
   const pendingRequests = requests.filter(r => r.status === "pending");
+  const newAudits = getNewlyRequestedAudits();
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -365,6 +375,33 @@ export default function AdminRemoteWorkstation() {
           </div>
         </div>
       </div>
+
+      {/* Manual Audit Requests — highest priority alert */}
+      {newAudits.length > 0 && (
+        <div className="bg-red-50 border border-red-500 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-500 animate-pulse">
+          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 animate-pulse" /> AUDIT REQUESTED ({newAudits.length})
+          </p>
+          <div className="space-y-2">
+            {newAudits.map(audit => {
+              const minutesAgo = Math.floor((Date.now() - new Date(audit.created_date).getTime()) / 60000);
+              return (
+                <div key={audit.id} className="bg-white rounded-xl border-2 border-red-400 p-3 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0 animate-bounce">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 text-sm">
+                      <span className="text-red-600">{audit.register_name || audit.register_id}</span> — Manual Audit Request
+                    </p>
+                    <p className="text-gray-500 text-xs">Requested by: {audit.operator_name} · {minutesAgo < 1 ? "just now" : `${minutesAgo}m ago`}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Mandatory Audits — highest priority */}
       {audits.filter(a => a.status === "pending").length > 0 && (
