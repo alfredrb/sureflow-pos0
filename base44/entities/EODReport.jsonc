@@ -105,6 +105,48 @@
         "additionalProperties": true
       },
       "description": "Details of robbery incidents"
+    },
+    "cash_audits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "register_id": {
+            "type": "string"
+          },
+          "register_name": {
+            "type": "string"
+          },
+          "operator_id": {
+            "type": "string"
+          },
+          "operator_name": {
+            "type": "string"
+          },
+          "total_counted": {
+            "type": "number"
+          },
+          "expected_amount": {
+            "type": "number"
+          },
+          "discrepancy": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "description": "Cash audit records for this EOD period"
+    },
+    "total_audits": {
+      "type": "number",
+      "description": "Total number of cash audits performed"
+    },
+    "total_discrepancy": {
+      "type": "number",
+      "description": "Sum of all audit discrepancies"
     }
   },
   "required": [

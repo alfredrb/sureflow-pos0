@@ -21,6 +21,8 @@ export default function AdminCashReconciliation() {
   const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
   const [pickups, setPickups] = useState([]);
   const [robberies, setRobberies] = useState([]);
+  const [audits, setAudits] = useState([]);
+  const [alerts, setAlerts] = useState([]);
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
   const [selectedRegister, setSelectedRegister] = useState("all");
@@ -32,18 +34,22 @@ export default function AdminCashReconciliation() {
 
   const loadData = async () => {
     try {
-      const [depositsData, registersData, advancesData, pickupsData, robberiesData] = await Promise.all([
+      const [depositsData, registersData, advancesData, pickupsData, robberiesData, auditsData, alertsData] = await Promise.all([
         base44.entities.EODCashDeposit.list("-report_date"),
         base44.entities.Register.list(),
         base44.entities.CashAdvance.list("-created_date"),
         base44.entities.CashPickup.list("-created_date"),
-        base44.entities.Robbery.list("-created_date")
+        base44.entities.Robbery.list("-created_date"),
+        base44.entities.CashAudit.list("-audit_date", 100),
+        base44.entities.CashLimitAlert.list("-triggered_at", 100)
       ]);
       setDeposits(depositsData);
       setRegisters(registersData);
       setAdvances(advancesData);
       setPickups(pickupsData);
       setRobberies(robberiesData);
+      setAudits(auditsData);
+      setAlerts(alertsData);
       setLoading(false);
     } catch (e) {
       toast({ title: "Error loading data", variant: "destructive" });
@@ -190,8 +196,18 @@ export default function AdminCashReconciliation() {
           Emergency {robberies.length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-red-600 text-white rounded-full w-5 h-5 text-xs font-bold">{robberies.length}</span>}
         </button>
         <button
-          onClick={() => setActiveTab("discrepancies")}
-          className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
+           onClick={() => setActiveTab("audits")}
+           className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
+             activeTab === "audits"
+               ? "border-green-600 text-green-600"
+               : "border-transparent text-gray-500 hover:text-gray-700"
+           }`}
+         >
+           Audit History {audits.length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-green-600 text-white rounded-full w-5 h-5 text-xs font-bold">{audits.filter(a => a.status === "pending").length}</span>}
+         </button>
+        <button
+           onClick={() => setActiveTab("discrepancies")}
+           className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
             activeTab === "discrepancies"
               ? "border-blue-600 text-blue-600"
               : "border-transparent text-gray-500 hover:text-gray-700"
@@ -220,6 +236,53 @@ export default function AdminCashReconciliation() {
           Export
         </button>
         </div>
+
+      {/* Audit History Tab */}
+      {activeTab === "audits" && (
+        <div className="space-y-4">
+          {audits.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No cash audits found</div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <span>Register & Operator</span>
+                <span>Amount Counted</span>
+                <span>Expected</span>
+                <span>Discrepancy</span>
+                <span>Limit Trigger</span>
+                <span>Status</span>
+                <span>Date</span>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {audits.map((audit) => (
+                  <div key={audit.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 items-center hover:bg-gray-50">
+                    <div>
+                      <p className="font-semibold text-gray-900">{audit.register_name}</p>
+                      <p className="text-xs text-gray-600">{audit.operator_name} ({audit.operator_id})</p>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900">${audit.total_counted?.toFixed(2) || '0.00'}</p>
+                    <p className="text-sm text-gray-600">${audit.expected_amount?.toFixed(2) || '0.00'}</p>
+                    <p className={`text-sm font-bold ${(audit.discrepancy || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {(audit.discrepancy || 0) >= 0 ? "+" : ""}{audit.discrepancy?.toFixed(2) || "0.00"}
+                      {audit.discrepancy_percentage && <span className="text-xs text-gray-500 ml-1">({audit.discrepancy_percentage.toFixed(1)}%)</span>}
+                    </p>
+                    <p className="text-sm">{audit.triggered_by_cash_limit ? "Yes" : "No"}</p>
+                    <p className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      audit.status === "pending" ? "bg-yellow-100 text-yellow-700" :
+                      audit.status === "acknowledged" ? "bg-blue-100 text-blue-700" :
+                      audit.status === "resolved" ? "bg-green-100 text-green-700" :
+                      "bg-gray-100 text-gray-700"
+                    }`}>
+                      {audit.status}
+                    </p>
+                    <p className="text-sm text-gray-600">{new Date(audit.audit_date).toLocaleDateString()}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Deposits Tab */}
       {activeTab === "deposits" && (

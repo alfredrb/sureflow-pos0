@@ -18,6 +18,18 @@
       "type": "number",
       "description": "Total cash counted in the drawer"
     },
+    "expected_amount": {
+      "type": "number",
+      "description": "Expected cash from transactions and previous balance"
+    },
+    "discrepancy": {
+      "type": "number",
+      "description": "Difference: counted - expected (positive=over, negative=short)"
+    },
+    "discrepancy_percentage": {
+      "type": "number",
+      "description": "Discrepancy as percentage of expected"
+    },
     "denominations": {
       "type": "object",
       "description": "Breakdown by coin/bill: {denomination: count}",
@@ -37,10 +49,20 @@
       "enum": [
         "pending",
         "acknowledged",
-        "reviewed"
+        "reviewed",
+        "resolved"
       ],
       "default": "pending",
       "description": "Status of the audit alert"
+    },
+    "triggered_by_cash_limit": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this audit was triggered by exceeding cash limit"
+    },
+    "register_cash_limit": {
+      "type": "number",
+      "description": "The register's cash limit at time of audit"
     }
   },
   "required": [

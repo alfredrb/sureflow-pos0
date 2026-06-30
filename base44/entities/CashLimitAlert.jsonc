@@ -1,0 +1,62 @@
+{
+  "name": "CashLimitAlert",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string"
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "cash_limit": {
+      "type": "number",
+      "description": "The register's configured cash limit"
+    },
+    "actual_cash": {
+      "type": "number",
+      "description": "Actual cash counted that exceeded limit"
+    },
+    "excess_amount": {
+      "type": "number",
+      "description": "Amount over the limit"
+    },
+    "triggered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "audit_required": {
+      "type": "boolean",
+      "default": true
+    },
+    "audit_completed": {
+      "type": "boolean",
+      "default": false
+    },
+    "audit_id": {
+      "type": "string",
+      "description": "Reference to the CashAudit record if completed"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "acknowledged",
+        "audit_completed"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "register_id",
+    "operator_id",
+    "cash_limit",
+    "actual_cash",
+    "triggered_at"
+  ]
+}

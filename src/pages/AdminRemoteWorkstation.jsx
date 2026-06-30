@@ -22,6 +22,7 @@ export default function AdminRemoteWorkstation() {
   const [robberies, setRobberies] = useState([]);
   const [audits, setAudits] = useState([]);
   const [shiftAlerts, setShiftAlerts] = useState([]);
+  const [cashLimitAlerts, setCashLimitAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [approveDialog, setApproveDialog] = useState(false);
@@ -65,6 +66,8 @@ export default function AdminRemoteWorkstation() {
       await loadAudits();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadShiftAlerts();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadCashLimitAlerts();
       setLastRefresh(new Date());
     };
     pollRef.current = setInterval(refresh, 5000);
@@ -89,6 +92,8 @@ export default function AdminRemoteWorkstation() {
       await loadAudits();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadShiftAlerts();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadCashLimitAlerts();
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -177,6 +182,15 @@ export default function AdminRemoteWorkstation() {
       setShiftAlerts(alerts);
     } catch (e) {
       console.error("Error loading shift alerts:", e);
+    }
+  };
+
+  const loadCashLimitAlerts = async () => {
+    try {
+      const alerts = await base44.entities.CashLimitAlert.filter({ status: ["active", "acknowledged"] }, "-triggered_at", 50);
+      setCashLimitAlerts(alerts);
+    } catch (e) {
+      console.error("Error loading cash limit alerts:", e);
     }
   };
 
@@ -349,6 +363,30 @@ export default function AdminRemoteWorkstation() {
           </div>
         </div>
       </div>
+
+      {/* Cash Limit Alerts — high priority */}
+      {cashLimitAlerts.filter(a => a.status === "active").length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-200">
+          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> CASH LIMIT EXCEEDED ({cashLimitAlerts.filter(a => a.status === "active").length})
+          </p>
+          <div className="space-y-2">
+            {cashLimitAlerts.filter(a => a.status === "active").slice(0, 5).map(alert => (
+              <div key={alert.id} className="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
+                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">
+                    <span className="text-red-600">{alert.register_name}</span> — ${alert.actual_cash?.toFixed(2)} counted
+                  </p>
+                  <p className="text-gray-500 text-xs">Excess: <strong className="text-red-600">${alert.excess_amount?.toFixed(2)}</strong> over ${alert.cash_limit} limit · {alert.operator_name}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Shift Alerts — medium-high priority */}
       {shiftAlerts.filter(a => a.alert_type === "shift_overtime").length > 0 && (
