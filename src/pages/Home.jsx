@@ -19,6 +19,7 @@ export default function Home() {
   const [swapOpen, setSwapOpen] = useState(false);
   const [selectedSwapOperator, setSelectedSwapOperator] = useState("");
   const [swapReason, setSwapReason] = useState("");
+  const [incomingSwapRequests, setIncomingSwapRequests] = useState([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,6 +52,18 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const loadIncomingSwapRequests = async (operatorId) => {
+    try {
+      const requests = await base44.entities.ShiftSwapRequest.filter({ 
+        target_operator_id: operatorId,
+        status: "pending"
+      });
+      setIncomingSwapRequests(requests);
+    } catch (e) {
+      // silently fail
+    }
+  };
+
   const handleShiftLookup = async () => {
     if (!pin) {
       toast({ title: "Please enter your PIN", variant: "destructive" });
@@ -74,6 +87,7 @@ export default function Home() {
       setCurrentOperator(foundOperator);
       setCurrentShift(shifts[0] || null);
       setPin("");
+      await loadIncomingSwapRequests(foundOperator.operator_id);
     } catch (e) {
       toast({ title: "Error looking up shift", variant: "destructive" });
     }
@@ -102,6 +116,41 @@ export default function Home() {
       setSwapReason("");
     } catch (e) {
       toast({ title: "Error creating swap request", variant: "destructive" });
+    }
+  };
+
+  const handleApproveSwap = async (request) => {
+    try {
+      // Update shift to new operator
+      await base44.entities.Shift.update(request.shift_id, {
+        operator_id: request.requester_operator_id,
+        operator_name: request.requester_operator_name
+      });
+
+      // Mark swap as approved
+      await base44.entities.ShiftSwapRequest.update(request.id, {
+        status: "approved",
+        approved_at: new Date().toISOString(),
+        approved_by_admin: false
+      });
+
+      toast({ title: "Shift swap approved", description: "The schedule has been updated" });
+      await loadIncomingSwapRequests(currentOperator.operator_id);
+    } catch (e) {
+      toast({ title: "Error approving swap", variant: "destructive" });
+    }
+  };
+
+  const handleDeclineSwap = async (request) => {
+    try {
+      await base44.entities.ShiftSwapRequest.update(request.id, {
+        status: "rejected"
+      });
+
+      toast({ title: "Shift swap declined" });
+      await loadIncomingSwapRequests(currentOperator.operator_id);
+    } catch (e) {
+      toast({ title: "Error declining swap", variant: "destructive" });
     }
   };
 
@@ -181,7 +230,7 @@ export default function Home() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-96 overflow-y-auto">
               <div className="bg-blue-50 rounded-lg p-4">
                 <p className="text-sm font-medium text-gray-700">Operator: {currentOperator.full_name}</p>
                 {currentShift ? (
@@ -198,6 +247,34 @@ export default function Home() {
                 )}
               </div>
 
+              {incomingSwapRequests.length > 0 && (
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-xs font-semibold text-gray-700">Pending Swap Requests:</p>
+                  {incomingSwapRequests.map(req => (
+                    <div key={req.id} className="bg-amber-50 border border-amber-200 rounded p-2">
+                      <p className="text-xs font-medium text-gray-900">{req.requester_operator_name}</p>
+                      <p className="text-xs text-gray-600">Date: {req.shift_date}</p>
+                      {req.reason && <p className="text-xs text-gray-500 italic">{req.reason}</p>}
+                      <div className="flex gap-1 mt-2">
+                        <Button 
+                          onClick={() => handleApproveSwap(req)}
+                          size="sm"
+                          className="flex-1 h-7 text-xs bg-emerald-600 hover:bg-emerald-700">
+                          Accept
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeclineSwap(req)}
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs">
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {currentShift && (
                 <Button 
                   onClick={() => setSwapOpen(true)}
@@ -210,6 +287,7 @@ export default function Home() {
                 onClick={() => {
                   setCurrentOperator(null);
                   setCurrentShift(null);
+                  setIncomingSwapRequests([]);
                 }}
                 variant="outline"
                 className="w-full">
