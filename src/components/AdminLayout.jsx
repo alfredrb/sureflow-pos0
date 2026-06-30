@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX, AlertTriangle, Clock, CreditCard } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX, AlertTriangle, Clock, CreditCard, Trash2, Download } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const navItems = [
   { label: "Dashboard", path: "/admin", icon: BarChart3 },
@@ -30,6 +33,10 @@ export default function AdminLayout() {
   const [pendingCount, setPendingCount] = useState(0);
   const [soundEnabled, setSoundEnabledState] = useState(getSoundEnabled());
   const [adminOperator, setAdminOperator] = useState(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetStep, setResetStep] = useState("confirm"); // confirm, export, override
+  const [overridePin, setOverridePin] = useState("");
+  const [resetting, setResetting] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -83,6 +90,95 @@ export default function AdminLayout() {
     const interval = setInterval(checkAlerts, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
   }, [soundEnabled]);
+
+  const handleExportBeforeReset = async () => {
+    try {
+      const [transactions, deposits, audits, advances, pickups, robberies, logs, operators] = await Promise.all([
+        base44.entities.Transaction.list("-created_date", 1000),
+        base44.entities.EODCashDeposit.list("-created_date", 1000),
+        base44.entities.CashAudit.list("-audit_date", 1000),
+        base44.entities.CashAdvance.list("-created_date", 1000),
+        base44.entities.CashPickup.list("-created_date", 1000),
+        base44.entities.Robbery.list("-created_date", 1000),
+        base44.entities.RegisterLog.list("-created_date", 1000),
+        base44.entities.Operator.list()
+      ]);
+
+      const exportData = {
+        timestamp: new Date().toISOString(),
+        transactions: transactions.length,
+        deposits: deposits.length,
+        audits: audits.length,
+        advances: advances.length,
+        pickups: pickups.length,
+        robberies: robberies.length,
+        logs: logs.length,
+        operators: operators.length,
+        data: { transactions, deposits, audits, advances, pickups, robberies, logs }
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sureflow_backup_${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setResetStep("override");
+    } catch (e) {
+      alert("Error exporting data: " + e.message);
+    }
+  };
+
+  const handleResetConfirm = async () => {
+    if (!overridePin) {
+      alert("Please enter manager PIN");
+      return;
+    }
+
+    const managerOp = adminOperator;
+    if (managerOp.pin !== overridePin) {
+      alert("Incorrect PIN");
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const entitiesToReset = [
+        "Transaction",
+        "EODCashDeposit",
+        "CashAudit",
+        "CashAdvance",
+        "CashPickup",
+        "Robbery",
+        "RegisterLog",
+        "SODProtocol",
+        "EODReport",
+        "ShiftAlert",
+        "CashLimitAlert",
+        "TillCheckout"
+      ];
+
+      for (const entityName of entitiesToReset) {
+        const records = await base44.entities[entityName].list(undefined, 500);
+        if (records && records.length > 0) {
+          await base44.entities[entityName].deleteMany({});
+        }
+      }
+
+      setOverridePin("");
+      setResetStep("confirm");
+      setResetDialogOpen(false);
+      alert("All data has been reset successfully!");
+    } catch (e) {
+      alert("Error resetting data: " + e.message);
+    } finally {
+      setResetting(false);
+    }
+  };
 
   return (
     <div className="h-screen flex bg-gray-50 max-w-[1366px] mx-auto">
@@ -139,28 +235,103 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-3 border-t border-white/5 space-y-1">
-          <button 
-            onClick={() => { setSoundEnabledState(!soundEnabled); setSoundEnabled(!soundEnabled); }}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full ${soundEnabled ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-300/50 hover:bg-white/5"}`}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4 flex-shrink-0" /> : <VolumeX className="w-4 h-4 flex-shrink-0" />}
-            {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
-          </button>
-          <Link to="/pos" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors`}>
-            <Monitor className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span>Open POS</span>}
-          </Link>
-          <button onClick={() => { sessionStorage.removeItem("admin_operator"); base44.auth.logout("/"); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full`}>
-            <LogOut className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span>Logout</span>}
-          </button>
-        </div>
+           <button 
+             onClick={() => setResetDialogOpen(true)}
+             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-orange-400 hover:bg-orange-500/10`}
+           >
+             <Trash2 className="w-4 h-4 flex-shrink-0" />
+             {!collapsed && <span>Reset Data</span>}
+           </button>
+           <button 
+             onClick={() => { setSoundEnabledState(!soundEnabled); setSoundEnabled(!soundEnabled); }}
+             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full ${soundEnabled ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-300/50 hover:bg-white/5"}`}
+           >
+             {soundEnabled ? <Volume2 className="w-4 h-4 flex-shrink-0" /> : <VolumeX className="w-4 h-4 flex-shrink-0" />}
+             {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
+           </button>
+           <Link to="/pos" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors`}>
+             <Monitor className="w-4 h-4 flex-shrink-0" />
+             {!collapsed && <span>Open POS</span>}
+           </Link>
+           <button onClick={() => { sessionStorage.removeItem("admin_operator"); base44.auth.logout("/"); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full`}>
+             <LogOut className="w-4 h-4 flex-shrink-0" />
+             {!collapsed && <span>Logout</span>}
+           </button>
+         </div>
       </aside>
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <Outlet />
       </main>
+
+      {/* Reset Data Dialog */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Reset All Data</DialogTitle>
+            <DialogDescription>
+              {resetStep === "confirm" && "This will permanently delete all logs and data from the system."}
+              {resetStep === "export" && "Exporting your data..."}
+              {resetStep === "override" && "Enter your manager PIN to confirm reset."}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {resetStep === "confirm" && (
+              <>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+                  <p className="font-semibold mb-2">Warning: This action cannot be undone!</p>
+                  <p>All transactions, deposits, audits, logs, and other operational data will be permanently deleted.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setResetDialogOpen(false)} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleExportBeforeReset} className="flex-1 bg-orange-600 hover:bg-orange-700 gap-2">
+                    <Download className="w-4 h-4" /> Export & Continue
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {resetStep === "override" && (
+              <>
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">Manager PIN</label>
+                  <Input
+                    type="password"
+                    placeholder="Enter PIN to confirm"
+                    value={overridePin}
+                    onChange={(e) => setOverridePin(e.target.value)}
+                    disabled={resetting}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setResetStep("confirm");
+                      setOverridePin("");
+                    }} 
+                    className="flex-1"
+                    disabled={resetting}
+                  >
+                    Back
+                  </Button>
+                  <Button 
+                    onClick={handleResetConfirm} 
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    disabled={resetting}
+                  >
+                    {resetting ? "Resetting..." : "Confirm Reset"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
