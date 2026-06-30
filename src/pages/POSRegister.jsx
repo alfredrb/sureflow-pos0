@@ -922,6 +922,12 @@ export default function POSRegister() {
   const [trainingModeDialog, setTrainingModeDialog] = useState(false);
   const [trainingModePin, setTrainingModePin] = useState("");
   const [trainingModeError, setTrainingModeError] = useState("");
+  const [giftCardPaymentDialog, setGiftCardPaymentDialog] = useState(false);
+  const [giftCardNumber, setGiftCardNumber] = useState("");
+  const [giftCardAmount, setGiftCardAmount] = useState("");
+  const [giftCardValidating, setGiftCardValidating] = useState(false);
+  const [giftCardError, setGiftCardError] = useState("");
+  const [giftCardResult, setGiftCardResult] = useState(null); // { approved: bool, card: {...}, message: string }
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1847,28 +1853,78 @@ export default function POSRegister() {
               ))}
             </div>
             {paymentMethod === "cash" && (
+               <div>
+                 <label className="text-blue-300/60 text-[10px] mb-1 block">Amount Tendered</label>
+                 <Input value={amountTendered} onChange={e => setAmountTendered(e.target.value)} type="number" step="0.01"
+                   className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" placeholder="0.00" />
+                 <div className="grid grid-cols-4 gap-1 mt-2">
+                   {[1, 5, 10, 20, 50, 100].map(v => (
+                     <button key={v} onClick={() => setAmountTendered(String(v))}
+                       className="py-1.5 rounded-md bg-[#0a0e27] border border-blue-500/10 text-blue-200 text-xs hover:bg-[#161d50] transition-colors">${v}</button>
+                   ))}
+                   <button onClick={() => setAmountTendered(total.toFixed(2))}
+                     className="py-1.5 rounded-md bg-blue-600/20 border border-blue-500/20 text-blue-300 text-xs col-span-2 hover:bg-blue-600/30 transition-colors">Exact</button>
+                 </div>
+                 {parseFloat(amountTendered) >= total && (
+                   <p className="text-green-400 text-center mt-2 text-base font-bold">
+                     Change: ${(parseFloat(amountTendered) - total).toFixed(2)}
+                   </p>
+                 )}
+               </div>
+            )}
+            {paymentMethod === "giftcard" && (
               <div>
-                <label className="text-blue-300/60 text-[10px] mb-1 block">Amount Tendered</label>
-                <Input value={amountTendered} onChange={e => setAmountTendered(e.target.value)} type="number" step="0.01"
-                  className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" placeholder="0.00" />
-                <div className="grid grid-cols-4 gap-1 mt-2">
-                  {[1, 5, 10, 20, 50, 100].map(v => (
-                    <button key={v} onClick={() => setAmountTendered(String(v))}
-                      className="py-1.5 rounded-md bg-[#0a0e27] border border-blue-500/10 text-blue-200 text-xs hover:bg-[#161d50] transition-colors">${v}</button>
-                  ))}
-                  <button onClick={() => setAmountTendered(total.toFixed(2))}
-                    className="py-1.5 rounded-md bg-blue-600/20 border border-blue-500/20 text-blue-300 text-xs col-span-2 hover:bg-blue-600/30 transition-colors">Exact</button>
-                </div>
-                {parseFloat(amountTendered) >= total && (
-                  <p className="text-green-400 text-center mt-2 text-base font-bold">
-                    Change: ${(parseFloat(amountTendered) - total).toFixed(2)}
-                  </p>
-                )}
+                <label className="text-blue-300/60 text-[10px] mb-1 block">Gift Card Number</label>
+                <Input value={giftCardNumber} onChange={e => setGiftCardNumber(e.target.value)} 
+                  placeholder="Enter gift card number" className="bg-[#0a0e27] border-blue-500/10 text-white mb-3" />
+                <label className="text-blue-300/60 text-[10px] mb-1 block">Amount to Charge</label>
+                <Input value={giftCardAmount} onChange={e => setGiftCardAmount(e.target.value)} type="number" step="0.01"
+                  placeholder="0.00" className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" />
+                {giftCardError && <p className="text-red-400 text-xs mt-2 text-center">{giftCardError}</p>}
               </div>
             )}
-            <Button onClick={completeSale} disabled={paymentMethod === "cash" && parseFloat(amountTendered || 0) < total}
-              className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl">
-              Complete Sale
+            <Button onClick={() => {
+              if (paymentMethod === "giftcard") {
+                if (!giftCardNumber.trim() || !giftCardAmount.trim()) {
+                  setGiftCardError("Please enter gift card number and amount");
+                  return;
+                }
+                setGiftCardValidating(true);
+                setGiftCardError("");
+                base44.entities.GiftCard.filter({ card_number: giftCardNumber.trim() }).then(cards => {
+                  if (cards.length === 0) {
+                    setGiftCardError("Gift card not found");
+                    setGiftCardValidating(false);
+                    return;
+                  }
+                  const card = cards[0];
+                  if (card.status !== "active") {
+                    setGiftCardError("Gift card is not active");
+                    setGiftCardValidating(false);
+                    return;
+                  }
+                  const chargeAmount = parseFloat(giftCardAmount);
+                  if (chargeAmount <= 0) {
+                    setGiftCardError("Amount must be greater than zero");
+                    setGiftCardValidating(false);
+                    return;
+                  }
+                  if (chargeAmount > card.balance) {
+                    setGiftCardResult({ approved: false, card, message: `Insufficient balance. Card has $${card.balance.toFixed(2)}, but $${chargeAmount.toFixed(2)} was requested.` });
+                  } else {
+                    setGiftCardResult({ approved: true, card, chargeAmount, message: `Payment approved. New balance: $${(card.balance - chargeAmount).toFixed(2)}` });
+                  }
+                  setGiftCardValidating(false);
+                }).catch(e => {
+                  setGiftCardError("Error validating gift card");
+                  setGiftCardValidating(false);
+                });
+              } else {
+                completeSale();
+              }
+            }} disabled={paymentMethod === "cash" && parseFloat(amountTendered || 0) < total || paymentMethod === "giftcard" && giftCardValidating}
+              className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl disabled:opacity-50">
+              {giftCardValidating ? "Validating..." : "Complete Sale"}
             </Button>
           </div>
         </DialogContent>
@@ -2180,6 +2236,98 @@ export default function POSRegister() {
             <Button onClick={confirmRobbery} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">
               Confirm & Report
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gift Card Payment Result Dialog */}
+      <Dialog open={!!giftCardResult} onOpenChange={v => { if (!v) { setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError(""); } }}>
+        <DialogContent className={`bg-[#111638] text-white max-w-xs ${giftCardResult?.approved ? "border-green-500/20" : "border-red-500/20"}`}>
+          <DialogHeader>
+            <DialogTitle className={giftCardResult?.approved ? "text-green-400" : "text-red-400"}>
+              {giftCardResult?.approved ? "✓ Payment Approved" : "✕ Payment Declined"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className={`rounded-lg border p-3 space-y-2 ${giftCardResult?.approved ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}`}>
+            <p className="text-white text-sm">{giftCardResult?.message}</p>
+            {giftCardResult?.approved && (
+              <div className="space-y-1 text-xs pt-2 border-t border-white/10">
+                <div className="flex justify-between">
+                  <span className="text-blue-300/50">Card</span>
+                  <span className="text-white font-mono">{giftCardResult.card.card_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-300/50">Charge Amount</span>
+                  <span className="text-white">${giftCardResult.chargeAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-300/50">Old Balance</span>
+                  <span className="text-white">${giftCardResult.card.balance.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-green-400">
+                  <span>New Balance</span>
+                  <span>${(giftCardResult.card.balance - giftCardResult.chargeAmount).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => { setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError(""); if (giftCardResult?.approved) { setPaymentOpen(false); } }} 
+              variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
+              {giftCardResult?.approved ? "Close" : "Back"}
+            </Button>
+            {giftCardResult?.approved && (
+              <Button onClick={() => {
+                // Process the sale with gift card payment
+                const txId = "TX-" + Date.now().toString(36).toUpperCase();
+                const chargeAmount = giftCardResult.chargeAmount;
+                const newBalance = giftCardResult.card.balance - chargeAmount;
+
+                base44.entities.GiftCard.update(giftCardResult.card.id, { balance: newBalance }).then(() => {
+                  base44.entities.Transaction.create({
+                    transaction_id: txId,
+                    operator_id: operator.operator_id,
+                    operator_name: operator.full_name,
+                    register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+                    items: cart,
+                    subtotal, tax, total,
+                    payment_method: "giftcard",
+                    giftcard_number: giftCardResult.card.card_number,
+                    status: "completed",
+                    amount_tendered: chargeAmount,
+                    change_due: 0,
+                    training_mode: trainingMode
+                  }).then(() => {
+                    for (const item of cart) {
+                      const prod = products.find(p => p.sku === item.sku);
+                      if (prod) base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
+                    }
+                    toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
+                    writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
+                    setReceiptData({
+                      transactionId: txId,
+                      operatorName: operator.full_name,
+                      registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+                      items: cart,
+                      subtotal, tax, total,
+                      paymentMethod: "giftcard",
+                      amountTendered: chargeAmount,
+                      changeDue: 0
+                    });
+                    setCart([]);
+                    setPaymentOpen(false);
+                    setGiftCardResult(null);
+                    setGiftCardNumber("");
+                    setGiftCardAmount("");
+                    setAmountTendered("");
+                    setLastReceipt({ transactionId: txId, operatorName: operator.full_name, registerName: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total, paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0 });
+                    loadData();
+                  });
+                });
+              }} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold text-xs">
+                Complete Payment
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
