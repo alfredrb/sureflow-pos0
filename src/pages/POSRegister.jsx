@@ -94,6 +94,7 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
 
   const toggleItem = (i, item) => {
     if (isItemFullyRefunded(item)) return; // blocked
+    if (item.payment_method === "giftcard") return; // gift cards non-refundable
     if (isItemExpired(i) && !overrideOperator) {
       setOverrideDialog(true);
       return;
@@ -255,6 +256,7 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
             <div className="space-y-2">
               {items.map((item, i) => {
                 const fullyRefunded = isItemFullyRefunded(item);
+                const isGiftCard = item.payment_method === "giftcard";
                 const expired = isItemExpired(i);
                 const needsOverride = expired && !overrideOperator;
                 const checked = selectedItems[i] !== undefined;
@@ -263,7 +265,7 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
                 return (
                   <div key={i}
                     className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${
-                      fullyRefunded
+                      fullyRefunded || isGiftCard
                         ? "border-gray-700/30 bg-gray-800/20 opacity-40 cursor-not-allowed"
                         : needsOverride
                         ? "border-red-500/30 bg-red-500/5 cursor-pointer hover:border-red-500/50"
@@ -271,21 +273,23 @@ function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) 
                         ? "border-purple-500/40 bg-purple-500/10 cursor-pointer"
                         : "border-blue-500/10 bg-[#0a0e27] hover:border-blue-500/20 cursor-pointer"
                     }`}
-                    onClick={() => !fullyRefunded && toggleItem(i, item)}>
+                    onClick={() => !fullyRefunded && !isGiftCard && toggleItem(i, item)}>
                     {/* Checkbox / status icon */}
                     <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                      fullyRefunded ? "border-gray-600 bg-gray-700" :
+                      fullyRefunded || isGiftCard ? "border-gray-600 bg-gray-700" :
                       needsOverride ? "border-red-500/50" :
                       checked ? "bg-purple-600 border-purple-500" : "border-blue-500/30"
                     }`}>
-                      {fullyRefunded && <span className="text-gray-400 text-[10px]">✕</span>}
-                      {!fullyRefunded && checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                      {(fullyRefunded || isGiftCard) && <span className="text-gray-400 text-[10px]">✕</span>}
+                      {!fullyRefunded && !isGiftCard && checked && <span className="text-white text-[10px] font-bold">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-medium truncate ${fullyRefunded ? "text-gray-500" : "text-white"}`}>{item.name}</p>
+                      <p className={`text-xs font-medium truncate ${fullyRefunded || isGiftCard ? "text-gray-500" : "text-white"}`}>{item.name}</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-blue-300/40 text-[10px]">${item.price?.toFixed(2)} ea</p>
-                        {alreadyReturnedQty > 0 && !fullyRefunded
+                        {isGiftCard
+                          ? <span className="text-[9px] text-red-400 font-bold uppercase">⚠ Refund Not Allowed</span>
+                          : alreadyReturnedQty > 0 && !fullyRefunded
                           ? <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyReturnedQty} of {item.qty} returned · {maxReturnable} left</span>
                           : fullyRefunded
                           ? <span className="text-[9px] text-red-400/70 font-bold uppercase">All {item.qty} returned</span>
@@ -393,6 +397,7 @@ function ExchangePanel({ operator, products, loadData, toast, onPreviewChange })
 
   const toggleReturn = (i, item) => {
     if (isFullyRefunded(item)) return;
+    if (item.payment_method === "giftcard") return; // gift cards non-refundable
     setReturnSel(prev => {
       if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
       return { ...prev, [i]: remainingQty(item) };
@@ -509,28 +514,31 @@ function ExchangePanel({ operator, products, loadData, toast, onPreviewChange })
             <div className="flex-1 overflow-y-auto bg-[#111638] rounded-xl border border-teal-500/20 p-2 space-y-1.5">
               {origItems.map((item, i) => {
                 const fullyRefunded = isFullyRefunded(item);
+                const isGiftCard = item.payment_method === "giftcard";
                 const checked = returnSel[i] !== undefined;
                 const alreadyRet = refundedQty[item.sku] || 0;
                 const maxQty = remainingQty(item);
                 return (
-                  <div key={i} onClick={() => !fullyRefunded && toggleReturn(i, item)}
+                  <div key={i} onClick={() => !fullyRefunded && !isGiftCard && toggleReturn(i, item)}
                     className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
-                      fullyRefunded
+                      fullyRefunded || isGiftCard
                         ? "border-gray-700/30 bg-gray-800/20 opacity-40 cursor-not-allowed"
                         : checked
                         ? "border-teal-500/40 bg-teal-500/10 cursor-pointer"
                         : "border-blue-500/10 bg-[#0a0e27] hover:border-teal-500/20 cursor-pointer"
                     }`}>
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${fullyRefunded ? "border-gray-600 bg-gray-700" : checked ? "bg-teal-600 border-teal-500" : "border-blue-500/30"}`}>
-                      {fullyRefunded && <span className="text-gray-400 text-[10px]">✕</span>}
-                      {!fullyRefunded && checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${fullyRefunded || isGiftCard ? "border-gray-600 bg-gray-700" : checked ? "bg-teal-600 border-teal-500" : "border-blue-500/30"}`}>
+                      {(fullyRefunded || isGiftCard) && <span className="text-gray-400 text-[10px]">✕</span>}
+                      {!fullyRefunded && !isGiftCard && checked && <span className="text-white text-[10px] font-bold">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[10px] font-medium truncate ${fullyRefunded ? "text-gray-500" : "text-white"}`}>{item.name}</p>
+                      <p className={`text-[10px] font-medium truncate ${fullyRefunded || isGiftCard ? "text-gray-500" : "text-white"}`}>{item.name}</p>
                       <div className="flex items-center gap-1.5">
                         <p className="text-blue-300/40 text-[9px]">${item.price?.toFixed(2)} ea</p>
-                        {alreadyRet > 0 && !fullyRefunded && <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyRet} refunded · {maxQty} left</span>}
-                        {fullyRefunded && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already refunded</span>}
+                        {isGiftCard
+                          ? <span className="text-[9px] text-red-400 font-bold uppercase">⚠ Refund Not Allowed</span>
+                          : alreadyRet > 0 && !fullyRefunded && <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyRet} refunded · {maxQty} left</span>}
+                        {fullyRefunded && !isGiftCard && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already refunded</span>}
                       </div>
                     </div>
                     {checked && (
@@ -692,15 +700,26 @@ function CSModePanel({ operator, onAddGiftCard, toast }) {
         balance: 0
       });
 
-      // Log the cash out transaction
-      await base44.entities.RegisterLog.create({
-        event_type: "transaction",
-        operator_id: operator.operator_id,
-        operator_name: operator.full_name,
-        operator_role: operator.role,
-        register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
-        detail: `Gift card cash out: ${card.card_number} — $${card.balance.toFixed(2)} (Manager: ${manager.full_name})`
-      });
+      // Log the cash out transaction with transaction data
+       await base44.entities.RegisterLog.create({
+         event_type: "transaction",
+         operator_id: operator.operator_id,
+         operator_name: operator.full_name,
+         operator_role: operator.role,
+         register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+         detail: `Gift card cash out: ${card.card_number} — $${card.balance.toFixed(2)} (Manager: ${manager.full_name})`,
+         transaction_id: `GCCASH-${Date.now().toString(36).toUpperCase()}`,
+         transaction_total: card.balance,
+         items: [
+           {
+             sku: "GIFTCARD_CASHOUT",
+             name: `Gift Card Cash Out (${card.card_number})`,
+             qty: 1,
+             price: card.balance,
+             total: card.balance
+           }
+         ]
+       });
 
       toast({ title: "Cash Out Approved", description: `$${card.balance.toFixed(2)} processed — Card deactivated`, variant: "default" });
       setCashOutDialog(false);
