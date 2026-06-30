@@ -1,0 +1,46 @@
+{
+  "name": "PeakTime",
+  "type": "object",
+  "properties": {
+    "day_of_week": {
+      "type": "number",
+      "description": "Day of week (0=Sunday, 6=Saturday)"
+    },
+    "hour": {
+      "type": "number",
+      "description": "Hour of day (0-23)"
+    },
+    "transaction_count": {
+      "type": "number",
+      "description": "Average transaction count at this time"
+    },
+    "transaction_volume": {
+      "type": "number",
+      "description": "Average transaction volume (revenue) at this time"
+    },
+    "peak_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "very_high"
+      ],
+      "description": "Peak time classification"
+    },
+    "required_staff": {
+      "type": "number",
+      "description": "Recommended number of staff for this time slot"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this peak time data was last calculated"
+    }
+  },
+  "required": [
+    "day_of_week",
+    "hour",
+    "peak_level"
+  ]
+}

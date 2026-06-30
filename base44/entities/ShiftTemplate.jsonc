@@ -1,0 +1,68 @@
+{
+  "name": "ShiftTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Template name (e.g., 'Morning Shift', 'Evening Shift')"
+    },
+    "description": {
+      "type": "string",
+      "description": "Template description"
+    },
+    "day_of_week": {
+      "type": "number",
+      "description": "Day of week (0=Sunday, 6=Saturday) or null for any day"
+    },
+    "shifts": {
+      "type": "array",
+      "description": "Array of shift patterns",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operator_id": {
+            "type": "string"
+          },
+          "operator_name": {
+            "type": "string"
+          },
+          "register_id": {
+            "type": "string"
+          },
+          "register_name": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "HH:MM format"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "HH:MM format"
+          },
+          "break_start": {
+            "type": "string"
+          },
+          "break_end": {
+            "type": "string"
+          },
+          "lunch_start": {
+            "type": "string"
+          },
+          "lunch_end": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "is_weekly": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a recurring weekly template"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
