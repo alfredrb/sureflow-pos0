@@ -1388,7 +1388,7 @@ export default function POSRegister() {
 
               {/* Section Menu */}
               <div className="flex-shrink-0 border-t border-blue-500/10 bg-[#111638]">
-                <div className="grid grid-cols-4">
+                <div className="grid grid-cols-5">
                   {SECTION_TABS.map(tab => (
                     <button
                       key={tab.id}
