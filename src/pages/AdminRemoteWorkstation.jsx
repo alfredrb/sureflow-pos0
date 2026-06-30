@@ -27,20 +27,36 @@ export default function AdminRemoteWorkstation() {
   const [pinError, setPinError] = useState("");
   const [note, setNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
   const { toast } = useToast();
   const pollRef = useRef(null);
 
   useEffect(() => {
     loadAll();
-    // Poll every 30 seconds for live updates (requests and transactions only)
-    pollRef.current = setInterval(async () => {
-      await new Promise(resolve => setTimeout(resolve, 500)); // Stagger requests
-      await loadRequests();
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await loadTransactions();
-    }, 30000);
-    return () => clearInterval(pollRef.current);
+    setLastRefresh(new Date());
   }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+    // Poll every 5 seconds for live updates when auto-refresh is on
+    const refresh = async () => {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadRequests();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadTransactions();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadOperators();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadLogs();
+      setLastRefresh(new Date());
+    };
+    pollRef.current = setInterval(refresh, 5000);
+    return () => clearInterval(pollRef.current);
+  }, [autoRefresh]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -241,9 +257,21 @@ export default function AdminRemoteWorkstation() {
               {pendingRequests.length} pending override{pendingRequests.length !== 1 ? "s" : ""}
             </span>
           )}
-          <button onClick={loadAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 text-sm transition-colors">
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setAutoRefresh(!autoRefresh)} 
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors ${autoRefresh ? "border-green-300 bg-green-50 text-green-700" : "border-gray-200 text-gray-500 hover:text-gray-700"}`}
+            >
+              <div className={`w-2 h-2 rounded-full ${autoRefresh ? "bg-green-500 animate-pulse" : "bg-gray-400"}`} />
+              {autoRefresh ? "Live" : "Paused"}
+            </button>
+            <button onClick={loadAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 text-sm transition-colors">
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh
+            </button>
+            <span className="text-xs text-gray-400">
+              {lastRefresh.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          </div>
         </div>
       </div>
 
