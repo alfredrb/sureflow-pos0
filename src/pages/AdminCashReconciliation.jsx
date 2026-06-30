@@ -319,12 +319,16 @@ export default function AdminCashReconciliation() {
               <select
                 value={advanceForm.register_id}
                 onChange={(e) => setAdvanceForm({ ...advanceForm, register_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               >
                 <option value="">Select a register</option>
-                {registers.map((reg) => (
-                  <option key={reg.id} value={reg.id}>{reg.name}</option>
-                ))}
+                {registers.length > 0 ? (
+                  registers.map((reg) => (
+                    <option key={reg.id} value={reg.id}>{reg.name}</option>
+                  ))
+                ) : (
+                  <option disabled>No registers available</option>
+                )}
               </select>
             </div>
             <div>
@@ -370,12 +374,16 @@ export default function AdminCashReconciliation() {
               <select
                 value={pickupForm.register_id}
                 onChange={(e) => setPickupForm({ ...pickupForm, register_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
               >
                 <option value="">Select a register</option>
-                {registers.map((reg) => (
-                  <option key={reg.id} value={reg.id}>{reg.name}</option>
-                ))}
+                {registers.length > 0 ? (
+                  registers.map((reg) => (
+                    <option key={reg.id} value={reg.id}>{reg.name}</option>
+                  ))
+                ) : (
+                  <option disabled>No registers available</option>
+                )}
               </select>
             </div>
             <div>
