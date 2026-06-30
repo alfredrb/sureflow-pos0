@@ -145,8 +145,8 @@ export default function AdminRemoteWorkstation() {
 
   const loadRobberies = async () => {
     try {
-      const robs = await base44.entities.Robbery.list("-created_date", 50);
-      setRobberies(robs);
+      const alerts = await base44.entities.EmergencyAlert.filter({ status: "active" });
+      setRobberies(alerts);
     } catch (e) {
       console.error("Error loading robberies:", e);
     }
@@ -329,19 +329,18 @@ export default function AdminRemoteWorkstation() {
             <AlertTriangle className="w-5 h-5 animate-pulse" /> ROBBERY ALERT
           </p>
           <div className="space-y-2">
-            {robberies.filter(r => !r.report_date || new Date(r.report_date).toDateString() === new Date().toDateString()).slice(0, 5).map(rob => (
+            {robberies.slice(0, 5).map(rob => (
               <div key={rob.id} className="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
                 <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <AlertTriangle className="w-4 h-4 text-red-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-gray-900 text-sm">
-                    <span className="text-red-600 font-bold">${rob.amount_stolen?.toFixed(2) || '0.00'}</span>
-                    {" stolen from "}
-                    <span className="text-violet-600">{rob.register_id}</span>
+                    Robbery reported at{" "}
+                    <span className="text-violet-600">{rob.register_name || rob.register_id}</span>
                   </p>
                   <p className="text-gray-500 text-xs">
-                    {rob.operator_name} ({rob.operator_id}) · {new Date(rob.created_date).toLocaleString()}
+                    {rob.operator_name} ({rob.operator_id}) · {new Date(rob.timestamp).toLocaleString()}
                   </p>
                 </div>
               </div>
