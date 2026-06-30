@@ -225,7 +225,9 @@ export default function AdminRemoteWorkstation() {
     if (!selectedRegisterLogout) return;
     setLogoutLoading(true);
     try {
-      await base44.entities.Register.update(selectedRegisterLogout.id, {
+      // Use the actual database ID from the register object
+      const registerId = selectedRegisterLogout.id || Object.keys(selectedRegisterLogout).find(k => selectedRegisterLogout[k] === selectedRegisterLogout.register_id && k !== 'register_id');
+      await base44.entities.Register.update(registerId || selectedRegisterLogout.register_id, {
         remote_logout_requested: true,
         remote_logout_reason: logoutReason || "Remote logout requested"
       });
@@ -245,7 +247,7 @@ export default function AdminRemoteWorkstation() {
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadRegisters();
     } catch (e) {
-      toast({ title: "Error initiating logout", variant: "destructive" });
+      toast({ title: "Error initiating logout", description: e.message || "Check console for details", variant: "destructive" });
     }
     setLogoutLoading(false);
   };
