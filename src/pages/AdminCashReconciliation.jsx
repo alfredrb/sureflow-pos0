@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TrendingDown, TrendingUp, DollarSign, Plus, Minus } from "lucide-react";
+import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminCashReconciliation() {
@@ -18,6 +18,7 @@ export default function AdminCashReconciliation() {
   const [pickupDialog, setPickupDialog] = useState(false);
   const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
   const [pickups, setPickups] = useState([]);
+  const [activeTab, setActiveTab] = useState("deposits");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -131,78 +132,160 @@ export default function AdminCashReconciliation() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        {sortedDates.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">No cash deposits found</div>
-        ) : (
-          sortedDates.map((date) => {
-            const dateDeposits = groupedDeposits[date];
-            const stats = getDateStats(dateDeposits);
-            const isOver = stats.totalDiff > 0;
-
-            return (
-              <div key={date}>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition" onClick={() => setSelectedDate(selectedDate === date ? null : date)}>
-                  <div className="grid grid-cols-5 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-600 uppercase">Date</p>
-                      <p className="text-lg font-bold text-gray-900">{new Date(date).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 uppercase">Expected</p>
-                      <p className="text-lg font-bold text-gray-900">${stats.totalExpected.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 uppercase">Deposited</p>
-                      <p className="text-lg font-bold text-gray-900">${stats.totalDeposited.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 uppercase">Variance</p>
-                      <p className={`text-lg font-bold ${isOver ? "text-green-600" : "text-red-600"}`}>
-                        {isOver ? "+" : ""}{stats.totalDiff.toFixed(2)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 uppercase">Registers</p>
-                      <p className="text-lg font-bold text-gray-900">{stats.longs > 0 ? `+${stats.longs}` : ""} {stats.shorts > 0 ? `-${stats.shorts}` : ""}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedDate === date && (
-                  <div className="bg-white border border-gray-200 rounded-lg mt-2 p-4 space-y-3">
-                    {dateDeposits.map((deposit) => {
-                      const diff = deposit.difference || 0;
-                      const isLong = diff > 0;
-
-                      return (
-                        <div key={deposit.id} className={`p-3 rounded border-l-4 ${isLong ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500"}`}>
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-bold text-gray-900">{deposit.register_name} - {deposit.operator_name}</p>
-                              <p className="text-xs text-gray-600">{deposit.operator_id}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className={`text-lg font-bold ${isLong ? "text-green-600" : "text-red-600"}`}>
-                                {isLong ? <TrendingUp className="w-5 h-5 inline mr-1" /> : <TrendingDown className="w-5 h-5 inline mr-1" />}
-                                {isLong ? "+" : ""}{diff.toFixed(2)}
-                              </p>
-                              <p className="text-xs text-gray-600">
-                                Expected: ${deposit.expected_cash?.toFixed(2) || "0.00"} → Deposited: ${deposit.actual_cash_deposited?.toFixed(2) || "0.00"}
-                              </p>
-                            </div>
-                          </div>
-                          {deposit.notes && <p className="text-xs text-gray-600 mt-2 italic">Note: {deposit.notes}</p>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab("deposits")}
+          className={`px-4 py-2 font-medium border-b-2 transition ${
+            activeTab === "deposits"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Deposits
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`px-4 py-2 font-medium border-b-2 transition ${
+            activeTab === "history"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Advances & Pickups
+        </button>
       </div>
+
+      {/* Deposits Tab */}
+      {activeTab === "deposits" && (
+        <div className="space-y-4">
+          {sortedDates.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No cash deposits found</div>
+          ) : (
+            sortedDates.map((date) => {
+              const dateDeposits = groupedDeposits[date];
+              const stats = getDateStats(dateDeposits);
+              const isOver = stats.totalDiff > 0;
+
+              return (
+                <div key={date}>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition" onClick={() => setSelectedDate(selectedDate === date ? null : date)}>
+                    <div className="grid grid-cols-5 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 uppercase">Date</p>
+                        <p className="text-lg font-bold text-gray-900">{new Date(date).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 uppercase">Expected</p>
+                        <p className="text-lg font-bold text-gray-900">${stats.totalExpected.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 uppercase">Deposited</p>
+                        <p className="text-lg font-bold text-gray-900">${stats.totalDeposited.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 uppercase">Variance</p>
+                        <p className={`text-lg font-bold ${isOver ? "text-green-600" : "text-red-600"}`}>
+                          {isOver ? "+" : ""}{stats.totalDiff.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 uppercase">Registers</p>
+                        <p className="text-lg font-bold text-gray-900">{stats.longs > 0 ? `+${stats.longs}` : ""} {stats.shorts > 0 ? `-${stats.shorts}` : ""}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedDate === date && (
+                    <div className="bg-white border border-gray-200 rounded-lg mt-2 p-4 space-y-3">
+                      {dateDeposits.map((deposit) => {
+                        const diff = deposit.difference || 0;
+                        const isLong = diff > 0;
+
+                        return (
+                          <div key={deposit.id} className={`p-3 rounded border-l-4 ${isLong ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500"}`}>
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-bold text-gray-900">{deposit.register_name} - {deposit.operator_name}</p>
+                                <p className="text-xs text-gray-600">{deposit.operator_id}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className={`text-lg font-bold ${isLong ? "text-green-600" : "text-red-600"}`}>
+                                  {isLong ? <TrendingUp className="w-5 h-5 inline mr-1" /> : <TrendingDown className="w-5 h-5 inline mr-1" />}
+                                  {isLong ? "+" : ""}{diff.toFixed(2)}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  Expected: ${deposit.expected_cash?.toFixed(2) || "0.00"} → Deposited: ${deposit.actual_cash_deposited?.toFixed(2) || "0.00"}
+                                </p>
+                              </div>
+                            </div>
+                            {deposit.notes && <p className="text-xs text-gray-600 mt-2 italic">Note: {deposit.notes}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === "history" && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-3 font-bold text-gray-700">Time</th>
+                  <th className="text-left px-4 py-3 font-bold text-gray-700">Register</th>
+                  <th className="text-left px-4 py-3 font-bold text-gray-700">Type</th>
+                  <th className="text-left px-4 py-3 font-bold text-gray-700">Amount</th>
+                  <th className="text-left px-4 py-3 font-bold text-gray-700">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {advances.length === 0 && pickups.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="text-center py-8 text-gray-500">No advances or pickups recorded</td>
+                  </tr>
+                ) : (
+                  [...advances, ...pickups]
+                    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+                    .map((item, idx) => {
+                      const isAdvance = "approved_by_id" in item && advances.some(a => a.id === item.id);
+                      return (
+                        <tr key={item.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <Clock className="w-3.5 h-3.5" />
+                              {new Date(item.created_date).toLocaleString()}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{item.register_name}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
+                              isAdvance 
+                                ? "bg-blue-100 text-blue-700" 
+                                : "bg-amber-100 text-amber-700"
+                            }`}>
+                              {isAdvance ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                              {isAdvance ? "Advance" : "Pickup"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-bold text-gray-900">${item.amount.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-gray-600">{item.reason || "—"}</td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Cash Advance Dialog */}
       <Dialog open={advanceDialog} onOpenChange={setAdvanceDialog}>

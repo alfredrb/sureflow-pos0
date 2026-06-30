@@ -25,17 +25,35 @@ export default function AdminLayout() {
   const location = useLocation();
 
   useEffect(() => {
-    // Poll for pending override requests
-    const checkPending = async () => {
+    // Poll for pending override requests and EOD issues
+    const checkAlerts = async () => {
       try {
-        const requests = await base44.entities.OverrideRequest.filter({ status: "pending" });
-        setPendingCount(requests.length);
+        const [requests, deposits, eodReports] = await Promise.all([
+          base44.entities.OverrideRequest.filter({ status: "pending" }),
+          base44.entities.EODCashDeposit.list("-created_date", 100),
+          base44.entities.EODReport.list("-report_date", 30)
+        ]);
+        
+        // Count pending overrides
+        let count = requests.length;
+        
+        // Count registers with unresolved variances (difference not matching 0)
+        const today = new Date().toISOString().split('T')[0];
+        const todayDeposits = deposits.filter(d => d.report_date === today);
+        const unresolvedCount = todayDeposits.filter(d => Math.abs(d.difference || 0) > 0.01).length;
+        
+        // Count pending EOD reports (today's date with no EOD report yet)
+        const lastEOD = eodReports[0];
+        const lastEODDate = lastEOD ? lastEOD.report_date : null;
+        const pendingEODCount = lastEODDate !== today ? 1 : 0;
+        
+        setPendingCount(count + unresolvedCount + pendingEODCount);
       } catch (e) {
         // silently fail
       }
     };
-    checkPending();
-    const interval = setInterval(checkPending, 30000); // Check every 30 seconds
+    checkAlerts();
+    const interval = setInterval(checkAlerts, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
   }, []);
 
