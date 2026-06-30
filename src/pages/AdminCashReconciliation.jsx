@@ -23,6 +23,7 @@ export default function AdminCashReconciliation() {
   const [robberies, setRobberies] = useState([]);
   const [audits, setAudits] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [giftCardCashouts, setGiftCardCashouts] = useState([]);
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
   const [selectedRegister, setSelectedRegister] = useState("all");
@@ -37,14 +38,15 @@ export default function AdminCashReconciliation() {
 
   const loadData = async () => {
     try {
-      const [depositsData, registersData, advancesData, pickupsData, robberiesData, auditsData, alertsData] = await Promise.all([
+      const [depositsData, registersData, advancesData, pickupsData, robberiesData, auditsData, alertsData, logData] = await Promise.all([
         base44.entities.EODCashDeposit.list("-report_date"),
         base44.entities.Register.list(),
         base44.entities.CashAdvance.list("-created_date"),
         base44.entities.CashPickup.list("-created_date"),
         base44.entities.Robbery.list("-created_date"),
         base44.entities.CashAudit.list("-audit_date", 200),
-        base44.entities.CashLimitAlert.list("-triggered_at", 100)
+        base44.entities.CashLimitAlert.list("-triggered_at", 100),
+        base44.entities.RegisterLog.list("-created_date", 500)
       ]);
       setDeposits(depositsData);
       setRegisters(registersData);
@@ -53,6 +55,9 @@ export default function AdminCashReconciliation() {
       setRobberies(robberiesData);
       setAudits(auditsData);
       setAlerts(alertsData);
+      // Extract gift card cashouts from RegisterLog
+      const cashouts = logData.filter(log => log.detail && log.detail.includes("Gift card cash out"));
+      setGiftCardCashouts(cashouts);
       setLoading(false);
     } catch (e) {
       toast({ title: "Error loading data", variant: "destructive" });
@@ -697,18 +702,23 @@ export default function AdminCashReconciliation() {
        {activeTab === "report" && (
          <div className="space-y-4">
            {(() => {
-                 const totalDeposits = deposits.length;
-                 const totalExpected = deposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
-                 const totalDeposited = deposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
-                 const totalVariance = deposits.reduce((sum, d) => sum + (d.difference || 0), 0);
-                 const shortages = deposits.filter(d => (d.difference || 0) < 0).length;
-                 const overages = deposits.filter(d => (d.difference || 0) > 0).length;
-                 const totalAdvances = advances.reduce((sum, a) => sum + (a.amount || 0), 0);
-                 const totalPickups = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
-                 const totalStolen = robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0);
-                 const totalAudits = audits.length;
-                 const pendingAudits = audits.filter(a => a.status === "pending").length;
-                 const totalAuditedAmount = audits.reduce((sum, a) => sum + (a.total_counted || 0), 0);
+                     const totalDeposits = deposits.length;
+                     const totalExpected = deposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
+                     const totalDeposited = deposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
+                     const totalVariance = deposits.reduce((sum, d) => sum + (d.difference || 0), 0);
+                     const shortages = deposits.filter(d => (d.difference || 0) < 0).length;
+                     const overages = deposits.filter(d => (d.difference || 0) > 0).length;
+                     const totalAdvances = advances.reduce((sum, a) => sum + (a.amount || 0), 0);
+                     const totalPickups = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
+                     const totalStolen = robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0);
+                     const totalAudits = audits.length;
+                     const pendingAudits = audits.filter(a => a.status === "pending").length;
+                     const totalAuditedAmount = audits.reduce((sum, a) => sum + (a.total_counted || 0), 0);
+                     // Extract gift card cashout amounts from RegisterLog details
+                     const totalGiftCardCashout = giftCardCashouts.reduce((sum, log) => {
+                       const match = log.detail?.match(/\$(\d+\.\d+)/);
+                       return sum + (match ? parseFloat(match[1]) : 0);
+                     }, 0);
 
              return (
                <>
@@ -756,6 +766,10 @@ export default function AdminCashReconciliation() {
                    <div className="bg-white rounded-lg p-4 border border-purple-100">
                      <p className="text-gray-500 text-xs font-medium">Audited Amount</p>
                      <p className="text-2xl font-bold text-purple-600">${totalAuditedAmount.toFixed(2)}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-rose-100">
+                     <p className="text-gray-500 text-xs font-medium">Gift Card Cashouts</p>
+                     <p className="text-2xl font-bold text-rose-600">${totalGiftCardCashout.toFixed(2)}</p>
                    </div>
                    </div>
 
@@ -828,11 +842,11 @@ export default function AdminCashReconciliation() {
                            if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
                          });
 
-                         const csvContent = "Register,Deposits,Expected Cash,Deposited Cash,Variance,Advances,Pickups,Audits,Audit Amount,Robberies,Stolen Amount\n" +
+                         const csvContent = "Register,Deposits,Expected Cash,Deposited Cash,Variance,Advances,Pickups,Gift Card Cashouts,Audits,Audit Amount,Robberies,Stolen Amount\n" +
                            Object.entries(registerGroups).map(([regId, data]) => 
-                             `"${regId}",${data.deposits},$${data.expectedCash.toFixed(2)},$${data.depositedCash.toFixed(2)},$${data.variance.toFixed(2)},$${data.advances.toFixed(2)},$${data.pickups.toFixed(2)},${data.audits},$${data.auditAmount.toFixed(2)},${data.robberies},$${data.stolenAmount.toFixed(2)}`
+                             `"${regId}",${data.deposits},$${data.expectedCash.toFixed(2)},$${data.depositedCash.toFixed(2)},$${data.variance.toFixed(2)},$${data.advances.toFixed(2)},$${data.pickups.toFixed(2)},$0.00,${data.audits},$${data.auditAmount.toFixed(2)},${data.robberies},$${data.stolenAmount.toFixed(2)}`
                            ).join("\n") + 
-                           `\nTOTAL,${totalDeposits},$${totalExpected.toFixed(2)},$${totalDeposited.toFixed(2)},$${totalVariance.toFixed(2)},$${totalAdvances.toFixed(2)},$${totalPickups.toFixed(2)},${totalAudits},$${totalAuditedAmount.toFixed(2)},${robberies.length},$${totalStolen.toFixed(2)}`;
+                           `\nTOTAL,${totalDeposits},$${totalExpected.toFixed(2)},$${totalDeposited.toFixed(2)},$${totalVariance.toFixed(2)},$${totalAdvances.toFixed(2)},$${totalPickups.toFixed(2)},$${totalGiftCardCashout.toFixed(2)},${totalAudits},$${totalAuditedAmount.toFixed(2)},${robberies.length},$${totalStolen.toFixed(2)}`;
 
                          const blob = new Blob([csvContent], { type: "text/csv" });
                          const url = window.URL.createObjectURL(blob);
@@ -848,7 +862,7 @@ export default function AdminCashReconciliation() {
                          <Download className="w-4 h-4" /> CSV
                        </Button>
                        <Button onClick={() => {
-                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\n\n=== CASH AUDITS ===\nTotal Audits: ${totalAudits}\nPending Audits: ${pendingAudits}\nTotal Audited Amount: $${totalAuditedAmount.toFixed(2)}\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
+                         const report = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n=== DEPOSITS ===\nTotal Deposits: ${totalDeposits}\nExpected Total: $${totalExpected.toFixed(2)}\nDeposited Total: $${totalDeposited.toFixed(2)}\nTotal Variance: $${totalVariance.toFixed(2)}\nShortages: ${shortages}\nOverages: ${overages}\n\n=== CASH MOVEMENTS ===\nTotal Advances: $${totalAdvances.toFixed(2)} (${advances.length} transactions)\nTotal Pickups: $${totalPickups.toFixed(2)} (${pickups.length} transactions)\nGift Card Cashouts: $${totalGiftCardCashout.toFixed(2)} (${giftCardCashouts.length} transactions)\n\n=== CASH AUDITS ===\nTotal Audits: ${totalAudits}\nPending Audits: ${pendingAudits}\nTotal Audited Amount: $${totalAuditedAmount.toFixed(2)}\n\n=== INCIDENTS ===\nTotal Robberies: ${robberies.length}\nTotal Amount Stolen: $${totalStolen.toFixed(2)}`;
 
                          const blob = new Blob([report], { type: "text/plain" });
                          const url = window.URL.createObjectURL(blob);
