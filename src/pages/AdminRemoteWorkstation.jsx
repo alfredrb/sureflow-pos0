@@ -30,43 +30,68 @@ export default function AdminRemoteWorkstation() {
 
   useEffect(() => {
     loadAll();
-    // Poll every 30 seconds for live updates
-    pollRef.current = setInterval(loadRequests, 30000);
+    // Poll every 30 seconds for live updates (requests and transactions only)
+    pollRef.current = setInterval(async () => {
+      await new Promise(resolve => setTimeout(resolve, 500)); // Stagger requests
+      await loadRequests();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadTransactions();
+    }, 30000);
     return () => clearInterval(pollRef.current);
   }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    await Promise.all([loadRegisters(), loadRequests(), loadTransactions()]);
+    try {
+      await loadRegisters();
+      await new Promise(resolve => setTimeout(resolve, 300)); // Small delay between requests
+      await loadRequests();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadTransactions();
+    } catch (e) {
+      console.error("Error loading data:", e);
+    }
     setLoading(false);
   };
 
   const loadRegisters = async () => {
-    const regs = await base44.entities.Register.list();
-    setRegisters(regs);
+    try {
+      const regs = await base44.entities.Register.list();
+      setRegisters(regs);
+    } catch (e) {
+      console.error("Error loading registers:", e);
+    }
   };
 
   const loadRequests = async () => {
-    // Expire old pending requests (older than 5 minutes) on the client side
-    const all = await base44.entities.OverrideRequest.list("-created_date", 200);
-    const now = Date.now();
-    const updated = all.map(r => {
-      if (r.status === "pending") {
-        const created = new Date(r.created_date).getTime();
-        if (now - created > 5 * 60 * 1000) return { ...r, status: "expired" };
-      }
-      return r;
-    });
-    // Persist expired status changes silently
-    updated.filter((r, i) => r.status === "expired" && all[i].status === "pending").forEach(r => {
-      base44.entities.OverrideRequest.update(r.id, { status: "expired" });
-    });
-    setRequests(updated);
+    try {
+      // Expire old pending requests (older than 5 minutes) on the client side
+      const all = await base44.entities.OverrideRequest.list("-created_date", 200);
+      const now = Date.now();
+      const updated = all.map(r => {
+        if (r.status === "pending") {
+          const created = new Date(r.created_date).getTime();
+          if (now - created > 5 * 60 * 1000) return { ...r, status: "expired" };
+        }
+        return r;
+      });
+      // Persist expired status changes silently
+      updated.filter((r, i) => r.status === "expired" && all[i].status === "pending").forEach(r => {
+        base44.entities.OverrideRequest.update(r.id, { status: "expired" });
+      });
+      setRequests(updated);
+    } catch (e) {
+      console.error("Error loading requests:", e);
+    }
   };
 
   const loadTransactions = async () => {
-    const txs = await base44.entities.Transaction.list("-created_date", 30);
-    setTransactions(txs);
+    try {
+      const txs = await base44.entities.Transaction.list("-created_date", 30);
+      setTransactions(txs);
+    } catch (e) {
+      console.error("Error loading transactions:", e);
+    }
   };
 
   // Get the most recent transaction for a register
@@ -95,7 +120,7 @@ export default function AdminRemoteWorkstation() {
       note: note || ""
     });
     // Log it
-    base44.entities.RegisterLog.create({
+    await base44.entities.RegisterLog.create({
       event_type: "override",
       operator_id: sup.operator_id,
       operator_name: sup.full_name,
@@ -109,7 +134,8 @@ export default function AdminRemoteWorkstation() {
     toast({ title: "Override Approved", description: `${sup.full_name} approved "${selectedRequest.action}"` });
     setApproveDialog(false); setPinInput(""); setNote(""); setSelectedRequest(null);
     setActionLoading(false);
-    loadRequests();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await loadRequests();
   };
 
   const handleDecline = async () => {
