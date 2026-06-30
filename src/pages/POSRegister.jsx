@@ -1165,8 +1165,16 @@ export default function POSRegister() {
         amount_stolen: calculatedRobberyAmount,
         report_date: new Date().toISOString().split("T")[0]
       });
-      writeLog("robbery", `Robbery reported — $${calculatedRobberyAmount.toFixed(2)} stolen (calculated)`);
-      toast({ title: "Robbery Reported", description: "Alert sent to admin", variant: "default" });
+      
+      // Pause the register
+      const regs = await base44.entities.Register.filter({ register_id: registerId });
+      if (regs.length > 0) {
+        await base44.entities.Register.update(regs[0].id, { paused: true });
+        setRegisterPaused(true);
+      }
+      
+      writeLog("robbery", `Robbery reported — $${calculatedRobberyAmount.toFixed(2)} stolen (calculated) — Register paused`);
+      toast({ title: "Robbery Reported", description: "Register paused for security", variant: "default" });
       setCalculatedRobberyAmount(0);
       setRobberyDialog(false);
       setHelpMenuOpen(false);
