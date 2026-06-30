@@ -6,6 +6,7 @@ import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
 
 const navItems = [
   { label: "Dashboard", path: "/admin", icon: BarChart3 },
+  { label: "Staff Report", path: "/admin/staff-report", icon: BarChart3 },
   { label: "Operators", path: "/admin/operators", icon: Users },
   { label: "Inventory", path: "/admin/inventory", icon: Package },
   { label: "Transactions", path: "/admin/transactions", icon: Receipt },
