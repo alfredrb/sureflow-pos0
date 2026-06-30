@@ -23,6 +23,7 @@ const SECTION_TABS = [
   { id: "item_list", label: "Item List" },
   { id: "misc", label: "Misc" },
   { id: "advance", label: "Advance" },
+  { id: "request_csm", label: "Request CSM" },
 ];
 
 function getKeysForSection(sectionId, functionKeys) {
@@ -1078,8 +1079,24 @@ export default function POSRegister() {
     return matchSearch && matchCat;
   });
 
-  const handleSectionClick = (sectionId) => {
+  const handleSectionClick = async (sectionId) => {
     if (sectionId === "item_list") setItemListOpen(true);
+    else if (sectionId === "request_csm") {
+      const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+      try {
+        await base44.entities.OverrideRequest.create({
+          register_id: registerId,
+          action: "Help Needed",
+          requested_by_operator_id: operator?.operator_id || "",
+          requested_by_operator_name: operator?.full_name || "",
+          status: "pending"
+        });
+        writeLog("override", `CSM Help Requested — ${operator?.full_name || "Unknown operator"}`);
+        toast({ title: "Help Request Sent", description: "CSM has been notified", variant: "default" });
+      } catch (e) {
+        toast({ title: "Error", description: "Failed to send help request", variant: "destructive" });
+      }
+    }
     else setActiveSection(sectionId);
   };
 
