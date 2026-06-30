@@ -713,6 +713,9 @@ export default function POSRegister() {
   const [calculatedRobberyAmount, setCalculatedRobberyAmount] = useState(0);
   const [robberyLoading, setRobberyLoading] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
+  const [trainingModeDialog, setTrainingModeDialog] = useState(false);
+  const [trainingModePin, setTrainingModePin] = useState("");
+  const [trainingModeError, setTrainingModeError] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1314,7 +1317,16 @@ export default function POSRegister() {
             </button>
             {helpMenuOpen && (
               <div className="absolute right-0 top-full mt-1 bg-[#111638] border border-red-500/30 rounded-lg shadow-lg z-50 min-w-[180px]">
-                <button onClick={() => setTrainingMode(!trainingMode)} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-orange-600 transition-colors border-b border-red-500/10">
+                <button onClick={() => {
+                  if (trainingMode) {
+                    setTrainingMode(false);
+                    setHelpMenuOpen(false);
+                    toast({ title: "Training Mode Disabled", description: "Normal operations resumed" });
+                  } else {
+                    setTrainingModeDialog(true);
+                    setHelpMenuOpen(false);
+                  }
+                }} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-orange-600 transition-colors border-b border-red-500/10">
                   {trainingMode ? "Exit Training Mode" : "Enter Training Mode"}
                 </button>
                 <button onClick={requestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
@@ -1821,14 +1833,17 @@ export default function POSRegister() {
                     </div>
                   </div>
                 )}
-                <div className="flex justify-center pt-3">
-                  <svg id={`barcode-${receiptData.transactionId}`} style={{ maxWidth: "100%" }}></svg>
-                </div>
-                <div className="text-center text-[9px] border-t pt-2 text-blue-300/60 space-y-1">
-                  <p>Thank You!</p>
+                <div className="border-t pt-3 space-y-3">
+                  <div className="flex justify-center">
+                    <svg id={`barcode-${receiptData.transactionId}`} style={{ maxWidth: "90%" }}></svg>
+                  </div>
                   {receiptData.items.some(i => i.is_giftcard) && (
-                    <p className="text-amber-400 font-bold">⚠ GIFT CARDS ARE NOT REFUNDABLE</p>
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded px-2 py-2">
+                      <p className="text-center text-amber-400 font-bold text-[9px] uppercase tracking-wider">⚠ Gift Cards Not Refundable</p>
+                      <p className="text-center text-amber-400/70 text-[8px] mt-1">Cannot be exchanged for cash or credit</p>
+                    </div>
                   )}
+                  <p className="text-center text-[10px] text-blue-300/60">Thank You!</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -1868,6 +1883,56 @@ export default function POSRegister() {
             }
             setQtyDialog(false); setQtyValue("1");
           }} className="bg-blue-600 hover:bg-blue-500 text-white">Apply</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Training Mode Authorization Dialog */}
+      <Dialog open={trainingModeDialog} onOpenChange={v => { setTrainingModeDialog(v); if (!v) { setTrainingModePin(""); setTrainingModeError(""); } }}>
+        <DialogContent className="bg-[#111638] border-orange-500/20 text-white max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-orange-400 text-sm">Enable Training Mode</DialogTitle>
+          </DialogHeader>
+          <p className="text-blue-300/60 text-xs">Training mode disables all financial logging. A CSM or Manager PIN is required to enable.</p>
+          <Input
+            type="password"
+            placeholder="CSM / Manager PIN"
+            value={trainingModePin}
+            onChange={e => setTrainingModePin(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && (async () => {
+              setTrainingModeError("");
+              const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
+              const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+              if (!sup) {
+                setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
+                return;
+              }
+              setTrainingMode(true);
+              setTrainingModeDialog(false);
+              setTrainingModePin("");
+              toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
+            })()}
+            className="bg-[#0a0e27] border-orange-500/20 text-white text-center text-lg tracking-widest"
+            autoFocus
+          />
+          {trainingModeError && <p className="text-red-400 text-xs text-center">{trainingModeError}</p>}
+          <Button 
+            onClick={async () => {
+              setTrainingModeError("");
+              const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
+              const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+              if (!sup) {
+                setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
+                return;
+              }
+              setTrainingMode(true);
+              setTrainingModeDialog(false);
+              setTrainingModePin("");
+              toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
+            }}
+            className="w-full bg-orange-600 hover:bg-orange-500 text-white"
+          >
+            Enable Training Mode
+          </Button>
         </DialogContent>
       </Dialog>
 

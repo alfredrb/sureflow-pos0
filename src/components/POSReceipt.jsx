@@ -130,12 +130,19 @@ export default function POSReceipt({
             </div>
           `}
           
-          <div class="thank-you">Thank You!</div>
-          ${footerLine1 ? `<div class="footer">${footerLine1}</div>` : ""}
-          ${footerLine2 ? `<div class="footer">${footerLine2}</div>` : ""}
-          
-          <div style="margin-top: 15px; text-align: center;">
-            <svg id="barcode"></svg>
+          <div style="margin-top: 15px; border-top: 1px solid #000; padding-top: 10px;">
+            <div style="text-align: center; margin-bottom: 10px;">
+              <svg id="barcode"></svg>
+            </div>
+            ${items.some(item => item.is_giftcard) ? `
+              <div style="background: #f5f5f5; border: 1px solid #000; padding: 8px; margin-bottom: 10px; font-size: 10px; font-weight: bold; text-align: center;">
+                <div style="margin-bottom: 4px;">⚠ GIFT CARDS NOT REFUNDABLE</div>
+                <div style="font-size: 9px; font-weight: normal;">Cannot be exchanged for cash or credit</div>
+              </div>
+            ` : ""}
+            <div class="thank-you">Thank You!</div>
+            ${footerLine1 ? `<div class="footer">${footerLine1}</div>` : ""}
+            ${footerLine2 ? `<div class="footer">${footerLine2}</div>` : ""}
           </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
