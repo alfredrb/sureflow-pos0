@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TillCheckoutModal, TillCheckinModal } from "@/components/TillCheckModals";
 import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
@@ -24,6 +25,13 @@ export default function AdminCashReconciliation() {
   const [audits, setAudits] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [giftCardCashouts, setGiftCardCashouts] = useState([]);
+  const [tillCheckouts, setTillCheckouts] = useState([]);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showCheckinModal, setShowCheckinModal] = useState(false);
+  const [selectedRegisterCheckout, setSelectedRegisterCheckout] = useState("");
+  const [selectedRegisterCheckin, setSelectedRegisterCheckin] = useState("");
+  const [checkinBills, setCheckinBills] = useState({ twenty: 0, ten: 0, five: 0, one: 0 });
+  const [checkinCoins, setCheckinCoins] = useState({ quarters_rolls: 0, dimes_rolls: 0, nickels_rolls: 0, pennies_rolls: 0 });
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
   const [selectedRegister, setSelectedRegister] = useState("all");
@@ -38,7 +46,7 @@ export default function AdminCashReconciliation() {
 
   const loadData = async () => {
     try {
-      const [depositsData, registersData, advancesData, pickupsData, robberiesData, auditsData, alertsData, logData] = await Promise.all([
+      const [depositsData, registersData, advancesData, pickupsData, robberiesData, auditsData, alertsData, logData, tillsData] = await Promise.all([
         base44.entities.EODCashDeposit.list("-report_date"),
         base44.entities.Register.list(),
         base44.entities.CashAdvance.list("-created_date"),
@@ -46,7 +54,8 @@ export default function AdminCashReconciliation() {
         base44.entities.Robbery.list("-created_date"),
         base44.entities.CashAudit.list("-audit_date", 200),
         base44.entities.CashLimitAlert.list("-triggered_at", 100),
-        base44.entities.RegisterLog.list("-created_date", 500)
+        base44.entities.RegisterLog.list("-created_date", 500),
+        base44.entities.TillCheckout.list("-checkout_date")
       ]);
       setDeposits(depositsData);
       setRegisters(registersData);
@@ -55,6 +64,7 @@ export default function AdminCashReconciliation() {
       setRobberies(robberiesData);
       setAudits(auditsData);
       setAlerts(alertsData);
+      setTillCheckouts(tillsData);
       // Extract gift card cashouts from RegisterLog
       const cashouts = logData.filter(log => log.detail && log.detail.includes("Gift card cash out"));
       setGiftCardCashouts(cashouts);
@@ -200,7 +210,13 @@ export default function AdminCashReconciliation() {
           <h1 className="text-3xl font-bold text-gray-900">Cash Reconciliation</h1>
           <p className="text-gray-500 mt-2">Track register cash deposits, longs, shorts, advances, and pickups</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
+            Check Out Till
+          </Button>
+          <Button variant="outline" onClick={() => setShowCheckinModal(true)}>
+            Check In Till
+          </Button>
           <Button onClick={() => setAuditDialog(true)} className="bg-purple-600 hover:bg-purple-700 flex gap-2">
             <Plus className="w-4 h-4" /> Manual Audit
           </Button>
@@ -719,6 +735,9 @@ export default function AdminCashReconciliation() {
                        const match = log.detail?.match(/\$(\d+\.\d+)/);
                        return sum + (match ? parseFloat(match[1]) : 0);
                      }, 0);
+                     const checkedOutCount = tillCheckouts.filter(t => t.status === "checked_out").length;
+                     const checkedInCount = tillCheckouts.filter(t => t.status === "checked_in").length;
+                     const totalRegisters = registers.length;
 
              return (
                <>
@@ -770,6 +789,14 @@ export default function AdminCashReconciliation() {
                    <div className="bg-white rounded-lg p-4 border border-rose-100">
                      <p className="text-gray-500 text-xs font-medium">Gift Card Cashouts</p>
                      <p className="text-2xl font-bold text-rose-600">${totalGiftCardCashout.toFixed(2)}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-blue-100">
+                     <p className="text-gray-500 text-xs font-medium">Tills Checked Out</p>
+                     <p className="text-2xl font-bold text-blue-600">{checkedOutCount} / {totalRegisters}</p>
+                   </div>
+                   <div className="bg-white rounded-lg p-4 border border-green-100">
+                     <p className="text-gray-500 text-xs font-medium">Tills Checked In</p>
+                     <p className="text-2xl font-bold text-green-600">{checkedInCount} / {totalRegisters}</p>
                    </div>
                    </div>
 
@@ -1150,6 +1177,21 @@ export default function AdminCashReconciliation() {
           </DialogContent>
         </Dialog>
       )}
+
+      <TillCheckoutModal 
+        open={showCheckoutModal} 
+        onClose={() => setShowCheckoutModal(false)}
+        registers={registers}
+        onSuccess={loadData}
+      />
+
+      <TillCheckinModal 
+        open={showCheckinModal}
+        onClose={() => setShowCheckinModal(false)}
+        registers={registers}
+        tillCheckouts={tillCheckouts}
+        onSuccess={loadData}
+      />
     </div>
   );
 }

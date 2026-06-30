@@ -1,0 +1,142 @@
+{
+  "name": "TillCheckout",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string",
+      "description": "Register ID for this till"
+    },
+    "register_name": {
+      "type": "string",
+      "description": "Register name"
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator who checked out the till"
+    },
+    "operator_name": {
+      "type": "string",
+      "description": "Operator name"
+    },
+    "checkout_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the till was checked out"
+    },
+    "checkin_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the till was checked in"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "checked_out",
+        "checked_in"
+      ],
+      "default": "checked_out",
+      "description": "Current status of the till"
+    },
+    "checkout_bills": {
+      "type": "object",
+      "description": "Bills provided at checkout",
+      "properties": {
+        "twenty": {
+          "type": "number",
+          "default": 5
+        },
+        "ten": {
+          "type": "number",
+          "default": 5
+        },
+        "five": {
+          "type": "number",
+          "default": 10
+        },
+        "one": {
+          "type": "number",
+          "default": 40
+        }
+      }
+    },
+    "checkout_coins": {
+      "type": "object",
+      "description": "Coins provided at checkout",
+      "properties": {
+        "quarters_rolls": {
+          "type": "number",
+          "default": 2
+        },
+        "dimes_rolls": {
+          "type": "number",
+          "default": 1
+        },
+        "nickels_rolls": {
+          "type": "number",
+          "default": 1
+        },
+        "pennies_rolls": {
+          "type": "number",
+          "default": 2
+        }
+      }
+    },
+    "checkout_total": {
+      "type": "number",
+      "description": "Total value of till at checkout ($250)"
+    },
+    "checkin_bills": {
+      "type": "object",
+      "description": "Bills returned at checkin",
+      "properties": {
+        "twenty": {
+          "type": "number"
+        },
+        "ten": {
+          "type": "number"
+        },
+        "five": {
+          "type": "number"
+        },
+        "one": {
+          "type": "number"
+        }
+      }
+    },
+    "checkin_coins": {
+      "type": "object",
+      "description": "Coins returned at checkin",
+      "properties": {
+        "quarters_rolls": {
+          "type": "number"
+        },
+        "dimes_rolls": {
+          "type": "number"
+        },
+        "nickels_rolls": {
+          "type": "number"
+        },
+        "pennies_rolls": {
+          "type": "number"
+        }
+      }
+    },
+    "checkin_total": {
+      "type": "number",
+      "description": "Total value of till at checkin"
+    },
+    "discrepancy": {
+      "type": "number",
+      "description": "Difference between checkout and checkin amounts"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Any notes about the till"
+    }
+  },
+  "required": [
+    "register_id",
+    "operator_id",
+    "checkout_date"
+  ]
+}
