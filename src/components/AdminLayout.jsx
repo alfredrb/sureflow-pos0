@@ -108,7 +108,7 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 py-3 space-y-0.5 px-2">
+        <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto scrollbar scrollbar-thumb-white/10 scrollbar-track-transparent">
           {navItems.map(item => {
             const Icon = item.icon;
             const active = location.pathname === item.path;
@@ -137,36 +137,22 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className="p-3 border-t border-white/5 space-y-2">
-          {/* Sound Toggle */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 px-3 py-1">
-              {soundEnabled ? <Volume2 className="w-3 h-3 text-blue-400" /> : <VolumeX className="w-3 h-3 text-blue-300/50" />}
-              {!collapsed && <span className="text-xs text-blue-300/50">Sound</span>}
-            </div>
-            <input 
-              type="range" 
-              min="0" 
-              max="1" 
-              step="1" 
-              checked={soundEnabled}
-              onChange={(e) => { setSoundEnabledState(e.target.value === "1"); setSoundEnabled(e.target.value === "1"); }}
-              className="w-full accent-blue-600 cursor-pointer"
-              style={{ width: collapsed ? "40px" : "100%" }}
-            />
-          </div>
-
-          {/* Navigation */}
-          <div className="space-y-1 pt-2 border-t border-white/10">
-            <Link to="/pos" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors`}>
-              <Monitor className="w-4 h-4 flex-shrink-0" />
-              {!collapsed && <span>Open POS</span>}
-            </Link>
-            <button onClick={() => { sessionStorage.removeItem("admin_operator"); base44.auth.logout("/"); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full`}>
-              <LogOut className="w-4 h-4 flex-shrink-0" />
-              {!collapsed && <span>Logout</span>}
-            </button>
-          </div>
+        <div className="p-3 border-t border-white/5 space-y-1">
+          <button 
+            onClick={() => { setSoundEnabledState(!soundEnabled); setSoundEnabled(!soundEnabled); }}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full ${soundEnabled ? "text-blue-400 hover:bg-blue-500/10" : "text-blue-300/50 hover:bg-white/5"}`}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4 flex-shrink-0" /> : <VolumeX className="w-4 h-4 flex-shrink-0" />}
+            {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
+          </button>
+          <Link to="/pos" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors`}>
+            <Monitor className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>Open POS</span>}
+          </Link>
+          <button onClick={() => { sessionStorage.removeItem("admin_operator"); base44.auth.logout("/"); }} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full`}>
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>Logout</span>}
+          </button>
         </div>
       </aside>
 
