@@ -14,7 +14,7 @@ import ExportCashHistory from "@/components/ExportCashHistory";
 import POSReceipt from "@/components/POSReceipt";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
-const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management"];
+const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt"];
 const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [
@@ -692,6 +692,7 @@ export default function POSRegister() {
   const [exportCashDialog, setExportCashDialog] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [storeConfig, setStoreConfig] = useState(null);
+  const [lastReceipt, setLastReceipt] = useState(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -834,6 +835,14 @@ export default function POSRegister() {
       case "quantity": setQtyDialog(true); break;
       case "no_sale": writeLog("no_sale", "No Sale — cash drawer opened"); break;
       case "cash_management": setCashMgmtDialog(true); break;
+      case "reprint_receipt":
+        if (lastReceipt) {
+          setReceiptData(lastReceipt);
+          writeLog("reprint_receipt", "Receipt reprinted");
+        } else {
+          toast({ title: "No Receipt", description: "No previous receipt to reprint", variant: "destructive" });
+        }
+        break;
       case "tax_exempt":
         setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
         break;
@@ -991,11 +1000,23 @@ export default function POSRegister() {
          changeDue
        });
        setCart([]); setPaymentOpen(false); setAmountTendered("");
-       loadData();
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
-    }
-  };
+        setLastReceipt({
+          transactionId: txId,
+          operatorName: operator.full_name,
+          registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+          items: cart,
+          subtotal,
+          tax,
+          total,
+          paymentMethod,
+          amountTendered: parseFloat(amountTendered || total),
+          changeDue
+        });
+        loadData();
+       } catch (e) {
+       toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
+       }
+       };
 
   const logout = () => {
     writeLog("logout", `${operator?.full_name} logged out of ${sessionStorage.getItem("pos_register_num") || "REG-001"}`);

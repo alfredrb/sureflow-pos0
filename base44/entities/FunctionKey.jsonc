@@ -25,6 +25,7 @@
         "suspend",
         "resume",
         "refund",
+        "reprint_receipt",
         "none"
       ],
       "default": "none"

@@ -14,7 +14,8 @@ const actions = [
   { value: "subtotal", label: "Subtotal" }, { value: "tax_exempt", label: "Tax Exempt" },
   { value: "price_override", label: "Price Override" }, { value: "quantity", label: "Quantity" },
   { value: "repeat_last", label: "Repeat Last" }, { value: "suspend", label: "Suspend" },
-  { value: "resume", label: "Resume" }, { value: "refund", label: "Refund" }, { value: "none", label: "None" },
+  { value: "resume", label: "Resume" }, { value: "refund", label: "Refund" },
+  { value: "reprint_receipt", label: "Reprint Receipt" }, { value: "none", label: "None" },
 ];
 
 const colors = ["#374151", "#dc2626", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0891b2", "#be185d"];
