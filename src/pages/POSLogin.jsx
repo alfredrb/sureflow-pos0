@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function POSLogin() {
@@ -19,7 +19,12 @@ export default function POSLogin() {
   const [availableRegisters, setAvailableRegisters] = useState([]);
   const [detectedIp, setDetectedIp] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
-  const [forceConfig, setForceConfig] = useState(false); // true = skip PIN, auto-open register select
+  const [forceConfig, setForceConfig] = useState(false);
+  const [showShiftLookup, setShowShiftLookup] = useState(false);
+  const [shiftLookupPin, setShiftLookupPin] = useState("");
+  const [currentOperator, setCurrentOperator] = useState(null);
+  const [currentShift, setCurrentShift] = useState(null);
+  const [operators, setOperators] = useState([]);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -29,15 +34,15 @@ export default function POSLogin() {
     const onOffline = () => setOnline(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    // Load operators for shift lookup
+    base44.entities.Operator.list().then(ops => setOperators(ops)).catch(() => {});
     // Validate stored register on mount
     const currentReg = sessionStorage.getItem("pos_register_num");
     if (!currentReg) {
-      // No register configured at all — force config immediately
       openForcedConfig();
     } else {
       base44.entities.Register.filter({ register_id: currentReg }).then(results => {
         if (results.length === 0) {
-          // Register was deleted
           toast({ title: "Register Not Found", description: `Register "${currentReg}" no longer exists. Please select a new register.`, variant: "destructive" });
           openForcedConfig();
         } else {
@@ -100,7 +105,6 @@ export default function POSLogin() {
       const managers = await base44.entities.Operator.filter({ role: "manager", status: "active" });
       const all = [...csms, ...managers];
       if (all.some(op => op.pin === configPin)) {
-        // Fetch registers and detect IP in parallel
         const [registers, ip] = await Promise.all([
           base44.entities.Register.list(),
           getLocalIP()
@@ -153,21 +157,46 @@ export default function POSLogin() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const operators = await base44.entities.Operator.filter({ operator_id: operatorId, status: "active" });
-      if (operators.length === 0) {
+      const operatorData = await base44.entities.Operator.filter({ operator_id: operatorId, status: "active" });
+      if (operatorData.length === 0) {
         toast({ title: "Invalid Operator", description: "Operator ID not found", variant: "destructive" });
         setStep("id"); setOperatorId(""); setPin("");
-      } else if (operators[0].pin !== pin) {
+      } else if (operatorData[0].pin !== pin) {
         toast({ title: "Invalid PIN", description: "Incorrect PIN entered", variant: "destructive" });
         setPin("");
       } else {
-        sessionStorage.setItem("pos_operator", JSON.stringify(operators[0]));
+        sessionStorage.setItem("pos_operator", JSON.stringify(operatorData[0]));
         navigate("/pos/register");
       }
     } catch (e) {
       toast({ title: "Error", description: "Login failed", variant: "destructive" });
     }
     setLoading(false);
+  };
+
+  const handleShiftLookup = async () => {
+    if (!shiftLookupPin) {
+      toast({ title: "Please enter your PIN", variant: "destructive" });
+      return;
+    }
+    try {
+      const foundOperator = operators.find(op => op.pin === shiftLookupPin);
+      if (!foundOperator) {
+        toast({ title: "Invalid PIN", variant: "destructive" });
+        setShiftLookupPin("");
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      const shifts = await base44.entities.Shift.filter({ 
+        operator_id: foundOperator.operator_id,
+        date: today
+      });
+      setCurrentOperator(foundOperator);
+      setCurrentShift(shifts[0] || null);
+      setShiftLookupPin("");
+    } catch (e) {
+      toast({ title: "Error looking up shift", variant: "destructive" });
+    }
   };
 
   return (
@@ -252,14 +281,89 @@ export default function POSLogin() {
         <p className="text-blue-300/20 text-[10px] mt-6">v4.2.1 — Terminal Ready</p>
       </div>
 
-      {/* Config Button — bottom right */}
-      <button
-        onClick={handleConfigOpen}
-        className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
-      >
-        <Lock className="w-3 h-3" />
-        <span>Configuration</span>
-      </button>
+      {/* Bottom Control Buttons */}
+      <div className="absolute bottom-3 right-3 flex items-center gap-2">
+        <button
+          onClick={() => setShowShiftLookup(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
+        >
+          <Calendar className="w-3 h-3" />
+          <span>Shift Lookup</span>
+        </button>
+        <button
+          onClick={() => navigate("/admin")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
+        >
+          <LayoutDashboard className="w-3 h-3" />
+          <span>Admin</span>
+        </button>
+        <button
+          onClick={handleConfigOpen}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
+        >
+          <Lock className="w-3 h-3" />
+          <span>Configuration</span>
+        </button>
+      </div>
+
+      {/* Shift Lookup Modal */}
+      {showShiftLookup && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
+          <div className="bg-[#111638] border border-blue-500/10 rounded-2xl p-6 w-full max-w-xs space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Calendar className="w-4 h-4 text-blue-400" />
+              <h3 className="text-white font-semibold text-sm">Shift Lookup</h3>
+            </div>
+
+            {!currentOperator ? (
+              <div className="space-y-3">
+                <p className="text-blue-300/50 text-xs">Enter your PIN:</p>
+                <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-blue-500/10 min-h-[44px] flex items-center justify-center">
+                  {"•".repeat(shiftLookupPin.length) || <span className="text-blue-500/20">----</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
+                    <button key={k} onClick={() => {
+                      if (k === "CLR") setShiftLookupPin("");
+                      else if (k === "ENT" && shiftLookupPin.length > 0) handleShiftLookup();
+                      else if (k !== "ENT" && shiftLookupPin.length < 6) setShiftLookupPin(p => p + k);
+                    }}
+                    className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 ${
+                      k === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
+                      k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
+                      "bg-[#1a1f4a] text-white border border-blue-500/10"
+                    }`}>
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                  <p className="text-blue-300/50 text-[10px] uppercase tracking-wider">Operator</p>
+                  <p className="text-white font-semibold text-sm">{currentOperator.full_name}</p>
+                </div>
+                {currentShift ? (
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 space-y-1">
+                    <p className="text-blue-300/50 text-[10px] uppercase tracking-wider">Shift Today</p>
+                    <p className="text-white font-semibold text-sm">{currentShift.start_time} - {currentShift.end_time}</p>
+                    <p className="text-blue-300/70 text-xs">{currentShift.register_name}</p>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
+                    <p className="text-yellow-400/70 text-xs">No shifts scheduled for today</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button onClick={() => { setShowShiftLookup(false); setCurrentOperator(null); setCurrentShift(null); setShiftLookupPin(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center mt-2">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Config Modal */}
       {showConfig && (
