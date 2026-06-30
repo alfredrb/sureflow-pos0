@@ -15,7 +15,7 @@ import POSReceipt from "@/components/POSReceipt";
 import GiftCardSeller from "@/components/GiftCardSeller";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
-const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt"];
+const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
 const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [
@@ -1077,9 +1077,31 @@ export default function POSRegister() {
         break;
       case "price_check":
         break;
+      case "request_cash_pickup":
+        base44.entities.RegisterLog.create({
+          event_type: "cash_request",
+          operator_id: operator.operator_id,
+          operator_name: operator.full_name,
+          operator_role: operator.role,
+          register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+          detail: `Cash pickup requested by ${operator.full_name}`
+        });
+        toast({ title: "Request Sent", description: "Cash pickup request logged — visible to admin", variant: "default" });
+        break;
+      case "request_cash_advance":
+        base44.entities.RegisterLog.create({
+          event_type: "cash_request",
+          operator_id: operator.operator_id,
+          operator_name: operator.full_name,
+          operator_role: operator.role,
+          register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+          detail: `Cash advance requested by ${operator.full_name}`
+        });
+        toast({ title: "Request Sent", description: "Cash advance request logged — visible to admin", variant: "default" });
+        break;
       default: break;
-    }
-  };
+      }
+      };
 
   const handleFunctionKey = (fkey) => {
     const effectiveRole = fkey.requires_role || (fkey.requires_supervisor ? "csm" : "none");
