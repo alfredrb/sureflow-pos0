@@ -16,6 +16,7 @@ const actions = [
   { value: "repeat_last", label: "Repeat Last" }, { value: "suspend", label: "Suspend" },
   { value: "resume", label: "Resume" }, { value: "refund", label: "Refund" },
   { value: "reprint_receipt", label: "Reprint Receipt" }, { value: "cash_management", label: "Cash Management" },
+  { value: "request_cash_pickup", label: "Request Cash Pickup" }, { value: "request_cash_advance", label: "Request Cash Advance" },
   { value: "none", label: "None" },
 ];
 
