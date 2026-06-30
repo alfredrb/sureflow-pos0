@@ -390,29 +390,64 @@ export default function AdminCashReconciliation() {
                </div>
                <Button onClick={() => {
                  const allTransactions = [
+                   ...deposits.map(d => ({
+                     type: "Deposit",
+                     date: d.report_date,
+                     register: d.register_name,
+                     registerId: d.register_id,
+                     operator: d.operator_name,
+                     amount: d.actual_cash_deposited || 0,
+                     expected: d.expected_cash || 0,
+                     difference: d.difference || 0,
+                     notes: d.notes || ""
+                   })),
+                   ...audits.map(a => ({
+                     type: "Audit",
+                     date: a.audit_date,
+                     register: a.register_name,
+                     registerId: a.register_id,
+                     operator: a.operator_name,
+                     amount: a.total_counted || 0,
+                     expected: a.expected_amount || 0,
+                     difference: a.discrepancy || 0,
+                     notes: `Status: ${a.status}, Limit Trigger: ${a.triggered_by_cash_limit ? "Yes" : "No"}`
+                   })),
                    ...advances.map(a => ({
                      type: "Advance",
                      date: a.created_date,
                      register: a.register_name,
                      registerId: a.register_id,
+                     operator: "",
                      amount: a.amount,
-                     reason: a.reason || "",
-                     approvedBy: a.approved_by_name || "",
-                     status: a.status
+                     expected: 0,
+                     difference: 0,
+                     notes: a.reason || ""
                    })),
                    ...pickups.map(p => ({
                      type: "Pickup",
                      date: p.created_date,
                      register: p.register_name,
                      registerId: p.register_id,
+                     operator: "",
                      amount: p.amount,
-                     reason: p.reason || "",
-                     approvedBy: p.approved_by_name || "",
-                     status: p.status
+                     expected: 0,
+                     difference: 0,
+                     notes: p.reason || ""
+                   })),
+                   ...robberies.map(r => ({
+                     type: "Robbery",
+                     date: r.created_date,
+                     register: r.register_name,
+                     registerId: r.register_id,
+                     operator: r.operator_name,
+                     amount: r.amount_stolen || 0,
+                     expected: 0,
+                     difference: 0,
+                     notes: r.notes || ""
                    }))
                  ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                 const headers = ["Type", "Date", "Register Name", "Register ID", "Amount", "Reason", "Approved By", "Status"];
+                 const headers = ["Type", "Date", "Register", "Register ID", "Operator", "Amount", "Expected", "Difference", "Notes"];
                  const csvContent = [
                    headers.join(","),
                    ...allTransactions.map(t =>
@@ -421,10 +456,11 @@ export default function AdminCashReconciliation() {
                        new Date(t.date).toLocaleString(),
                        t.register,
                        t.registerId,
+                       t.operator,
                        `$${t.amount.toFixed(2)}`,
-                       `"${t.reason}"`,
-                       t.approvedBy,
-                       t.status
+                       t.expected > 0 ? `$${t.expected.toFixed(2)}` : "",
+                       t.difference !== 0 ? `$${t.difference.toFixed(2)}` : "",
+                       `"${t.notes}"`
                      ].join(",")
                    )
                  ].join("\n");
