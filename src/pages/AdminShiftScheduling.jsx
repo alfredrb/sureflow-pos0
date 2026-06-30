@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy } from "lucide-react";
+import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import PeakTimeAnalysis from "@/components/PeakTimeAnalysis";
 
@@ -33,6 +33,7 @@ export default function AdminShiftScheduling() {
   const [templateName, setTemplateName] = useState("");
   const [draftDate, setDraftDate] = useState(new Date().toISOString().split("T")[0]);
   const [peakTimes, setPeakTimes] = useState([]);
+  const [swapLogs, setSwapLogs] = useState([]);
   const [form, setForm] = useState({
     date: new Date().toISOString().split("T")[0],
     operator_id: "",
@@ -55,18 +56,20 @@ export default function AdminShiftScheduling() {
 
   const load = async () => {
     try {
-      const [shiftData, opData, regData, templateData, peakData] = await Promise.all([
+      const [shiftData, opData, regData, templateData, peakData, swapReqs] = await Promise.all([
         base44.entities.Shift.list("-date", 100),
         base44.entities.Operator.filter({ status: "active" }),
         base44.entities.Register.list(),
         base44.entities.ShiftTemplate.list("-created_date", 100),
-        base44.entities.PeakTime.filter({ day_of_week: new Date().getDay() })
+        base44.entities.PeakTime.filter({ day_of_week: new Date().getDay() }),
+        base44.entities.ShiftSwapRequest.filter({ status: "approved" })
       ]);
       setShifts(shiftData);
       setOperators(opData);
       setRegisters(regData);
       setTemplates(templateData);
       setPeakTimes(peakData);
+      setSwapLogs(swapReqs);
     } catch (e) {
       console.error("Error loading:", e);
       toast({ title: "Error loading data", variant: "destructive" });
@@ -329,20 +332,55 @@ export default function AdminShiftScheduling() {
       )}
 
       <div className="space-y-6">
-        {groupByDate(shifts).map(([date, dayShifts]) => (
-          <div key={date} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">{getDayName(date)} — {new Date(date).toLocaleDateString()}</h2>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {dayShifts.map(shift => (
-                <div key={shift.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <p className="font-semibold text-gray-900">{shift.operator_name}</p>
-                        {statusBadge(shift.status)}
-                      </div>
+         {swapLogs.length > 0 && (
+           <div className="bg-white rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden shadow-sm">
+             <div className="bg-amber-100 px-6 py-4 border-b border-amber-200">
+               <h2 className="font-semibold text-amber-900">Recent Shift Swaps</h2>
+             </div>
+             <div className="divide-y divide-amber-100">
+               {swapLogs.slice(0, 5).map(log => (
+                 <div key={log.id} className="p-4 flex items-center gap-4">
+                   <div className="flex-1">
+                     <p className="text-sm font-semibold text-gray-900">
+                       Swap on {new Date(log.shift_date).toLocaleDateString()}
+                     </p>
+                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                       <span className="font-medium">{log.requester_operator_name}</span>
+                       <ArrowRight className="w-3 h-3" />
+                       <span className="font-medium">{log.target_operator_name}</span>
+                     </div>
+                   </div>
+                   <span className="text-xs bg-amber-200 text-amber-900 px-2 py-1 rounded">Approved</span>
+                 </div>
+               ))}
+             </div>
+           </div>
+         )}
+         {groupByDate(shifts).map(([date, dayShifts]) => {
+           const swappedShiftIds = swapLogs
+             .filter(log => log.shift_date === date)
+             .flatMap(log => {
+               const original = dayShifts.find(s => s.operator_id === log.requester_operator_id && s.date === date);
+               return original ? [original.id] : [];
+             });
+
+           return (
+           <div key={date} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+             <div className="bg-gray-50 px-6 py-4 border-b border-gray-100">
+               <h2 className="font-semibold text-gray-900">{getDayName(date)} — {new Date(date).toLocaleDateString()}</h2>
+             </div>
+             <div className="divide-y divide-gray-100">
+               {dayShifts.map(shift => {
+                 const isSwapped = swappedShiftIds.includes(shift.id);
+                 return (
+                 <div key={shift.id} className={`p-4 hover:bg-gray-50 transition-colors ${isSwapped ? "border-l-4 border-l-emerald-500 bg-emerald-50/30" : ""}`}>
+                   <div className="flex items-start justify-between">
+                     <div className="flex-1">
+                       <div className="flex items-center gap-3 mb-2">
+                         <p className="font-semibold text-gray-900">{shift.operator_name}</p>
+                         {statusBadge(shift.status)}
+                         {isSwapped && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold">Swap Applied</span>}
+                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
@@ -371,17 +409,19 @@ export default function AdminShiftScheduling() {
                         </div>
                       )}
                       {shift.notes && <p className="mt-2 text-xs text-gray-500 italic">{shift.notes}</p>}
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
                       <Button variant="outline" size="sm" onClick={() => openEdit(shift)}><Edit2 className="w-3 h-3" /></Button>
                       <Button variant="outline" size="sm" onClick={() => deleteShift(shift)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-3 h-3" /></Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+                      </div>
+                      </div>
+                      </div>
+                      );
+                      })}
+                      </div>
+                      </div>
+                      );
+                      })}
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

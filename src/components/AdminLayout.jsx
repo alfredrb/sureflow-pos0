@@ -19,6 +19,7 @@ const navItems = [
   { label: "Discounts", path: "/admin/discounts", icon: Percent },
   { label: "EOD Reports", path: "/admin/eod-reports", icon: Calendar },
   { label: "Cash Reconciliation", path: "/admin/cash-reconciliation", icon: DollarSign },
+  { label: "Payroll", path: "/admin/payroll", icon: DollarSign },
   { label: "Emergency Log", path: "/admin/emergency-log", icon: AlertTriangle },
   { label: "Shift Scheduling", path: "/admin/shift-scheduling", icon: Clock },
   ];
