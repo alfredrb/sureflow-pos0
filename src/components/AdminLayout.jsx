@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX, AlertTriangle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
 
@@ -19,6 +19,7 @@ const navItems = [
   { label: "Discounts", path: "/admin/discounts", icon: Percent },
   { label: "EOD Reports", path: "/admin/eod-reports", icon: Calendar },
   { label: "Cash Reconciliation", path: "/admin/cash-reconciliation", icon: DollarSign },
+  { label: "Emergency Log", path: "/admin/emergency-log", icon: AlertTriangle },
 ];
 
 export default function AdminLayout() {

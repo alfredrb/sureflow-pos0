@@ -1,0 +1,67 @@
+{
+  "name": "EmergencyAlert",
+  "type": "object",
+  "properties": {
+    "alert_type": {
+      "type": "string",
+      "enum": [
+        "robbery"
+      ],
+      "description": "Type of emergency alert"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register where alert was triggered"
+    },
+    "register_name": {
+      "type": "string",
+      "description": "Register name/location"
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator on duty"
+    },
+    "operator_name": {
+      "type": "string",
+      "description": "Operator name"
+    },
+    "operator_role": {
+      "type": "string",
+      "description": "Operator role"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the alert was triggered"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "acknowledged",
+        "resolved"
+      ],
+      "default": "active",
+      "description": "Status of the alert"
+    },
+    "acknowledged_by_id": {
+      "type": "string",
+      "description": "Admin who acknowledged the alert"
+    },
+    "acknowledged_by_name": {
+      "type": "string",
+      "description": "Name of admin who acknowledged"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When alert was acknowledged"
+    }
+  },
+  "required": [
+    "alert_type",
+    "register_id",
+    "operator_id",
+    "timestamp"
+  ]
+}

@@ -1108,8 +1108,21 @@ export default function POSRegister() {
   const calculateStolenAmount = async () => {
     setRobberyLoading(true);
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const registerName = sessionStorage.getItem("pos_register_name") || "REG-001";
     const today = new Date().toISOString().split("T")[0];
     try {
+      // Log emergency alert immediately when button is pressed
+      await base44.entities.EmergencyAlert.create({
+        alert_type: "robbery",
+        register_id: registerId,
+        register_name: registerName,
+        operator_id: operator?.operator_id || "",
+        operator_name: operator?.full_name || "",
+        operator_role: operator?.role || "",
+        timestamp: new Date().toISOString(),
+        status: "active"
+      });
+
       // Get SOD for today
       const sodRecords = await base44.entities.SODProtocol.filter({
         protocol_date: today,
