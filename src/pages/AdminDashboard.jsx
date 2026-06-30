@@ -4,6 +4,7 @@ import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart,
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
 import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
+import AuditFrequencyChart from "@/components/AuditFrequencyChart";
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0 });
@@ -67,6 +68,14 @@ export default function AdminDashboard() {
 
       <div className="mb-6 sm:mb-8">
         <StaffingVsRevenueChart />
+      </div>
+
+      <div className="mb-6 sm:mb-8 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Register Audit Frequency (Last 30 Days)</h2>
+          <p className="text-sm text-gray-500 mt-1">Tracks audit frequency and discrepancy patterns by operator</p>
+        </div>
+        <AuditFrequencyChart />
       </div>
 
       <div className="mb-6 sm:mb-8 bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-6">

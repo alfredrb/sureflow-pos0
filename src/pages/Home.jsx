@@ -142,32 +142,17 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mt-12 w-full max-w-2xl">
-        {[
-          { icon: Users, label: "Operators", to: "/admin/operators" },
-          { icon: Package, label: "Inventory", to: "/admin/inventory" },
-          { icon: Receipt, label: "Transactions", to: "/admin/transactions" },
-          { icon: Keyboard, label: "Fn Keys", to: "/admin/function-keys" },
-          { icon: Monitor, label: "Registers", to: "/admin/registers" },
-          { icon: Percent, label: "Discounts", to: "/admin/discounts" },
-        ].map(item => {
-          const Icon = item.icon;
-          return (
-            <Link key={item.to} to={item.to}
-              className="flex flex-col items-center gap-2 py-3 px-2 rounded-xl text-blue-300/40 hover:text-blue-200 hover:bg-white/5 transition-colors">
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] uppercase tracking-wider">{item.label}</span>
-            </Link>
-          );
-        })}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 w-full max-w-lg">
+        <button
+          onClick={() => setShiftLookupOpen(true)}
+          className="flex items-center gap-4 bg-emerald-600 hover:bg-emerald-500 text-white p-5 rounded-2xl transition-all hover:-translate-y-0.5 shadow-lg shadow-emerald-600/20">
+          <Calendar className="w-6 h-6" />
+          <div>
+            <p className="font-semibold">Shift Lookup</p>
+            <p className="text-emerald-200 text-xs">Check your schedule</p>
+          </div>
+        </button>
       </div>
-
-      <Button 
-        onClick={() => setShiftLookupOpen(true)}
-        variant="outline"
-        className="mt-8 gap-2 border-blue-500/30 text-blue-300 hover:bg-blue-500/10">
-        <Calendar className="w-4 h-4" /> Shift Lookup
-      </Button>
 
       {/* Shift Lookup Modal */}
       <Dialog open={shiftLookupOpen} onOpenChange={setShiftLookupOpen}>
