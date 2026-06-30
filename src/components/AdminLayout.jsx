@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 
 const navItems = [
@@ -21,7 +21,23 @@ const navItems = [
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const location = useLocation();
+
+  useEffect(() => {
+    // Poll for pending override requests
+    const checkPending = async () => {
+      try {
+        const requests = await base44.entities.OverrideRequest.filter({ status: "pending" });
+        setPendingCount(requests.length);
+      } catch (e) {
+        // silently fail
+      }
+    };
+    checkPending();
+    const interval = setInterval(checkPending, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="h-screen flex bg-gray-50 max-w-[1366px] mx-auto">
@@ -45,12 +61,26 @@ export default function AdminLayout() {
           {navItems.map(item => {
             const Icon = item.icon;
             const active = location.pathname === item.path;
+            const hasAlert = item.label === "Remote Workstation" && pendingCount > 0;
             return (
               <Link key={item.path} to={item.path}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-white/5"}`}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <span>{item.label}</span>
+                    {hasAlert && (
+                      <span className="ml-auto flex items-center gap-1 bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-xs font-bold animate-pulse">
+                        <AlertCircle className="w-3 h-3" />
+                        {pendingCount}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {collapsed && hasAlert && (
+                  <span className="absolute right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                )}
               </Link>
             );
           })}
