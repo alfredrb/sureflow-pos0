@@ -30,8 +30,8 @@ export default function AdminRemoteWorkstation() {
 
   useEffect(() => {
     loadAll();
-    // Poll every 5 seconds for live updates
-    pollRef.current = setInterval(loadRequests, 5000);
+    // Poll every 30 seconds for live updates
+    pollRef.current = setInterval(loadRequests, 30000);
     return () => clearInterval(pollRef.current);
   }, []);
 

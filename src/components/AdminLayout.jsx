@@ -35,7 +35,7 @@ export default function AdminLayout() {
       }
     };
     checkPending();
-    const interval = setInterval(checkPending, 10000); // Check every 10 seconds
+    const interval = setInterval(checkPending, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
   }, []);
 
