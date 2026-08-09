@@ -92,14 +92,14 @@ export default function AdminFunctionKeys() {
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Function Keys</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Function Keys</h1>
         <p className="text-gray-500 text-sm mt-1">Customize the POS function key bar</p>
       </div>
 
       {/* View Toggle & Add Button */}
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex flex-wrap gap-2">
         <button
           onClick={() => setGridView(false)}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${!gridView ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
@@ -114,7 +114,7 @@ export default function AdminFunctionKeys() {
         </button>
         <button
           onClick={openCreate}
-          className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+          className="sm:ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors w-full sm:w-auto"
         >
           + Add Function Key
         </button>
@@ -135,24 +135,29 @@ export default function AdminFunctionKeys() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-         <div className="grid grid-cols-[60px_1fr_1fr_120px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+         <div className="hidden md:grid grid-cols-[60px_1fr_1fr_120px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
            <span>Key</span><span>Label</span><span>Action</span><span>Required Role</span><span></span>
          </div>
          <div className="divide-y divide-gray-50">
-           {keys.map(fk => {
-             const role = getRequiredRole(fk);
-             const cfg = ROLE_CONFIG[role];
-             return (
-               <div key={fk.id} className="grid grid-cols-[60px_1fr_1fr_120px_80px] gap-4 px-5 py-3 items-center hover:bg-gray-50/50">
-                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: fk.color }}>F{fk.key_number}</div>
-                 <p className="text-sm font-medium text-gray-900">{fk.label}</p>
-                 <p className="text-sm text-gray-500">{actions.find(a => a.value === fk.action)?.label || fk.action}</p>
-                 <span className={`text-xs px-2 py-1 rounded-full w-fit font-medium ${cfg.badge}`}>{cfg.label}</span>
-                 <button onClick={() => openEdit(fk)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-               </div>
-             );
-           })}
-         </div>
+            {keys.map(fk => {
+              const role = getRequiredRole(fk);
+              const cfg = ROLE_CONFIG[role];
+              return (
+                <div key={fk.id} className="md:grid md:grid-cols-[60px_1fr_1fr_120px_80px] md:gap-4 md:px-5 md:py-3 md:items-center md:hover:bg-gray-50/50 flex flex-col gap-2 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: fk.color }}>F{fk.key_number}</div>
+                    <button onClick={() => openEdit(fk)} className="md:hidden p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{fk.label}</p>
+                    <p className="text-sm text-gray-500">{actions.find(a => a.value === fk.action)?.label || fk.action}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full w-fit font-medium ${cfg.badge}`}>{cfg.label}</span>
+                  <button onClick={() => openEdit(fk)} className="hidden md:block p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                </div>
+              );
+            })}
+          </div>
        </div>
        </>
       )}

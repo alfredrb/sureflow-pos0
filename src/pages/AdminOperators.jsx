@@ -69,13 +69,13 @@ export default function AdminOperators() {
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Operator Management</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Operator Management</h1>
           <p className="text-gray-500 text-sm mt-1">{operators.length} operators</p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> Add Operator</Button>
+        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Operator</Button>
       </div>
 
       <div className="relative mb-4">
@@ -84,23 +84,30 @@ export default function AdminOperators() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[1fr_1fr_100px_100px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+        {/* Desktop header */}
+        <div className="hidden md:grid grid-cols-[1fr_1fr_100px_100px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
           <span>Operator</span><span>Email</span><span>Role</span><span>Status</span><span></span>
         </div>
         <div className="divide-y divide-gray-50">
           {filtered.map(op => (
-            <div key={op.id} className="grid grid-cols-[1fr_1fr_100px_100px_80px] gap-4 px-5 py-3.5 items-center hover:bg-gray-50/50">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{op.full_name}</p>
-                <p className="text-xs text-gray-400">ID: {op.operator_id}</p>
+            <div key={op.id} className="md:grid md:grid-cols-[1fr_1fr_100px_100px_80px] md:gap-4 md:px-5 md:py-3.5 md:items-center md:hover:bg-gray-50/50 flex flex-col gap-2 p-4 sm:p-5">
+              <div className="flex items-center justify-between md:block">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{op.full_name}</p>
+                  <p className="text-xs text-gray-400">ID: {op.operator_id}</p>
+                </div>
+                <div className="md:hidden flex gap-1">
+                  <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                  <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                </div>
               </div>
-              <p className="text-sm text-gray-500">{op.email || "—"}</p>
+              <p className="text-sm text-gray-500 md:block">{op.email || "—"}</p>
               <span className={`text-xs font-medium px-2 py-1 rounded-full w-fit ${roleBadge[op.role] || "bg-gray-100 text-gray-600"}`}>{roleLabel[op.role] || op.role}</span>
               <div className="flex items-center gap-1.5">
                 {op.status === "active" ? <UserCheck className="w-3.5 h-3.5 text-emerald-500" /> : <UserX className="w-3.5 h-3.5 text-red-400" />}
                 <span className="text-xs text-gray-500">{op.status}</span>
               </div>
-              <div className="flex gap-1">
+              <div className="hidden md:flex gap-1">
                 <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
                 <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>

@@ -30,6 +30,7 @@ const navItems = [
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [soundEnabled, setSoundEnabledState] = useState(getSoundEnabled());
   const [adminOperator, setAdminOperator] = useState(null);
@@ -39,6 +40,11 @@ export default function AdminLayout() {
   const [resetting, setResetting] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const storedOperator = sessionStorage.getItem("admin_operator");
@@ -181,9 +187,30 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="h-screen flex bg-gray-50 max-w-[1366px] mx-auto">
+    <div className="h-screen flex bg-gray-50 w-full">
+      {/* Mobile top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-[#0f172a] text-white flex items-center justify-between px-4 h-14 shadow-md">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Settings className="w-4 h-4" />
+          </div>
+          <span className="font-bold text-sm">SurePOS Admin</span>
+        </div>
+        <button onClick={() => setMobileOpen(true)} className="p-2 hover:bg-white/5 rounded-lg">
+          <Menu className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setMobileOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className={`bg-[#0f172a] text-white flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-64"} flex-shrink-0`}>
+      <aside className={`bg-[#0f172a] text-white flex flex-col transition-all duration-300 flex-shrink-0
+        ${collapsed ? "w-16" : "w-64"}
+        fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto
+        ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         <div className="p-4 flex items-center justify-between border-b border-white/5">
           {!collapsed && (
             <div className="space-y-1">
@@ -200,9 +227,14 @@ export default function AdminLayout() {
               )}
             </div>
           )}
-          <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 hover:bg-white/5 rounded-lg transition-colors">
-            {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 hover:bg-white/5 rounded-lg transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:inline-flex p-1.5 hover:bg-white/5 rounded-lg transition-colors">
+              {collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto scrollbar scrollbar-thumb-white/10 scrollbar-track-transparent">
@@ -261,7 +293,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pt-14 lg:pt-0">
         <Outlet />
       </main>
 

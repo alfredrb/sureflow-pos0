@@ -204,11 +204,11 @@ export default function AdminCashReconciliation() {
   if (loading) return <div className="p-6"><div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Cash Reconciliation</h1>
-          <p className="text-gray-500 mt-2">Track register cash deposits, longs, shorts, advances, and pickups</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Cash Reconciliation</h1>
+          <p className="text-gray-500 mt-2 text-sm sm:text-base">Track register cash deposits, longs, shorts, advances, and pickups</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
@@ -230,7 +230,7 @@ export default function AdminCashReconciliation() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200">
+      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto scrollbar-thin">
         <button
           onClick={() => setActiveTab("deposits")}
           className={`px-4 py-2 font-medium border-b-2 transition ${

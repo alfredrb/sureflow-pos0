@@ -103,15 +103,15 @@ export default function AdminStaffReport() {
   const totalNetSales = staffStats.reduce((s, o) => s + o.net_sales, 0);
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Staff Performance Report</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Staff Performance Report</h1>
         <p className="text-gray-500 text-sm mt-1">Sales, refunds, and transaction metrics by operator</p>
       </div>
 
       {/* Date Range Filter */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-        <div className="flex items-end gap-4 flex-wrap">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-400" />
             <label className="text-sm font-medium text-gray-700">From</label>
@@ -121,17 +121,19 @@ export default function AdminStaffReport() {
             <label className="text-sm font-medium text-gray-700">To</label>
             <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-32" />
           </div>
-          <Button onClick={generateReport} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
-            {loading ? "Loading..." : "Generate Report"}
-          </Button>
-          <Button onClick={exportCSV} variant="outline" className="gap-2">
-            <Download className="w-4 h-4" /> Export CSV
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={generateReport} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
+              {loading ? "Loading..." : "Generate Report"}
+            </Button>
+            <Button onClick={exportCSV} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" /> Export CSV
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Total Sales</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">${totalSalesAll.toFixed(2)}</p>
@@ -152,7 +154,8 @@ export default function AdminStaffReport() {
 
       {/* Staff Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <div className="overflow-x-auto">
+        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[700px]">
           <span>Staff Member</span>
           <span>Total Sales</span>
           <span>Refunds</span>
@@ -161,7 +164,7 @@ export default function AdminStaffReport() {
           <span>Overtime</span>
           <span>Net Sales</span>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-gray-50 min-w-[700px]">
           {staffStats.length === 0 ? (
             <div className="px-5 py-8 text-center text-gray-500 text-sm">No transactions found for this date range</div>
           ) : (
@@ -177,6 +180,7 @@ export default function AdminStaffReport() {
               </div>
             ))
           )}
+        </div>
         </div>
       </div>
     </div>

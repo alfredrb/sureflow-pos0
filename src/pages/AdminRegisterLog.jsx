@@ -74,44 +74,44 @@ export default function AdminRegisterLog() {
   const grouped = groupByDate(filtered);
 
   return (
-    <div className="p-6 h-full flex flex-col gap-4">
+    <div className="p-4 sm:p-6 h-full flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
+          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
             <ClipboardList className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Register Log</h1>
-            <p className="text-gray-500 text-sm">Logins, transactions, overrides and system events</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Register Log</h1>
+            <p className="text-gray-500 text-xs sm:text-sm">Logins, transactions, overrides and system events</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={() => exportToCSV(filtered, "register-log.csv")} variant="outline" size="sm" className="border-gray-300"><Download className="w-4 h-4 mr-1" /> Export</Button>
-          <span className="text-gray-400 text-sm">{filtered.length} events</span>
+          <span className="text-gray-400 text-sm whitespace-nowrap">{filtered.length} events</span>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 flex-shrink-0 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search operator, register, detail..."
             className="pl-9 h-9 text-sm" />
         </div>
         <select value={filterEvent} onChange={e => setFilterEvent(e.target.value)}
-          className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-auto">
           <option value="all">All Events</option>
           {Object.entries(EVENT_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <select value={filterRegister} onChange={e => setFilterRegister(e.target.value)}
-          className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-auto">
           {registers.map(r => <option key={r} value={r}>{r === "all" ? "All Registers" : r}</option>)}
         </select>
       </div>
 
       {/* Log Table */}
-      <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white">
+      <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-white">
         {loading ? (
           <div className="flex items-center justify-center h-48 text-gray-400">Loading...</div>
         ) : filtered.length === 0 ? (
@@ -120,7 +120,8 @@ export default function AdminRegisterLog() {
             <p className="text-sm">No log entries found</p>
           </div>
         ) : (
-          <table className="w-full text-sm border-collapse">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse min-w-[700px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Function</th>
@@ -177,11 +178,12 @@ export default function AdminRegisterLog() {
                 </React.Fragment>
               ))}
             </tbody>
-          </table>
-        )}
-      </div>
+            </table>
+            </div>
+            )}
+            </div>
 
-      {/* Detail Dialog */}
+            {/* Detail Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={v => !v && setSelectedLog(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

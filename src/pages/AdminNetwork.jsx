@@ -40,29 +40,29 @@ export default function AdminNetwork() {
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Network Management</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Network Management</h1>
           <p className="text-gray-500 text-sm mt-1">Monitor and manage register connections</p>
         </div>
-        <Button variant="outline" onClick={load}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
+        <Button variant="outline" onClick={load} className="w-full sm:w-auto"><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
-          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-2"><Wifi className="w-5 h-5 text-emerald-600" /></div>
-          <p className="text-2xl font-bold text-gray-900">{online}</p>
+      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5 text-center">
+          <div className="w-9 sm:w-10 h-9 sm:h-10 bg-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-2"><Wifi className="w-4 sm:w-5 h-4 sm:h-5 text-emerald-600" /></div>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">{online}</p>
           <p className="text-gray-500 text-xs">Online</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
-          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2"><WifiOff className="w-5 h-5 text-gray-500" /></div>
-          <p className="text-2xl font-bold text-gray-900">{offline}</p>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5 text-center">
+          <div className="w-9 sm:w-10 h-9 sm:h-10 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2"><WifiOff className="w-4 sm:w-5 h-4 sm:h-5 text-gray-500" /></div>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">{offline}</p>
           <p className="text-gray-500 text-xs">Offline</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center">
-          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-2"><Wrench className="w-5 h-5 text-amber-600" /></div>
-          <p className="text-2xl font-bold text-gray-900">{maint}</p>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-5 text-center">
+          <div className="w-9 sm:w-10 h-9 sm:h-10 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-2"><Wrench className="w-4 sm:w-5 h-4 sm:h-5 text-amber-600" /></div>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">{maint}</p>
           <p className="text-gray-500 text-xs">Maintenance</p>
         </div>
       </div>
@@ -73,19 +73,19 @@ export default function AdminNetwork() {
         </div>
         <div className="divide-y divide-gray-50">
           {registers.map(r => (
-            <div key={r.id} className="px-5 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-3 h-3 rounded-full ${r.status === "online" ? "bg-emerald-500 animate-pulse" : r.status === "maintenance" ? "bg-amber-500" : "bg-gray-300"}`} />
-                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+            <div key={r.id} className="px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${r.status === "online" ? "bg-emerald-500 animate-pulse" : r.status === "maintenance" ? "bg-amber-500" : "bg-gray-300"}`} />
+                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Monitor className="w-5 h-5 text-gray-500" />
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900">{r.name} <span className="text-gray-400 text-xs">({r.register_id})</span></p>
-                  <p className="text-xs text-gray-400">{r.location || "No location"}</p>
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{r.name} <span className="text-gray-400 text-xs">({r.register_id})</span></p>
+                  <p className="text-xs text-gray-400 truncate">{r.location || "No location"}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pl-4 sm:pl-0">
+                <div className="sm:text-right">
                   <p className="font-mono text-sm text-gray-700">{r.ip_address || "No IP"}</p>
                   <div className="text-xs text-gray-400 space-x-3">
                     <span>Mask: {r.subnet_mask || "—"}</span>

@@ -55,34 +55,34 @@ export default function AdminGiftCardManager() {
   if (loading) return <div className="p-6 text-center">Loading...</div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Gift Card Manager</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gift Card Manager</h1>
         <p className="text-gray-500 text-sm mt-1">Manage and track gift card inventory</p>
       </div>
 
       {/* Stats */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-gray-600 text-sm font-medium">Active Cards</p>
             <CreditCard className="w-4 h-4 text-blue-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">{stats.active}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.active}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-gray-600 text-sm font-medium">Outstanding Balance</p>
             <DollarSign className="w-4 h-4 text-green-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">${stats.totalBalance.toFixed(2)}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900">${stats.totalBalance.toFixed(2)}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-gray-600 text-sm font-medium">Total Sold</p>
             <TrendingDown className="w-4 h-4 text-purple-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">${stats.totalSold.toFixed(2)}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900">${stats.totalSold.toFixed(2)}</p>
         </div>
       </div>
 
@@ -92,13 +92,13 @@ export default function AdminGiftCardManager() {
           placeholder="Search card number or operator..."
           value={search}
           onChange={e => handleSearch(e.target.value)}
-          className="max-w-xs"
+          className="w-full sm:max-w-xs"
         />
       </div>
 
       {/* Cards Table */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        <table className="w-full">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[700px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Card Number</th>

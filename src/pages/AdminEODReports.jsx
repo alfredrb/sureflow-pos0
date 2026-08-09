@@ -36,17 +36,17 @@ export default function AdminEODReports() {
   if (loading) return <div className="p-6"><div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">End of Day Reports</h1>
-        <p className="text-gray-500 mt-2">Daily consolidated sales and transaction data</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">End of Day Reports</h1>
+        <p className="text-gray-500 mt-2 text-sm sm:text-base">Daily consolidated sales and transaction data</p>
       </div>
 
-      <div className="flex gap-2 mb-6">
-        <Button variant={sortBy === "desc" ? "default" : "outline"} onClick={() => setSortBy("desc")} className="bg-blue-600 hover:bg-blue-700">
+      <div className="flex flex-col sm:flex-row gap-2 mb-6">
+        <Button variant={sortBy === "desc" ? "default" : "outline"} onClick={() => setSortBy("desc")} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
           Newest First
         </Button>
-        <Button variant={sortBy === "asc" ? "default" : "outline"} onClick={() => setSortBy("asc")}>
+        <Button variant={sortBy === "asc" ? "default" : "outline"} onClick={() => setSortBy("asc")} className="w-full sm:w-auto">
           Oldest First
         </Button>
       </div>
@@ -57,7 +57,7 @@ export default function AdminEODReports() {
         ) : (
           sortedReports.map((report) => (
             <div key={report.id} className="bg-white rounded-lg border border-gray-200 p-4 cursor-pointer hover:shadow-md transition" onClick={() => setSelectedReport(report)}>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Date</p>
                   <p className="text-lg font-bold text-gray-900">{new Date(report.report_date).toLocaleDateString()}</p>

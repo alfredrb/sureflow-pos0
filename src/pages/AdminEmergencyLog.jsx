@@ -62,11 +62,11 @@ export default function AdminEmergencyLog() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Emergency Alert Log</h1>
-          <p className="text-gray-500 mt-2">Real-time robbery and emergency alert tracking</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Emergency Alert Log</h1>
+          <p className="text-gray-500 mt-2 text-sm sm:text-base">Real-time robbery and emergency alert tracking</p>
         </div>
       </div>
 
@@ -83,9 +83,9 @@ export default function AdminEmergencyLog() {
             {activeAlerts.map(alert => (
               <div
                 key={alert.id}
-                className="bg-white rounded-lg border border-red-200 p-4 flex items-center justify-between"
+                className="bg-white rounded-lg border border-red-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between"
               >
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">
                       <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
@@ -103,7 +103,7 @@ export default function AdminEmergencyLog() {
                     {new Date(alert.timestamp).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex gap-2 ml-4 flex-shrink-0">
+                <div className="flex gap-2 flex-shrink-0">
                   <Button
                     onClick={() => dismissAlert(alert)}
                     variant="outline"
