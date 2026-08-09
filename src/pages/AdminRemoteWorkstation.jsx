@@ -342,21 +342,21 @@ export default function AdminRemoteWorkstation() {
   );
 
   return (
-    <div className="p-6 h-full flex flex-col gap-6 max-w-6xl">
+    <div className="p-4 sm:p-6 h-full flex flex-col gap-4 sm:gap-6 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-violet-600 rounded-xl flex items-center justify-center">
+          <div className="w-9 h-9 bg-violet-600 rounded-xl flex items-center justify-center flex-shrink-0">
             <Monitor className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Remote Workstation</h1>
-            <p className="text-gray-500 text-sm">Monitor registers and approve remote override requests</p>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Remote Workstation</h1>
+            <p className="text-gray-500 text-xs sm:text-sm">Monitor registers and approve remote override requests</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {pendingRequests.length > 0 && (
-            <span className="flex items-center gap-1.5 bg-amber-100 text-amber-700 border border-amber-300 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
+            <span className="flex items-center gap-1.5 bg-amber-100 text-amber-700 border border-amber-300 px-3 py-1 rounded-full text-xs sm:text-sm font-bold animate-pulse">
               <ShieldAlert className="w-4 h-4" />
               {pendingRequests.length} pending override{pendingRequests.length !== 1 ? "s" : ""}
             </span>
@@ -372,7 +372,7 @@ export default function AdminRemoteWorkstation() {
             <button onClick={loadAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 text-sm transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-400 whitespace-nowrap">
               {lastRefresh.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </span>
           </div>

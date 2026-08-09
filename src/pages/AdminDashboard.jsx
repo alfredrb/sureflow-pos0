@@ -41,7 +41,7 @@ export default function AdminDashboard() {
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl">
+    <div className="p-3 sm:p-6 lg:p-8 w-full">
       <div className="mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500 text-xs sm:text-sm mt-1">System overview and recent activity</p>

@@ -129,19 +129,19 @@ export default function AdminPayrollReport() {
   if (loading) return <div className="p-6"><div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full" /></div>;
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Payroll Report</h1>
-          <p className="text-gray-500 mt-2">Hours worked and overtime summary by operator</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Payroll Report</h1>
+          <p className="text-gray-500 mt-2 text-sm sm:text-base">Hours worked and overtime summary by operator</p>
         </div>
-        <Button onClick={exportToCSV} className="bg-blue-600 hover:bg-blue-700 gap-2">
+        <Button onClick={exportToCSV} className="bg-blue-600 hover:bg-blue-700 gap-2 w-full sm:w-auto">
           <Download className="w-4 h-4" /> Export CSV
         </Button>
       </div>
 
       {/* Date Range Filter */}
-      <div className="bg-white rounded-lg border border-gray-100 p-4 mb-6 flex gap-4 items-end">
+      <div className="bg-white rounded-lg border border-gray-100 p-4 mb-6 flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
           <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -150,7 +150,7 @@ export default function AdminPayrollReport() {
           <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
           <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
-        <Button onClick={loadData} variant="outline">Filter</Button>
+        <Button onClick={loadData} variant="outline" className="w-full sm:w-auto">Filter</Button>
       </div>
 
       {/* Summary Cards */}

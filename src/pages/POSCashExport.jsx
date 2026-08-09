@@ -86,7 +86,7 @@ export default function POSCashExport() {
   const pickupTotal = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl">
+    <div className="p-3 sm:p-6 lg:p-8 w-full">
       <div className="mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Upload className="w-5 h-5" />
