@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/data";
-import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle, Building2 } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function POSLogin() {
@@ -13,14 +13,10 @@ export default function POSLogin() {
   const [online, setOnline] = useState(navigator.onLine);
   const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "");
   const [registerIp, setRegisterIp] = useState(sessionStorage.getItem("pos_register_ip") || "—");
-  const [storeNum, setStoreNum] = useState(() => sessionStorage.getItem("pos_store_id") || "");
-  const [storeName, setStoreName] = useState(sessionStorage.getItem("pos_store_name") || "");
   const [showConfig, setShowConfig] = useState(false);
   const [configPin, setConfigPin] = useState("");
   const [configUnlocked, setConfigUnlocked] = useState(false);
   const [availableRegisters, setAvailableRegisters] = useState([]);
-  const [availableStores, setAvailableStores] = useState([]);
-  const [selectedStore, setSelectedStore] = useState(() => sessionStorage.getItem("pos_store_id") || "");
   const [detectedIp, setDetectedIp] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [forceConfig, setForceConfig] = useState(false);
@@ -55,13 +51,6 @@ export default function POSLogin() {
           openForcedConfig();
         } else {
           const reg = results[0];
-          setStoreNum(reg.store_id || "");
-          setStoreName(reg.store_name || "");
-          sessionStorage.setItem("pos_store_id", reg.store_id || "");
-          sessionStorage.removeItem("pos_store_name");
-          if (reg.store_id) {
-            base44.entities.Store.filter({ store_number: reg.store_id }).then(s => { if (s[0]) { setStoreName(s[0].name); sessionStorage.setItem("pos_store_name", s[0].name); } }).catch(() => {});
-          }
           if (reg.ip_address) {
             setRegisterIp(reg.ip_address);
             sessionStorage.setItem("pos_register_ip", reg.ip_address);
@@ -95,13 +84,11 @@ export default function POSLogin() {
     setShowConfig(true);
     setConfigUnlocked(true);
     setConfigLoading(true);
-    const [registers, stores, ip] = await Promise.all([
+    const [registers, ip] = await Promise.all([
       base44.entities.Register.list(),
-      base44.entities.Store.list(),
       getLocalIP()
     ]);
     setAvailableRegisters(registers);
-    setAvailableStores(stores);
     setDetectedIp(ip);
     setConfigLoading(false);
   };
@@ -123,13 +110,11 @@ export default function POSLogin() {
       const techs = await base44.entities.Operator.filter({ role: "technician", status: "active" });
       const all = [...csms, ...managers, ...techs];
       if (all.some(op => op.pin === configPin)) {
-        const [registers, stores, ip] = await Promise.all([
+        const [registers, ip] = await Promise.all([
           base44.entities.Register.list(),
-          base44.entities.Store.list(),
           getLocalIP()
         ]);
         setAvailableRegisters(registers);
-        setAvailableStores(stores);
         setDetectedIp(ip);
         setConfigUnlocked(true);
       } else {
@@ -152,16 +137,10 @@ export default function POSLogin() {
       });
       setRegisterNum(reg.register_id);
       setRegisterIp(updatedIp);
-      setStoreNum(reg.store_id || "");
       sessionStorage.setItem("pos_register_num", reg.register_id);
       sessionStorage.setItem("pos_register_ip", updatedIp);
-      sessionStorage.setItem("pos_store_id", reg.store_id || "");
-      let sName = "";
-      if (reg.store_id) {
-        try { const s = await base44.entities.Store.filter({ store_number: reg.store_id }); sName = s[0]?.name || ""; setStoreName(sName); sessionStorage.setItem("pos_store_name", sName); } catch {}
-      } else { setStoreName(""); sessionStorage.removeItem("pos_store_name"); }
       setShowConfig(false);
-      toast({ title: "Register Set", description: `${reg.register_id}${reg.store_id ? ` · Store ${reg.store_id}` : ""} — IP: ${updatedIp}` });
+      toast({ title: "Register Set", description: `${reg.register_id} — IP: ${updatedIp}` });
     } catch {
       toast({ title: "Error", description: "Could not update register", variant: "destructive" });
     }
@@ -192,16 +171,6 @@ export default function POSLogin() {
         setPin("");
       } else {
         const op = operatorData[0];
-        // Store-based access: non-technicians may only log in at their assigned store
-        if (op.role !== "technician") {
-          const regStoreId = sessionStorage.getItem("pos_store_id") || "";
-          if (op.store_id && regStoreId && op.store_id !== regStoreId) {
-            toast({ title: "Access Denied", description: `This operator is assigned to Store ${op.store_id}, not Store ${regStoreId}.`, variant: "destructive" });
-            setStep("id"); setOperatorId(""); setPin("");
-            setLoading(false);
-            return;
-          }
-        }
         // Detect an active session on another register (most recent login without a later logout)
         const currentReg = sessionStorage.getItem("pos_register_num");
         const logs = await base44.entities.RegisterLog.filter({ operator_id: op.operator_id }, "-created_date", 100);
@@ -319,11 +288,6 @@ export default function POSLogin() {
             </span>
           </div>
           <div className="text-right">
-            {storeNum && (
-              <p className="text-indigo-300/70 text-[10px] font-mono flex items-center justify-end gap-1">
-                <Building2 className="w-2.5 h-2.5" /> STORE {storeNum}{storeName ? ` · ${storeName}` : ""}
-              </p>
-            )}
             <p className="text-blue-200/60 text-xs font-mono">{registerNum}</p>
             <p className="text-blue-300/20 text-[10px] font-mono">{registerIp}</p>
           </div>
@@ -511,25 +475,12 @@ export default function POSLogin() {
                     <p className="text-yellow-400/70 text-[10px]">Could not auto-detect IP — existing register IP will be kept</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-blue-300/50 text-xs mb-1">Store Number:</p>
-                  <select
-                    value={selectedStore}
-                    onChange={e => setSelectedStore(e.target.value)}
-                    className="w-full bg-[#0a0e27] border border-blue-500/20 rounded-lg px-3 py-2 text-white text-sm font-mono"
-                  >
-                    <option value="">All Stores</option>
-                    {availableStores.map(s => (
-                      <option key={s.id} value={s.store_number}>{s.store_number} — {s.name}</option>
-                    ))}
-                  </select>
-                </div>
                 <p className="text-blue-300/50 text-xs">Select a register:</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {availableRegisters.filter(reg => !selectedStore || reg.store_id === selectedStore).length === 0 && (
+                  {availableRegisters.length === 0 && (
                     <p className="text-blue-300/30 text-xs text-center py-4">No registers configured in admin panel</p>
                   )}
-                  {availableRegisters.filter(reg => !selectedStore || reg.store_id === selectedStore).map(reg => (
+                  {availableRegisters.map(reg => (
                     <button
                       key={reg.id}
                       disabled={configLoading}
@@ -543,7 +494,6 @@ export default function POSLogin() {
                       <div>
                         <p className="font-mono text-sm font-semibold">{reg.register_id}</p>
                         <p className="text-[10px] text-blue-300/40">{reg.name}{reg.location ? ` — ${reg.location}` : ""}</p>
-                        {reg.store_id && <p className="text-[10px] text-indigo-400/60 flex items-center gap-1"><Building2 className="w-2.5 h-2.5" />Store {reg.store_id}</p>}
                       </div>
                       <div className="text-right">
                         <p className="font-mono text-[10px] text-blue-300/30">{detectedIp || reg.ip_address || "—"}</p>

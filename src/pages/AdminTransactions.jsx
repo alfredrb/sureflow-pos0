@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
-import { currentStoreId, scopeByStore } from "@/lib/storeScope";
 
 const exportToCSV = (data, filename) => {
   const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
@@ -111,7 +110,7 @@ export default function AdminTransactions() {
   const [detail, setDetail] = useState(null);
 
   const load = async () => {
-    setTransactions(scopeByStore(await base44.entities.Transaction.list("-created_date", 200), currentStoreId()));
+    setTransactions(await base44.entities.Transaction.list("-created_date", 200));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
