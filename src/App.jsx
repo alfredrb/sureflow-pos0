@@ -45,6 +45,7 @@ import AdminStoreSettings from '@/pages/AdminStoreSettings';
 import AdminLossPrevention from '@/pages/AdminLossPrevention';
 import AdminHardwareStatus from '@/pages/AdminHardwareStatus';
 import AdminPermissions from '@/pages/AdminPermissions';
+import AdminDataViewer from '@/pages/AdminDataViewer';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -107,6 +108,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/loss-prevention" element={<AdminLossPrevention />} />
           <Route path="/admin/hardware" element={<AdminHardwareStatus />} />
           <Route path="/admin/permissions" element={<AdminPermissions />} />
+          <Route path="/admin/data-viewer" element={<AdminDataViewer />} />
         </Route>
       </Route>
 
