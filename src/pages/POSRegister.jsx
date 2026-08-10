@@ -1066,7 +1066,7 @@ export default function POSRegister() {
       const discountedPrice = bestDiscount ? product.price * (1 - bestDiscount.percentage / 100) : product.price;
       const existing = prev.find(i => i.sku === product.sku);
       if (existing) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * discountedPrice, discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price } : i);
-      return [...prev, { sku: product.sku, name: product.name, price: discountedPrice, qty: 1, total: discountedPrice, tax_rate: product.tax_rate || 0, discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price }];
+      return [...prev, { sku: product.sku, name: product.name, price: discountedPrice, qty: 1, total: discountedPrice, tax_rate: taxExemptAppliedId ? 0 : (product.tax_rate || 0), discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price }];
     });
   };
 
@@ -1664,6 +1664,13 @@ export default function POSRegister() {
       {trainingMode && (
         <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
           <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED</span>
+        </div>
+      )}
+
+      {/* Tax Exempt Banner */}
+      {taxExemptAppliedId && (
+        <div className="bg-emerald-500/10 border-b-2 border-emerald-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
+          <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest">✓ TAX EXEMPT — {taxExemptAppliedId}</span>
         </div>
       )}
 
