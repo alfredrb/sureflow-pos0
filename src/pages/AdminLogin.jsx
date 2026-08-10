@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminLogin() {
   const [pin, setPin] = useState("");
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(false);
   const [time, setTime] = useState(new Date());
   const navigate = useNavigate();
@@ -27,11 +28,16 @@ export default function AdminLogin() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const ops = await base44.entities.Operator.filter({ pin: pin, status: "active" });
+      if (!userId.trim() || pin.length === 0) {
+        toast({ title: "Access Denied", description: "User ID and PIN are required", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      const ops = await base44.entities.Operator.filter({ operator_id: userId.trim(), pin: pin, status: "active" });
       const admin = ops.find(o => o.role === "manager" || o.role === "csm");
 
       if (!admin) {
-        toast({ title: "Access Denied", description: "Invalid PIN or insufficient permissions (Manager or CSM required)", variant: "destructive" });
+        toast({ title: "Access Denied", description: "Invalid User ID or PIN", variant: "destructive" });
         setPin("");
       } else {
         sessionStorage.setItem("admin_operator", JSON.stringify(admin));
@@ -60,10 +66,23 @@ export default function AdminLogin() {
       <p className="text-blue-300/50 text-sm mb-10">SurePOS Management System</p>
 
       <div className="w-full max-w-xs bg-[#111638] border border-blue-500/10 rounded-2xl p-6 space-y-6">
-        <div className="text-center">
-          <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-3">Admin PIN Required</p>
-          <div className="bg-[#0a0e27] rounded-xl p-4 font-mono text-3xl text-white tracking-[0.5em] min-h-[60px] flex items-center justify-center border border-blue-500/10">
-            {"•".repeat(pin.length) || <span className="text-blue-500/20">---</span>}
+        <div className="space-y-4">
+          <div className="text-left">
+            <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-2">User ID</p>
+            <input
+              type="text"
+              value={userId}
+              onChange={e => setUserId(e.target.value)}
+              placeholder="Enter User ID"
+              className="w-full bg-[#0a0e27] rounded-xl px-4 py-3 text-white text-center text-lg tracking-wider border border-blue-500/10 focus:outline-none focus:border-blue-500/40"
+              autoFocus
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-3">Admin PIN</p>
+            <div className="bg-[#0a0e27] rounded-xl p-4 font-mono text-3xl text-white tracking-[0.5em] min-h-[60px] flex items-center justify-center border border-blue-500/10">
+              {"•".repeat(pin.length) || <span className="text-blue-500/20">---</span>}
+            </div>
           </div>
         </div>
 

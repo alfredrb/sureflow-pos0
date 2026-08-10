@@ -893,6 +893,7 @@ export default function POSRegister() {
   const [supOverrideDialog, setSupOverrideDialog] = useState(false);
   const [supOverridePin, setSupOverridePin] = useState("");
   const [supOverrideError, setSupOverrideError] = useState("");
+  const [supOverrideUserId, setSupOverrideUserId] = useState("");
   const [pendingFunctionKey, setPendingFunctionKey] = useState(null);
   // Remote override
   const [remoteRequestSent, setRemoteRequestSent] = useState(null); // { requestId, action }
@@ -1162,17 +1163,22 @@ export default function POSRegister() {
 
   const handleSupOverrideSubmit = async () => {
     setSupOverrideError("");
-    const ops = await base44.entities.Operator.filter({ pin: supOverridePin });
+    if (!supOverrideUserId.trim() || !supOverridePin.trim()) {
+      setSupOverrideError("Enter supervisor User ID and PIN");
+      return;
+    }
+    const ops = await base44.entities.Operator.filter({ operator_id: supOverrideUserId.trim(), pin: supOverridePin });
     const requiredRole = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
     const sup = ops.find(o =>
       requiredRole === "manager" ? o.role === "manager" : (o.role === "csm" || o.role === "manager")
     );
     if (!sup) {
-      setSupOverrideError(requiredRole === "manager" ? "Invalid PIN — Manager required" : "Invalid PIN — CSM or Manager required");
+      setSupOverrideError(requiredRole === "manager" ? "Invalid credentials — Manager required" : "Invalid credentials — CSM or Manager required");
       return;
     }
     setSupOverrideDialog(false);
     setSupOverridePin("");
+    setSupOverrideUserId("");
     toast({ title: "Override Granted", description: `${sup.full_name} authorized the action` });
     if (pendingFunctionKey) {
       writeLog("override", `Override for "${pendingFunctionKey.label}" authorized by ${sup.full_name}`, {
@@ -2017,7 +2023,7 @@ export default function POSRegister() {
       </Dialog>
 
       {/* Override Authorization Dialog */}
-      <Dialog open={supOverrideDialog} onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}>
+      <Dialog open={supOverrideDialog} onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideUserId(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}>
         <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
           <DialogHeader>
             <DialogTitle className="text-red-400 text-sm">
@@ -2032,8 +2038,15 @@ export default function POSRegister() {
             {(() => {
               const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
               return role === "manager" ? "requires Manager authorization." : "requires CSM or Manager authorization.";
-            })()} Enter their PIN or send a remote override request.
+            })()} Enter their User ID and PIN, or send a remote override request.
           </p>
+          <Input
+            placeholder="Supervisor User ID"
+            value={supOverrideUserId}
+            onChange={e => setSupOverrideUserId(e.target.value)}
+            className="bg-[#0a0e27] border-red-500/20 text-white text-center"
+            autoFocus
+          />
           <Input
             type="password"
             placeholder={(() => {
@@ -2044,7 +2057,6 @@ export default function POSRegister() {
             onChange={e => setSupOverridePin(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSupOverrideSubmit()}
             className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
-            autoFocus
           />
           {supOverrideError && <p className="text-red-400 text-xs text-center">{supOverrideError}</p>}
           <div className="flex gap-2">
