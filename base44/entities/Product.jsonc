@@ -39,6 +39,10 @@
     "return_period_days": {
       "type": "number",
       "description": "Number of days within which items can be returned. 0 or blank = no restriction."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this product belongs to. Blank = shared/catalog product available to all stores."
     }
   },
   "required": [

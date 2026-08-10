@@ -132,6 +132,10 @@
     "terminal_serial": {
       "type": "string",
       "description": "POS terminal / computer serial number"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this register belongs to. POS reads this to scope all data to the store."
     }
   },
   "required": [

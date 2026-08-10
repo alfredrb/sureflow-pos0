@@ -76,6 +76,10 @@
       "type": "number",
       "default": 5,
       "description": "Percentage of the sale subtotal earned back as rewards credit (e.g. 5 = 5%)"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number these settings apply to. Blank = global default settings."
     }
   },
   "required": [

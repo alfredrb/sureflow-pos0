@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock } from "lucide-react";
+import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock, Building2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -187,6 +187,17 @@ export default function Home() {
           <div>
             <p className="font-semibold">Admin Dashboard</p>
             <p className="text-blue-300/50 text-xs">Manage your system</p>
+          </div>
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 w-full max-w-lg">
+        <Link to="/central/login"
+          className="flex items-center gap-4 bg-indigo-600 hover:bg-indigo-500 text-white p-5 rounded-2xl transition-all hover:-translate-y-0.5 shadow-lg shadow-indigo-600/20">
+          <Building2 className="w-6 h-6" />
+          <div>
+            <p className="font-semibold">Central Admin</p>
+            <p className="text-indigo-200 text-xs">All-store headquarters</p>
           </div>
         </Link>
       </div>
