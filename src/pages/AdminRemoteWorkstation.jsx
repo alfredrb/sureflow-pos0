@@ -37,6 +37,8 @@ export default function AdminRemoteWorkstation() {
   const [selectedRegisterLogout, setSelectedRegisterLogout] = useState(null);
   const [logoutReason, setLogoutReason] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [forceLogoutDialog, setForceLogoutDialog] = useState(false);
+  const [forceLogoutLoading, setForceLogoutLoading] = useState(false);
   const [adminOperator, setAdminOperator] = useState(null);
   const [txDetail, setTxDetail] = useState(null);
   const { toast } = useToast();
@@ -61,6 +63,7 @@ export default function AdminRemoteWorkstation() {
     }
     // Poll every 5 seconds for live updates when auto-refresh is on
     const refresh = async () => {
+      await checkAutoLogouts();
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadRequests();
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -215,23 +218,25 @@ export default function AdminRemoteWorkstation() {
   // An operator counts as logged in here only if their most recent session event on this
   // register is a login AND they have not since logged in/out on a different register
   // (e.g. a dual-login override that force-logged them out and moved them elsewhere).
-  const getCurrentOperator = (registerId) => {
-    const regEvents = logs
+  const computeCurrentOperator = (registerId, logsArr, operatorsArr = operators) => {
+    const regEvents = logsArr
       .filter(l => l.register_id === registerId && (l.event_type === "login" || l.event_type === "logout"))
       .sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
     const lastEvent = regEvents[0];
     if (!lastEvent || lastEvent.event_type !== "login") return null;
     const opId = lastEvent.operator_id;
     const loginTime = new Date(lastEvent.created_date).getTime();
-    const movedElsewhere = logs.some(l =>
+    const movedElsewhere = logsArr.some(l =>
       l.operator_id === opId &&
       l.register_id !== registerId &&
       (l.event_type === "login" || l.event_type === "logout") &&
       new Date(l.created_date).getTime() > loginTime
     );
     if (movedElsewhere) return null;
-    return operators.find(o => o.operator_id === opId) || { operator_id: opId, full_name: lastEvent.operator_name, role: lastEvent.operator_role };
+    return operatorsArr.find(o => o.operator_id === opId) || { operator_id: opId, full_name: lastEvent.operator_name, role: lastEvent.operator_role };
   };
+
+  const getCurrentOperator = (registerId) => computeCurrentOperator(registerId, logs);
 
   // Get active transaction for a register (most recent non-completed)
   const getActiveTransaction = (registerId) => {
@@ -249,6 +254,7 @@ export default function AdminRemoteWorkstation() {
       const registerId = selectedRegisterLogout.id || Object.keys(selectedRegisterLogout).find(k => selectedRegisterLogout[k] === selectedRegisterLogout.register_id && k !== 'register_id');
       await base44.entities.Register.update(registerId || selectedRegisterLogout.register_id, {
         remote_logout_requested: true,
+        remote_logout_requested_at: new Date().toISOString(),
         remote_logout_reason: logoutReason || "Remote logout requested"
       });
       await base44.entities.RegisterLog.create({
@@ -270,6 +276,91 @@ export default function AdminRemoteWorkstation() {
       toast({ title: "Error initiating logout", description: e.message || "Check console for details", variant: "destructive" });
     }
     setLogoutLoading(false);
+  };
+
+  // Immediately end the operator's session on a register, regardless of transaction state.
+  const forceLogoutRegister = async (reg, detail) => {
+    const currentOp = getCurrentOperator(reg.register_id);
+    await base44.entities.Register.update(reg.id, {
+      remote_logout_requested: false,
+      remote_logout_requested_at: null,
+      remote_logout_reason: "",
+      assigned_operator: ""
+    });
+    if (currentOp) {
+      await base44.entities.RegisterLog.create({
+        event_type: "logout",
+        operator_id: currentOp.operator_id,
+        operator_name: currentOp.full_name,
+        operator_role: currentOp.role || "",
+        register_id: reg.register_id,
+        register_name: reg.name,
+        detail: detail || `Force logout by Admin — ${currentOp.full_name}`
+      });
+    }
+  };
+
+  const handleForceLogoutConfirm = async () => {
+    if (!selectedRegisterLogout) return;
+    setForceLogoutLoading(true);
+    try {
+      await forceLogoutRegister(selectedRegisterLogout, `Force logout by Admin — ${selectedRegisterLogout.name}`);
+      toast({ title: "Force logout complete", description: `${selectedRegisterLogout.name} operator logged out immediately` });
+      setForceLogoutDialog(false);
+      setSelectedRegisterLogout(null);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadRegisters();
+      await loadLogs();
+    } catch (e) {
+      toast({ title: "Error forcing logout", description: e.message || "Check console for details", variant: "destructive" });
+    }
+    setForceLogoutLoading(false);
+  };
+
+  // Auto-logout: if a remote logout request is not acknowledged within 10 minutes,
+  // force the operator out. Runs on every poll cycle.
+  const checkAutoLogouts = async () => {
+    try {
+      const [regs, logRecords] = await Promise.all([
+        base44.entities.Register.list(),
+        base44.entities.RegisterLog.list("-created_date", 100)
+      ]);
+      const now = Date.now();
+      const due = regs.filter(r =>
+        r.remote_logout_requested === true &&
+        r.remote_logout_requested_at &&
+        (now - new Date(r.remote_logout_requested_at).getTime()) >= 10 * 60 * 1000
+      );
+      let loggedOut = 0;
+      for (const reg of due) {
+        const op = computeCurrentOperator(reg.register_id, logRecords);
+        await base44.entities.Register.update(reg.id, {
+          remote_logout_requested: false,
+          remote_logout_requested_at: null,
+          remote_logout_reason: "",
+          assigned_operator: ""
+        });
+        if (op) {
+          await base44.entities.RegisterLog.create({
+            event_type: "logout",
+            operator_id: op.operator_id,
+            operator_name: op.full_name,
+            operator_role: op.role || "",
+            register_id: reg.register_id,
+            register_name: reg.name,
+            detail: `Auto force logout — operator did not acknowledge remote logout within 10 minutes (${op.full_name})`
+          });
+          loggedOut++;
+        }
+      }
+      if (loggedOut > 0) {
+        toast({ title: `${loggedOut} register(s) auto-logged out`, description: "Remote logout not acknowledged within 10 minutes", variant: "destructive" });
+        await loadRegisters();
+        await loadLogs();
+      }
+    } catch (e) {
+      console.error("Auto logout check failed", e);
+    }
   };
 
   const handleApprove = async () => {
@@ -700,8 +791,15 @@ export default function AdminRemoteWorkstation() {
                   <Button onClick={() => togglePause(reg)} size="sm" variant={reg.paused ? "default" : "outline"} className={`flex-1 text-xs ${reg.paused ? "bg-red-600 hover:bg-red-700 text-white" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}>
                     {reg.paused ? "Unpause" : "Pause"}
                   </Button>
-                  <Button onClick={() => { setSelectedRegisterLogout(reg); setLogoutReason(""); setLogoutDialog(true); }} size="sm" variant="outline" className="flex-1 text-xs border-blue-200 text-blue-600 hover:bg-blue-50">
-                    Logout
+                  <Button onClick={() => {
+                    if (reg.remote_logout_requested) {
+                      setSelectedRegisterLogout(reg);
+                      setForceLogoutDialog(true);
+                    } else {
+                      setSelectedRegisterLogout(reg); setLogoutReason(""); setLogoutDialog(true);
+                    }
+                  }} size="sm" variant="outline" className={`flex-1 text-xs ${reg.remote_logout_requested ? "border-red-300 text-red-600 hover:bg-red-50" : "border-blue-200 text-blue-600 hover:bg-blue-50"}`}>
+                    {reg.remote_logout_requested ? "Force Logout" : "Logout"}
                   </Button>
                 </div>
 
@@ -715,6 +813,12 @@ export default function AdminRemoteWorkstation() {
                     {reg.remote_logout_reason && (
                       <p className="text-[10px] text-gray-500">Reason: {reg.remote_logout_reason}</p>
                     )}
+                    {reg.remote_logout_requested_at && (() => {
+                      const remaining = Math.max(0, 10 * 60 * 1000 - (Date.now() - new Date(reg.remote_logout_requested_at).getTime()));
+                      const m = Math.floor(remaining / 60000);
+                      const s = Math.floor((remaining % 60000) / 1000);
+                      return <p className="text-[10px] text-amber-600 font-semibold">Auto-logout in {m}m {s}s</p>;
+                    })()}
                   </div>
                 ) : currentOp ? (
                   <div className="mb-3 bg-blue-50 rounded-xl p-3 space-y-1.5 border border-blue-100">
@@ -903,6 +1007,33 @@ export default function AdminRemoteWorkstation() {
                 <Button variant="outline" onClick={() => setLogoutDialog(false)} className="flex-1">Cancel</Button>
                 <Button onClick={handleRemoteLogout} disabled={logoutLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
                   {logoutLoading ? "Initiating..." : "Confirm Logout"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Force Logout Dialog */}
+      <Dialog open={forceLogoutDialog} onOpenChange={v => { setForceLogoutDialog(v); if (!v) setSelectedRegisterLogout(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm text-red-700">
+              <AlertTriangle className="w-4 h-4" /> Force Logout
+            </DialogTitle>
+          </DialogHeader>
+          {selectedRegisterLogout && (
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-xs text-red-700">
+                  A remote logout is already pending on <span className="font-bold">{selectedRegisterLogout.name}</span>.
+                  Forcing logout will immediately end the operator's session, even if a transaction is still in progress.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setForceLogoutDialog(false)} className="flex-1">Cancel</Button>
+                <Button onClick={handleForceLogoutConfirm} disabled={forceLogoutLoading} className="flex-1 bg-red-600 hover:bg-red-700 text-white">
+                  {forceLogoutLoading ? "Forcing..." : "Force Logout Now"}
                 </Button>
               </div>
             </div>

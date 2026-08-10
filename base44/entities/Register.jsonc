@@ -61,6 +61,11 @@
       "type": "string",
       "description": "Reason for remote logout to display on POS"
     },
+    "remote_logout_requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the remote logout was requested (used for 10-minute auto-logout)"
+    },
     "cash_limit": {
       "type": "number",
       "default": 5000,

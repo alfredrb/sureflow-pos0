@@ -1405,7 +1405,7 @@ export default function POSRegister() {
     try {
       const regs = await base44.entities.Register.filter({ register_id: registerId });
       if (regs.length > 0) {
-        await base44.entities.Register.update(regs[0].id, { remote_logout_requested: false, remote_logout_reason: "" });
+        await base44.entities.Register.update(regs[0].id, { remote_logout_requested: false, remote_logout_requested_at: null, remote_logout_reason: "" });
       }
     } catch (e) {
       console.error("Error clearing remote logout flag:", e);
