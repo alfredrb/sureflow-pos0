@@ -89,14 +89,34 @@ export default function AdminDataViewer() {
     reader.onload = (e) => {
       try {
         const parsed = JSON.parse(e.target.result);
-        // Reset Data export shape: { timestamp, <category>: <count>, data: { <category>: [...] } }
-        // Also tolerate a flat { <category>: [...] } shape.
-        const candidate = (parsed && parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)) ? parsed.data : parsed;
+        const findArray = (obj, key) => {
+          if (!obj || typeof obj !== "object") return null;
+          for (const k of Object.keys(obj)) {
+            if (k.toLowerCase() === key && Array.isArray(obj[k])) return obj[k];
+          }
+          for (const k of Object.keys(obj)) {
+            if (k.toLowerCase() === key && obj[k] && typeof obj[k] === "object") {
+              if (Array.isArray(obj[k].items)) return obj[k].items;
+              if (Array.isArray(obj[k].data)) return obj[k].data;
+            }
+          }
+          return null;
+        };
+        const sources = [];
+        if (parsed && parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)) sources.push(parsed.data);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) sources.push(parsed);
         const normalized = {};
         CATEGORIES.forEach(c => {
-          if (Array.isArray(candidate[c])) normalized[c] = candidate[c];
+          for (const s of sources) {
+            const arr = findArray(s, c.key);
+            if (arr) { normalized[c.key] = arr; break; }
+          }
         });
-        if (Object.keys(normalized).length === 0) throw new Error("No recognizable categories found");
+        if (Object.keys(normalized).length === 0) {
+          const topKeys = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? Object.keys(parsed).join(", ") : "(not an object)";
+          const dataKeys = parsed && parsed.data && typeof parsed.data === "object" ? Object.keys(parsed.data).join(", ") : "(none)";
+          throw new Error(`No recognizable categories found. Top-level keys: ${topKeys} | data keys: ${dataKeys}`);
+        }
         setData(normalized);
         setFileName(file.name);
         setTimestamp(parsed.timestamp || (parsed.exported_at || ""));
