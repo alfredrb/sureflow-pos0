@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Network, Wifi, WifiOff, Monitor, RefreshCw, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -11,6 +12,7 @@ export default function AdminNetwork() {
 
   const load = async () => { setRegisters(await base44.entities.Register.list()); setLoading(false); };
   useEffect(() => { load(); }, []);
+  useRealtimeSync("Register", load, { intervalMs: 15000 });
 
   const toggleStatus = async (reg) => {
     const newStatus = reg.status === "online" ? "offline" : "online";

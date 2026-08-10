@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -53,6 +54,7 @@ export default function AdminShiftScheduling() {
   useEffect(() => {
     load();
   }, []);
+  useRealtimeSync(["Shift", "ShiftSwapRequest"], load, { intervalMs: 20000 });
 
   const load = async () => {
     try {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Plus, Edit2, Trash2, Search, AlertTriangle, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ export default function AdminInventory() {
 
   const load = async () => { setProducts(await base44.entities.Product.list()); setLoading(false); };
   useEffect(() => { load(); }, []);
+  useRealtimeSync("Product", load, { intervalMs: 20000 });
 
   const openNew = () => { setEditing(null); setForm({ ...emptyProduct }); setDialogOpen(true); };
   const openEdit = (p) => { setEditing(p); setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active", return_period_days: p.return_period_days ?? "" }); setDialogOpen(true); };

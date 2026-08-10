@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TrendingUp, DollarSign, ShoppingCart, Package } from "lucide-react";
@@ -15,6 +16,7 @@ export default function AdminEODReports() {
   useEffect(() => {
     loadReports();
   }, []);
+  useRealtimeSync("EODReport", loadReports, { intervalMs: 30000 });
 
   const loadReports = async () => {
     try {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Plus, Edit2, Trash2, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ export default function AdminDiscounts() {
   };
 
   useEffect(() => { load(); }, []);
+  useRealtimeSync("DiscountType", load, { intervalMs: 20000 });
 
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
 

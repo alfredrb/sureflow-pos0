@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Upload, Download } from "lucide-react";
 
@@ -8,18 +9,18 @@ export default function POSCashExport() {
   const [pickups, setPickups] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const adv = await base44.entities.CashAdvance.list("-created_date", 50);
-        setAdvances(adv);
-        const pu = await base44.entities.CashPickup.list("-created_date", 50);
-        setPickups(pu);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  const load = async () => {
+    try {
+      const adv = await base44.entities.CashAdvance.list("-created_date", 50);
+      setAdvances(adv);
+      const pu = await base44.entities.CashPickup.list("-created_date", 50);
+      setPickups(pu);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+  useRealtimeSync(["CashAdvance", "CashPickup"], load, { intervalMs: 15000 });
 
   const exportToCSV = () => {
     const allTransactions = [

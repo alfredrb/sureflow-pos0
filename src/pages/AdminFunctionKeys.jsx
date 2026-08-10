@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Edit2, Save, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ export default function AdminFunctionKeys() {
 
   const load = async () => { setKeys((await base44.entities.FunctionKey.list("key_number")).sort((a, b) => a.key_number - b.key_number)); setLoading(false); };
   useEffect(() => { load(); }, []);
+  useRealtimeSync("FunctionKey", load, { intervalMs: 20000 });
 
   const openEdit = (fk) => {
     setIsCreating(false);

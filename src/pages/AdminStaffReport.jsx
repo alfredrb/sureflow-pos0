@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Calendar, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,8 @@ export default function AdminStaffReport() {
   const [staffStats, setStaffStats] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const generateReport = async () => {
-    setLoading(true);
+  const generateReport = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const transactions = await base44.entities.Transaction.list("-created_date", 500);
       
@@ -97,6 +98,7 @@ export default function AdminStaffReport() {
   useEffect(() => {
     generateReport();
   }, []);
+  useRealtimeSync("Transaction", generateReport, { intervalMs: 30000 });
 
   const totalSalesAll = staffStats.reduce((s, o) => s + o.total_sales, 0);
   const totalRefundsAll = staffStats.reduce((s, o) => s + o.total_refunds, 0);

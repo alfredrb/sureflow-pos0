@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
@@ -11,22 +12,22 @@ export default function AdminDashboard() {
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      const [operators, products, transactions, registers, alerts] = await Promise.all([
-        base44.entities.Operator.list(),
-        base44.entities.Product.list(),
-        base44.entities.Transaction.list("-created_date", 50),
-        base44.entities.Register.list(),
-        base44.entities.EmergencyAlert.filter({ status: "active" })
-      ]);
-      const revenue = transactions.filter(t => t.status === "completed").reduce((s, t) => s + (t.total || 0), 0);
-      const lowStock = products.filter(p => (p.stock_qty || 0) < 10).length;
-      setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, lowStock, emergencies: alerts.length });
-      setRecentTx(transactions.slice(0, 8));
-      setLoading(false);
-    })();
-  }, []);
+  const load = async () => {
+    const [operators, products, transactions, registers, alerts] = await Promise.all([
+      base44.entities.Operator.list(),
+      base44.entities.Product.list(),
+      base44.entities.Transaction.list("-created_date", 50),
+      base44.entities.Register.list(),
+      base44.entities.EmergencyAlert.filter({ status: "active" })
+    ]);
+    const revenue = transactions.filter(t => t.status === "completed").reduce((s, t) => s + (t.total || 0), 0);
+    const lowStock = products.filter(p => (p.stock_qty || 0) < 10).length;
+    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, lowStock, emergencies: alerts.length });
+    setRecentTx(transactions.slice(0, 8));
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+  useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "Product"], load, { intervalMs: 15000 });
 
   const cards = [
     { label: "Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "bg-emerald-500" },

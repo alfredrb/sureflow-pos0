@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ export default function AdminCashReconciliation() {
   useEffect(() => {
     loadData();
   }, []);
+  useRealtimeSync(["CashAdvance", "CashPickup", "CashAudit", "EODCashDeposit", "Robbery", "TillCheckout", "RegisterLog"], loadData, { intervalMs: 15000 });
 
   const loadData = async () => {
     try {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Search, Eye, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -108,12 +109,12 @@ export default function AdminTransactions() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [detail, setDetail] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      setTransactions(await base44.entities.Transaction.list("-created_date", 200));
-      setLoading(false);
-    })();
-  }, []);
+  const load = async () => {
+    setTransactions(await base44.entities.Transaction.list("-created_date", 200));
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+  useRealtimeSync("Transaction", load, { intervalMs: 10000 });
 
   const filtered = transactions.filter(t => {
     const matchSearch = !search ||

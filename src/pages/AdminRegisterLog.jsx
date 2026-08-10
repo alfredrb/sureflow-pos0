@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -51,12 +52,14 @@ export default function AdminRegisterLog() {
 
   useEffect(() => { loadLogs(); }, []);
 
-  const loadLogs = async () => {
-    setLoading(true);
+  const loadLogs = async (silent = false) => {
+    if (!silent) setLoading(true);
     const data = await base44.entities.RegisterLog.list("-created_date", 100);
     setLogs(data);
     setLoading(false);
   };
+
+  useRealtimeSync("RegisterLog", loadLogs, { intervalMs: 10000 });
 
   const registers = ["all", ...new Set(logs.map(l => l.register_id).filter(Boolean))];
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download, Calendar } from "lucide-react";
@@ -20,6 +21,7 @@ export default function AdminPayrollReport() {
   useEffect(() => {
     loadData();
   }, []);
+  useRealtimeSync("Shift", loadData, { intervalMs: 30000 });
 
   const loadData = async () => {
     try {
