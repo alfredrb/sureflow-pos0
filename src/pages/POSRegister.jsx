@@ -703,7 +703,7 @@ export default function POSRegister() {
   );
 
   if (registerPaused) return (
-    <div className="h-screen bg-[#0a0e27] flex items-center justify-center max-w-[1024px] max-h-[768px] mx-auto">
+    <div className="h-screen w-screen bg-[#0a0e27] flex items-center justify-center">
       <div className="flex flex-col items-center gap-6 text-center">
         <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
           <AlertTriangle className="w-8 h-8 text-red-400" />
@@ -737,7 +737,7 @@ export default function POSRegister() {
   );
 
   return (
-    <div className="h-screen bg-[#0a0e27] flex flex-col overflow-hidden max-w-[1024px] max-h-[768px] mx-auto">
+    <div className="h-screen w-screen bg-[#0a0e27] flex flex-col overflow-hidden">
 
       {/* Top bar */}
       <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0">

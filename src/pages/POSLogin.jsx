@@ -262,7 +262,7 @@ export default function POSLogin() {
   };
 
   return (
-    <div className="h-screen bg-[#0a0e27] flex flex-col max-w-[1024px] max-h-[768px] mx-auto overflow-hidden relative">
+    <div className="h-screen w-screen bg-[#0a0e27] flex flex-col overflow-hidden relative">
 
       {/* Status Bar */}
       <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
