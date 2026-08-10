@@ -19,6 +19,8 @@ export default function POSLogin() {
   const [configPin, setConfigPin] = useState("");
   const [configUnlocked, setConfigUnlocked] = useState(false);
   const [availableRegisters, setAvailableRegisters] = useState([]);
+  const [availableStores, setAvailableStores] = useState([]);
+  const [selectedStore, setSelectedStore] = useState(() => sessionStorage.getItem("pos_store_id") || "");
   const [detectedIp, setDetectedIp] = useState(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [forceConfig, setForceConfig] = useState(false);
@@ -93,11 +95,13 @@ export default function POSLogin() {
     setShowConfig(true);
     setConfigUnlocked(true);
     setConfigLoading(true);
-    const [registers, ip] = await Promise.all([
+    const [registers, stores, ip] = await Promise.all([
       base44.entities.Register.list(),
+      base44.entities.Store.list(),
       getLocalIP()
     ]);
     setAvailableRegisters(registers);
+    setAvailableStores(stores);
     setDetectedIp(ip);
     setConfigLoading(false);
   };
@@ -119,11 +123,13 @@ export default function POSLogin() {
       const techs = await base44.entities.Operator.filter({ role: "technician", status: "active" });
       const all = [...csms, ...managers, ...techs];
       if (all.some(op => op.pin === configPin)) {
-        const [registers, ip] = await Promise.all([
+        const [registers, stores, ip] = await Promise.all([
           base44.entities.Register.list(),
+          base44.entities.Store.list(),
           getLocalIP()
         ]);
         setAvailableRegisters(registers);
+        setAvailableStores(stores);
         setDetectedIp(ip);
         setConfigUnlocked(true);
       } else {
@@ -495,12 +501,25 @@ export default function POSLogin() {
                     <p className="text-yellow-400/70 text-[10px]">Could not auto-detect IP — existing register IP will be kept</p>
                   </div>
                 )}
+                <div>
+                  <p className="text-blue-300/50 text-xs mb-1">Store Number:</p>
+                  <select
+                    value={selectedStore}
+                    onChange={e => setSelectedStore(e.target.value)}
+                    className="w-full bg-[#0a0e27] border border-blue-500/20 rounded-lg px-3 py-2 text-white text-sm font-mono"
+                  >
+                    <option value="">All Stores</option>
+                    {availableStores.map(s => (
+                      <option key={s.id} value={s.store_number}>{s.store_number} — {s.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <p className="text-blue-300/50 text-xs">Select a register:</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {availableRegisters.length === 0 && (
+                  {availableRegisters.filter(reg => !selectedStore || reg.store_id === selectedStore).length === 0 && (
                     <p className="text-blue-300/30 text-xs text-center py-4">No registers configured in admin panel</p>
                   )}
-                  {availableRegisters.map(reg => (
+                  {availableRegisters.filter(reg => !selectedStore || reg.store_id === selectedStore).map(reg => (
                     <button
                       key={reg.id}
                       disabled={configLoading}

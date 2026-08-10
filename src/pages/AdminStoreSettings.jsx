@@ -119,6 +119,7 @@ export default function AdminStoreSettings() {
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 sm:p-6 space-y-4">
         <div className="flex items-center gap-2 pb-2"><Building2 className="w-5 h-5 text-blue-500" /><h2 className="font-semibold text-gray-900">Store Contact Information</h2></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div><Label>Store Number</Label><Input value={form.store_id || ""} onChange={e => set("store_id", e.target.value)} placeholder="e.g. 001" /><p className="text-xs text-gray-500 mt-1">Links these settings to a store for Central Admin sync.</p></div>
           <div><Label>Store Name</Label><Input value={form.store_name || ""} onChange={e => set("store_name", e.target.value)} /></div>
           <div><Label>Phone</Label><Input value={form.store_phone || ""} onChange={e => set("store_phone", e.target.value)} placeholder="(555) 123-4567" /></div>
           <div className="sm:col-span-2"><Label>Address</Label><Input value={form.store_address || ""} onChange={e => set("store_address", e.target.value)} placeholder="123 Main St, City, ST 00000" /></div>
