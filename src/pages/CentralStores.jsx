@@ -10,6 +10,28 @@ import { useToast } from "@/components/ui/use-toast";
 
 const empty = { store_number: "", name: "", address_street: "", address_city: "", address_state: "", address_zip: "", phone: "", email: "", region: "", manager_name: "", status: "active", opened_date: "", notes: "" };
 
+const SETTINGS_DEFAULTS = {
+  default_tax_rate: 7, currency_symbol: "$", currency_code: "USD", decimal_places: 2,
+  tax_inclusive: false, require_sod: true, return_period_days: 30, default_cash_limit: 5000,
+  low_stock_threshold: 10, training_mode_default: false, require_override_pin: true, enable_remote_logout: true,
+  loyalty_points_percentage: 5,
+};
+
+const syncStoreSettings = async (store) => {
+  const address = [store.address_street, store.address_city, store.address_state, store.address_zip].filter(Boolean).join(", ");
+  const existing = await base44.entities.StoreSettings.filter({ store_id: store.store_number });
+  if (existing.length) {
+    await base44.entities.StoreSettings.update(existing[0].id, {
+      store_name: store.name, store_address: address, store_phone: store.phone || "", store_email: store.email || ""
+    });
+  } else {
+    await base44.entities.StoreSettings.create({
+      ...SETTINGS_DEFAULTS, store_id: store.store_number, store_name: store.name,
+      store_address: address, store_phone: store.phone || "", store_email: store.email || ""
+    });
+  }
+};
+
 export default function CentralStores() {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +54,10 @@ export default function CentralStores() {
   const save = async () => {
     if (!form.store_number || !form.name) { toast({ title: "Store number and name required", variant: "destructive" }); return; }
     try {
-      if (editing) { await base44.entities.Store.update(editing.id, form); toast({ title: "Store updated" }); }
-      else { await base44.entities.Store.create(form); toast({ title: "Store added" }); }
+      let saved;
+      if (editing) { saved = await base44.entities.Store.update(editing.id, form); toast({ title: "Store updated" }); }
+      else { saved = await base44.entities.Store.create(form); toast({ title: "Store added" }); }
+      await syncStoreSettings(saved);
       setDialogOpen(false); load();
     } catch (e) { toast({ title: "Save failed", variant: "destructive" }); }
   };

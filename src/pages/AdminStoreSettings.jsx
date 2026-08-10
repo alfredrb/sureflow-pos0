@@ -50,10 +50,20 @@ export default function AdminStoreSettings() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const list = await base44.entities.StoreSettings.list("-created_date", 5);
-      let rec = list[0];
-      if (!rec) {
-        rec = await base44.entities.StoreSettings.create(DEFAULTS);
+      const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
+      const storeId = admin?.store_id || "";
+      let rec;
+      if (storeId) {
+        const matches = await base44.entities.StoreSettings.filter({ store_id: storeId });
+        rec = matches[0];
+        if (!rec) {
+          let storeName = "Store " + storeId;
+          try { const s = await base44.entities.Store.filter({ store_number: storeId }); if (s[0]) storeName = s[0].name; } catch {}
+          rec = await base44.entities.StoreSettings.create({ ...DEFAULTS, store_id: storeId, store_name: storeName });
+        }
+      } else {
+        const list = await base44.entities.StoreSettings.list("-created_date", 5);
+        rec = list[0] || await base44.entities.StoreSettings.create(DEFAULTS);
       }
       setRecord(rec);
       setForm({ ...DEFAULTS, ...rec });
