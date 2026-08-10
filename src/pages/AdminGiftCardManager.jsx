@@ -1,9 +1,35 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { CreditCard, DollarSign, TrendingDown, Calendar, Search } from "lucide-react";
+import { CreditCard, DollarSign, TrendingDown, Calendar, Trash2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+
+// Purge gift cards with $0 balance that haven't been touched in 30 days
+const AUTO_DELETE_DAYS = 30;
+async function purgeZeroBalanceCards(cards) {
+  const now = Date.now();
+  const stale = cards.filter(c => (c.balance || 0) === 0);
+  const toPurge = stale.filter(c => {
+    const ref = c.updated_date ? new Date(c.updated_date) : new Date(c.purchase_date);
+    return (now - ref.getTime()) > AUTO_DELETE_DAYS * 24 * 60 * 60 * 1000;
+  });
+  if (toPurge.length > 0) {
+    await base44.entities.GiftCard.deleteMany({ id: { $in: toPurge.map(c => c.id) } });
+  }
+  return toPurge.length;
+}
 
 export default function AdminGiftCardManager() {
   const [giftCards, setGiftCards] = useState([]);
@@ -20,10 +46,18 @@ export default function AdminGiftCardManager() {
   const loadGiftCards = async () => {
     try {
       setLoading(true);
-      const cards = await base44.entities.GiftCard.list('-purchase_date', 100);
+      let cards = await base44.entities.GiftCard.list('-purchase_date', 100);
+
+      // Auto-purge $0-balance cards older than 30 days, then re-fetch the clean list
+      const purgedCount = await purgeZeroBalanceCards(cards);
+      if (purgedCount > 0) {
+        toast({ title: "Auto-cleanup", description: `${purgedCount} empty gift card${purgedCount !== 1 ? "s" : ""} purged (30+ days at $0 balance).` });
+        cards = await base44.entities.GiftCard.list('-purchase_date', 100);
+      }
+
       setGiftCards(cards);
       setFiltered(cards);
-      
+
       // Calculate stats
       const active = cards.filter(c => c.status === "active").length;
       const totalBalance = cards.reduce((sum, c) => sum + (c.balance || 0), 0);
@@ -33,6 +67,16 @@ export default function AdminGiftCardManager() {
       toast({ title: "Error", description: "Failed to load gift cards", variant: "destructive" });
     }
     setLoading(false);
+  };
+
+  const deleteCard = async (card) => {
+    try {
+      await base44.entities.GiftCard.delete(card.id);
+      toast({ title: "Deleted", description: `Card ${card.card_number} removed.` });
+      await loadGiftCards();
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to delete card", variant: "destructive" });
+    }
   };
 
   const handleSearch = (val) => {
@@ -59,6 +103,10 @@ export default function AdminGiftCardManager() {
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gift Card Manager</h1>
         <p className="text-gray-500 text-sm mt-1">Manage and track gift card inventory</p>
+        <p className="text-gray-400 text-xs mt-1 flex items-center gap-1.5">
+          <Trash2 className="w-3 h-3" />
+          Cards at $0 balance are auto-purged after {AUTO_DELETE_DAYS} days of inactivity.
+        </p>
       </div>
 
       {/* Stats */}
@@ -132,14 +180,42 @@ export default function AdminGiftCardManager() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <Button 
-                      onClick={() => toggleStatus(card)} 
-                      variant="outline" 
-                      size="sm"
-                      className={card.status === "active" ? "text-red-600 border-red-200 hover:bg-red-50" : "text-green-600 border-green-200 hover:bg-green-50"}
-                    >
-                      {card.status === "active" ? "Deactivate" : "Activate"}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => toggleStatus(card)}
+                        variant="outline"
+                        size="sm"
+                        className={card.status === "active" ? "text-red-600 border-red-200 hover:bg-red-50" : "text-green-600 border-green-200 hover:bg-green-50"}
+                      >
+                        {card.status === "active" ? "Deactivate" : "Activate"}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 gap-1">
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                              <ShieldAlert className="w-5 h-5 text-red-600" /> Delete gift card?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This permanently removes card <span className="font-mono font-semibold text-gray-900">{card.card_number}</span> from the system. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => deleteCard(card)}
+                            >
+                              Delete Card
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </td>
                 </tr>
               ))
