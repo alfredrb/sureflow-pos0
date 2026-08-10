@@ -150,6 +150,10 @@
         "overtime"
       ],
       "description": "Operator's shift status during transaction"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this sale belongs to (copied from the register at sale time)"
     }
   },
   "required": [

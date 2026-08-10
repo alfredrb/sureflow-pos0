@@ -92,6 +92,10 @@
     },
     "notes": {
       "type": "string"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this shift belongs to (copied from the operator's assignment)"
     }
   },
   "required": [

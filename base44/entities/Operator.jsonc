@@ -34,6 +34,10 @@
     },
     "email": {
       "type": "string"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this operator is assigned to. Blank = unassigned (visible centrally)."
     }
   },
   "required": [

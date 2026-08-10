@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench, ToggleLeft, ToggleRight, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 
-const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "" };
+const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", store_id: "" };
 
 const FEATURES = [
   { key: "feature_returns", label: "Returns / Refunds", description: "Allow cashiers to process item returns" },
@@ -19,6 +19,7 @@ const FEATURES = [
 export default function AdminRegisters() {
   const [registers, setRegisters] = useState([]);
   const [operators, setOperators] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -26,8 +27,8 @@ export default function AdminRegisters() {
   const { toast } = useToast();
 
   const load = async () => {
-    const [regs, ops] = await Promise.all([base44.entities.Register.list(), base44.entities.Operator.filter({ status: "active" })]);
-    setRegisters(regs); setOperators(ops); setLoading(false);
+    const [regs, ops, storeList] = await Promise.all([base44.entities.Register.list(), base44.entities.Operator.filter({ status: "active" }), base44.entities.Store.list()]);
+    setRegisters(regs); setOperators(ops); setStores(storeList || []); setLoading(false);
   };
   useEffect(() => { load(); }, []);
   useRealtimeSync("Register", load, { intervalMs: 20000 });
@@ -35,7 +36,7 @@ export default function AdminRegisters() {
   const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
-    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "" });
+    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "", store_id: r.store_id || "" });
     setDialogOpen(true);
   };
 
@@ -108,6 +109,7 @@ export default function AdminRegisters() {
             <div className="space-y-1.5 text-sm mb-4">
               <div className="flex justify-between"><span className="text-gray-400">Location</span><span className="text-gray-700">{r.location || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">IP</span><span className="text-gray-700 font-mono text-xs">{r.ip_address || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Store</span><span className="text-gray-700">{r.store_id ? `Store ${r.store_id}` : "Shared"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Operator</span><span className="text-gray-700">{r.assigned_operator || "Unassigned"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Terminal</span><span className="text-gray-700 text-xs">{r.terminal_model || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Printer</span><span className="text-gray-700 text-xs">{r.printer_model || "—"}</span></div>
@@ -130,6 +132,17 @@ export default function AdminRegisters() {
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Name</label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
             </div>
             <div><label className="text-sm font-medium text-gray-700 mb-1 block">Location</label><Input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} /></div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Store Number</label>
+              <Select value={form.store_id || "__none"} onValueChange={v => setForm({ ...form, store_id: v === "__none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Unassigned (shared)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Unassigned (shared)</SelectItem>
+                  {stores.map(s => <SelectItem key={s.id} value={s.store_number}>Store {s.store_number} — {s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">Ties this register (and its POS data) to a store</p>
+            </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
               <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>

@@ -1,0 +1,60 @@
+{
+  "name": "Store",
+  "type": "object",
+  "properties": {
+    "store_number": {
+      "type": "string",
+      "description": "Unique store identifier (e.g. 001, 002). Ties records to this store via store_id."
+    },
+    "name": {
+      "type": "string",
+      "description": "Store display name"
+    },
+    "address_street": {
+      "type": "string"
+    },
+    "address_city": {
+      "type": "string"
+    },
+    "address_state": {
+      "type": "string"
+    },
+    "address_zip": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string",
+      "description": "Grouping/region for this store (e.g. 'Northeast')"
+    },
+    "manager_name": {
+      "type": "string",
+      "description": "Primary store manager name"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "Inactive stores are hidden from the POS and most central views"
+    },
+    "opened_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "store_number",
+    "name"
+  ]
+}

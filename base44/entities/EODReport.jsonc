@@ -147,6 +147,10 @@
     "total_discrepancy": {
       "type": "number",
       "description": "Sum of all audit discrepancies"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this EOD report covers"
     }
   },
   "required": [
