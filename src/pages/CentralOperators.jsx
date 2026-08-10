@@ -113,7 +113,11 @@ export default function CentralOperators() {
                   <td className="px-4 py-3 font-mono text-slate-700">{o.operator_id}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{o.full_name}</td>
                   <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full ${badge.cls}`}>{badge.label}</span></td>
-                  <td className="px-4 py-3 text-slate-700">{o.store_id ? `Store ${o.store_id}` : <span className="text-slate-400 italic">Unassigned</span>}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {o.store_id ? `Store ${o.store_id}`
+                      : o.role === "technician" ? <span className="text-amber-600 font-medium">Global (All Stores)</span>
+                      : <span className="text-slate-400 italic">Unassigned</span>}
+                  </td>
                   <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full ${o.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{o.status || "active"}</span></td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{o.email || "—"}</td>
                   <td className="px-4 py-3"><button onClick={() => openAssign(o)} className="p-1.5 hover:bg-indigo-50 rounded-lg text-slate-400 hover:text-indigo-600" title="Reassign store"><Edit2 className="w-3.5 h-3.5" /></button></td>

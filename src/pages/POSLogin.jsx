@@ -192,6 +192,16 @@ export default function POSLogin() {
         setPin("");
       } else {
         const op = operatorData[0];
+        // Store-based access: non-technicians may only log in at their assigned store
+        if (op.role !== "technician") {
+          const regStoreId = sessionStorage.getItem("pos_store_id") || "";
+          if (op.store_id && regStoreId && op.store_id !== regStoreId) {
+            toast({ title: "Access Denied", description: `This operator is assigned to Store ${op.store_id}, not Store ${regStoreId}.`, variant: "destructive" });
+            setStep("id"); setOperatorId(""); setPin("");
+            setLoading(false);
+            return;
+          }
+        }
         // Detect an active session on another register (most recent login without a later logout)
         const currentReg = sessionStorage.getItem("pos_register_num");
         const logs = await base44.entities.RegisterLog.filter({ operator_id: op.operator_id }, "-created_date", 100);

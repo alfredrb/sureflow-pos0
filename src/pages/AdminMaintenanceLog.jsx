@@ -63,11 +63,14 @@ export default function AdminMaintenanceLog() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
+      const storeId = admin?.store_id || "";
       const [data, regs] = await Promise.all([
         base44.entities.MaintenanceLog.list("-service_date", 200),
         base44.entities.Register.list(),
       ]);
-      setLogs(data);
+      const scoped = storeId ? data.filter(l => !l.store_id || l.store_id === storeId) : data;
+      setLogs(scoped);
       setRegisters(regs);
     } catch (e) {
       if (!silent) toast({ title: "Error", description: "Failed to load logs", variant: "destructive" });
@@ -113,6 +116,7 @@ export default function AdminMaintenanceLog() {
       const now = new Date().toISOString();
       const payload = {
         ...form,
+        store_id: adminOperator?.store_id || "",
         completed_date: form.status === "completed" ? (form.completed_date || new Date().toISOString().split("T")[0]) : null,
         updated_by: adminOperator?.full_name || "Admin",
         updated_by_role: adminOperator?.role || "admin",
@@ -237,7 +241,10 @@ export default function AdminMaintenanceLog() {
                   <td className="px-4 py-3 capitalize text-gray-600">{(l.log_type || "").replace(/_/g, " ")}</td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-700">{l.register_id || "—"}</td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{l.title}</p>
+                    <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                      {l.title}
+                      {l.sent_from_central && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Central</span>}
+                    </p>
                     {l.notes && <p className="text-[11px] text-gray-400 truncate max-w-[260px]">{l.notes}</p>}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{l.technician_name || "—"}</td>

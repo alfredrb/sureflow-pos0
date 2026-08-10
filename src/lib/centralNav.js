@@ -1,4 +1,4 @@
-import { BarChart3, Store, Users, ShoppingCart, Package, FileBarChart, Building2, LogOut, ChevronLeft, ChevronDown } from "lucide-react";
+import { BarChart3, Store, Users, ShoppingCart, Package, FileBarChart, Building2, LogOut, ChevronLeft, ChevronDown, Radio } from "lucide-react";
 
 export const centralNavGroups = [
   {
@@ -23,6 +23,13 @@ export const centralNavGroups = [
     icon: Users,
     items: [
       { label: "Operators", path: "/central/operators", icon: Users }
+    ]
+  },
+  {
+    label: "Support",
+    icon: Radio,
+    items: [
+      { label: "Maintenance", path: "/central/maintenance", icon: Radio }
     ]
   }
 ];

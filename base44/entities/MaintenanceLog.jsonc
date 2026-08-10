@@ -84,6 +84,15 @@
     "new_serial": {
       "type": "string",
       "description": "New serial number of the replaced device (auto-updates the register)"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this log targets. Blank = broadcast to all stores / unassigned."
+    },
+    "sent_from_central": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if this maintenance notice was issued from Central Admin to stores"
     }
   },
   "required": [

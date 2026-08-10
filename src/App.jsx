@@ -56,6 +56,7 @@ import CentralTransactions from '@/pages/CentralTransactions';
 import CentralEODReports from '@/pages/CentralEODReports';
 import CentralInventory from '@/pages/CentralInventory';
 import CentralOperators from '@/pages/CentralOperators';
+import CentralMaintenance from '@/pages/CentralMaintenance';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -131,6 +132,7 @@ const AuthenticatedApp = () => {
           <Route path="/central/eod-reports" element={<CentralEODReports />} />
           <Route path="/central/inventory" element={<CentralInventory />} />
           <Route path="/central/operators" element={<CentralOperators />} />
+          <Route path="/central/maintenance" element={<CentralMaintenance />} />
         </Route>
       </Route>
 
