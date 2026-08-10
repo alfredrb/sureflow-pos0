@@ -51,11 +51,6 @@ export default function AdminShiftScheduling() {
   });
   const { toast } = useToast();
 
-  useEffect(() => {
-    load();
-  }, []);
-  useRealtimeSync(["Shift", "ShiftSwapRequest"], load, { intervalMs: 20000 });
-
   const load = async () => {
     try {
       const [shiftData, opData, regData, templateData, peakData, swapReqs] = await Promise.all([
@@ -78,6 +73,11 @@ export default function AdminShiftScheduling() {
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    load();
+  }, []);
+  useRealtimeSync(["Shift", "ShiftSwapRequest"], load, { intervalMs: 20000 });
 
   const openNew = () => {
     setEditing(null);

@@ -13,11 +13,6 @@ export default function AdminEmergencyLog() {
   const [acknowledgeDialog, setAcknowledgeDialog] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadAlerts();
-  }, []);
-  useRealtimeSync("EmergencyAlert", loadAlerts, { intervalMs: 10000 });
-
   const loadAlerts = async () => {
     try {
       const data = await base44.entities.EmergencyAlert.list("-created_date", 200);
@@ -28,6 +23,11 @@ export default function AdminEmergencyLog() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadAlerts();
+  }, []);
+  useRealtimeSync("EmergencyAlert", loadAlerts, { intervalMs: 10000 });
 
   const acknowledgeAlert = async (alert) => {
     try {

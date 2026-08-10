@@ -18,11 +18,6 @@ export default function AdminPayrollReport() {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-  useRealtimeSync("Shift", loadData, { intervalMs: 30000 });
-
   const loadData = async () => {
     try {
       const [shiftsData, operatorsData] = await Promise.all([
@@ -37,6 +32,11 @@ export default function AdminPayrollReport() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+  useRealtimeSync("Shift", loadData, { intervalMs: 30000 });
 
   const calculateHours = (shift) => {
     const parseTime = (timeStr) => {

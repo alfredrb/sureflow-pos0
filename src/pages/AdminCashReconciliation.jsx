@@ -41,11 +41,6 @@ export default function AdminCashReconciliation() {
   const [cancelAuditDialog, setCancelAuditDialog] = useState(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-  useRealtimeSync(["CashAdvance", "CashPickup", "CashAudit", "EODCashDeposit", "Robbery", "TillCheckout", "RegisterLog"], loadData, { intervalMs: 15000 });
-
   const loadData = async () => {
     try {
       const [depositsData, registersData, advancesData, pickupsData, robberiesData, auditsData, alertsData, logData, tillsData] = await Promise.all([
@@ -76,6 +71,11 @@ export default function AdminCashReconciliation() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+  useRealtimeSync(["CashAdvance", "CashPickup", "CashAudit", "EODCashDeposit", "Robbery", "TillCheckout", "RegisterLog"], loadData, { intervalMs: 15000 });
 
   const handleAdvance = async () => {
     if (!advanceForm.register_id || !advanceForm.amount) {
