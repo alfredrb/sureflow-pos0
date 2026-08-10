@@ -323,6 +323,16 @@ export default function AdminRemoteWorkstation() {
     loadRegisters();
   };
 
+  const handleAcknowledgeCashRequest = async (req) => {
+    try {
+      await base44.entities.RegisterLog.update(req.id, { acknowledged: true });
+      setLogs(prev => prev.map(l => l.id === req.id ? { ...l, acknowledged: true } : l));
+      toast({ title: "Cash request acknowledged" });
+    } catch (e) {
+      toast({ title: "Error acknowledging request", description: e.message, variant: "destructive" });
+    }
+  };
+
   // Get newly requested audits (created within last 5 minutes)
   const getNewlyRequestedAudits = () => {
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -335,7 +345,7 @@ export default function AdminRemoteWorkstation() {
   const pendingRequests = requests.filter(r => r.status === "pending");
   const newAudits = getNewlyRequestedAudits();
   // Cash pickup/advance requests logged from the POS (active within last 15 minutes)
-  const cashRequests = logs.filter(l => l.event_type === "cash_request" && (Date.now() - new Date(l.created_date).getTime()) < 15 * 60 * 1000);
+  const cashRequests = logs.filter(l => l.event_type === "cash_request" && !l.acknowledged);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -577,6 +587,9 @@ export default function AdminRemoteWorkstation() {
                       {req.operator_name || "Unknown"} · {mins < 1 ? "just now" : `${mins}m ago`}
                     </p>
                   </div>
+                  <Button onClick={() => handleAcknowledgeCashRequest(req)} size="sm" variant="outline" className="flex-shrink-0 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                    <Check className="w-3.5 h-3.5 mr-1" /> Acknowledge
+                  </Button>
                 </div>
               );
             })}

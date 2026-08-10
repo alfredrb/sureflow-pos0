@@ -44,6 +44,11 @@
       "type": "number",
       "description": "Transaction amount if applicable"
     },
+    "acknowledged": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether a cash_request alert has been acknowledged by an admin"
+    },
     "items": {
       "type": "array",
       "items": {
