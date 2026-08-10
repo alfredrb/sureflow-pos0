@@ -90,6 +90,18 @@
       ],
       "default": "unknown",
       "description": "Barcode scanner connectivity status"
+    },
+    "printer_model": {
+      "type": "string",
+      "description": "Receipt printer make/model connected to this register"
+    },
+    "scanner_model": {
+      "type": "string",
+      "description": "Barcode scanner make/model connected to this register"
+    },
+    "cash_drawer_model": {
+      "type": "string",
+      "description": "Cash drawer make/model connected to this register"
     }
   },
   "required": [

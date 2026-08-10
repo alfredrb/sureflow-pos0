@@ -132,8 +132,9 @@ export default function POSTechnicianPanel({ operator, loadData, writeLog, toast
           <div><p className="text-slate-400 text-[10px] uppercase">IP Address</p><p className="text-white font-mono">{registerIp}</p></div>
           <div><p className="text-slate-400 text-[10px] uppercase">Software</p><p className="text-white font-mono">{APP_VERSION}</p></div>
           <div><p className="text-slate-400 text-[10px] uppercase">Session Uptime</p><p className="text-white font-mono">{uptime}</p></div>
-          <div><p className="text-slate-400 text-[10px] uppercase">Printer</p><p className={`font-mono ${hwStatus(register?.printer_status)}`}>{register?.printer_status || "unknown"}</p></div>
-          <div><p className="text-slate-400 text-[10px] uppercase">Scanner</p><p className={`font-mono ${hwStatus(register?.scanner_status)}`}>{register?.scanner_status || "unknown"}</p></div>
+          <div><p className="text-slate-400 text-[10px] uppercase">Printer</p><p className="text-white text-xs truncate">{register?.printer_model || "—"}</p><p className={`font-mono text-[10px] ${hwStatus(register?.printer_status)}`}>{register?.printer_status || "unknown"}</p></div>
+          <div><p className="text-slate-400 text-[10px] uppercase">Scanner</p><p className="text-white text-xs truncate">{register?.scanner_model || "—"}</p><p className={`font-mono text-[10px] ${hwStatus(register?.scanner_status)}`}>{register?.scanner_status || "unknown"}</p></div>
+          <div><p className="text-slate-400 text-[10px] uppercase">Cash Drawer</p><p className="text-white text-xs truncate">{register?.cash_drawer_model || "—"}</p></div>
           <div><p className="text-slate-400 text-[10px] uppercase">Register Status</p><p className={`font-mono ${register?.status === "online" ? "text-emerald-400" : "text-amber-400"}`}>{register?.status || "—"}</p></div>
           <div><p className="text-slate-400 text-[10px] uppercase">Cash Limit</p><p className="text-white font-mono">${(register?.cash_limit || 0).toFixed(0)}</p></div>
         </div>
