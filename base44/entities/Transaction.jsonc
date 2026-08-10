@@ -67,6 +67,10 @@
       "default": false,
       "description": "Whether this transaction was in training mode and not recorded in financial logs"
     },
+    "tax_exempt_id": {
+      "type": "string",
+      "description": "Tax Exempt ID verified at the POS that removed tax from this sale"
+    },
     "status": {
       "type": "string",
       "enum": [

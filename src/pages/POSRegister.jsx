@@ -13,6 +13,7 @@ import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
 import POSReceipt from "@/components/POSReceipt";
 import GiftCardSeller from "@/components/GiftCardSeller";
+import POSTaxExemptDialog from "@/components/pos/POSTaxExemptDialog";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -930,6 +931,8 @@ export default function POSRegister() {
   const [giftCardValidating, setGiftCardValidating] = useState(false);
   const [giftCardError, setGiftCardError] = useState("");
   const [giftCardResult, setGiftCardResult] = useState(null); // { approved: bool, card: {...}, message: string }
+  const [taxExemptDialog, setTaxExemptDialog] = useState(false);
+  const [taxExemptAppliedId, setTaxExemptAppliedId] = useState("");
   const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -1084,7 +1087,7 @@ export default function POSRegister() {
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
-      case "void_transaction": setCart([]); writeLog("void", "Entire transaction voided"); break;
+      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); writeLog("void", "Entire transaction voided"); break;
       case "void_item":
         if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); writeLog("void", `Item voided: ${voided.name}`); }
         break;
@@ -1101,7 +1104,7 @@ export default function POSRegister() {
         }
         break;
       case "tax_exempt":
-        setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
+        setTaxExemptDialog(true);
         break;
       case "discount_item":
         if (cart.length > 0) {
@@ -1277,6 +1280,14 @@ export default function POSRegister() {
     }
   };
 
+  const confirmTaxExempt = (profile) => {
+    setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
+    setTaxExemptAppliedId(profile.tax_exempt_id);
+    writeLog("override", `Tax exempt applied — ${profile.name} (${profile.tax_exempt_id})`);
+    toast({ title: "Tax Exempt Applied", description: `${profile.name} — tax removed from sale` });
+    setTaxExemptDialog(false);
+  };
+
   const completeSale = async () => {
     if (cart.length === 0) return;
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
@@ -1304,7 +1315,7 @@ export default function POSRegister() {
         amountTendered: parseFloat(amountTendered || total),
         changeDue
       });
-      setCart([]); setPaymentOpen(false); setAmountTendered("");
+      setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId("");
       return;
     }
 
@@ -1318,7 +1329,8 @@ export default function POSRegister() {
         })),
         subtotal, tax, total, payment_method: paymentMethod, status: "completed",
         amount_tendered: parseFloat(amountTendered || total), change_due: changeDue,
-        training_mode: trainingMode
+        training_mode: trainingMode,
+        tax_exempt_id: taxExemptAppliedId || null
       });
       for (const item of cart) {
         const prod = products.find(p => p.sku === item.sku);
@@ -1353,8 +1365,8 @@ export default function POSRegister() {
          amountTendered: parseFloat(amountTendered || total),
          changeDue
        });
-       setCart([]); setPaymentOpen(false); setAmountTendered("");
-        setLastReceipt({
+       setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId("");
+       setLastReceipt({
           transactionId: txId,
           operatorName: operator.full_name,
           registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
@@ -2402,7 +2414,7 @@ export default function POSRegister() {
                     amountTendered: chargeAmount,
                     changeDue: 0
                   });
-                  setCart([]); setPaymentOpen(false);
+                  setCart([]); setPaymentOpen(false); setTaxExemptAppliedId("");
                   setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setAmountTendered("");
                   return;
                 }
@@ -2422,7 +2434,8 @@ export default function POSRegister() {
                     status: "completed",
                     amount_tendered: chargeAmount,
                     change_due: 0,
-                    training_mode: trainingMode
+                    training_mode: trainingMode,
+                    tax_exempt_id: taxExemptAppliedId || null
                   }).then(() => {
                     for (const item of cart) {
                       const prod = products.find(p => p.sku === item.sku);
@@ -2442,6 +2455,7 @@ export default function POSRegister() {
                     });
                     setCart([]);
                     setPaymentOpen(false);
+                    setTaxExemptAppliedId("");
                     setGiftCardResult(null);
                     setGiftCardNumber("");
                     setGiftCardAmount("");
@@ -2457,6 +2471,8 @@ export default function POSRegister() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <POSTaxExemptDialog open={taxExemptDialog} onClose={() => setTaxExemptDialog(false)} onConfirm={confirmTaxExempt} initialId={taxExemptAppliedId} />
       </div>
       );
       }
