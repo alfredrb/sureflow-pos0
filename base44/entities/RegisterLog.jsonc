@@ -12,7 +12,8 @@
         "void",
         "no_sale",
         "register_change",
-        "robbery"
+        "robbery",
+        "cash_request"
       ],
       "description": "Type of event logged"
     },

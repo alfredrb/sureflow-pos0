@@ -334,6 +334,8 @@ export default function AdminRemoteWorkstation() {
 
   const pendingRequests = requests.filter(r => r.status === "pending");
   const newAudits = getNewlyRequestedAudits();
+  // Cash pickup/advance requests logged from the POS (active within last 15 minutes)
+  const cashRequests = logs.filter(l => l.event_type === "cash_request" && (Date.now() - new Date(l.created_date).getTime()) < 15 * 60 * 1000);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -549,6 +551,35 @@ export default function AdminRemoteWorkstation() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cash Pickup / Advance Requests — from POS */}
+      {cashRequests.length > 0 && (
+        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-emerald-200">
+          <p className="text-emerald-800 font-bold text-sm mb-3 flex items-center gap-2">
+            <DollarSign className="w-5 h-5 animate-pulse" /> CASH REQUESTS ({cashRequests.length})
+          </p>
+          <div className="space-y-2">
+            {cashRequests.map(req => {
+              const mins = Math.floor((Date.now() - new Date(req.created_date).getTime()) / 60000);
+              return (
+                <div key={req.id} className="bg-white rounded-xl border border-emerald-200 p-3 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 animate-bounce">
+                    <DollarSign className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">
+                      <span className="text-emerald-600">{req.register_id}</span> — {req.detail}
+                    </p>
+                    <p className="text-gray-500 text-xs">
+                      {req.operator_name || "Unknown"} · {mins < 1 ? "just now" : `${mins}m ago`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

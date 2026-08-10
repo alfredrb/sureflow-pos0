@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download, AlertTriangle } from "lucide-react";
+import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download, AlertTriangle, DollarSign } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ const EVENT_CONFIG = {
   no_sale:        { label: "No Sale",        color: "bg-purple-500/20 text-purple-300 border-purple-500/30", icon: Ban },
   register_change: { label: "Reg. Change",   color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",     icon: Settings },
   robbery:     { label: "Emergency",   color: "bg-red-600/20 text-red-400 border-red-600/30",        icon: AlertTriangle },
+  cash_request:{ label: "Cash Req.",   color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30", icon: DollarSign },
 };
 
 function groupByDate(logs) {
