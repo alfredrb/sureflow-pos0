@@ -14,6 +14,7 @@ import ExportCashHistory from "@/components/ExportCashHistory";
 import POSReceipt from "@/components/POSReceipt";
 import GiftCardSeller from "@/components/GiftCardSeller";
 import POSTaxExemptDialog from "@/components/pos/POSTaxExemptDialog";
+import POSHelpMenu from "@/components/POSHelpMenu";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -1631,33 +1632,18 @@ export default function POSRegister() {
               "bg-blue-500/20 text-blue-300"
             }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : "Cashier"}</span>
           </div>
-          <div className="relative">
-            <button onClick={() => setHelpMenuOpen(!helpMenuOpen)} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors">
-              HELP
-            </button>
-            {helpMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 bg-[#111638] border border-red-500/30 rounded-lg shadow-lg z-50 min-w-[180px]">
-                <button onClick={() => {
-                  if (trainingMode) {
-                    setTrainingMode(false);
-                    setHelpMenuOpen(false);
-                    toast({ title: "Training Mode Disabled", description: "Normal operations resumed" });
-                  } else {
-                    setTrainingModeDialog(true);
-                    setHelpMenuOpen(false);
-                  }
-                }} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-orange-600 transition-colors border-b border-red-500/10">
-                  {trainingMode ? "Exit Training Mode" : "Enter Training Mode"}
-                </button>
-                <button onClick={requestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
-                  Request CSM
-                </button>
-                <button onClick={calculateStolenAmount} disabled={robberyLoading} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors disabled:opacity-50">
-                  {robberyLoading ? "Calculating..." : "Report Robbery"}
-                </button>
-              </div>
-            )}
-          </div>
+          <POSHelpMenu
+            open={helpMenuOpen}
+            setOpen={setHelpMenuOpen}
+            trainingMode={trainingMode}
+            onToggleTraining={() => {
+              if (trainingMode) { setTrainingMode(false); setHelpMenuOpen(false); toast({ title: "Training Mode Disabled", description: "Normal operations resumed" }); }
+              else { setTrainingModeDialog(true); setHelpMenuOpen(false); }
+            }}
+            onRequestCSM={requestCSM}
+            onReportRobbery={calculateStolenAmount}
+            robberyLoading={robberyLoading}
+          />
           <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
             <LogOut className="w-3.5 h-3.5" />
           </button>

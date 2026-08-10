@@ -27,18 +27,15 @@ export default function AdminLogin() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const managers = await base44.entities.Operator.filter({ 
-        pin: pin,
-        role: "manager",
-        status: "active"
-      });
+      const ops = await base44.entities.Operator.filter({ pin: pin, status: "active" });
+      const admin = ops.find(o => o.role === "manager" || o.role === "csm");
 
-      if (managers.length === 0) {
-        toast({ title: "Access Denied", description: "Invalid PIN or insufficient permissions (Manager required)", variant: "destructive" });
+      if (!admin) {
+        toast({ title: "Access Denied", description: "Invalid PIN or insufficient permissions (Manager or CSM required)", variant: "destructive" });
         setPin("");
       } else {
-        sessionStorage.setItem("admin_operator", JSON.stringify(managers[0]));
-        toast({ title: "Welcome", description: `Logged in as ${managers[0].full_name}` });
+        sessionStorage.setItem("admin_operator", JSON.stringify(admin));
+        toast({ title: "Welcome", description: `Logged in as ${admin.full_name}` });
         navigate("/admin");
       }
     } catch (e) {
@@ -64,7 +61,7 @@ export default function AdminLogin() {
 
       <div className="w-full max-w-xs bg-[#111638] border border-blue-500/10 rounded-2xl p-6 space-y-6">
         <div className="text-center">
-          <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-3">Manager PIN Required</p>
+          <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-3">Admin PIN Required</p>
           <div className="bg-[#0a0e27] rounded-xl p-4 font-mono text-3xl text-white tracking-[0.5em] min-h-[60px] flex items-center justify-center border border-blue-500/10">
             {"•".repeat(pin.length) || <span className="text-blue-500/20">---</span>}
           </div>
@@ -87,7 +84,7 @@ export default function AdminLogin() {
           ))}
         </div>
 
-        <p className="text-blue-300/30 text-center text-xs">Managers only • PIN-protected access</p>
+        <p className="text-blue-300/30 text-center text-xs">Managers & CSMs • PIN-protected access</p>
       </div>
     </div>
   );

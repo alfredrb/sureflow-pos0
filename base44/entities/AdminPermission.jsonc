@@ -1,0 +1,29 @@
+{
+  "name": "AdminPermission",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "csm",
+        "manager"
+      ],
+      "description": "Admin role this permission config applies to"
+    },
+    "allowed_pages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Admin page paths this role may access (Dashboard is always allowed)"
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Name of the manager who last saved this config"
+    }
+  },
+  "required": [
+    "role",
+    "allowed_pages"
+  ]
+}

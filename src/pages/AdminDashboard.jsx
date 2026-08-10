@@ -1,33 +1,40 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell } from "lucide-react";
+import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
 import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
 import AuditFrequencyChart from "@/components/AuditFrequencyChart";
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0 });
+  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0 });
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
-    const [operators, products, transactions, registers, alerts] = await Promise.all([
+    const [operators, products, transactions, registers, alerts, sysAlerts, maintLogs, regLogs] = await Promise.all([
       base44.entities.Operator.list(),
       base44.entities.Product.list(),
       base44.entities.Transaction.list("-created_date", 50),
       base44.entities.Register.list(),
-      base44.entities.EmergencyAlert.filter({ status: "active" })
+      base44.entities.EmergencyAlert.filter({ status: "active" }),
+      base44.entities.SystemAlert.filter({ status: "active" }),
+      base44.entities.MaintenanceLog.list("-service_date", 200),
+      base44.entities.RegisterLog.list("-created_date", 200)
     ]);
     const revenue = transactions.filter(t => t.status === "completed").reduce((s, t) => s + (t.total || 0), 0);
     const lowStock = products.filter(p => (p.stock_qty || 0) < 10).length;
-    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, lowStock, emergencies: alerts.length });
+    const maintenanceOpen = maintLogs.filter(m => m.status !== "completed").length;
+    const hardwareIssues = registers.filter(r => r.status !== "online" || r.printer_status === "disconnected" || r.scanner_status === "disconnected").length;
+    const sevenAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    const lossEvents = regLogs.filter(l => (l.event_type === "void" || l.event_type === "override") && new Date(l.created_date) >= sevenAgo).length;
+    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, lowStock, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents });
     setRecentTx(transactions.slice(0, 8));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
-  useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "Product"], load, { intervalMs: 15000 });
+  useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "Product", "SystemAlert", "MaintenanceLog", "RegisterLog"], load, { intervalMs: 15000 });
 
   const cards = [
     { label: "Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "bg-emerald-500" },
@@ -37,6 +44,10 @@ export default function AdminDashboard() {
     { label: "Registers", value: stats.registers, icon: Monitor, color: "bg-cyan-500" },
     { label: "Emergencies", value: stats.emergencies, icon: Bell, color: stats.emergencies > 0 ? "bg-red-600" : "bg-red-500" },
     { label: "Low Stock", value: stats.lowStock, icon: AlertTriangle, color: "bg-orange-500" },
+    { label: "System Alerts", value: stats.systemAlerts, icon: Siren, color: stats.systemAlerts > 0 ? "bg-red-600" : "bg-slate-500" },
+    { label: "Maintenance Open", value: stats.maintenanceOpen, icon: Wrench, color: "bg-amber-500" },
+    { label: "Hardware Issues", value: stats.hardwareIssues, icon: HardDrive, color: stats.hardwareIssues > 0 ? "bg-red-600" : "bg-cyan-500" },
+    { label: "Loss Events (7d)", value: stats.lossEvents, icon: ShieldAlert, color: "bg-orange-600" },
   ];
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
