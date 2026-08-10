@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { base44, invalidateEntity } from "@/api/data";
 import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
@@ -1190,63 +1190,67 @@ export default function POSRegister() {
     setRemoteRequestSent({ requestId: req.id, action: pendingFunctionKey.label });
     setSupOverrideDialog(false);
     setSupOverridePin("");
-    // Poll for approval
+    // Listen for realtime approval/decline instead of polling
     setRemotePolling(true);
-    remotePollingRef.current = setInterval(async () => {
-      const updated = await base44.entities.OverrideRequest.filter({ id: req.id });
-      if (updated.length > 0) {
-        const r = updated[0];
-        if (r.status === "approved") {
-          clearInterval(remotePollingRef.current);
-          setRemotePolling(false);
-          setRemoteRequestSent(null);
-          writeLog("override", `Remote override for "${r.action}" approved by ${r.approved_by_operator_name}`, {
-            override_operator_id: r.approved_by_operator_id,
-            override_operator_name: r.approved_by_operator_name,
-            override_action: r.action
-          });
-          executeFunctionKey(pendingFunctionKey);
-          setPendingFunctionKey(null);
-          setRemoteResultDialog({ approved: true, action: r.action, by: r.approved_by_operator_name, note: r.note || "" });
-        } else if (r.status === "declined" || r.status === "expired") {
-          clearInterval(remotePollingRef.current);
-          setRemotePolling(false);
-          setRemoteRequestSent(null);
-          setPendingFunctionKey(null);
-          setRemoteResultDialog({ approved: false, action: r.action, by: r.approved_by_operator_name || null, note: r.note || "", expired: r.status === "expired" });
-        }
-      }
-    }, 3000);
-    // Auto-cancel polling after 5 minutes
-    setTimeout(() => {
-      clearInterval(remotePollingRef.current);
+    const stopRemoteWatch = () => {
+      if (typeof remotePollingRef.current === "function") remotePollingRef.current();
+      remotePollingRef.current = null;
       setRemotePolling(false);
+    };
+    const checkOverride = async () => {
+      invalidateEntity("OverrideRequest");
+      const updated = await base44.entities.OverrideRequest.filter({ id: req.id });
+      if (updated.length === 0) return;
+      const r = updated[0];
+      if (r.status === "approved") {
+        stopRemoteWatch();
+        setRemoteRequestSent(null);
+        writeLog("override", `Remote override for "${r.action}" approved by ${r.approved_by_operator_name}`, {
+          override_operator_id: r.approved_by_operator_id,
+          override_operator_name: r.approved_by_operator_name,
+          override_action: r.action
+        });
+        executeFunctionKey(pendingFunctionKey);
+        setPendingFunctionKey(null);
+        setRemoteResultDialog({ approved: true, action: r.action, by: r.approved_by_operator_name, note: r.note || "" });
+      } else if (r.status === "declined" || r.status === "expired") {
+        stopRemoteWatch();
+        setRemoteRequestSent(null);
+        setPendingFunctionKey(null);
+        setRemoteResultDialog({ approved: false, action: r.action, by: r.approved_by_operator_name || null, note: r.note || "", expired: r.status === "expired" });
+      }
+    };
+    remotePollingRef.current = base44.entities.OverrideRequest.subscribe(() => checkOverride());
+    checkOverride();
+    // Auto-cancel after 5 minutes
+    setTimeout(() => {
+      stopRemoteWatch();
       setRemoteRequestSent(null);
     }, 5 * 60 * 1000);
   };
 
-  // Cleanup polling and debounce on unmount
+  // Cleanup realtime watch and debounce on unmount
   useEffect(() => {
     return () => {
-      clearInterval(remotePollingRef.current);
+      if (typeof remotePollingRef.current === "function") remotePollingRef.current();
       if (loadDataDebounceRef.current) clearTimeout(loadDataDebounceRef.current);
     };
   }, []);
 
-  // Poll for pause status every 5 seconds
+  // Listen for realtime register status changes (pause/unpause from admin) instead of polling
   useEffect(() => {
-    const pauseCheckInterval = setInterval(async () => {
-      const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const refreshRegister = async () => {
       try {
+        invalidateEntity("Register");
         const regs = await base44.entities.Register.filter({ register_id: registerId });
-        if (regs.length > 0) {
-          setRegisterPaused(regs[0].paused || false);
-        }
+        if (regs.length > 0) setRegisterPaused(regs[0].paused || false);
       } catch (e) {
-        console.error("Error checking pause status:", e);
+        console.error("Error checking register status:", e);
       }
-    }, 5000);
-    return () => clearInterval(pauseCheckInterval);
+    };
+    const unsub = base44.entities.Register.subscribe(() => refreshRegister());
+    return () => unsub();
   }, []);
 
   const handlePauseUnlock = async () => {
@@ -2030,7 +2034,7 @@ export default function POSRegister() {
             <p className="text-xs font-bold">Remote Override Pending</p>
             <p className="text-[10px] text-violet-200">Waiting for admin approval of "{remoteRequestSent.action}"…</p>
           </div>
-          <button onClick={() => { clearInterval(remotePollingRef.current); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
+          <button onClick={() => { if (typeof remotePollingRef.current === "function") remotePollingRef.current(); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
             className="ml-2 text-violet-300 hover:text-white text-xs">✕</button>
         </div>
       )}
