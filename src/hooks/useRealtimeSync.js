@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { base44 } from "@/api/base44Client";
+import { base44, invalidateEntity } from "@/api/data";
 
 /**
  * Live-sync a page to its data sources.
@@ -29,10 +29,10 @@ export function useRealtimeSync(entityNames, loader, { intervalMs = 0, debounceM
       timer = setTimeout(() => loaderRef.current(true), debounceMs);
     };
     const unsubs = names
-      .map((n) => base44.entities[n]?.subscribe?.(() => trigger()))
+      .map((n) => base44.entities[n]?.subscribe?.(() => { invalidateEntity(n); trigger(); }))
       .filter(Boolean);
     let intervalId = null;
-    if (intervalMs > 0) intervalId = setInterval(trigger, intervalMs);
+    if (intervalMs > 0) intervalId = setInterval(() => { if (document.visibilityState === "visible") trigger(); }, intervalMs);
     return () => {
       if (timer) clearTimeout(timer);
       unsubs.forEach((u) => u());
