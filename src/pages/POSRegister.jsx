@@ -1223,16 +1223,16 @@ export default function POSRegister() {
         </DialogContent>
       </Dialog>
 
-      {/* Remote Override Pending Banner */}
+      {/* Remote Override Pending Banner — sits above the Advance tab */}
       {remoteRequestSent && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-violet-700 text-white rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3 border border-violet-400/30">
-          <div className="w-3 h-3 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-          <div>
-            <p className="text-xs font-bold">Remote Override Pending</p>
-            <p className="text-[10px] text-violet-200">Waiting for admin approval of "{remoteRequestSent.action}"…</p>
+        <div className="fixed bottom-16 right-3 z-50 bg-violet-600/90 backdrop-blur-md text-white rounded-xl px-4 py-2.5 shadow-2xl shadow-violet-900/50 flex items-center gap-2.5 border border-violet-300/25">
+          <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
+          <div className="leading-tight">
+            <p className="text-[11px] font-semibold tracking-wide">Remote Override Pending</p>
+            <p className="text-[9px] text-violet-200/90 max-w-[170px] truncate">Waiting for approval of "{remoteRequestSent.action}"…</p>
           </div>
           <button onClick={() => { if (typeof remotePollingRef.current === "function") remotePollingRef.current(); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
-            className="ml-2 text-violet-300 hover:text-white text-xs">✕</button>
+            className="ml-1 w-5 h-5 grid place-items-center rounded-md text-violet-300 hover:text-white hover:bg-white/10 text-xs">✕</button>
         </div>
       )}
 
