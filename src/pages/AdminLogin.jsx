@@ -84,9 +84,6 @@ export default function AdminLogin() {
         <p className="text-blue-300/30 text-center text-xs">Managers, CSMs &amp; Technicians • PIN-protected access</p>
       </form>
 
-      <Link to="/central/login" className="mt-6 text-indigo-400/60 hover:text-indigo-300 text-xs underline underline-offset-4">
-        Central Admin (all stores) login
-      </Link>
     </div>
   );
 }

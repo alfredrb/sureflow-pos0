@@ -48,15 +48,6 @@ import AdminHardwareStatus from '@/pages/AdminHardwareStatus';
 import AdminPermissions from '@/pages/AdminPermissions';
 import AdminDataViewer from '@/pages/AdminDataViewer';
 import AdminDiagnosticTools from '@/pages/AdminDiagnosticTools';
-import CentralAdminLogin from '@/pages/CentralAdminLogin';
-import CentralAdminLayout from '@/components/CentralAdminLayout';
-import CentralAdminDashboard from '@/pages/CentralAdminDashboard';
-import CentralStores from '@/pages/CentralStores';
-import CentralTransactions from '@/pages/CentralTransactions';
-import CentralEODReports from '@/pages/CentralEODReports';
-import CentralInventory from '@/pages/CentralInventory';
-import CentralOperators from '@/pages/CentralOperators';
-import CentralMaintenance from '@/pages/CentralMaintenance';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -91,7 +82,6 @@ const AuthenticatedApp = () => {
         <Route path="/pos/login" element={<POSLogin />} />
         <Route path="/pos/register" element={<POSRegister />} />
         <Route path="/admin/login" element={<AdminLogin />} />
-      <Route path="/central/login" element={<CentralAdminLogin />} />
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/operators" element={<AdminOperators />} />
@@ -123,16 +113,6 @@ const AuthenticatedApp = () => {
           <Route path="/admin/permissions" element={<AdminPermissions />} />
           <Route path="/admin/data-viewer" element={<AdminDataViewer />} />
           <Route path="/admin/diagnostics" element={<AdminDiagnosticTools />} />
-        </Route>
-
-        <Route element={<CentralAdminLayout />}>
-          <Route path="/central" element={<CentralAdminDashboard />} />
-          <Route path="/central/stores" element={<CentralStores />} />
-          <Route path="/central/transactions" element={<CentralTransactions />} />
-          <Route path="/central/eod-reports" element={<CentralEODReports />} />
-          <Route path="/central/inventory" element={<CentralInventory />} />
-          <Route path="/central/operators" element={<CentralOperators />} />
-          <Route path="/central/maintenance" element={<CentralMaintenance />} />
         </Route>
       </Route>
 
