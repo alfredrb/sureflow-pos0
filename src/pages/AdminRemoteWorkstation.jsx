@@ -693,7 +693,17 @@ export default function AdminRemoteWorkstation() {
                 </div>
 
                 {/* Current Operator */}
-                {currentOp ? (
+                {reg.remote_logout_requested ? (
+                  <div className="mb-3 bg-amber-50 rounded-xl p-3 space-y-1.5 border border-amber-200">
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Remote Logout Requested</p>
+                    <p className="text-xs font-semibold text-gray-900">
+                      {currentOp ? `${currentOp.full_name} — logging out…` : "Operator logging out…"}
+                    </p>
+                    {reg.remote_logout_reason && (
+                      <p className="text-[10px] text-gray-500">Reason: {reg.remote_logout_reason}</p>
+                    )}
+                  </div>
+                ) : currentOp ? (
                   <div className="mb-3 bg-blue-50 rounded-xl p-3 space-y-1.5 border border-blue-100">
                     <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Logged In Operator</p>
                     <div className="space-y-1">
