@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle, DollarSign } from "lucide-react";
+import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle, DollarSign, Eye } from "lucide-react";
+import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,6 +38,7 @@ export default function AdminRemoteWorkstation() {
   const [logoutReason, setLogoutReason] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [adminOperator, setAdminOperator] = useState(null);
+  const [txDetail, setTxDetail] = useState(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const pollRef = useRef(null);
@@ -758,7 +760,14 @@ export default function AdminRemoteWorkstation() {
 
                 {/* Last transaction */}
                 <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Last Transaction</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Last Transaction</p>
+                    {tx && (
+                      <button onClick={() => setTxDetail(tx)} className="flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                        <Eye className="w-3 h-3" /> View
+                      </button>
+                    )}
+                  </div>
                   {tx ? (
                     <>
                       <div className="flex justify-between items-center">
@@ -900,6 +909,8 @@ export default function AdminRemoteWorkstation() {
           )}
         </DialogContent>
       </Dialog>
+
+      <TransactionDetailDialog tx={txDetail} onClose={() => setTxDetail(null)} />
       </div>
       );
       }
