@@ -107,7 +107,8 @@ export default function POSLogin() {
     try {
       const csms = await base44.entities.Operator.filter({ role: "csm", status: "active" });
       const managers = await base44.entities.Operator.filter({ role: "manager", status: "active" });
-      const all = [...csms, ...managers];
+      const techs = await base44.entities.Operator.filter({ role: "technician", status: "active" });
+      const all = [...csms, ...managers, ...techs];
       if (all.some(op => op.pin === configPin)) {
         const [registers, ip] = await Promise.all([
           base44.entities.Register.list(),
@@ -117,7 +118,7 @@ export default function POSLogin() {
         setDetectedIp(ip);
         setConfigUnlocked(true);
       } else {
-        toast({ title: "Access Denied", description: "Invalid CSM/Manager PIN", variant: "destructive" });
+        toast({ title: "Access Denied", description: "Invalid CSM/Manager/Technician PIN", variant: "destructive" });
         setConfigPin("");
       }
     } catch {
@@ -437,7 +438,7 @@ export default function POSLogin() {
 
             {!configUnlocked ? (
               <div className="space-y-3">
-                <p className="text-blue-300/50 text-xs">Enter CSM or Manager PIN to unlock:</p>
+                <p className="text-blue-300/50 text-xs">Enter CSM, Manager, or Technician PIN to unlock:</p>
                 <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-blue-500/10 min-h-[44px] flex items-center justify-center">
                   {"•".repeat(configPin.length) || <span className="text-blue-500/20">----</span>}
                 </div>
