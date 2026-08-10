@@ -51,6 +51,11 @@ import AdminDiagnosticTools from '@/pages/AdminDiagnosticTools';
 import CentralAdminLogin from '@/pages/CentralAdminLogin';
 import CentralAdminLayout from '@/components/CentralAdminLayout';
 import CentralAdminDashboard from '@/pages/CentralAdminDashboard';
+import CentralStores from '@/pages/CentralStores';
+import CentralTransactions from '@/pages/CentralTransactions';
+import CentralEODReports from '@/pages/CentralEODReports';
+import CentralInventory from '@/pages/CentralInventory';
+import CentralOperators from '@/pages/CentralOperators';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -121,6 +126,11 @@ const AuthenticatedApp = () => {
 
         <Route element={<CentralAdminLayout />}>
           <Route path="/central" element={<CentralAdminDashboard />} />
+          <Route path="/central/stores" element={<CentralStores />} />
+          <Route path="/central/transactions" element={<CentralTransactions />} />
+          <Route path="/central/eod-reports" element={<CentralEODReports />} />
+          <Route path="/central/inventory" element={<CentralInventory />} />
+          <Route path="/central/operators" element={<CentralOperators />} />
         </Route>
       </Route>
 
