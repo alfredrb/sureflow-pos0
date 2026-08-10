@@ -14,7 +14,8 @@ export default function POSReceipt({
   paymentMethod,
   amountTendered,
   changeDue,
-  storeConfig
+  storeConfig,
+  taxExempt
 }) {
   const barcodeRef = useRef(null);
 
@@ -138,6 +139,14 @@ export default function POSReceipt({
               <div style="background: #f5f5f5; border: 1px solid #000; padding: 8px; margin-bottom: 10px; font-size: 10px; font-weight: bold; text-align: center;">
                 <div style="margin-bottom: 4px;">⚠ GIFT CARDS NOT REFUNDABLE</div>
                 <div style="font-size: 9px; font-weight: normal;">Cannot be exchanged for cash or credit</div>
+              </div>
+            ` : ""}
+            ${taxExempt ? `
+              <div style="border-top: 1px solid #000; margin-top: 10px; padding-top: 8px; text-align: left; font-size: 10px; line-height: 1.5;">
+                <div style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 4px;">Tax Exempt Sale</div>
+                <div><strong>${taxExempt.name}</strong> — ${taxExempt.tax_exempt_id}</div>
+                <div style="text-transform: capitalize;">${taxExempt.entity_type} · ${taxExempt.exemption_type}${taxExempt.tax_id_number ? ` · Tax ID ${taxExempt.tax_id_number}` : ""}</div>
+                <div>${[taxExempt.address_street, taxExempt.address_city, taxExempt.address_state, taxExempt.address_zip].filter(Boolean).join(", ")}</div>
               </div>
             ` : ""}
             <div class="thank-you">Thank You!</div>

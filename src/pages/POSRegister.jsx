@@ -933,6 +933,7 @@ export default function POSRegister() {
   const [giftCardResult, setGiftCardResult] = useState(null); // { approved: bool, card: {...}, message: string }
   const [taxExemptDialog, setTaxExemptDialog] = useState(false);
   const [taxExemptAppliedId, setTaxExemptAppliedId] = useState("");
+  const [taxExemptProfile, setTaxExemptProfile] = useState(null);
   const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -1084,10 +1085,11 @@ export default function POSRegister() {
   const subtotal = cart.reduce((s, i) => s + i.total, 0);
   const tax = cart.reduce((s, i) => s + (i.total * (i.tax_rate / 100)), 0);
   const total = subtotal + tax;
+  const receiptTaxExempt = receiptData?.taxExempt || taxExemptProfile;
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
-      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); writeLog("void", "Entire transaction voided"); break;
+      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); writeLog("void", "Entire transaction voided"); break;
       case "void_item":
         if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); writeLog("void", `Item voided: ${voided.name}`); }
         break;
@@ -1283,6 +1285,7 @@ export default function POSRegister() {
   const confirmTaxExempt = (profile) => {
     setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
     setTaxExemptAppliedId(profile.tax_exempt_id);
+    setTaxExemptProfile(profile);
     writeLog("override", `Tax exempt applied — ${profile.name} (${profile.tax_exempt_id})`);
     toast({ title: "Tax Exempt Applied", description: `${profile.name} — tax removed from sale` });
     setTaxExemptDialog(false);
@@ -1307,7 +1310,8 @@ export default function POSRegister() {
         changeDue
       });
       setLastReceipt({
-        transactionId: txId,
+         taxExempt: taxExemptProfile,
+         transactionId: txId,
         operatorName: operator.full_name,
         registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
         items: cart, subtotal, tax, total,
@@ -2165,7 +2169,7 @@ export default function POSRegister() {
 
       {/* Receipt Dialog */}
       {receiptData && (
-        <Dialog open={!!receiptData} onOpenChange={(open) => !open && setReceiptData(null)}>
+        <Dialog open={!!receiptData} onOpenChange={(open) => { if (!open) { setReceiptData(null); setTaxExemptProfile(null); } }}>
           <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-sm">
             <DialogHeader>
               <DialogTitle className="text-white text-sm">Transaction Complete</DialogTitle>
@@ -2223,6 +2227,13 @@ export default function POSRegister() {
                       <p className="text-center text-amber-400/70 text-[8px] mt-1">Cannot be exchanged for cash or credit</p>
                     </div>
                   )}
+                {receiptTaxExempt && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded px-2 py-2 text-left space-y-0.5">
+                    <p className="text-emerald-400 font-bold text-[9px] uppercase tracking-wider">Tax Exempt — {receiptTaxExempt.name}</p>
+                    <p className="text-emerald-400/70 text-[9px]">{receiptTaxExempt.tax_exempt_id} · {receiptTaxExempt.exemption_type}{receiptTaxExempt.tax_id_number ? ` · Tax ID ${receiptTaxExempt.tax_id_number}` : ""}</p>
+                    <p className="text-emerald-400/60 text-[9px]">{[receiptTaxExempt.address_street, receiptTaxExempt.address_city, receiptTaxExempt.address_state, receiptTaxExempt.address_zip].filter(Boolean).join(", ")}</p>
+                  </div>
+                )}
                   <p className="text-center text-[10px] text-blue-300/60">Thank You!</p>
                 </div>
               </div>
@@ -2240,7 +2251,7 @@ export default function POSRegister() {
                   total={receiptData.total}
                   paymentMethod={receiptData.paymentMethod}
                   amountTendered={receiptData.amountTendered}
-                  changeDue={receiptData.changeDue}
+                  changeDue={receiptData.changeDue} taxExempt={receiptTaxExempt}
                   storeConfig={storeConfig}
                 />
               </div>
@@ -2467,7 +2478,7 @@ export default function POSRegister() {
                     setGiftCardNumber("");
                     setGiftCardAmount("");
                     setAmountTendered("");
-                    setLastReceipt({ transactionId: txId, operatorName: operator.full_name, registerName: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total, paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0 });
+                    setLastReceipt({ taxExempt: taxExemptProfile, transactionId: txId, operatorName: operator.full_name, registerName: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total, paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0 });
                     loadData();
                   });
                 });
