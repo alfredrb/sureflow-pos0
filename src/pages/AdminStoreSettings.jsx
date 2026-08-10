@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Settings, Save, Building2, Percent, Coins, SlidersHorizontal, RotateCcw } from "lucide-react";
+import { Settings, Save, Building2, Percent, Coins, SlidersHorizontal, RotateCcw, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ const DEFAULTS = {
   default_tax_rate: 7, currency_symbol: "$", currency_code: "USD", decimal_places: 2,
   tax_inclusive: false, require_sod: true, return_period_days: 30, default_cash_limit: 5000,
   low_stock_threshold: 10, training_mode_default: false, require_override_pin: true, enable_remote_logout: true,
+  loyalty_points_percentage: 5,
 };
 
 function NumberField({ label, value, onChange, suffix }) {
@@ -133,6 +134,14 @@ export default function AdminStoreSettings() {
         </div>
         <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600">
           Preview: <span className="font-mono font-medium text-gray-900">{form.currency_symbol || "$"}1,234{(form.decimal_places > 0 ? "." + "0".repeat(form.decimal_places) : "")}</span> <span className="text-gray-400">({form.currency_code || "USD"})</span>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 sm:p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-2"><Award className="w-5 h-5 text-sky-500" /><h2 className="font-semibold text-gray-900">Loyalty Program</h2></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+          <NumberField label="Rewards Earn Rate" value={form.loyalty_points_percentage} onChange={v => set("loyalty_points_percentage", v)} suffix="%" />
+          <p className="text-xs text-gray-500 pb-2">Customers earn this percentage of their sale subtotal as spendable rewards credit (e.g. 5% of a $100 sale = $5.00 rewards). Applied credit is shown as a rewards tender on the receipt.</p>
         </div>
       </div>
 

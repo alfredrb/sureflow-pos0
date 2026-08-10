@@ -38,6 +38,7 @@ import AdminShiftScheduling from '@/pages/AdminShiftScheduling';
 import AdminPayrollReport from '@/pages/AdminPayrollReport';
 import AdminGiftCardManager from '@/pages/AdminGiftCardManager';
 import AdminTaxExempt from '@/pages/AdminTaxExempt';
+import AdminLoyaltyMembers from '@/pages/AdminLoyaltyMembers';
 import AdminTrainingGuides from '@/pages/AdminTrainingGuides';
 import AdminSystemAlerts from '@/pages/AdminSystemAlerts';
 import AdminMaintenanceLog from '@/pages/AdminMaintenanceLog';
@@ -102,6 +103,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/payroll" element={<AdminPayrollReport />} />
           <Route path="/admin/gift-cards" element={<AdminGiftCardManager />} />
           <Route path="/admin/tax-exempt" element={<AdminTaxExempt />} />
+          <Route path="/admin/loyalty-members" element={<AdminLoyaltyMembers />} />
           <Route path="/admin-training-guides" element={<AdminTrainingGuides />} />
           <Route path="/admin-system-alerts" element={<AdminSystemAlerts />} />
           <Route path="/admin-maintenance-log" element={<AdminMaintenanceLog />} />

@@ -54,7 +54,8 @@
         "debit",
         "check",
         "store_credit",
-        "giftcard"
+        "giftcard",
+        "rewards"
       ],
       "default": "cash"
     },
@@ -70,6 +71,24 @@
     "tax_exempt_id": {
       "type": "string",
       "description": "Tax Exempt ID verified at the POS that removed tax from this sale"
+    },
+    "loyalty_id": {
+      "type": "string",
+      "description": "Loyalty member ID linked to this sale"
+    },
+    "loyalty_member_name": {
+      "type": "string",
+      "description": "Name of the loyalty member at time of sale"
+    },
+    "rewards_earned": {
+      "type": "number",
+      "default": 0,
+      "description": "Rewards credit earned by the member on this sale"
+    },
+    "rewards_applied": {
+      "type": "number",
+      "default": 0,
+      "description": "Rewards credit redeemed (applied as tender) on this sale"
     },
     "status": {
       "type": "string",

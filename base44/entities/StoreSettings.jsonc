@@ -71,6 +71,11 @@
       "type": "boolean",
       "default": true,
       "description": "Allow admins to remotely log out operators"
+    },
+    "loyalty_points_percentage": {
+      "type": "number",
+      "default": 5,
+      "description": "Percentage of the sale subtotal earned back as rewards credit (e.g. 5 = 5%)"
     }
   },
   "required": [

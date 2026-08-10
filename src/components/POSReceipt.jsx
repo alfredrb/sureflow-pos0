@@ -15,7 +15,11 @@ export default function POSReceipt({
   amountTendered,
   changeDue,
   storeConfig,
-  taxExempt
+  taxExempt,
+  loyaltyMember,
+  rewardsApplied = 0,
+  rewardsEarned = 0,
+  newBalance = null
 }) {
   const barcodeRef = useRef(null);
 
@@ -109,6 +113,19 @@ export default function POSReceipt({
             </div>
           </div>
           
+          ${rewardsApplied > 0 ? `
+            <div class="divider"></div>
+            <div class="totals">
+              <div class="total-row">
+                <span>Rewards Credit:</span>
+                <span>-$${rewardsApplied.toFixed(2)}</span>
+              </div>
+              <div class="total-row" style="font-weight:bold;">
+                <span>Amount Due:</span>
+                <span>$${(total - rewardsApplied).toFixed(2)}</span>
+              </div>
+            </div>
+          ` : ""}
           ${paymentMethod === "cash" ? `
             <div class="divider"></div>
             <div class="totals">
@@ -126,7 +143,7 @@ export default function POSReceipt({
             <div class="totals">
               <div class="total-row">
                 <span>Payment Method:</span>
-                <span>${paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}</span>
+                <span>${rewardsApplied > 0 ? "Rewards" : paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}</span>
               </div>
             </div>
           `}
@@ -147,6 +164,14 @@ export default function POSReceipt({
                 <div><strong>${taxExempt.name}</strong> — ${taxExempt.tax_exempt_id}</div>
                 <div style="text-transform: capitalize;">${taxExempt.entity_type} · ${taxExempt.exemption_type}${taxExempt.tax_id_number ? ` · Tax ID ${taxExempt.tax_id_number}` : ""}</div>
                 <div>${[taxExempt.address_street, taxExempt.address_city, taxExempt.address_state, taxExempt.address_zip].filter(Boolean).join(", ")}</div>
+              </div>
+            ` : ""}
+            ${loyaltyMember ? `
+              <div style="border-top: 1px solid #000; margin-top: 10px; padding-top: 8px; text-align: left; font-size: 10px; line-height: 1.5;">
+                <div style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 4px;">Loyalty Member</div>
+                <div>${loyaltyMember.name} — ${loyaltyMember.loyalty_id}</div>
+                <div>Rewards Earned This Visit: $${rewardsEarned.toFixed(2)}</div>
+                <div style="font-weight: bold;">Remaining Rewards Balance: $${(newBalance != null ? newBalance : (loyaltyMember.rewards_balance || 0)).toFixed(2)}</div>
               </div>
             ` : ""}
             <div class="thank-you">Thank You!</div>

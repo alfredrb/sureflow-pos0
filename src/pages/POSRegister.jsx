@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench, Award } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ import POSCSModePanel from "@/components/POSCSModePanel";
 import POSReturnsPanel from "@/components/POSReturnsPanel";
 import POSExchangePanel from "@/components/POSExchangePanel";
 import POSSalePanel from "@/components/POSSalePanel";
+import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
+import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function POSRegister() {
@@ -85,6 +87,10 @@ export default function POSRegister() {
   const [taxExemptDialog, setTaxExemptDialog] = useState(false);
   const [taxExemptAppliedId, setTaxExemptAppliedId] = useState("");
   const [taxExemptProfile, setTaxExemptProfile] = useState(null);
+  const [loyaltyMember, setLoyaltyMember] = useState(null);
+  const [loyaltyAppliedAmount, setLoyaltyAppliedAmount] = useState(0);
+  const [loyaltyLookupOpen, setLoyaltyLookupOpen] = useState(false);
+  const [loyaltySignupOpen, setLoyaltySignupOpen] = useState(false);
   const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -237,11 +243,12 @@ export default function POSRegister() {
   const subtotal = cart.reduce((s, i) => s + i.total, 0);
   const tax = cart.reduce((s, i) => s + (i.total * (i.tax_rate / 100)), 0);
   const total = subtotal + tax;
+  const amountDue = Math.max(0, total - loyaltyAppliedAmount);
   const receiptTaxExempt = receiptData?.taxExempt || taxExemptProfile;
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
-      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); writeLog("void", "Entire transaction voided"); break;
+      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0); writeLog("void", "Entire transaction voided"); break;
       case "void_item":
         if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); writeLog("void", `Item voided: ${voided.name}`); }
         break;
@@ -463,10 +470,20 @@ export default function POSRegister() {
     setTaxExemptDialog(false);
   };
 
+  const applyLoyalty = (member, applyRewards) => {
+    const amt = applyRewards ? Math.min(member.rewards_balance || 0, total) : 0;
+    setLoyaltyMember(member);
+    setLoyaltyAppliedAmount(amt);
+    writeLog("override", `Loyalty linked — ${member.name} (${member.loyalty_id})${amt > 0 ? ` · -$${amt.toFixed(2)} rewards` : ""}`);
+    toast({ title: amt > 0 ? "Rewards Applied" : "Loyalty Member Linked", description: `${member.name} — ${member.loyalty_id}${amt > 0 ? ` (-$${amt.toFixed(2)})` : ""}` });
+  };
+
   const completeSale = async () => {
     if (cart.length === 0) return;
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
-    const changeDue = paymentMethod === "cash" ? Math.max(0, parseFloat(amountTendered || 0) - total) : 0;
+    const changeDue = paymentMethod === "cash" ? Math.max(0, parseFloat(amountTendered || 0) - amountDue) : 0;
+    const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
+    const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
 
     // Training mode: simulate the sale without recording anything — no transaction log
     // entry, no stock changes, no register log. Only show a receipt for practice.
@@ -479,7 +496,11 @@ export default function POSRegister() {
         items: cart, subtotal, tax, total,
         paymentMethod,
         amountTendered: parseFloat(amountTendered || total),
-        changeDue
+        changeDue,
+        rewardsApplied: loyaltyAppliedAmount,
+        loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyMember.rewards_balance } : null,
+        rewardsEarned,
+        newBalance: loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null
       });
       setLastReceipt({
          taxExempt: taxExemptProfile,
@@ -491,7 +512,7 @@ export default function POSRegister() {
         amountTendered: parseFloat(amountTendered || total),
         changeDue
       });
-      setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId("");
+      setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
       return;
     }
 
@@ -506,11 +527,29 @@ export default function POSRegister() {
         subtotal, tax, total, payment_method: paymentMethod, status: "completed",
         amount_tendered: parseFloat(amountTendered || total), change_due: changeDue,
         training_mode: trainingMode,
-        tax_exempt_id: taxExemptAppliedId || null
+        tax_exempt_id: taxExemptAppliedId || null,
+        loyalty_id: loyaltyMember?.loyalty_id || null,
+        loyalty_member_name: loyaltyMember?.name || null,
+        rewards_earned: rewardsEarned,
+        rewards_applied: loyaltyAppliedAmount
       });
       for (const item of cart) {
         const prod = products.find(p => p.sku === item.sku);
         if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
+      }
+      let loyaltyNewBalance = null;
+      if (loyaltyMember) {
+        try {
+          const fresh = await base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id });
+          if (fresh.length > 0) {
+            const m = fresh[0];
+            loyaltyNewBalance = +((m.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2);
+            await base44.entities.LoyaltyMember.update(m.id, {
+              rewards_balance: loyaltyNewBalance,
+              lifetime_points: +((m.lifetime_points || 0) + rewardsEarned).toFixed(2)
+            });
+          }
+        } catch (e) { /* non-fatal */ }
       }
       toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
        writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { 
@@ -539,9 +578,13 @@ export default function POSRegister() {
          total,
          paymentMethod,
          amountTendered: parseFloat(amountTendered || total),
-         changeDue
+         changeDue,
+         rewardsApplied: loyaltyAppliedAmount,
+         loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyNewBalance ?? loyaltyMember.rewards_balance } : null,
+         rewardsEarned,
+         newBalance: loyaltyNewBalance
        });
-       setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId("");
+       setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
        setLastReceipt({
           transactionId: txId,
           operatorName: operator.full_name,
@@ -829,6 +872,15 @@ export default function POSRegister() {
         </div>
       )}
 
+      {/* Loyalty Banner */}
+      {loyaltyMember && (
+        <div className="bg-sky-500/10 border-b-2 border-sky-500/50 px-3 py-2 flex items-center justify-center gap-3 flex-shrink-0">
+          <span className="text-sky-400 font-bold text-xs uppercase tracking-widest">★ LOYALTY — {loyaltyMember.name} ({loyaltyMember.loyalty_id})</span>
+          {loyaltyAppliedAmount > 0 && <span className="text-green-400 font-bold text-xs">−${loyaltyAppliedAmount.toFixed(2)} rewards applied</span>}
+          <button onClick={() => { setLoyaltyMember(null); setLoyaltyAppliedAmount(0); }} className="text-sky-400/60 hover:text-sky-300 text-xs">remove</button>
+        </div>
+      )}
+
       {/* Remote Logout Pending Banner */}
       {remoteLogout.requested && cart.length > 0 && (
         <div className="bg-blue-600/10 border-b-2 border-blue-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
@@ -842,10 +894,15 @@ export default function POSRegister() {
         {/* LEFT — Current Transaction (hidden in diagnostics mode) */}
         {posMode !== "diagnostics" && (
         <div className="w-[340px] bg-[#111638] border-r border-blue-500/10 flex flex-col flex-shrink-0">
-          <div className="px-3 py-2 border-b border-blue-500/10">
+          <div className="px-3 py-2 border-b border-blue-500/10 flex items-center justify-between">
             <p className="text-blue-300/40 text-[10px] uppercase tracking-widest">
               {posMode === "returns" ? "Return Summary" : posMode === "exchange" ? "Exchange Summary" : "Current Transaction"}
             </p>
+            {(posMode === "sale" || posMode === "cs") && (
+              <button onClick={() => setLoyaltyLookupOpen(true)} className="text-sky-400/70 hover:text-sky-300 text-[10px] uppercase tracking-wider flex items-center gap-1">
+                <Award className="w-3 h-3" /> Loyalty
+              </button>
+            )}
           </div>
 
           {/* SALE mode — normal cart */}
@@ -1048,7 +1105,7 @@ export default function POSRegister() {
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-white text-sm">Payment — ${total.toFixed(2)}</DialogTitle>
+            <DialogTitle className="text-white text-sm">Payment — ${amountDue.toFixed(2)}{loyaltyAppliedAmount > 0 && <span className="text-sky-400 text-[10px] ml-2">(after ${loyaltyAppliedAmount.toFixed(2)} rewards)</span>}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
@@ -1071,12 +1128,12 @@ export default function POSRegister() {
                      <button key={v} onClick={() => setAmountTendered(String(v))}
                        className="py-1.5 rounded-md bg-[#0a0e27] border border-blue-500/10 text-blue-200 text-xs hover:bg-[#161d50] transition-colors">${v}</button>
                    ))}
-                   <button onClick={() => setAmountTendered(total.toFixed(2))}
+                   <button onClick={() => setAmountTendered(amountDue.toFixed(2))}
                      className="py-1.5 rounded-md bg-blue-600/20 border border-blue-500/20 text-blue-300 text-xs col-span-2 hover:bg-blue-600/30 transition-colors">Exact</button>
                  </div>
-                 {parseFloat(amountTendered) >= total && (
+                 {parseFloat(amountTendered) >= amountDue && (
                    <p className="text-green-400 text-center mt-2 text-base font-bold">
-                     Change: ${(parseFloat(amountTendered) - total).toFixed(2)}
+                     Change: ${(parseFloat(amountTendered) - amountDue).toFixed(2)}
                    </p>
                  )}
                </div>
@@ -1092,6 +1149,9 @@ export default function POSRegister() {
                 {giftCardError && <p className="text-red-400 text-xs mt-2 text-center">{giftCardError}</p>}
               </div>
             )}
+            <button onClick={() => setLoyaltySignupOpen(true)} className="w-full text-sky-400/70 hover:text-sky-300 text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 py-1">
+              <Award className="w-3 h-3" /> {loyaltyMember ? "Loyalty Member Linked" : "Sign Up for Loyalty"}
+            </button>
             <Button onClick={() => {
               if (paymentMethod === "giftcard") {
                 if (!giftCardNumber.trim() || !giftCardAmount.trim()) {
@@ -1131,7 +1191,7 @@ export default function POSRegister() {
               } else {
                 completeSale();
               }
-            }} disabled={paymentMethod === "cash" && parseFloat(amountTendered || 0) < total || paymentMethod === "giftcard" && giftCardValidating}
+            }} disabled={paymentMethod === "cash" && parseFloat(amountTendered || 0) < amountDue || paymentMethod === "giftcard" && giftCardValidating}
               className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl disabled:opacity-50">
               {giftCardValidating ? "Validating..." : "Complete Sale"}
             </Button>
@@ -1319,6 +1379,18 @@ export default function POSRegister() {
                     <span>TOTAL:</span>
                     <span>${receiptData.total.toFixed(2)}</span>
                   </div>
+                  {receiptData.rewardsApplied > 0 && (
+                    <>
+                      <div className="flex justify-between text-sky-400">
+                        <span>Rewards Credit:</span>
+                        <span>−${receiptData.rewardsApplied.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold">
+                        <span>Amount Due:</span>
+                        <span>${(receiptData.total - receiptData.rewardsApplied).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
                 {receiptData.paymentMethod === "cash" && (
                   <div className="border-t pt-2 space-y-1 text-xs">
@@ -1349,6 +1421,14 @@ export default function POSRegister() {
                     <p className="text-emerald-400/60 text-[9px]">{[receiptTaxExempt.address_street, receiptTaxExempt.address_city, receiptTaxExempt.address_state, receiptTaxExempt.address_zip].filter(Boolean).join(", ")}</p>
                   </div>
                 )}
+                {receiptData.loyaltyMember && (
+                  <div className="bg-sky-500/10 border border-sky-500/30 rounded px-2 py-2 text-left space-y-0.5">
+                    <p className="text-sky-400 font-bold text-[9px] uppercase tracking-wider">Loyalty Member — {receiptData.loyaltyMember.name}</p>
+                    <p className="text-sky-400/70 text-[9px]">{receiptData.loyaltyMember.loyalty_id}</p>
+                    <p className="text-sky-400/70 text-[9px]">Earned this visit: ${receiptData.rewardsEarned.toFixed(2)}</p>
+                    <p className="text-sky-400 font-bold text-[9px]">Remaining Balance: ${receiptData.newBalance != null ? receiptData.newBalance.toFixed(2) : (receiptData.loyaltyMember.rewards_balance || 0).toFixed(2)}</p>
+                  </div>
+                )}
                   <p className="text-center text-[10px] text-blue-300/60">Thank You!</p>
                 </div>
               </div>
@@ -1368,6 +1448,10 @@ export default function POSRegister() {
                   amountTendered={receiptData.amountTendered}
                   changeDue={receiptData.changeDue} taxExempt={receiptTaxExempt}
                   storeConfig={storeConfig}
+                  loyaltyMember={receiptData.loyaltyMember}
+                  rewardsApplied={receiptData.rewardsApplied || 0}
+                  rewardsEarned={receiptData.rewardsEarned || 0}
+                  newBalance={receiptData.newBalance}
                 />
               </div>
             </div>
@@ -1524,6 +1608,8 @@ export default function POSRegister() {
                 // Process the sale with gift card payment
                 const txId = "TX-" + Date.now().toString(36).toUpperCase();
                 const chargeAmount = giftCardResult.chargeAmount;
+                const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
+                const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
 
                 // Training mode: do not deduct the gift card balance, record a transaction,
                 // or change stock — just show a receipt for practice.
@@ -1536,7 +1622,11 @@ export default function POSRegister() {
                     items: cart, subtotal, tax, total,
                     paymentMethod: "giftcard",
                     amountTendered: chargeAmount,
-                    changeDue: 0
+                    changeDue: 0,
+                    rewardsApplied: loyaltyAppliedAmount,
+                    loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyMember.rewards_balance } : null,
+                    rewardsEarned,
+                    newBalance: loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null
                   });
                   setLastReceipt({
                     transactionId: txId,
@@ -1545,9 +1635,13 @@ export default function POSRegister() {
                     items: cart, subtotal, tax, total,
                     paymentMethod: "giftcard",
                     amountTendered: chargeAmount,
-                    changeDue: 0
+                    changeDue: 0,
+                    rewardsApplied: loyaltyAppliedAmount,
+                    loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id } : null,
+                    rewardsEarned,
+                    newBalance: loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null
                   });
-                  setCart([]); setPaymentOpen(false); setTaxExemptAppliedId("");
+                  setCart([]); setPaymentOpen(false); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
                   setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setAmountTendered("");
                   return;
                 }
@@ -1568,11 +1662,25 @@ export default function POSRegister() {
                     amount_tendered: chargeAmount,
                     change_due: 0,
                     training_mode: trainingMode,
-                    tax_exempt_id: taxExemptAppliedId || null
+                    tax_exempt_id: taxExemptAppliedId || null,
+                    loyalty_id: loyaltyMember?.loyalty_id || null,
+                    loyalty_member_name: loyaltyMember?.name || null,
+                    rewards_earned: rewardsEarned,
+                    rewards_applied: loyaltyAppliedAmount
                   }).then(() => {
                     for (const item of cart) {
                       const prod = products.find(p => p.sku === item.sku);
                       if (prod) base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
+                    }
+                    let loyaltyNewBalance = loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
+                    if (loyaltyMember) {
+                      base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id }).then(fresh => {
+                        if (fresh.length > 0) {
+                          const m = fresh[0];
+                          const nb = +((m.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2);
+                          base44.entities.LoyaltyMember.update(m.id, { rewards_balance: nb, lifetime_points: +((m.lifetime_points || 0) + rewardsEarned).toFixed(2) });
+                        }
+                      }).catch(() => {});
                     }
                     toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
                     writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
@@ -1584,16 +1692,21 @@ export default function POSRegister() {
                       subtotal, tax, total,
                       paymentMethod: "giftcard",
                       amountTendered: chargeAmount,
-                      changeDue: 0
+                      changeDue: 0,
+                      rewardsApplied: loyaltyAppliedAmount,
+                      loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyNewBalance ?? loyaltyMember.rewards_balance } : null,
+                      rewardsEarned,
+                      newBalance: loyaltyNewBalance
                     });
                     setCart([]);
                     setPaymentOpen(false);
                     setTaxExemptAppliedId("");
+                    setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
                     setGiftCardResult(null);
                     setGiftCardNumber("");
                     setGiftCardAmount("");
                     setAmountTendered("");
-                    setLastReceipt({ taxExempt: taxExemptProfile, transactionId: txId, operatorName: operator.full_name, registerName: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total, paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0 });
+                    setLastReceipt({ taxExempt: taxExemptProfile, transactionId: txId, operatorName: operator.full_name, registerName: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total, paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0, rewardsApplied: loyaltyAppliedAmount, loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id } : null, rewardsEarned, newBalance: loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null });
                     loadData();
                   });
                 });
@@ -1606,6 +1719,22 @@ export default function POSRegister() {
       </Dialog>
 
       <POSTaxExemptDialog open={taxExemptDialog} onClose={() => setTaxExemptDialog(false)} onConfirm={confirmTaxExempt} initialId={taxExemptAppliedId} />
+
+      <LoyaltyLookupDialog
+        open={loyaltyLookupOpen}
+        onClose={() => setLoyaltyLookupOpen(false)}
+        canApply={true}
+        onApply={(member) => applyLoyalty(member, true)}
+        onLink={(member) => applyLoyalty(member, false)}
+        toast={toast}
+      />
+      <LoyaltySignUpDialog
+        open={loyaltySignupOpen}
+        onClose={() => setLoyaltySignupOpen(false)}
+        operator={operator}
+        onCreated={(member) => { setLoyaltyMember(member); setLoyaltyAppliedAmount(0); }}
+        toast={toast}
+      />
       </div>
       );
       }

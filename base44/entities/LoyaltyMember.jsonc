@@ -1,0 +1,76 @@
+{
+  "name": "LoyaltyMember",
+  "type": "object",
+  "properties": {
+    "loyalty_id": {
+      "type": "string",
+      "description": "Unique loyalty ID (e.g. LY-XXXXXXXX)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Customer full name"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "address_street": {
+      "type": "string"
+    },
+    "address_city": {
+      "type": "string"
+    },
+    "address_state": {
+      "type": "string"
+    },
+    "address_zip": {
+      "type": "string"
+    },
+    "rewards_balance": {
+      "type": "number",
+      "default": 0,
+      "description": "Spendable rewards credit in store currency"
+    },
+    "lifetime_points": {
+      "type": "number",
+      "default": 0,
+      "description": "Total rewards ever earned by this member"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disabled"
+      ],
+      "default": "active",
+      "description": "Disabled members cannot earn or redeem at the POS"
+    },
+    "enrolled_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the member was enrolled"
+    },
+    "enrolled_by_operator_id": {
+      "type": "string",
+      "description": "Operator who enrolled the member"
+    },
+    "enrolled_by_operator_name": {
+      "type": "string"
+    },
+    "enrolled_at_register": {
+      "type": "string",
+      "description": "Register ID where the member was enrolled"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "loyalty_id",
+    "name",
+    "rewards_balance",
+    "status"
+  ]
+}

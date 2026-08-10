@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import GiftCardSeller from "@/components/GiftCardSeller";
+import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
+import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 
 export default function CSModePanel({ operator, onAddGiftCard, toast }) {
   const [showGiftCardSeller, setShowGiftCardSeller] = useState(false);
+  const [loyaltyLookupOpen, setLoyaltyLookupOpen] = useState(false);
+  const [loyaltySignupOpen, setLoyaltySignupOpen] = useState(false);
   const [balanceCheckDialog, setBalanceCheckDialog] = useState(false);
   const [balanceCheckNumber, setBalanceCheckNumber] = useState("");
   const [balanceCheckLoading, setBalanceCheckLoading] = useState(false);
@@ -120,7 +124,8 @@ export default function CSModePanel({ operator, onAddGiftCard, toast }) {
           { label: "Card Balance Check", color: "#7c3aed", action: () => setBalanceCheckDialog(true) },
           { label: "Gift Card Cash Out", color: "#dc2626", action: () => setCashOutDialog(true) },
           { label: "Price Match", color: "#b45309", action: () => toast({ title: "Price Match", description: "Enter competitor price to match" }) },
-          { label: "Loyalty Lookup", color: "#0369a1", action: () => toast({ title: "Loyalty Lookup", description: "Scan or enter loyalty card number" }) },
+          { label: "Loyalty Lookup", color: "#0369a1", action: () => setLoyaltyLookupOpen(true) },
+          { label: "Loyalty Sign Up", color: "#0284c7", action: () => setLoyaltySignupOpen(true) },
           { label: "Gift Receipt", color: "#047857", action: () => toast({ title: "Gift Receipt", description: "Re-print last receipt as gift receipt" }) },
         ].map(({ label, color, action }) => (
           <button
@@ -144,6 +149,20 @@ export default function CSModePanel({ operator, onAddGiftCard, toast }) {
           onClose={() => setShowGiftCardSeller(false)} 
         />
       )}
+
+      <LoyaltyLookupDialog
+        open={loyaltyLookupOpen}
+        onClose={() => setLoyaltyLookupOpen(false)}
+        canApply={false}
+        toast={toast}
+      />
+
+      <LoyaltySignUpDialog
+        open={loyaltySignupOpen}
+        onClose={() => setLoyaltySignupOpen(false)}
+        operator={operator}
+        toast={toast}
+      />
 
       {/* Balance Check Dialog */}
       <Dialog open={balanceCheckDialog} onOpenChange={v => { setBalanceCheckDialog(v); if (!v) { setBalanceCheckNumber(""); setBalanceCheckResult(null); } }}>
