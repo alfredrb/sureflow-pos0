@@ -25,7 +25,7 @@ export default function AdminLayout() {
 
   const isManager = adminOperator?.role === "manager";
   const isTechnician = adminOperator?.role === "technician";
-  const TECHNICIAN_PAGES = ["/admin/registers", "/admin/network", "/admin/hardware", "/admin-maintenance-log"];
+  const TECHNICIAN_PAGES = ["/admin/registers", "/admin/network", "/admin/hardware", "/admin-maintenance-log", "/admin/diagnostics"];
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -48,7 +48,7 @@ export default function AdminLayout() {
   }, [adminOperator, isManager]);
 
   const canAccess = (path) => {
-    if (path === "/admin") return true;
+    if (path === "/admin") return !isTechnician;
     if (isManager) return true;
     if (!adminOperator) return true;
     if (isTechnician) return TECHNICIAN_PAGES.includes(path);
@@ -58,9 +58,10 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (!adminOperator) return;
+    if (isTechnician && location.pathname === "/admin") { navigate("/admin/hardware", { replace: true }); return; }
     if (location.pathname === "/admin") return;
     if (!canAccess(location.pathname)) navigate("/admin");
-  }, [location.pathname, adminOperator, permission]);
+  }, [location.pathname, adminOperator, permission, isTechnician]);
 
   useEffect(() => {
     const g = adminNavGroups.find(gr => gr.items.some(i => i.path === location.pathname));
@@ -187,10 +188,12 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 py-3 px-2 overflow-y-auto scrollbar scrollbar-thumb-white/10 scrollbar-track-transparent">
+          {canAccess("/admin") && (
           <Link to="/admin" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${location.pathname === "/admin" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
             <BarChart3 className="w-4 h-4 flex-shrink-0" />
             {!collapsed && <span>Dashboard</span>}
           </Link>
+          )}
           {filteredGroups.map(g => {
             const isOpen = openGroups.has(g.label);
             const GIcon = g.icon;

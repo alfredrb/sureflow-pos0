@@ -91,6 +91,16 @@
       "default": "unknown",
       "description": "Barcode scanner connectivity status"
     },
+    "cash_drawer_status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "unknown"
+      ],
+      "default": "unknown",
+      "description": "Cash drawer connectivity status"
+    },
     "printer_model": {
       "type": "string",
       "description": "Receipt printer make/model connected to this register"
@@ -102,6 +112,26 @@
     "cash_drawer_model": {
       "type": "string",
       "description": "Cash drawer make/model connected to this register"
+    },
+    "printer_serial": {
+      "type": "string",
+      "description": "Receipt printer serial number"
+    },
+    "scanner_serial": {
+      "type": "string",
+      "description": "Barcode scanner serial number"
+    },
+    "cash_drawer_serial": {
+      "type": "string",
+      "description": "Cash drawer serial number"
+    },
+    "terminal_model": {
+      "type": "string",
+      "description": "POS terminal / computer make and model"
+    },
+    "terminal_serial": {
+      "type": "string",
+      "description": "POS terminal / computer serial number"
     }
   },
   "required": [

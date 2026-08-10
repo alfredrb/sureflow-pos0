@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 
-const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", printer_model: "", scanner_model: "", cash_drawer_model: "" };
+const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "" };
 
 const FEATURES = [
   { key: "feature_returns", label: "Returns / Refunds", description: "Allow cashiers to process item returns" },
@@ -35,7 +35,7 @@ export default function AdminRegisters() {
   const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
-    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", printer_model: r.printer_model || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "" });
+    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "" });
     setDialogOpen(true);
   };
 
@@ -109,6 +109,7 @@ export default function AdminRegisters() {
               <div className="flex justify-between"><span className="text-gray-400">Location</span><span className="text-gray-700">{r.location || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">IP</span><span className="text-gray-700 font-mono text-xs">{r.ip_address || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Operator</span><span className="text-gray-700">{r.assigned_operator || "Unassigned"}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Terminal</span><span className="text-gray-700 text-xs">{r.terminal_model || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Printer</span><span className="text-gray-700 text-xs">{r.printer_model || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Scanner</span><span className="text-gray-700 text-xs">{r.scanner_model || "—"}</span></div>
             </div>
@@ -191,7 +192,12 @@ export default function AdminRegisters() {
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Connected Hardware</h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Printer Model</label><Input value={form.printer_model} onChange={e => setForm({ ...form, printer_model: e.target.value })} placeholder="e.g. Epson TM-T20III" /></div>
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Terminal / Computer Model</label><Input value={form.terminal_model} onChange={e => setForm({ ...form, terminal_model: e.target.value })} placeholder="e.g. HP EliteDesk 800 G6" /></div>
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Terminal Serial</label><Input value={form.terminal_serial} onChange={e => setForm({ ...form, terminal_serial: e.target.value })} placeholder="Serial number" className="font-mono text-sm" /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Printer Model</label><Input value={form.printer_model} onChange={e => setForm({ ...form, printer_model: e.target.value })} placeholder="Epson TM-T20III" /></div>
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Printer Serial</label><Input value={form.printer_serial} onChange={e => setForm({ ...form, printer_serial: e.target.value })} className="font-mono text-sm" /></div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Printer Status</label>
                     <Select value={form.printer_status} onValueChange={v => setForm({ ...form, printer_status: v })}>
@@ -204,8 +210,9 @@ export default function AdminRegisters() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Model</label><Input value={form.scanner_model} onChange={e => setForm({ ...form, scanner_model: e.target.value })} placeholder="e.g. Honeywell Voyager 1450g" /></div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Model</label><Input value={form.scanner_model} onChange={e => setForm({ ...form, scanner_model: e.target.value })} placeholder="Honeywell 1450g" /></div>
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Serial</label><Input value={form.scanner_serial} onChange={e => setForm({ ...form, scanner_serial: e.target.value })} className="font-mono text-sm" /></div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Status</label>
                     <Select value={form.scanner_status} onValueChange={v => setForm({ ...form, scanner_status: v })}>
@@ -218,7 +225,21 @@ export default function AdminRegisters() {
                     </Select>
                   </div>
                 </div>
-                <div><label className="text-sm font-medium text-gray-700 mb-1 block">Cash Drawer Model</label><Input value={form.cash_drawer_model} onChange={e => setForm({ ...form, cash_drawer_model: e.target.value })} placeholder="e.g. APG Vasario 1416" /></div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Cash Drawer Model</label><Input value={form.cash_drawer_model} onChange={e => setForm({ ...form, cash_drawer_model: e.target.value })} placeholder="APG Vasario 1416" /></div>
+                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Cash Drawer Serial</label><Input value={form.cash_drawer_serial} onChange={e => setForm({ ...form, cash_drawer_serial: e.target.value })} className="font-mono text-sm" /></div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Drawer Status</label>
+                    <Select value={form.cash_drawer_status} onValueChange={v => setForm({ ...form, cash_drawer_status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="connected">Connected</SelectItem>
+                        <SelectItem value="disconnected">Disconnected</SelectItem>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
             </div>
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Add"} Register</Button>

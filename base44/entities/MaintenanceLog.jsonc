@@ -51,6 +51,39 @@
     "notes": {
       "type": "string",
       "description": "Technician notes and resolution details"
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Name of the operator who last updated this log entry"
+    },
+    "updated_by_role": {
+      "type": "string",
+      "description": "Role of the operator who last updated this log entry"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this log entry was last updated"
+    },
+    "replaced_device": {
+      "type": "string",
+      "enum": [
+        "none",
+        "printer",
+        "scanner",
+        "cash_drawer",
+        "terminal"
+      ],
+      "default": "none",
+      "description": "Device being upgraded or replaced during this maintenance"
+    },
+    "new_model": {
+      "type": "string",
+      "description": "New model of the replaced device (auto-updates the register)"
+    },
+    "new_serial": {
+      "type": "string",
+      "description": "New serial number of the replaced device (auto-updates the register)"
     }
   },
   "required": [

@@ -32,6 +32,14 @@ const STATUS_STYLES = {
 const emptyForm = {
   log_type: "hardware_repair", register_id: "", title: "", description: "",
   technician_name: "", service_date: new Date().toISOString().split("T")[0], status: "scheduled", parts_used: "", notes: "",
+  replaced_device: "none", new_model: "", new_serial: "",
+};
+
+const DEVICE_FIELD_MAP = {
+  printer: { model: "printer_model", serial: "printer_serial" },
+  scanner: { model: "scanner_model", serial: "scanner_serial" },
+  cash_drawer: { model: "cash_drawer_model", serial: "cash_drawer_serial" },
+  terminal: { model: "terminal_model", serial: "terminal_serial" },
 };
 
 export default function AdminMaintenanceLog() {
@@ -44,7 +52,13 @@ export default function AdminMaintenanceLog() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [adminOperator, setAdminOperator] = useState(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("admin_operator");
+    if (stored) setAdminOperator(JSON.parse(stored));
+  }, []);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -87,6 +101,7 @@ export default function AdminMaintenanceLog() {
       description: l.description || "", technician_name: l.technician_name || "",
       service_date: l.service_date || new Date().toISOString().split("T")[0], status: l.status || "scheduled",
       parts_used: l.parts_used || "", notes: l.notes || "",
+      replaced_device: l.replaced_device || "none", new_model: l.new_model || "", new_serial: l.new_serial || "",
     });
     setFormOpen(true);
   };
@@ -95,13 +110,36 @@ export default function AdminMaintenanceLog() {
     if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const payload = { ...form, completed_date: form.status === "completed" ? (form.completed_date || new Date().toISOString().split("T")[0]) : null };
+      const now = new Date().toISOString();
+      const payload = {
+        ...form,
+        completed_date: form.status === "completed" ? (form.completed_date || new Date().toISOString().split("T")[0]) : null,
+        updated_by: adminOperator?.full_name || "Admin",
+        updated_by_role: adminOperator?.role || "admin",
+        updated_at: now,
+      };
       if (editing) {
         await base44.entities.MaintenanceLog.update(editing.id, payload);
         toast({ title: "Log Updated" });
       } else {
         await base44.entities.MaintenanceLog.create(payload);
         toast({ title: "Log Created" });
+      }
+      // Auto-update the register record when a device is upgraded or replaced
+      if (form.replaced_device && form.replaced_device !== "none" && form.register_id) {
+        const fields = DEVICE_FIELD_MAP[form.replaced_device];
+        if (fields) {
+          const update = {};
+          if (form.new_model.trim()) update[fields.model] = form.new_model.trim();
+          if (form.new_serial.trim()) update[fields.serial] = form.new_serial.trim();
+          if (Object.keys(update).length) {
+            const reg = registers.find(r => r.register_id === form.register_id);
+            if (reg) {
+              await base44.entities.Register.update(reg.id, update);
+              toast({ title: "Register Updated", description: `${form.replaced_device.replace("_", " ")} model/serial synced to register` });
+            }
+          }
+        }
       }
       setFormOpen(false);
       load(true);
@@ -186,12 +224,13 @@ export default function AdminMaintenanceLog() {
                 <th className="px-4 py-3 text-left">Title</th>
                 <th className="px-4 py-3 text-left">Technician</th>
                 <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Updated By</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
-                <tr><td colSpan="7" className="px-4 py-10 text-center text-gray-400">No maintenance logs found</td></tr>
+                <tr><td colSpan="8" className="px-4 py-10 text-center text-gray-400">No maintenance logs found</td></tr>
               ) : filtered.map(l => (
                 <tr key={l.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3 text-gray-600 text-xs">{moment(l.service_date).format("MMM D, YYYY")}</td>
@@ -203,6 +242,14 @@ export default function AdminMaintenanceLog() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{l.technician_name || "—"}</td>
                   <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[l.status] || "bg-gray-100 text-gray-600"}`}>{(l.status || "").replace(/_/g, " ")}</span></td>
+                  <td className="px-4 py-3">
+                    {l.updated_by ? (
+                      <div>
+                        <p className="text-xs text-gray-700">{l.updated_by}</p>
+                        <p className="text-[11px] text-gray-400">{moment(l.updated_at).format("MMM D, h:mm A")}</p>
+                      </div>
+                    ) : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5">
                       <button onClick={() => openEdit(l)} title="Edit" className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50"><Pencil className="w-4 h-4" /></button>
@@ -271,6 +318,27 @@ export default function AdminMaintenanceLog() {
                 </Select>
               </div>
               <div><Label>Parts Used</Label><Input value={form.parts_used} onChange={e => setForm(f => ({ ...f, parts_used: e.target.value }))} placeholder="e.g. drawer latch, cable" /></div>
+            </div>
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-gray-500 mb-1">Hardware Upgrade / Replacement</p>
+              <p className="text-[11px] text-gray-400 mb-2">If a device is upgraded or replaced, enter the new details — the register record updates automatically on save.</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Replaced Device</Label>
+                  <Select value={form.replaced_device} onValueChange={v => setForm(f => ({ ...f, replaced_device: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="printer">Printer</SelectItem>
+                      <SelectItem value="scanner">Scanner</SelectItem>
+                      <SelectItem value="cash_drawer">Cash Drawer</SelectItem>
+                      <SelectItem value="terminal">Terminal / Computer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>New Model</Label><Input value={form.new_model} onChange={e => setForm(f => ({ ...f, new_model: e.target.value }))} disabled={form.replaced_device === "none"} placeholder="New model" /></div>
+                <div><Label>New Serial Number</Label><Input value={form.new_serial} onChange={e => setForm(f => ({ ...f, new_serial: e.target.value }))} disabled={form.replaced_device === "none"} placeholder="New serial" className="font-mono text-sm" /></div>
+              </div>
             </div>
             <div><Label>Technician Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Resolution details, follow-ups, observations" /></div>
           </div>

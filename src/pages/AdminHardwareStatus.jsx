@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { HardDrive, RefreshCw, Printer, ScanLine, Wifi, WifiOff, Wrench, CheckCircle, AlertTriangle, HelpCircle } from "lucide-react";
+import { HardDrive, RefreshCw, Printer, ScanLine, Wifi, WifiOff, Wrench, CheckCircle, AlertTriangle, HelpCircle, Wallet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
@@ -36,11 +36,24 @@ export default function AdminHardwareStatus() {
   useEffect(() => { load(); }, []);
   useRealtimeSync("Register", load, { intervalMs: 30000 });
 
+  const [refreshing, setRefreshing] = useState({});
   const updateHW = async (reg, field, value) => {
     try {
       await base44.entities.Register.update(reg.id, { [field]: value });
       setRegisters(rs => rs.map(r => r.id === reg.id ? { ...r, [field]: value } : r));
     } catch (e) { toast({ title: "Error", description: "Failed to update status", variant: "destructive" }); }
+  };
+
+  const refreshDevice = async (reg) => {
+    setRefreshing(prev => ({ ...prev, [reg.id]: true }));
+    try {
+      const fresh = await base44.entities.Register.get(reg.id);
+      setRegisters(rs => rs.map(r => r.id === reg.id ? fresh : r));
+      toast({ title: "Synced", description: `${reg.name} hardware status refreshed` });
+    } catch (e) {
+      toast({ title: "Sync Failed", description: "Could not reach register", variant: "destructive" });
+    }
+    setRefreshing(prev => ({ ...prev, [reg.id]: false }));
   };
 
   const counts = {
@@ -51,6 +64,8 @@ export default function AdminHardwareStatus() {
     printersIssues: registers.filter(r => r.printer_status === "disconnected").length,
     scannersConnected: registers.filter(r => r.scanner_status === "connected").length,
     scannersIssues: registers.filter(r => r.scanner_status === "disconnected").length,
+    drawersConnected: registers.filter(r => r.cash_drawer_status === "connected").length,
+    drawersIssues: registers.filter(r => r.cash_drawer_status === "disconnected").length,
   };
 
   if (loading) return (
@@ -77,6 +92,7 @@ export default function AdminHardwareStatus() {
           { label: "Printers OK", value: counts.printersConnected, color: "text-emerald-600", bg: "bg-emerald-50", icon: Printer },
           { label: "Printers Issues", value: counts.printersIssues, color: "text-red-600", bg: "bg-red-50", icon: AlertTriangle },
           { label: "Scanners OK", value: counts.scannersConnected, color: "text-emerald-600", bg: "bg-emerald-50", icon: ScanLine },
+          { label: "Drawers OK", value: counts.drawersConnected, color: "text-emerald-600", bg: "bg-emerald-50", icon: Wallet },
         ].map(s => (
           <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-4 h-4 ${s.color}`} /></div>
@@ -92,7 +108,8 @@ export default function AdminHardwareStatus() {
           const sm = STATUS_META[r.status] || STATUS_META.offline;
           const pm = HW_META[r.printer_status] || HW_META.unknown;
           const scm = HW_META[r.scanner_status] || HW_META.unknown;
-          const hasIssue = r.status !== "online" || r.printer_status === "disconnected" || r.scanner_status === "disconnected";
+          const cdm = HW_META[r.cash_drawer_status] || HW_META.unknown;
+          const hasIssue = r.status !== "online" || r.printer_status === "disconnected" || r.scanner_status === "disconnected" || r.cash_drawer_status === "disconnected";
           return (
             <div key={r.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${hasIssue ? "border-amber-200" : "border-gray-100"}`}>
               <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-gray-50">
@@ -118,9 +135,9 @@ export default function AdminHardwareStatus() {
                   {r.paused && <span className="text-red-600 font-medium">Paused</span>}
                 </div>
               </div>
-              <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-2"><Printer className={`w-4 h-4 ${pm.color}`} /><span className="text-xs font-medium text-gray-700">Receipt Printer</span><span className={`w-1.5 h-1.5 rounded-full ${pm.dot}`} /></div>
+                  <div className="flex items-center gap-2 mb-2"><Printer className={`w-4 h-4 ${pm.color}`} /><span className="text-xs font-medium text-gray-700">Receipt Printer</span><span className={`w-1.5 h-1.5 rounded-full ${pm.dot}`} /><button onClick={() => refreshDevice(r)} disabled={refreshing[r.id]} title="Refresh device sync" className="ml-auto p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50">{refreshing[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}</button></div>
                   <Select value={r.printer_status || "unknown"} onValueChange={v => updateHW(r, "printer_status", v)}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -131,8 +148,19 @@ export default function AdminHardwareStatus() {
                   </Select>
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 mb-2"><ScanLine className={`w-4 h-4 ${scm.color}`} /><span className="text-xs font-medium text-gray-700">Barcode Scanner</span><span className={`w-1.5 h-1.5 rounded-full ${scm.dot}`} /></div>
+                  <div className="flex items-center gap-2 mb-2"><ScanLine className={`w-4 h-4 ${scm.color}`} /><span className="text-xs font-medium text-gray-700">Barcode Scanner</span><span className={`w-1.5 h-1.5 rounded-full ${scm.dot}`} /><button onClick={() => refreshDevice(r)} disabled={refreshing[r.id]} title="Refresh device sync" className="ml-auto p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50">{refreshing[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}</button></div>
                   <Select value={r.scanner_status || "unknown"} onValueChange={v => updateHW(r, "scanner_status", v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="connected">Connected</SelectItem>
+                      <SelectItem value="disconnected">Disconnected</SelectItem>
+                      <SelectItem value="unknown">Unknown</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2"><Wallet className={`w-4 h-4 ${cdm.color}`} /><span className="text-xs font-medium text-gray-700">Cash Drawer</span><span className={`w-1.5 h-1.5 rounded-full ${cdm.dot}`} /><button onClick={() => refreshDevice(r)} disabled={refreshing[r.id]} title="Refresh device sync" className="ml-auto p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50">{refreshing[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}</button></div>
+                  <Select value={r.cash_drawer_status || "unknown"} onValueChange={v => updateHW(r, "cash_drawer_status", v)}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="connected">Connected</SelectItem>
@@ -148,6 +176,7 @@ export default function AdminHardwareStatus() {
                     {r.status !== "online" && r.status !== "offline" ? `Register in ${sm.label.toLowerCase()}. ` : ""}
                     {r.printer_status === "disconnected" && "Printer not responding. "}
                     {r.scanner_status === "disconnected" && "Scanner not responding. "}
+                    {r.cash_drawer_status === "disconnected" && "Cash drawer not responding. "}
                     Check cables, power, and network; update status once resolved.
                   </p>
                 </div>

@@ -1,4 +1,4 @@
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity } from "lucide-react";
 
 export const adminNavGroups = [
   {
@@ -11,6 +11,7 @@ export const adminNavGroups = [
       { label: "Cash Reconciliation", path: "/admin/cash-reconciliation", icon: DollarSign },
       { label: "EOD Reports", path: "/admin/eod-reports", icon: Calendar },
       { label: "Maintenance Log", path: "/admin-maintenance-log", icon: Wrench },
+      { label: "Diagnostic Tools", path: "/admin/diagnostics", icon: Activity },
     ],
   },
   {
