@@ -209,15 +209,26 @@ export default function AdminRemoteWorkstation() {
   const getRegisterPendingRequests = (registerId) =>
     requests.filter(r => r.register_id === registerId && r.status === "pending");
 
-  // Get current logged-in operator for a register
+  // Get current logged-in operator for a register.
+  // An operator counts as logged in here only if their most recent session event on this
+  // register is a login AND they have not since logged in/out on a different register
+  // (e.g. a dual-login override that force-logged them out and moved them elsewhere).
   const getCurrentOperator = (registerId) => {
-    const loginLog = logs
+    const regEvents = logs
       .filter(l => l.register_id === registerId && (l.event_type === "login" || l.event_type === "logout"))
-      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0];
-    if (loginLog && loginLog.event_type === "login") {
-      return operators.find(o => o.operator_id === loginLog.operator_id) || { operator_id: loginLog.operator_id, full_name: loginLog.operator_name, role: loginLog.operator_role };
-    }
-    return null;
+      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+    const lastEvent = regEvents[0];
+    if (!lastEvent || lastEvent.event_type !== "login") return null;
+    const opId = lastEvent.operator_id;
+    const loginTime = new Date(lastEvent.created_date).getTime();
+    const movedElsewhere = logs.some(l =>
+      l.operator_id === opId &&
+      l.register_id !== registerId &&
+      (l.event_type === "login" || l.event_type === "logout") &&
+      new Date(l.created_date).getTime() > loginTime
+    );
+    if (movedElsewhere) return null;
+    return operators.find(o => o.operator_id === opId) || { operator_id: opId, full_name: lastEvent.operator_name, role: lastEvent.operator_role };
   };
 
   // Get active transaction for a register (most recent non-completed)
