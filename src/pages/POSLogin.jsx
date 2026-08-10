@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/data";
-import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function POSLogin() {
@@ -25,6 +25,10 @@ export default function POSLogin() {
   const [currentOperator, setCurrentOperator] = useState(null);
   const [currentShift, setCurrentShift] = useState(null);
   const [operators, setOperators] = useState([]);
+  const [conflict, setConflict] = useState(null); // { operator, otherRegister }
+  const [overridePin, setOverridePin] = useState("");
+  const [overrideError, setOverrideError] = useState("");
+  const [overrideLoading, setOverrideLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -165,13 +169,70 @@ export default function POSLogin() {
         toast({ title: "Invalid PIN", description: "Incorrect PIN entered", variant: "destructive" });
         setPin("");
       } else {
-        sessionStorage.setItem("pos_operator", JSON.stringify(operatorData[0]));
+        const op = operatorData[0];
+        // Detect an active session on another register (most recent login without a later logout)
+        const currentReg = sessionStorage.getItem("pos_register_num");
+        const logs = await base44.entities.RegisterLog.filter({ operator_id: op.operator_id }, "-created_date", 100);
+        const sessionEvents = logs.filter(l => l.event_type === "login" || l.event_type === "logout");
+        const mostRecent = sessionEvents[0];
+        const activeReg = (mostRecent && mostRecent.event_type === "login") ? mostRecent.register_id : null;
+        if (activeReg && activeReg !== currentReg) {
+          setConflict({ operator: op, otherRegister: activeReg });
+          setOverridePin(""); setOverrideError("");
+          setLoading(false);
+          return;
+        }
+        sessionStorage.setItem("pos_operator", JSON.stringify(op));
         navigate("/pos/register");
       }
     } catch (e) {
       toast({ title: "Error", description: "Login failed", variant: "destructive" });
     }
     setLoading(false);
+  };
+
+  const handleDualLoginOverride = async () => {
+    setOverrideError("");
+    setOverrideLoading(true);
+    try {
+      const ops = await base44.entities.Operator.filter({ pin: overridePin });
+      const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+      if (!sup) {
+        setOverrideError("Invalid PIN — CSM or Manager required");
+        setOverrideLoading(false);
+        return;
+      }
+      const op = conflict.operator;
+      const currentReg = sessionStorage.getItem("pos_register_num");
+      // Force logout from the other register to keep session tracking accurate
+      await base44.entities.RegisterLog.create({
+        event_type: "logout",
+        operator_id: op.operator_id,
+        operator_name: op.full_name,
+        operator_role: op.role,
+        register_id: conflict.otherRegister,
+        detail: `Force logout — logged in at ${currentReg} via dual-login override by ${sup.full_name}`
+      });
+      // Log the override action
+      await base44.entities.RegisterLog.create({
+        event_type: "override",
+        operator_id: op.operator_id,
+        operator_name: op.full_name,
+        operator_role: op.role,
+        register_id: currentReg,
+        detail: `Dual register login override — already logged in at ${conflict.otherRegister}, authorized by ${sup.full_name}`,
+        override_operator_id: sup.operator_id,
+        override_operator_name: sup.full_name,
+        override_action: "Dual Register Login"
+      });
+      sessionStorage.setItem("pos_operator", JSON.stringify(op));
+      setConflict(null);
+      setOverridePin("");
+      navigate("/pos/register");
+    } catch (e) {
+      setOverrideError("Override failed — try again");
+    }
+    setOverrideLoading(false);
   };
 
   const handleShiftLookup = async () => {
@@ -450,6 +511,46 @@ export default function POSLogin() {
                 Cancel
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Dual Login Conflict Modal */}
+      {conflict && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
+          <div className="bg-[#111638] border border-amber-500/30 rounded-2xl p-6 w-full max-w-xs space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <h3 className="text-white font-semibold text-sm">Already Logged In</h3>
+            </div>
+            <p className="text-blue-300/70 text-xs leading-relaxed">
+              {conflict.operator.full_name} is currently logged in at register{" "}
+              <span className="font-mono font-bold text-amber-400">{conflict.otherRegister}</span>.
+              To log in here, a CSM or Manager must authorize.
+            </p>
+            <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-amber-500/20 min-h-[44px] flex items-center justify-center">
+              {"•".repeat(overridePin.length) || <span className="text-blue-500/20">----</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
+                <button key={k} disabled={overrideLoading} onClick={() => {
+                  if (k === "CLR") { setOverridePin(""); setOverrideError(""); }
+                  else if (k === "ENT" && overridePin.length > 0) handleDualLoginOverride();
+                  else if (k !== "ENT" && overridePin.length < 6) setOverridePin(p => p + k);
+                }}
+                className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
+                  k === "ENT" ? "bg-amber-600 hover:bg-amber-500 text-white" :
+                  k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
+                  "bg-[#1a1f4a] text-white border border-blue-500/10"
+                }`}>
+                  {overrideLoading && k === "ENT" ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : k}
+                </button>
+              ))}
+            </div>
+            {overrideError && <p className="text-red-400 text-xs text-center">{overrideError}</p>}
+            <button onClick={() => { setConflict(null); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
+              Cancel
+            </button>
           </div>
         </div>
       )}
