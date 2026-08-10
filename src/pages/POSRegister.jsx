@@ -767,6 +767,10 @@ export default function POSRegister() {
               <span className="text-blue-300/40 text-[10px] block">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
               <span className="text-blue-300/25 text-[9px] block">OP: {operator?.operator_id || "—"}</span>
             </div>
+            <div className="text-left leading-tight pointer-events-none pl-1.5 border-l border-blue-500/10">
+              <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
+              <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</p>
+            </div>
           </div>
 
           {/* Mode Buttons */}
@@ -791,12 +795,6 @@ export default function POSRegister() {
                 {label}
               </button>
             ))}
-          </div>
-
-          {/* Clock */}
-          <div className="text-center leading-tight pointer-events-none">
-            <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
-            <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</p>
           </div>
         </div>
 
