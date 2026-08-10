@@ -10,6 +10,7 @@ import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, Fil
 import { useToast } from "@/components/ui/use-toast";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { currentStoreId, scopeByStore, scopeByRegister } from "@/lib/storeScope";
 
 export default function AdminCashReconciliation() {
   const [deposits, setDeposits] = useState([]);
@@ -54,16 +55,20 @@ export default function AdminCashReconciliation() {
         base44.entities.RegisterLog.list("-created_date", 500),
         base44.entities.TillCheckout.list("-checkout_date")
       ]);
-      setDeposits(depositsData);
-      setRegisters(registersData);
-      setAdvances(advancesData);
-      setPickups(pickupsData);
-      setRobberies(robberiesData);
-      setAudits(auditsData);
-      setAlerts(alertsData);
-      setTillCheckouts(tillsData);
+      const sid = currentStoreId();
+      const scopedRegs = scopeByStore(registersData, sid);
+      const scopedRegIds = scopedRegs.map(r => r.register_id).filter(Boolean);
+      const byReg = (recs) => scopeByRegister(recs, sid, scopedRegIds);
+      setDeposits(byReg(depositsData));
+      setRegisters(scopedRegs);
+      setAdvances(byReg(advancesData));
+      setPickups(byReg(pickupsData));
+      setRobberies(byReg(robberiesData));
+      setAudits(byReg(auditsData));
+      setAlerts(byReg(alertsData));
+      setTillCheckouts(byReg(tillsData));
       // Extract gift card cashouts from RegisterLog
-      const cashouts = logData.filter(log => log.detail && log.detail.includes("Gift card cash out"));
+      const cashouts = byReg(logData).filter(log => log.detail && log.detail.includes("Gift card cash out"));
       setGiftCardCashouts(cashouts);
       setLoading(false);
     } catch (e) {

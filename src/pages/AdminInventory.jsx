@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { currentStoreId, scopeByStore } from "@/lib/storeScope";
 
-const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "" };
+const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", store_id: "" };
 
 const exportToCSV = (data, filename) => {
   const keys = ["sku", "name", "price", "cost", "category", "barcode", "stock_qty", "tax_rate", "status", "return_period_days"];
@@ -52,12 +53,12 @@ export default function AdminInventory() {
   const [form, setForm] = useState({ ...emptyProduct });
   const { toast } = useToast();
 
-  const load = async () => { setProducts(await base44.entities.Product.list()); setLoading(false); };
+  const load = async () => { setProducts(scopeByStore(await base44.entities.Product.list(), currentStoreId())); setLoading(false); };
   useEffect(() => { load(); }, []);
   useRealtimeSync("Product", load, { intervalMs: 20000 });
 
-  const openNew = () => { setEditing(null); setForm({ ...emptyProduct }); setDialogOpen(true); };
-  const openEdit = (p) => { setEditing(p); setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active", return_period_days: p.return_period_days ?? "" }); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...emptyProduct, store_id: currentStoreId() }); setDialogOpen(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active", return_period_days: p.return_period_days ?? "", store_id: p.store_id || "" }); setDialogOpen(true); };
 
   const save = async () => {
     try {

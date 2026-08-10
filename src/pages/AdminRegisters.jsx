@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { currentStoreId, scopeByStore } from "@/lib/storeScope";
 
 const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", store_id: "" };
 
@@ -27,8 +28,9 @@ export default function AdminRegisters() {
   const { toast } = useToast();
 
   const load = async () => {
+    const sid = currentStoreId();
     const [regs, ops, storeList] = await Promise.all([base44.entities.Register.list(), base44.entities.Operator.filter({ status: "active" }), base44.entities.Store.list()]);
-    setRegisters(regs); setOperators(ops); setStores(storeList || []); setLoading(false);
+    setRegisters(scopeByStore(regs, sid)); setOperators(scopeByStore(ops, sid)); setStores(storeList || []); setLoading(false);
   };
   useEffect(() => { load(); }, []);
   useRealtimeSync("Register", load, { intervalMs: 20000 });

@@ -7,20 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { currentStoreId, scopeByStore } from "@/lib/storeScope";
 
 export default function AdminOperators() {
   const [operators, setOperators] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" });
+  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", store_id: "" });
   const { toast } = useToast();
 
   const load = async () => {
     try {
-      const data = await base44.entities.Operator.list();
-      setOperators(data);
+      const [data, storeList] = await Promise.all([base44.entities.Operator.list(), base44.entities.Store.list()]);
+      setOperators(scopeByStore(data, currentStoreId()));
+      setStores(storeList || []);
     } catch (e) {
       if (e.message?.includes("Rate limit")) {
         toast({ title: "Rate limit hit", description: "Please wait before making another change", variant: "destructive" });
@@ -33,8 +36,8 @@ export default function AdminOperators() {
   useEffect(() => { load(); }, []);
   useRealtimeSync("Operator", load, { intervalMs: 20000 });
 
-  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" }); setDialogOpen(true); };
-  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "" }); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", store_id: currentStoreId() }); setDialogOpen(true); };
+  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "", store_id: op.store_id || "" }); setDialogOpen(true); };
 
   const save = async () => {
     try {
@@ -139,6 +142,16 @@ export default function AdminOperators() {
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
               <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} type="email" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Assigned Store</label>
+              <Select value={form.store_id || "__none"} onValueChange={v => setForm({ ...form, store_id: v === "__none" ? "" : v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Unassigned (visible centrally)</SelectItem>
+                  {stores.map(s => <SelectItem key={s.id} value={s.store_number}>Store {s.store_number} — {s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

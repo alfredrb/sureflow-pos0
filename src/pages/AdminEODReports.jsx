@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TrendingUp, DollarSign, ShoppingCart, Package } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { currentStoreId, scopeByStore } from "@/lib/storeScope";
 
 export default function AdminEODReports() {
   const [reports, setReports] = useState([]);
@@ -16,7 +17,7 @@ export default function AdminEODReports() {
   const loadReports = async () => {
     try {
       const data = await base44.entities.EODReport.list("-report_date");
-      setReports(data);
+      setReports(scopeByStore(data, currentStoreId()));
       setLoading(false);
     } catch (e) {
       toast({ title: "Error loading reports", variant: "destructive" });
