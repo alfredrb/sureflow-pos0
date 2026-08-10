@@ -3,7 +3,6 @@ import { Upload, FileJson, Eye, Calendar, Trash2, Database } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
 
 const CATEGORIES = [
   { key: "transactions", label: "Transactions", icon: FileJson },
@@ -75,32 +74,39 @@ export default function AdminDataViewer() {
   const [timestamp, setTimestamp] = useState("");
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState("");
   const inputRef = useRef(null);
-  const { toast } = useToast();
 
   const parseFile = (file) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".json")) {
-      toast({ title: "Invalid file", description: "Please upload a .json backup file.", variant: "destructive" });
+      setError("Please upload a .json backup file.");
       return;
     }
+    setError("");
     setLoading(true);
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const parsed = JSON.parse(e.target.result);
-        const payload = parsed.data && typeof parsed.data === "object" ? parsed.data : parsed;
-        const hasAny = CATEGORIES.some(c => Array.isArray(payload[c]));
-        if (!hasAny) throw new Error("No recognizable categories found");
-        setData(payload);
+        // Reset Data export shape: { timestamp, <category>: <count>, data: { <category>: [...] } }
+        // Also tolerate a flat { <category>: [...] } shape.
+        const candidate = (parsed && parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)) ? parsed.data : parsed;
+        const normalized = {};
+        CATEGORIES.forEach(c => {
+          if (Array.isArray(candidate[c])) normalized[c] = candidate[c];
+        });
+        if (Object.keys(normalized).length === 0) throw new Error("No recognizable categories found");
+        setData(normalized);
         setFileName(file.name);
-        setTimestamp(parsed.timestamp || "");
-        toast({ title: "Backup loaded", description: file.name });
+        setTimestamp(parsed.timestamp || (parsed.exported_at || ""));
       } catch (err) {
-        toast({ title: "Parse failed", description: "This file is not a valid SureFlow backup.", variant: "destructive" });
+        setError(`This file is not a valid SureFlow backup. (${err.message || "parse error"})`);
+        setData(null);
       }
       setLoading(false);
     };
+    reader.onerror = () => { setError("Could not read the file."); setLoading(false); };
     reader.readAsText(file);
   };
 
@@ -121,12 +127,13 @@ export default function AdminDataViewer() {
           onClick={() => inputRef.current?.click()}
           className={`cursor-pointer border-2 border-dashed rounded-3xl p-12 text-center transition-colors ${dragOver ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-blue-300"}`}
         >
-          <input ref={inputRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => parseFile(e.target.files[0])} />
+          <input ref={inputRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => { parseFile(e.target.files[0]); e.target.value = ""; }} />
           <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
             {loading ? <div className="w-7 h-7 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /> : <Upload className="w-7 h-7 text-blue-600" />}
           </div>
           <p className="font-semibold text-gray-900">{loading ? "Reading…" : "Drop backup file here or click to upload"}</p>
           <p className="text-gray-400 text-sm mt-1">Exports from the Reset Data flow (.json)</p>
+          {error && <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 max-w-md mx-auto">{error}</p>}
         </div>
       ) : (
         <>
