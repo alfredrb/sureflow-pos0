@@ -55,12 +55,18 @@ export default function AdminRegisterLog() {
 
   const loadLogs = async (silent = false) => {
     if (!silent) setLoading(true);
-    const data = await base44.entities.RegisterLog.list("-created_date", 100);
-    setLogs(data);
-    setLoading(false);
+    try {
+      const data = await base44.entities.RegisterLog.list("-created_date", 100);
+      setLogs(data);
+    } catch (e) {
+      // Transient rate-limit / network error — keep existing data; the realtime
+      // subscription or polling fallback will refresh shortly.
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useRealtimeSync("RegisterLog", loadLogs, { intervalMs: 10000 });
+  useRealtimeSync("RegisterLog", loadLogs, { intervalMs: 30000 });
 
   const registers = ["all", ...new Set(logs.map(l => l.register_id).filter(Boolean))];
 
