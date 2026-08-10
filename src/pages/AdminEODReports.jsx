@@ -13,11 +13,6 @@ export default function AdminEODReports() {
   const [sortBy, setSortBy] = useState("desc");
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadReports();
-  }, []);
-  useRealtimeSync("EODReport", loadReports, { intervalMs: 30000 });
-
   const loadReports = async () => {
     try {
       const data = await base44.entities.EODReport.list("-report_date");
@@ -28,6 +23,11 @@ export default function AdminEODReports() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+  useRealtimeSync("EODReport", loadReports, { intervalMs: 30000 });
 
   const sortedReports = [...reports].sort((a, b) => {
     const dateA = new Date(a.report_date);
