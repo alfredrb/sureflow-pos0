@@ -746,7 +746,7 @@ export default function POSRegister() {
             <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
               <ShoppingCart className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-white font-bold text-sm">SurePOS</span>
+            <span className="text-white font-bold text-sm">SureFlow POS</span>
             <div className="text-right leading-tight">
               <span className="text-blue-300/40 text-[10px] block">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
               <span className="text-blue-300/25 text-[9px] block">OP: {operator?.operator_id || "—"}</span>

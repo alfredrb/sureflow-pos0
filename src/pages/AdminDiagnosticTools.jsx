@@ -184,7 +184,7 @@ export default function AdminDiagnosticTools() {
             <div className="px-5 py-3 border-b border-gray-50 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div><p className="text-gray-400">Terminal Model</p><p className="text-gray-700">{selected.terminal_model || "—"}</p></div>
               <div><p className="text-gray-400">Terminal Serial</p><p className="text-gray-700 font-mono">{selected.terminal_serial || "—"}</p></div>
-              <div><p className="text-gray-400">Software</p><p className="text-gray-700">SurePOS v4.2.1</p></div>
+              <div><p className="text-gray-400">Software</p><p className="text-gray-700">SureFlow POS v4.2.1</p></div>
             </div>
 
             {/* Per-device connectivity with refresh */}

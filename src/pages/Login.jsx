@@ -34,7 +34,7 @@ export default function Login() {
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
             <Monitor className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white text-xl font-bold">SurePOS</span>
+          <span className="text-white text-xl font-bold">SureFlow POS</span>
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Sign In</h2>

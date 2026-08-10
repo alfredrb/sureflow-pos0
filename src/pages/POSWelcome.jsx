@@ -29,7 +29,7 @@ export default function POSWelcome() {
 
         <div>
           <h1 className="text-5xl font-bold text-white tracking-tight font-heading">
-            SurePOS
+            SureFlow POS
           </h1>
           <p className="text-blue-300/60 text-sm mt-2 tracking-[0.3em] uppercase">
             Point of Sale System

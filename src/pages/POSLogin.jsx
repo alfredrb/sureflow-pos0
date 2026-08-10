@@ -300,7 +300,7 @@ export default function POSLogin() {
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
             <Monitor className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white text-xl font-bold">SurePOS</span>
+          <span className="text-white text-xl font-bold">SureFlow POS</span>
         </div>
 
         <div className="w-full max-w-xs bg-[#111638] border border-blue-500/10 rounded-2xl p-5 space-y-5">

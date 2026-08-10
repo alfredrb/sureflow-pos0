@@ -44,7 +44,7 @@ export default function POSTechnicianPanel({ operator, loadData, writeLog, toast
     const w = window.open("", "_blank", "width=400,height=600");
     if (!w) throw new Error("popup blocked");
     w.document.write(`<html><head><title>Printer Test</title></head><body style="font-family:monospace;padding:24px;">
-      <h3>SurePOS Printer Test</h3><p>Register: ${registerId}</p><p>Time: ${new Date().toLocaleString()}</p>
+      <h3>SureFlow POS Printer Test</h3><p>Register: ${registerId}</p><p>Time: ${new Date().toLocaleString()}</p>
       <hr><p>This is a test print to verify receipt printer connectivity.</p>
       <script>window.onload=function(){window.print();};</script></body></html>`);
     w.document.close();

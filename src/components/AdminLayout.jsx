@@ -158,7 +158,7 @@ export default function AdminLayout() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-[#0f172a] text-white flex items-center justify-between px-4 h-14 shadow-md">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center"><Settings className="w-4 h-4" /></div>
-          <span className="font-bold text-sm">SurePOS Admin</span>
+          <span className="font-bold text-sm">SureFlow POS Admin</span>
         </div>
         <button onClick={() => setMobileOpen(true)} className="p-2 hover:bg-white/5 rounded-lg"><Menu className="w-5 h-5" /></button>
       </div>
@@ -174,7 +174,7 @@ export default function AdminLayout() {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><Settings className="w-4 h-4" /></div>
-                <span className="font-bold text-sm">SurePOS Admin</span>
+                <span className="font-bold text-sm">SureFlow POS Admin</span>
               </div>
               {adminOperator && (
                 <div className="text-xs text-blue-300/70 pl-10">{adminOperator.full_name} · {adminOperator.role === "manager" ? "Manager" : adminOperator.role === "technician" ? "Technician" : "CSM"}</div>

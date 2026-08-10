@@ -49,7 +49,7 @@ export default function AdminLogin() {
       </div>
 
       <h1 className="text-3xl font-bold text-white mb-2">Admin Panel</h1>
-      <p className="text-blue-300/50 text-sm mb-10">SurePOS Management System</p>
+      <p className="text-blue-300/50 text-sm mb-10">SureFlow POS Management System</p>
 
       <form onSubmit={handleLogin} className="w-full max-w-sm bg-[#111638] border border-blue-500/10 rounded-2xl p-6 space-y-5">
         <div className="space-y-1.5">
