@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Siren, AlertTriangle, AlertCircle, Bell, Plus, RefreshCw, CheckCircle, Package, Monitor, ShieldAlert } from "lucide-react";
+import { Siren, AlertTriangle, AlertCircle, Bell, Plus, RefreshCw, CheckCircle, Package, Monitor, ShieldAlert, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,8 @@ export default function AdminSystemAlerts() {
         base44.entities.EmergencyAlert.filter({ status: "active" }),
         base44.entities.CashLimitAlert.filter({ status: "active" }),
       ]);
+      let maintenance = [];
+      try { maintenance = await base44.entities.MaintenanceLog.list("-service_date", 200); } catch (e) {}
       const derived = [];
       products.filter(p => (p.stock_qty || 0) <= LOW_STOCK_THRESHOLD).forEach(p => {
         derived.push({ id: `inv-${p.id}`, kind: "inventory", severity: (p.stock_qty || 0) === 0 ? "critical" : "warning", type: "Inventory", title: `Low Stock: ${p.name}`, description: `${p.stock_qty || 0} units remaining (SKU ${p.sku})`, source: "Inventory", actionable: false });
@@ -51,6 +53,9 @@ export default function AdminSystemAlerts() {
       });
       emergencies.forEach(e => derived.push({ id: `em-${e.id}`, kind: "emergency", severity: "critical", type: "Security", title: `Robbery Alert: ${e.register_name || e.register_id}`, description: `Active emergency reported by ${e.operator_name || "operator"} on ${moment(e.timestamp).format("MMM D, h:mm A")}`, source: e.register_id, actionable: false }));
       cashAlerts.forEach(c => derived.push({ id: `cl-${c.id}`, kind: "cash", severity: "warning", type: "Cash Limit", title: `Cash Limit Exceeded: ${c.register_name || c.register_id}`, description: `Register is $${(c.excess_amount || 0).toFixed(2)} over the $${(c.cash_limit || 0).toFixed(0)} limit`, source: c.register_id, actionable: false }));
+      maintenance.filter(m => m.status === "scheduled" || m.status === "in_progress").forEach(m => {
+        derived.push({ id: `mnt-${m.id}`, kind: "maintenance", severity: m.status === "in_progress" ? "warning" : "info", type: "Maintenance", title: `${m.title}${m.register_id ? ` — ${m.register_id}` : ""}`, description: `${(m.log_type || "maintenance").replace(/_/g, " ")} · ${m.status.replace(/_/g, " ")}${m.technician_name ? ` · ${m.technician_name}` : ""}${m.service_date ? ` · ${moment(m.service_date).format("MMM D")}` : ""}`, source: m.register_id || "System", actionable: false, created_date: m.service_date ? m.service_date + "T00:00:00" : (m.created_date || undefined) });
+      });
       const loggedAlerts = logged.map(a => ({ id: a.id, kind: "logged", severity: a.severity, type: a.alert_type, title: a.title, description: a.description, source: a.source || "System", actionable: a.status === "active", created_date: a.created_date, raw: a }));
       const order = { critical: 0, warning: 1, info: 2 };
       setAlerts([...derived, ...loggedAlerts].sort((a, b) => order[a.severity] - order[b.severity]));
@@ -133,7 +138,7 @@ export default function AdminSystemAlerts() {
         ) : alerts.map(a => {
           const s = SEVERITY[a.severity] || SEVERITY.warning;
           const SIcon = s.icon;
-          const typeIcon = a.kind === "inventory" ? Package : a.kind === "register" ? Monitor : a.kind === "emergency" ? ShieldAlert : SIcon;
+          const typeIcon = a.kind === "inventory" ? Package : a.kind === "register" ? Monitor : a.kind === "emergency" ? ShieldAlert : a.kind === "maintenance" ? Wrench : SIcon;
           return (
             <div key={a.id} className={`${s.bg} ${s.border} border rounded-2xl p-4 flex flex-col gap-2`}>
               <div className="flex items-start justify-between gap-2">
@@ -141,7 +146,7 @@ export default function AdminSystemAlerts() {
                   <SIcon className={`w-5 h-5 ${s.iconColor} flex-shrink-0`} />
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${s.badge}`}>{a.type}</span>
                 </div>
-                {a.kind === "logged" && a.created_date && <span className="text-[10px] text-gray-400">{moment(a.created_date).format("MMM D, h:mm A")}</span>}
+                {(a.kind === "logged" || a.kind === "maintenance") && a.created_date && <span className="text-[10px] text-gray-400">{moment(a.created_date).format("MMM D, h:mm A")}</span>}
               </div>
               <p className="font-semibold text-gray-900 text-sm">{a.title}</p>
               <p className="text-gray-600 text-xs leading-relaxed">{a.description}</p>

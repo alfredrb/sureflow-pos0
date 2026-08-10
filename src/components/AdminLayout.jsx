@@ -24,6 +24,8 @@ export default function AdminLayout() {
   const navigate = useNavigate();
 
   const isManager = adminOperator?.role === "manager";
+  const isTechnician = adminOperator?.role === "technician";
+  const TECHNICIAN_PAGES = ["/admin/registers", "/admin/network", "/admin/hardware", "/admin-maintenance-log"];
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -34,7 +36,7 @@ export default function AdminLayout() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!adminOperator || isManager) return;
+    if (!adminOperator || isManager || isTechnician) return;
     let active = true;
     (async () => {
       try {
@@ -49,12 +51,13 @@ export default function AdminLayout() {
     if (path === "/admin") return true;
     if (isManager) return true;
     if (!adminOperator) return true;
+    if (isTechnician) return TECHNICIAN_PAGES.includes(path);
     if (!permission) return true; // not configured yet => full access
     return (permission.allowed_pages || []).includes(path);
   };
 
   useEffect(() => {
-    if (!adminOperator || !permission) return;
+    if (!adminOperator) return;
     if (location.pathname === "/admin") return;
     if (!canAccess(location.pathname)) navigate("/admin");
   }, [location.pathname, adminOperator, permission]);
@@ -173,7 +176,7 @@ export default function AdminLayout() {
                 <span className="font-bold text-sm">SurePOS Admin</span>
               </div>
               {adminOperator && (
-                <div className="text-xs text-blue-300/70 pl-10">{adminOperator.full_name} · {adminOperator.role === "manager" ? "Manager" : "CSM"}</div>
+                <div className="text-xs text-blue-300/70 pl-10">{adminOperator.full_name} · {adminOperator.role === "manager" ? "Manager" : adminOperator.role === "technician" ? "Technician" : "CSM"}</div>
               )}
             </div>
           )}

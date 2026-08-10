@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,10 @@ import SODProtocolModal from "@/components/SODProtocolModal";
 import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
 import POSReceipt from "@/components/POSReceipt";
-import GiftCardSeller from "@/components/GiftCardSeller";
 import POSTaxExemptDialog from "@/components/pos/POSTaxExemptDialog";
 import POSHelpMenu from "@/components/POSHelpMenu";
+import POSTechnicianPanel from "@/components/POSTechnicianPanel";
+import POSCSModePanel from "@/components/POSCSModePanel";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -630,247 +631,6 @@ function ExchangePanel({ operator, products, loadData, toast, onPreviewChange })
   );
 }
 
-// ── CS Mode Panel ────────────────────────────────────────────────────────────
-function CSModePanel({ operator, onAddGiftCard, toast }) {
-  const [showGiftCardSeller, setShowGiftCardSeller] = useState(false);
-  const [balanceCheckDialog, setBalanceCheckDialog] = useState(false);
-  const [balanceCheckNumber, setBalanceCheckNumber] = useState("");
-  const [balanceCheckLoading, setBalanceCheckLoading] = useState(false);
-  const [balanceCheckResult, setBalanceCheckResult] = useState(null);
-  const [cashOutDialog, setCashOutDialog] = useState(false);
-  const [cashOutNumber, setCashOutNumber] = useState("");
-  const [cashOutPin, setCashOutPin] = useState("");
-  const [cashOutError, setCashOutError] = useState("");
-  const [cashOutLoading, setCashOutLoading] = useState(false);
-
-  const handleBalanceCheck = async () => {
-    if (!balanceCheckNumber.trim()) {
-      toast({ title: "Error", description: "Please enter a gift card number", variant: "destructive" });
-      return;
-    }
-    setBalanceCheckLoading(true);
-    try {
-      const cards = await base44.entities.GiftCard.filter({ card_number: balanceCheckNumber.trim() });
-      if (cards.length === 0) {
-        setBalanceCheckResult({ found: false });
-        toast({ title: "Not Found", description: "Gift card not found in system", variant: "destructive" });
-      } else {
-        const card = cards[0];
-        setBalanceCheckResult({ found: true, card });
-      }
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to check balance", variant: "destructive" });
-    }
-    setBalanceCheckLoading(false);
-  };
-
-  const handleCashOut = async () => {
-    if (!cashOutNumber.trim() || !cashOutPin.trim()) {
-      setCashOutError("Please enter both card number and manager PIN");
-      return;
-    }
-    setCashOutLoading(true);
-    setCashOutError("");
-    try {
-      // Verify manager PIN
-      const ops = await base44.entities.Operator.filter({ pin: cashOutPin });
-      const manager = ops.find(o => o.role === "manager");
-      if (!manager) {
-        setCashOutError("Invalid PIN or insufficient role (Manager required)");
-        setCashOutLoading(false);
-        return;
-      }
-
-      // Find and update gift card
-      const cards = await base44.entities.GiftCard.filter({ card_number: cashOutNumber.trim() });
-      if (cards.length === 0) {
-        setCashOutError("Gift card not found");
-        setCashOutLoading(false);
-        return;
-      }
-
-      const card = cards[0];
-      if (card.balance <= 0) {
-        setCashOutError("Card has no remaining balance");
-        setCashOutLoading(false);
-        return;
-      }
-
-      // Update card to inactive and record transaction
-      await base44.entities.GiftCard.update(card.id, { 
-        status: "inactive",
-        balance: 0
-      });
-
-      // Log the cash out transaction with transaction data
-       await base44.entities.RegisterLog.create({
-         event_type: "transaction",
-         operator_id: operator.operator_id,
-         operator_name: operator.full_name,
-         operator_role: operator.role,
-         register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
-         detail: `Gift card cash out: ${card.card_number} — $${card.balance.toFixed(2)} (Manager: ${manager.full_name})`,
-         transaction_id: `GCCASH-${Date.now().toString(36).toUpperCase()}`,
-         transaction_total: card.balance,
-         items: [
-           {
-             sku: "GIFTCARD_CASHOUT",
-             name: `Gift Card Cash Out (${card.card_number})`,
-             qty: 1,
-             price: card.balance,
-             total: card.balance
-           }
-         ]
-       });
-
-      toast({ title: "Cash Out Approved", description: `$${card.balance.toFixed(2)} processed — Card deactivated`, variant: "default" });
-      setCashOutDialog(false);
-      setCashOutNumber("");
-      setCashOutPin("");
-    } catch (e) {
-      setCashOutError("Failed to process cash out");
-    }
-    setCashOutLoading(false);
-  };
-
-  return (
-    <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <Headphones className="w-4 h-4 text-amber-400" />
-        <p className="text-amber-300 text-xs uppercase tracking-widest font-bold">Customer Service Mode</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: "Sell Gift Card", color: "#059669", action: () => setShowGiftCardSeller(true) },
-          { label: "Card Balance Check", color: "#7c3aed", action: () => setBalanceCheckDialog(true) },
-          { label: "Gift Card Cash Out", color: "#dc2626", action: () => setCashOutDialog(true) },
-          { label: "Price Match", color: "#b45309", action: () => toast({ title: "Price Match", description: "Enter competitor price to match" }) },
-          { label: "Loyalty Lookup", color: "#0369a1", action: () => toast({ title: "Loyalty Lookup", description: "Scan or enter loyalty card number" }) },
-          { label: "Gift Receipt", color: "#047857", action: () => toast({ title: "Gift Receipt", description: "Re-print last receipt as gift receipt" }) },
-        ].map(({ label, color, action }) => (
-          <button
-            key={label}
-            onClick={action}
-            className="rounded-xl text-white font-bold text-sm uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex items-center justify-center p-4 shadow-lg h-20"
-            style={{ backgroundColor: color }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 flex items-center justify-center text-amber-300/20">
-        <p className="text-xs">Additional CS functions can be added via Admin Panel</p>
-      </div>
-
-      {showGiftCardSeller && (
-        <GiftCardSeller 
-          operator={operator} 
-          onAddToCart={onAddGiftCard}
-          onClose={() => setShowGiftCardSeller(false)} 
-        />
-      )}
-
-      {/* Balance Check Dialog */}
-      <Dialog open={balanceCheckDialog} onOpenChange={v => { setBalanceCheckDialog(v); if (!v) { setBalanceCheckNumber(""); setBalanceCheckResult(null); } }}>
-        <DialogContent className="bg-[#111638] border-purple-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-purple-400 text-sm">Check Gift Card Balance</DialogTitle>
-          </DialogHeader>
-          {!balanceCheckResult ? (
-            <>
-              <p className="text-blue-300/60 text-xs">Scan or enter gift card number</p>
-              <Input
-                placeholder="Gift Card Number"
-                value={balanceCheckNumber}
-                onChange={e => setBalanceCheckNumber(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleBalanceCheck()}
-                className="bg-[#0a0e27] border-purple-500/20 text-white placeholder:text-blue-300/20"
-                autoFocus
-              />
-              <Button
-                onClick={handleBalanceCheck}
-                disabled={balanceCheckLoading || !balanceCheckNumber.trim()}
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50"
-              >
-                {balanceCheckLoading ? "Checking..." : "Check Balance"}
-              </Button>
-            </>
-          ) : balanceCheckResult.found ? (
-            <>
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 space-y-3">
-                <div>
-                  <p className="text-blue-300/50 text-xs">Card Number</p>
-                  <p className="text-white font-mono text-sm">{balanceCheckResult.card.card_number}</p>
-                </div>
-                <div>
-                  <p className="text-blue-300/50 text-xs">Current Balance</p>
-                  <p className="text-green-400 font-bold text-2xl">${balanceCheckResult.card.balance.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-blue-300/50 text-xs">Status</p>
-                  <p className={`text-xs font-bold px-2 py-1 rounded-full w-fit ${balanceCheckResult.card.status === "active" ? "bg-green-500/20 text-green-300" : "bg-gray-500/20 text-gray-300"}`}>
-                    {balanceCheckResult.card.status.toUpperCase()}
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => { setBalanceCheckDialog(false); setBalanceCheckNumber(""); setBalanceCheckResult(null); }}
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white"
-              >
-                Done
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="text-center py-4">
-                <p className="text-red-400 text-sm font-bold">Card Not Found</p>
-              </div>
-              <Button
-                onClick={() => { setBalanceCheckDialog(false); setBalanceCheckNumber(""); setBalanceCheckResult(null); }}
-                className="w-full bg-red-600 hover:bg-red-500 text-white"
-              >
-                Try Again
-              </Button>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Cash Out Dialog */}
-      <Dialog open={cashOutDialog} onOpenChange={v => { setCashOutDialog(v); if (!v) { setCashOutNumber(""); setCashOutPin(""); setCashOutError(""); } }}>
-        <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-red-400 text-sm">Gift Card Cash Out</DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/60 text-xs">This action requires manager approval. Enter card number and manager PIN.</p>
-          <Input
-            placeholder="Gift Card Number"
-            value={cashOutNumber}
-            onChange={e => setCashOutNumber(e.target.value)}
-            className="bg-[#0a0e27] border-red-500/20 text-white placeholder:text-blue-300/20"
-          />
-          <Input
-            type="password"
-            placeholder="Manager PIN"
-            value={cashOutPin}
-            onChange={e => setCashOutPin(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleCashOut()}
-            className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
-          />
-          {cashOutError && <p className="text-red-400 text-xs text-center">{cashOutError}</p>}
-          <Button
-            onClick={handleCashOut}
-            disabled={cashOutLoading || !cashOutNumber.trim() || !cashOutPin.trim()}
-            className="w-full bg-red-600 hover:bg-red-500 text-white disabled:opacity-50"
-          >
-            {cashOutLoading ? "Processing..." : "Approve Cash Out"}
-          </Button>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function POSRegister() {
   const [operator, setOperator] = useState(null);
@@ -900,7 +660,7 @@ export default function POSRegister() {
   const [remotePolling, setRemotePolling] = useState(false);
   const remotePollingRef = React.useRef(null);
   const [remoteResultDialog, setRemoteResultDialog] = useState(null); // { approved, action, by, note }
-  // Top-level mode: "sale" | "returns" | "cs"
+  // Top-level mode: "sale" | "returns" | "cs" | "diagnostics"
   const [posMode, setPosMode] = useState("sale");
   // Preview data from returns/exchange panels shown in the left panel
   const [sidePreview, setSidePreview] = useState(null);
@@ -924,6 +684,7 @@ export default function POSRegister() {
   const [calculatedRobberyAmount, setCalculatedRobberyAmount] = useState(0);
   const [robberyLoading, setRobberyLoading] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
+  const [trainingLocked, setTrainingLocked] = useState(false);
   const [trainingModeDialog, setTrainingModeDialog] = useState(false);
   const [trainingModePin, setTrainingModePin] = useState("");
   const [trainingModeError, setTrainingModeError] = useState("");
@@ -995,6 +756,7 @@ export default function POSRegister() {
     if (!op) { navigate("/pos/login"); return; }
     const parsed = JSON.parse(op);
     setOperator(parsed);
+    if (parsed.role === "technician") { setTrainingMode(true); setTrainingLocked(true); }
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     
     // Check if SOD is needed
@@ -1019,7 +781,7 @@ export default function POSRegister() {
       detail: `${parsed.full_name} logged into ${registerId}`
     });
     loadData();
-    checkSOD();
+    if (parsed.role !== "technician") checkSOD();
   }, []);
 
   const loadData = async () => {
@@ -1537,6 +1299,7 @@ export default function POSRegister() {
     ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
     ...(registerFeatures.feature_exchange ? [{ id: "exchange", label: "Exchange", icon: ArrowLeftRight, activeColor: "bg-teal-600 text-white", inactiveColor: "bg-[#0a0e27] text-teal-300/50 border border-teal-500/10 hover:border-teal-500/30" }] : []),
     ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "CS Mode", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
+    ...(operator?.role === "technician" ? [{ id: "diagnostics", label: "Diagnostics", icon: Wrench, activeColor: "bg-slate-600 text-white", inactiveColor: "bg-[#0a0e27] text-slate-300/50 border border-slate-500/10 hover:border-slate-500/30" }] : []),
   ];
 
   if (loading) return (
@@ -1635,14 +1398,17 @@ export default function POSRegister() {
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
               operator?.role === "manager" ? "bg-red-500/20 text-red-300" :
               operator?.role === "csm" ? "bg-amber-500/20 text-amber-300" :
+              operator?.role === "technician" ? "bg-slate-500/20 text-slate-300" :
               "bg-blue-500/20 text-blue-300"
-            }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : "Cashier"}</span>
+            }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : operator?.role === "technician" ? "Technician" : "Cashier"}</span>
           </div>
           <POSHelpMenu
             open={helpMenuOpen}
             setOpen={setHelpMenuOpen}
             trainingMode={trainingMode}
+            trainingLocked={trainingLocked}
             onToggleTraining={() => {
+              if (trainingLocked) { toast({ title: "Training Mode Locked", description: "Technician sessions are locked in Training Mode" }); return; }
               if (trainingMode) { setTrainingMode(false); setHelpMenuOpen(false); toast({ title: "Training Mode Disabled", description: "Normal operations resumed" }); }
               else { setTrainingModeDialog(true); setHelpMenuOpen(false); }
             }}
@@ -1659,7 +1425,7 @@ export default function POSRegister() {
       {/* Training Mode Banner */}
       {trainingMode && (
         <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
-          <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED</span>
+          <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED{trainingLocked ? " (LOCKED)" : ""}</span>
         </div>
       )}
 
@@ -1680,7 +1446,8 @@ export default function POSRegister() {
       {/* Main body */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* LEFT — Current Transaction (always visible) */}
+        {/* LEFT — Current Transaction (hidden in diagnostics mode) */}
+        {posMode !== "diagnostics" && (
         <div className="w-[340px] bg-[#111638] border-r border-blue-500/10 flex flex-col flex-shrink-0">
           <div className="px-3 py-2 border-b border-blue-500/10">
             <p className="text-blue-300/40 text-[10px] uppercase tracking-widest">
@@ -1812,6 +1579,7 @@ export default function POSRegister() {
             </>
           )}
         </div>
+        )}
 
         {/* RIGHT — switches based on posMode */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -1877,7 +1645,11 @@ export default function POSRegister() {
           )}
 
           {posMode === "cs" && (
-           <CSModePanel operator={operator} onAddGiftCard={(giftCard) => { setCart(prev => [...prev, giftCard]); }} toast={toast} />
+           <POSCSModePanel operator={operator} onAddGiftCard={(giftCard) => { setCart(prev => [...prev, giftCard]); }} toast={toast} />
+          )}
+
+          {posMode === "diagnostics" && (
+            <POSTechnicianPanel operator={operator} loadData={loadData} writeLog={writeLog} toast={toast} />
           )}
         </div>
       </div>

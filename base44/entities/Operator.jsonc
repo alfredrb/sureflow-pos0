@@ -18,9 +18,11 @@
       "enum": [
         "cashier",
         "csm",
-        "manager"
+        "manager",
+        "technician"
       ],
-      "default": "cashier"
+      "default": "cashier",
+      "description": "Technician role: POS access in locked Training Mode with diagnostics tools; admin access limited to Registers, Network, Hardware Status, and Maintenance Log."
     },
     "status": {
       "type": "string",
