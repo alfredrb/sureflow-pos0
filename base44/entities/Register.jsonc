@@ -65,6 +65,26 @@
       "type": "number",
       "default": 5000,
       "description": "Maximum cash allowed in register drawer before audit required"
+    },
+    "printer_status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "unknown"
+      ],
+      "default": "unknown",
+      "description": "Receipt printer connectivity status"
+    },
+    "scanner_status": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "unknown"
+      ],
+      "default": "unknown",
+      "description": "Barcode scanner connectivity status"
     }
   },
   "required": [

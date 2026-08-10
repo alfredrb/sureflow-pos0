@@ -41,6 +41,9 @@ import AdminTaxExempt from '@/pages/AdminTaxExempt';
 import AdminTrainingGuides from '@/pages/AdminTrainingGuides';
 import AdminSystemAlerts from '@/pages/AdminSystemAlerts';
 import AdminMaintenanceLog from '@/pages/AdminMaintenanceLog';
+import AdminStoreSettings from '@/pages/AdminStoreSettings';
+import AdminLossPrevention from '@/pages/AdminLossPrevention';
+import AdminHardwareStatus from '@/pages/AdminHardwareStatus';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -99,6 +102,9 @@ const AuthenticatedApp = () => {
           <Route path="/admin-training-guides" element={<AdminTrainingGuides />} />
           <Route path="/admin-system-alerts" element={<AdminSystemAlerts />} />
           <Route path="/admin-maintenance-log" element={<AdminMaintenanceLog />} />
+          <Route path="/admin/settings" element={<AdminStoreSettings />} />
+          <Route path="/admin/loss-prevention" element={<AdminLossPrevention />} />
+          <Route path="/admin/hardware" element={<AdminHardwareStatus />} />
         </Route>
       </Route>
 

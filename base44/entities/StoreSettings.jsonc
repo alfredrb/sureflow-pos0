@@ -1,0 +1,79 @@
+{
+  "name": "StoreSettings",
+  "type": "object",
+  "properties": {
+    "store_name": {
+      "type": "string",
+      "default": "Supermart"
+    },
+    "store_address": {
+      "type": "string"
+    },
+    "store_phone": {
+      "type": "string"
+    },
+    "store_email": {
+      "type": "string"
+    },
+    "default_tax_rate": {
+      "type": "number",
+      "default": 7,
+      "description": "Default sales tax percentage applied to new items"
+    },
+    "currency_symbol": {
+      "type": "string",
+      "default": "$"
+    },
+    "currency_code": {
+      "type": "string",
+      "default": "USD"
+    },
+    "decimal_places": {
+      "type": "number",
+      "default": 2
+    },
+    "tax_inclusive": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether displayed prices already include tax"
+    },
+    "require_sod": {
+      "type": "boolean",
+      "default": true,
+      "description": "Require Start of Day protocol before sales"
+    },
+    "return_period_days": {
+      "type": "number",
+      "default": 30,
+      "description": "Default return window in days"
+    },
+    "default_cash_limit": {
+      "type": "number",
+      "default": 5000,
+      "description": "Default cash limit for new registers"
+    },
+    "low_stock_threshold": {
+      "type": "number",
+      "default": 10,
+      "description": "Stock level at which inventory alerts trigger"
+    },
+    "training_mode_default": {
+      "type": "boolean",
+      "default": false,
+      "description": "Start new register sessions in training mode"
+    },
+    "require_override_pin": {
+      "type": "boolean",
+      "default": true,
+      "description": "Require CSM/Manager PIN for function key overrides"
+    },
+    "enable_remote_logout": {
+      "type": "boolean",
+      "default": true,
+      "description": "Allow admins to remotely log out operators"
+    }
+  },
+  "required": [
+    "store_name"
+  ]
+}
