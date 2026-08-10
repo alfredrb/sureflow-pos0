@@ -914,6 +914,8 @@ export default function POSRegister() {
   const [registerPaused, setRegisterPaused] = useState(false);
   const [pauseUnlockPin, setPauseUnlockPin] = useState("");
   const [pauseUnlockError, setPauseUnlockError] = useState("");
+  const [remoteLogout, setRemoteLogout] = useState({ requested: false, reason: "" });
+  const [remoteLogoutDialog, setRemoteLogoutDialog] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [robberyDialog, setRobberyDialog] = useState(false);
   const [calculatedRobberyAmount, setCalculatedRobberyAmount] = useState(0);
@@ -1244,11 +1246,15 @@ export default function POSRegister() {
       try {
         invalidateEntity("Register");
         const regs = await base44.entities.Register.filter({ register_id: registerId });
-        if (regs.length > 0) setRegisterPaused(regs[0].paused || false);
+        if (regs.length > 0) {
+          setRegisterPaused(regs[0].paused || false);
+          setRemoteLogout({ requested: regs[0].remote_logout_requested || false, reason: regs[0].remote_logout_reason || "" });
+        }
       } catch (e) {
         console.error("Error checking register status:", e);
       }
     };
+    refreshRegister();
     const unsub = base44.entities.Register.subscribe(() => refreshRegister());
     return () => unsub();
   }, []);
@@ -1338,6 +1344,25 @@ export default function POSRegister() {
        toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
        }
        };
+
+  // Remote logout (from admin Remote Workstation) — only prompt when the cart is clear
+  useEffect(() => {
+    if (remoteLogout.requested && cart.length === 0) setRemoteLogoutDialog(true);
+  }, [remoteLogout.requested, cart.length]);
+
+  const handleRemoteLogoutAck = async () => {
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    try {
+      const regs = await base44.entities.Register.filter({ register_id: registerId });
+      if (regs.length > 0) {
+        await base44.entities.Register.update(regs[0].id, { remote_logout_requested: false, remote_logout_reason: "" });
+      }
+    } catch (e) {
+      console.error("Error clearing remote logout flag:", e);
+    }
+    setRemoteLogoutDialog(false);
+    logout();
+  };
 
   const logout = () => {
     writeLog("logout", `${operator?.full_name} logged out of ${sessionStorage.getItem("pos_register_num") || "REG-001"}`);
@@ -1600,6 +1625,13 @@ export default function POSRegister() {
       {trainingMode && (
         <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
           <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED</span>
+        </div>
+      )}
+
+      {/* Remote Logout Pending Banner */}
+      {remoteLogout.requested && cart.length > 0 && (
+        <div className="bg-blue-600/10 border-b-2 border-blue-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
+          <span className="text-blue-300 font-bold text-xs uppercase tracking-widest">⏱ REMOTE LOGOUT PENDING — {remoteLogout.reason || "Admin requested logout"}. Complete your transaction to log out.</span>
         </div>
       )}
 
@@ -2234,6 +2266,27 @@ export default function POSRegister() {
             className="w-full bg-orange-600 hover:bg-orange-500 text-white"
           >
             Enable Training Mode
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remote Logout Dialog */}
+      <Dialog open={remoteLogoutDialog} onOpenChange={v => { if (!v) setRemoteLogoutDialog(false); }}>
+        <DialogContent className="bg-[#111638] border-blue-500/20 text-white max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-blue-400 text-sm flex items-center gap-2">
+              <LogOut className="w-4 h-4" /> Remote Logout Requested
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-blue-300/60 text-xs">An administrator has requested that you log out of this register.</p>
+          {remoteLogout.reason && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
+              <p className="text-blue-300/50 text-[10px] uppercase tracking-wider mb-0.5">Reason</p>
+              <p className="text-white text-sm">{remoteLogout.reason}</p>
+            </div>
+          )}
+          <Button onClick={handleRemoteLogoutAck} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold">
+            Acknowledge & Log Out
           </Button>
         </DialogContent>
       </Dialog>
