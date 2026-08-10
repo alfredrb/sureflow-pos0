@@ -461,6 +461,21 @@ export default function POSRegister() {
     }
   };
 
+  const handleUpdateFeatures = async (features) => {
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    try {
+      const regs = await base44.entities.Register.filter({ register_id: registerId });
+      if (regs.length > 0) {
+        await base44.entities.Register.update(regs[0].id, features);
+        setRegisterFeatures(prev => ({ ...prev, ...features }));
+        writeLog("register_change", `Technician updated register features: ${Object.entries(features).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+        toast({ title: "Register Updated", description: "Feature configuration saved" });
+      }
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to update register", variant: "destructive" });
+    }
+  };
+
   const confirmTaxExempt = (profile) => {
     setCart(prev => prev.map(i => ({ ...i, tax_rate: 0 })));
     setTaxExemptAppliedId(profile.tax_exempt_id);
@@ -823,6 +838,7 @@ export default function POSRegister() {
             onRequestCSM={requestCSM}
             onReportRobbery={calculateStolenAmount}
             robberyLoading={robberyLoading}
+            robberyLocked={operator?.role === "technician"}
           />
           <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
             <LogOut className="w-3.5 h-3.5" />
@@ -1057,7 +1073,7 @@ export default function POSRegister() {
           )}
 
           {posMode === "diagnostics" && (
-            <POSTechnicianPanel operator={operator} loadData={loadData} writeLog={writeLog} toast={toast} />
+            <POSTechnicianPanel operator={operator} loadData={loadData} writeLog={writeLog} toast={toast} registerFeatures={registerFeatures} onUpdateFeatures={handleUpdateFeatures} />
           )}
         </div>
       </div>

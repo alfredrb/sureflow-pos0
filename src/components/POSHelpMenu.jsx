@@ -3,7 +3,7 @@ import { BookOpen } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
 
-export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked }) {
+export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked }) {
   const [guideOpen, setGuideOpen] = useState(false);
 
   return (
@@ -22,8 +22,8 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM
           </button>
-          <button onClick={onReportRobbery} disabled={robberyLoading} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors disabled:opacity-50">
-            {robberyLoading ? "Calculating..." : "Report Robbery"}
+          <button onClick={onReportRobbery} disabled={robberyLoading || robberyLocked} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {robberyLocked ? "Report Robbery (Locked)" : robberyLoading ? "Calculating..." : "Report Robbery"}
           </button>
         </div>
       )}

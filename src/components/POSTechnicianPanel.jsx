@@ -4,7 +4,9 @@ import { Printer, ScanLine, Wallet, Wifi, RefreshCw, Server, Activity, CheckCirc
 
 const APP_VERSION = "v4.2.1";
 
-export default function POSTechnicianPanel({ operator, loadData, writeLog, toast }) {
+import POSTechnicianConfig from "@/components/POSTechnicianConfig";
+
+export default function POSTechnicianPanel({ operator, loadData, writeLog, toast, registerFeatures, onUpdateFeatures }) {
   const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
   const registerIp = sessionStorage.getItem("pos_register_ip") || "—";
   const [register, setRegister] = useState(null);
@@ -120,6 +122,8 @@ export default function POSTechnicianPanel({ operator, loadData, writeLog, toast
         <p className="text-slate-300 text-xs uppercase tracking-widest font-bold">Technician Diagnostics</p>
         <span className="ml-auto text-[10px] text-slate-400 font-mono">{operator?.full_name} · {APP_VERSION}</span>
       </div>
+
+      <POSTechnicianConfig registerFeatures={registerFeatures} onUpdateFeatures={onUpdateFeatures} />
 
       {/* System Info */}
       <div className="bg-[#111638] rounded-xl border border-slate-500/20 p-4 flex-shrink-0">
