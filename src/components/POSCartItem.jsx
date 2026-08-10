@@ -1,7 +1,7 @@
 import React from "react";
-import { Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X, Pencil } from "lucide-react";
 
-export default function POSCartItem({ item, onUpdateQty, onRemove }) {
+export default function POSCartItem({ item, onUpdateQty, onRemove, priceOverrideActive, onEditPrice }) {
   return (
     <div className="bg-[#0a0e27] rounded-lg p-2 flex flex-col gap-1 border border-blue-500/5">
       <div className="flex items-center gap-2">
@@ -26,6 +26,11 @@ export default function POSCartItem({ item, onUpdateQty, onRemove }) {
           </button>
         </div>
         <p className="text-white font-semibold text-xs w-12 text-right flex-shrink-0">${item.total.toFixed(2)}</p>
+        {priceOverrideActive && (
+          <button onClick={() => onEditPrice(item.sku)} className="text-amber-400/70 hover:text-amber-300 flex-shrink-0" title="Override price">
+            <Pencil className="w-3 h-3" />
+          </button>
+        )}
         <button onClick={() => onRemove(item.sku)} className="text-red-400/40 hover:text-red-400 flex-shrink-0">
           <X className="w-3 h-3" />
         </button>

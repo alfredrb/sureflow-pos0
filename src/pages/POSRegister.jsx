@@ -38,6 +38,9 @@ export default function POSRegister() {
   const [itemSearch, setItemSearch] = useState("");
   const [qtyDialog, setQtyDialog] = useState(false);
   const [qtyValue, setQtyValue] = useState("1");
+  const [priceOverrideActive, setPriceOverrideActive] = useState(false);
+  const [priceEditSku, setPriceEditSku] = useState(null);
+  const [priceEditValue, setPriceEditValue] = useState("");
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
   // Supervisor override for function keys
   const [supOverrideDialog, setSupOverrideDialog] = useState(false);
@@ -275,6 +278,10 @@ export default function POSRegister() {
       case "discount_total":
         setCart(prev => prev.map(item => ({ ...item, price: +(item.price * 0.9).toFixed(2), total: +(item.qty * item.price * 0.9).toFixed(2) })));
         break;
+      case "price_override":
+        setPriceOverrideActive(prev => !prev);
+        writeLog("override", `Price Override mode ${priceOverrideActive ? "disabled" : "enabled"}`);
+        break;
       case "price_check":
         break;
       case "request_cash_pickup":
@@ -302,6 +309,24 @@ export default function POSRegister() {
       default: break;
       }
       };
+
+  const openPriceEdit = (sku) => {
+    const item = cart.find(i => i.sku === sku);
+    if (!item) return;
+    setPriceEditSku(sku);
+    setPriceEditValue(String(item.price));
+  };
+
+  const applyPriceEdit = () => {
+    const p = parseFloat(priceEditValue);
+    const item = cart.find(i => i.sku === priceEditSku);
+    if (priceEditSku && item && !isNaN(p) && p >= 0) {
+      setCart(prev => prev.map(i => i.sku === priceEditSku ? { ...i, price: p, total: +(p * i.qty).toFixed(2), discount_type: undefined, original_price: undefined, discount_percentage: undefined } : i));
+      writeLog("override", `Price override — ${item.name}: $${p.toFixed(2)}`);
+    }
+    setPriceEditSku(null);
+    setPriceEditValue("");
+  };
 
   const handleFunctionKey = (fkey) => {
     const effectiveRole = fkey.requires_role || (fkey.requires_supervisor ? "csm" : "none");
@@ -908,6 +933,11 @@ export default function POSRegister() {
           {/* SALE mode — normal cart */}
           {(posMode === "sale" || posMode === "cs") && (
             <>
+              {priceOverrideActive && (
+                <div className="bg-amber-500/10 border-b-2 border-amber-500/50 px-3 py-1.5 flex items-center justify-center flex-shrink-0">
+                  <span className="text-amber-400 font-bold text-[10px] uppercase tracking-widest">✎ PRICE OVERRIDE — tap edit on an item to change its price</span>
+                </div>
+              )}
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                 {cart.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-blue-300/20 gap-2">
@@ -915,7 +945,7 @@ export default function POSRegister() {
                     <p className="text-xs">No items scanned</p>
                   </div>
                 ) : cart.map((item) => (
-                  <POSCartItem key={item.sku} item={item} onUpdateQty={updateQty} onRemove={removeFromCart} />
+                  <POSCartItem key={item.sku} item={item} onUpdateQty={updateQty} onRemove={removeFromCart} priceOverrideActive={priceOverrideActive} onEditPrice={openPriceEdit} />
                 ))}
               </div>
               <div className="border-t border-blue-500/10 p-3 space-y-1 flex-shrink-0">
@@ -1473,6 +1503,16 @@ export default function POSRegister() {
             }
             setQtyDialog(false); setQtyValue("1");
           }} className="bg-blue-600 hover:bg-blue-500 text-white">Apply</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Price Override Edit Dialog */}
+      <Dialog open={priceEditSku !== null} onOpenChange={(v) => { if (!v) { setPriceEditSku(null); setPriceEditValue(""); } }}>
+        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-xs">
+          <DialogHeader><DialogTitle className="text-white text-sm">Override Item Price</DialogTitle></DialogHeader>
+          <Input value={priceEditValue} onChange={e => setPriceEditValue(e.target.value)} type="number" step="0.01" min="0"
+            className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" />
+          <Button onClick={applyPriceEdit} className="bg-blue-600 hover:bg-blue-500 text-white">Apply</Button>
         </DialogContent>
       </Dialog>
 
