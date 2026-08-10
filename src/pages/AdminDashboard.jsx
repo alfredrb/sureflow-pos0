@@ -12,17 +12,17 @@ export default function AdminDashboard() {
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    const [operators, products, transactions, registers, alerts, sysAlerts, maintLogs, regLogs] = await Promise.all([
-      base44.entities.Operator.list(),
-      base44.entities.Product.list(),
-      base44.entities.Transaction.list("-created_date", 50),
-      base44.entities.Register.list(),
-      base44.entities.EmergencyAlert.filter({ status: "active" }),
-      base44.entities.SystemAlert.filter({ status: "active" }),
-      base44.entities.MaintenanceLog.list("-service_date", 200),
-      base44.entities.RegisterLog.list("-created_date", 200)
-    ]);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    // Fetch sequentially to avoid bursting concurrent requests past the API rate limit.
+    const operators = await base44.entities.Operator.list();
+    const products = await base44.entities.Product.list();
+    const transactions = await base44.entities.Transaction.list("-created_date", 50);
+    const registers = await base44.entities.Register.list();
+    const alerts = await base44.entities.EmergencyAlert.filter({ status: "active" });
+    const sysAlerts = await base44.entities.SystemAlert.filter({ status: "active" });
+    const maintLogs = await base44.entities.MaintenanceLog.list("-service_date", 200);
+    const regLogs = await base44.entities.RegisterLog.list("-created_date", 200);
     const revenue = transactions.filter(t => t.status === "completed").reduce((s, t) => s + (t.total || 0), 0);
     const lowStock = products.filter(p => (p.stock_qty || 0) < 10).length;
     const maintenanceOpen = maintLogs.filter(m => m.status !== "completed").length;
@@ -34,7 +34,7 @@ export default function AdminDashboard() {
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
-  useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "Product", "SystemAlert", "MaintenanceLog", "RegisterLog"], load, { intervalMs: 15000 });
+  useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "SystemAlert"], load, { intervalMs: 30000 });
 
   const cards = [
     { label: "Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "bg-emerald-500" },
