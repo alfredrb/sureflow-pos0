@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { CreditCard, DollarSign, TrendingDown, Calendar, Trash2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,15 +37,34 @@ export default function AdminGiftCardManager() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ active: 0, totalBalance: 0, totalSold: 0 });
+  const searchRef = useRef("");
   const { toast } = useToast();
 
+  // Live refresh: re-run the purge check on a 60s interval while the page is open,
+  // and react instantly to any GiftCard change anywhere in the system via realtime.
   useEffect(() => {
     loadGiftCards();
+    const interval = setInterval(() => loadGiftCards(true), 60000);
+    const unsubscribe = base44.entities.GiftCard.subscribe(() => loadGiftCards(true));
+    return () => { clearInterval(interval); unsubscribe(); };
   }, []);
 
-  const loadGiftCards = async () => {
+  const applyCards = (cards) => {
+    setGiftCards(cards);
+    setFiltered(prev => {
+      const q = searchRef.current;
+      if (q.trim() === "") return cards;
+      return cards.filter(c => c.card_number.includes(q) || c.purchased_by_operator_name?.includes(q));
+    });
+    const active = cards.filter(c => c.status === "active").length;
+    const totalBalance = cards.reduce((sum, c) => sum + (c.balance || 0), 0);
+    const totalSold = cards.reduce((sum, c) => sum + (c.original_amount || 0), 0);
+    setStats({ active, totalBalance, totalSold });
+  };
+
+  const loadGiftCards = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       let cards = await base44.entities.GiftCard.list('-purchase_date', 100);
 
       // Auto-purge $0-balance cards older than 30 days, then re-fetch the clean list
@@ -55,18 +74,11 @@ export default function AdminGiftCardManager() {
         cards = await base44.entities.GiftCard.list('-purchase_date', 100);
       }
 
-      setGiftCards(cards);
-      setFiltered(cards);
-
-      // Calculate stats
-      const active = cards.filter(c => c.status === "active").length;
-      const totalBalance = cards.reduce((sum, c) => sum + (c.balance || 0), 0);
-      const totalSold = cards.reduce((sum, c) => sum + (c.original_amount || 0), 0);
-      setStats({ active, totalBalance, totalSold });
+      applyCards(cards);
     } catch (e) {
-      toast({ title: "Error", description: "Failed to load gift cards", variant: "destructive" });
+      if (!silent) toast({ title: "Error", description: "Failed to load gift cards", variant: "destructive" });
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const deleteCard = async (card) => {
@@ -81,6 +93,7 @@ export default function AdminGiftCardManager() {
 
   const handleSearch = (val) => {
     setSearch(val);
+    searchRef.current = val;
     if (val.trim() === "") setFiltered(giftCards);
     else setFiltered(giftCards.filter(c => c.card_number.includes(val) || c.purchased_by_operator_name?.includes(val)));
   };
