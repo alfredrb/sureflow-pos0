@@ -117,6 +117,7 @@ export default function AdminTransactions() {
   useRealtimeSync("Transaction", load, { intervalMs: 10000 });
 
   const filtered = transactions.filter(t => {
+    if (t.training_mode) return false;
     const matchSearch = !search ||
       t.transaction_id?.toLowerCase().includes(search.toLowerCase()) ||
       t.operator_name?.toLowerCase().includes(search.toLowerCase()) ||

@@ -1281,6 +1281,33 @@ export default function POSRegister() {
     if (cart.length === 0) return;
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
     const changeDue = paymentMethod === "cash" ? Math.max(0, parseFloat(amountTendered || 0) - total) : 0;
+
+    // Training mode: simulate the sale without recording anything — no transaction log
+    // entry, no stock changes, no register log. Only show a receipt for practice.
+    if (trainingMode) {
+      toast({ title: "Training Sale Complete", description: `${txId} — Change: $${changeDue.toFixed(2)} (not recorded)` });
+      setReceiptData({
+        transactionId: txId,
+        operatorName: operator.full_name,
+        registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+        items: cart, subtotal, tax, total,
+        paymentMethod,
+        amountTendered: parseFloat(amountTendered || total),
+        changeDue
+      });
+      setLastReceipt({
+        transactionId: txId,
+        operatorName: operator.full_name,
+        registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+        items: cart, subtotal, tax, total,
+        paymentMethod,
+        amountTendered: parseFloat(amountTendered || total),
+        changeDue
+      });
+      setCart([]); setPaymentOpen(false); setAmountTendered("");
+      return;
+    }
+
     try {
       await base44.entities.Transaction.create({
         transaction_id: txId, operator_id: operator.operator_id, operator_name: operator.full_name,
@@ -2352,6 +2379,34 @@ export default function POSRegister() {
                 // Process the sale with gift card payment
                 const txId = "TX-" + Date.now().toString(36).toUpperCase();
                 const chargeAmount = giftCardResult.chargeAmount;
+
+                // Training mode: do not deduct the gift card balance, record a transaction,
+                // or change stock — just show a receipt for practice.
+                if (trainingMode) {
+                  toast({ title: "Training Sale Complete", description: `${txId} — Paid with gift card (not recorded)` });
+                  setReceiptData({
+                    transactionId: txId,
+                    operatorName: operator.full_name,
+                    registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+                    items: cart, subtotal, tax, total,
+                    paymentMethod: "giftcard",
+                    amountTendered: chargeAmount,
+                    changeDue: 0
+                  });
+                  setLastReceipt({
+                    transactionId: txId,
+                    operatorName: operator.full_name,
+                    registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
+                    items: cart, subtotal, tax, total,
+                    paymentMethod: "giftcard",
+                    amountTendered: chargeAmount,
+                    changeDue: 0
+                  });
+                  setCart([]); setPaymentOpen(false);
+                  setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setAmountTendered("");
+                  return;
+                }
+
                 const newBalance = giftCardResult.card.balance - chargeAmount;
 
                 base44.entities.GiftCard.update(giftCardResult.card.id, { balance: newBalance }).then(() => {
