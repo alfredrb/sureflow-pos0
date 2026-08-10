@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX, AlertTriangle, Clock, CreditCard, Trash2, Download, ShieldCheck } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ChevronLeft, Menu, LogOut, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertCircle, Volume2, VolumeX, AlertTriangle, Clock, CreditCard, Trash2, Download, ShieldCheck, GraduationCap, Siren, Wrench } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -26,7 +26,10 @@ const navItems = [
   { label: "Emergency Log", path: "/admin/emergency-log", icon: AlertTriangle },
   { label: "Shift Scheduling", path: "/admin/shift-scheduling", icon: Clock },
   { label: "Gift Cards", path: "/admin/gift-cards", icon: CreditCard },
-  { label: "Tax Exempt", path: "/admin/tax-exempt", icon: ShieldCheck }
+  { label: "Tax Exempt", path: "/admin/tax-exempt", icon: ShieldCheck },
+  { label: "Training Guides", path: "/admin-training-guides", icon: GraduationCap },
+  { label: "System Alerts", path: "/admin-system-alerts", icon: Siren },
+  { label: "Maintenance Log", path: "/admin-maintenance-log", icon: Wrench }
   ];
 
 export default function AdminLayout() {

@@ -1,0 +1,62 @@
+{
+  "name": "MaintenanceLog",
+  "type": "object",
+  "properties": {
+    "log_type": {
+      "type": "string",
+      "enum": [
+        "hardware_repair",
+        "software_update",
+        "register_service",
+        "preventive",
+        "other"
+      ],
+      "default": "hardware_repair",
+      "description": "Type of maintenance work"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register involved (if applicable)"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "technician_name": {
+      "type": "string"
+    },
+    "service_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the work was performed or scheduled"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "in_progress",
+        "completed"
+      ],
+      "default": "scheduled"
+    },
+    "parts_used": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Technician notes and resolution details"
+    }
+  },
+  "required": [
+    "log_type",
+    "title",
+    "service_date",
+    "status"
+  ]
+}
