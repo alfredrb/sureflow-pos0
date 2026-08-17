@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import LossOverviewPanel from "@/components/lossprevention/LossOverviewPanel";
 import ShortsLongsPanel from "@/components/lossprevention/ShortsLongsPanel";
 import InvestigationsPanel from "@/components/lossprevention/InvestigationsPanel";
 import AISuggestionsPanel from "@/components/lossprevention/AISuggestionsPanel";
+import DocumentsPanel from "@/components/lossprevention/DocumentsPanel";
 import InvestigationDetailDialog from "@/components/lossprevention/InvestigationDetailDialog";
 
 export default function AdminLossPrevention() {
@@ -67,6 +68,7 @@ export default function AdminLossPrevention() {
     { id: "shorts", label: "Shorts & Longs", icon: Scale },
     { id: "investigations", label: "Investigations", icon: FolderSearch },
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
+    { id: "documents", label: "Documents", icon: FileText },
   ];
 
   return (
@@ -107,6 +109,7 @@ export default function AdminLossPrevention() {
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
+      {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
 
       <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
     </div>
