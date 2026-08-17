@@ -16,12 +16,14 @@ export const LP_CATEGORIES = {
   refund: { label: "Refund", icon: RotateCcw, badge: "bg-purple-100 text-purple-700", invType: "refunds" },
   cash_request: { label: "Cash Request", icon: DollarSign, badge: "bg-indigo-100 text-indigo-700", invType: "other" },
   robbery: { label: "Robbery", icon: AlertTriangle, badge: "bg-rose-100 text-rose-700", invType: "other" },
+  no_receipt_return: { label: "No-Receipt Return", icon: RotateCcw, badge: "bg-fuchsia-100 text-fuchsia-700", invType: "refunds" },
+  manager_override_return: { label: "Manager Override Return", icon: UserCheck, badge: "bg-orange-100 text-orange-700", invType: "refunds" },
 };
 
 // All categories the workbench lets you toggle on/off as high-risk.
 export const LP_TOGGLEABLE = [
   "voids", "price_override", "supervisor_override", "override",
-  "id_verify", "tax_exempt", "loyalty", "no_sale", "refund", "cash_request", "robbery",
+  "id_verify", "tax_exempt", "loyalty", "no_sale", "refund", "cash_request", "robbery", "no_receipt_return", "manager_override_return",
 ];
 
 export function classifyLogEvent(log) {
@@ -31,6 +33,9 @@ export function classifyLogEvent(log) {
   if (log.event_type === "robbery") return "robbery";
   if (log.event_type === "override") {
     const d = (log.detail || "").toLowerCase();
+    if (d.startsWith("no-receipt return blocked")) return "no_receipt_return";
+    if (d.startsWith("no-receipt return")) return "no_receipt_return";
+    if (d.startsWith("manager override return")) return "manager_override_return";
     if (d.startsWith("id verified")) return "id_verify";
     if (d.startsWith("tax exempt")) return "tax_exempt";
     if (d.startsWith("loyalty")) return "loyalty";

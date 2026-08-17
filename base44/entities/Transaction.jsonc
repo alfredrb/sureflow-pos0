@@ -90,6 +90,20 @@
       "default": 0,
       "description": "Rewards credit redeemed (applied as tender) on this sale"
     },
+    "customer_id": {
+      "type": "string",
+      "description": "Customer ID recorded for no-receipt returns and manager override returns."
+    },
+    "no_receipt": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for no-receipt returns \u2014 a customer ID was required and recorded. Tracked by the Loss Prevention no-receipt returns panel."
+    },
+    "manager_override_return": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for Manager Override Returns \u2014 acts as a no-receipt return authorized by a manager. Logged in the LP workbench."
+    },
     "status": {
       "type": "string",
       "enum": [

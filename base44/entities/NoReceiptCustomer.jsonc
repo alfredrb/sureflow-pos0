@@ -1,0 +1,57 @@
+{
+  "name": "NoReceiptCustomer",
+  "type": "object",
+  "properties": {
+    "customer_id": {
+      "type": "string",
+      "description": "Customer ID used for no-receipt / manager-override returns. Ties return transactions together for fraud monitoring."
+    },
+    "disabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this customer is blocked from making no-receipt returns. The POS flags the attempt and prints a denial receipt."
+    },
+    "disabled_by": {
+      "type": "string",
+      "description": "Name of the admin who disabled this customer."
+    },
+    "disabled_by_id": {
+      "type": "string",
+      "description": "Operator ID of the admin who disabled this customer."
+    },
+    "disabled_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the customer was disabled."
+    },
+    "disabled_reason": {
+      "type": "string",
+      "description": "Reason the customer was disabled from no-receipt returns."
+    },
+    "return_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total no-receipt / manager-override returns made by this customer."
+    },
+    "total_refunded": {
+      "type": "number",
+      "default": 0,
+      "description": "Total dollar amount refunded to this customer via no-receipt returns."
+    },
+    "last_return_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the most recent no-receipt return was processed."
+    },
+    "last_store_id": {
+      "type": "string",
+      "description": "Store number of the most recent no-receipt return."
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "customer_id"
+  ]
+}

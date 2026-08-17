@@ -55,6 +55,7 @@ import AdminDataViewer from '@/pages/AdminDataViewer';
 import AdminDiagnosticTools from '@/pages/AdminDiagnosticTools';
 import AdminAuditLog from '@/pages/AdminAuditLog';
 import AdminAnnouncements from '@/pages/AdminAnnouncements';
+import AdminNoReceiptCustomers from '@/pages/AdminNoReceiptCustomers';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -127,6 +128,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/diagnostics" element={<AdminDiagnosticTools />} />
           <Route path="/admin-audit-log" element={<AdminAuditLog />} />
           <Route path="/admin-announcements" element={<AdminAnnouncements />} />
+          <Route path="/admin/no-receipt-customers" element={<AdminNoReceiptCustomers />} />
         </Route>
       </Route>
 

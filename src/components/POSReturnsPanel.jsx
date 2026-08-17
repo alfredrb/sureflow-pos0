@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, FileX, ShieldCheck } from "lucide-react";
+import POSNoReceiptReturn from "@/components/pos/POSNoReceiptReturn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +17,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const [overrideError, setOverrideError] = useState("");
   const [overrideOperator, setOverrideOperator] = useState(null); // set after successful override
   const [expiredItems, setExpiredItems] = useState([]); // indices of items past return period
+  const [returnMode, setReturnMode] = useState("receipt"); // "receipt" | "no_receipt" | "manager_override"
 
   const lookUp = async () => {
     if (!returnTxId) return;
@@ -171,6 +173,20 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
         <p className="text-purple-300 text-xs uppercase tracking-widest font-bold">Returns / Refunds</p>
       </div>
 
+      {/* Return type buttons */}
+      <div className="flex gap-2 flex-shrink-0">
+        <button onClick={() => { setReturnMode("no_receipt"); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); onPreviewChange(null); }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${returnMode === "no_receipt" ? "bg-fuchsia-600 text-white border-fuchsia-500" : "bg-[#111638] text-fuchsia-300/70 border-fuchsia-500/20 hover:border-fuchsia-500/40"}`}>
+          <FileX className="w-3.5 h-3.5" /> No Receipt Return
+        </button>
+        <button onClick={() => { setReturnMode("manager_override"); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); onPreviewChange(null); }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${returnMode === "manager_override" ? "bg-orange-600 text-white border-orange-500" : "bg-[#111638] text-orange-300/70 border-orange-500/20 hover:border-orange-500/40"}`}>
+          <ShieldCheck className="w-3.5 h-3.5" /> Manager Override Return
+        </button>
+      </div>
+
+      {returnMode === "receipt" && (
+      <>
       {/* Search */}
       <div className="bg-[#111638] rounded-xl border border-purple-500/10 p-3 space-y-2 flex-shrink-0">
         <label className="text-blue-300/50 text-[10px] uppercase tracking-wider block">Look Up Transaction</label>
@@ -312,6 +328,20 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
           <RotateCcw className="w-12 h-12" />
           <p className="text-xs">Enter a Transaction ID above to begin a return</p>
         </div>
+      )}
+      </>
+      )}
+
+      {returnMode !== "receipt" && (
+        <POSNoReceiptReturn
+          mode={returnMode}
+          operator={operator}
+          products={products}
+          loadData={loadData}
+          toast={toast}
+          onPreviewChange={onPreviewChange}
+          onBack={() => { setReturnMode("receipt"); onPreviewChange(null); }}
+        />
       )}
 
       {/* Override Dialog */}
