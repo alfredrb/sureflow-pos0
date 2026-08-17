@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
-import { markSerialReturned, recordSerializedSales, itemHasSerials, verifySerialInStock } from "@/lib/serialUtils";
+import { markSerialReturned, recordSerializedSales, itemHasSerials, isSerialSoldForSku, verifySerialInStock } from "@/lib/serialUtils";
 
 export default function ExchangePanel({ operator, products, loadData, toast, onPreviewChange }) {
   const [txId, setTxId] = useState("");
@@ -36,11 +36,15 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   const refundedQty = origTx?.refunded_qty || {};
   const remainingQty = (item) => item.qty - (refundedQty[item.sku] || 0);
   const isFullyRefunded = (item) => remainingQty(item) <= 0;
+  const isSerializedProduct = (item) => {
+    const prod = products.find(p => p.sku === item.sku);
+    return !!(prod?.serialized) || itemHasSerials(item);
+  };
 
   const toggleReturn = (i, item) => {
     if (isFullyRefunded(item)) return;
     if (item.payment_method === "giftcard") return; // gift cards non-refundable
-    if (itemHasSerials(item)) {
+    if (isSerializedProduct(item)) {
       setReturnSerialVerify({ index: i });
       return;
     }
@@ -50,11 +54,13 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
     });
   };
 
-  const verifyExchangeReceiptSerial = async (serial) => {
+  const verifyReturnSerial = async (serial) => {
     const idx = returnSerialVerify?.index;
     if (idx == null) return false;
     const item = origItems[idx];
-    return (item?.serial_numbers || []).map(s => (s || "").toUpperCase()).includes((serial || "").toUpperCase());
+    const s = (serial || "").toUpperCase();
+    if ((item?.serial_numbers || []).some(x => (x || "").toUpperCase() === s)) return true;
+    return await isSerialSoldForSku(item.sku, s);
   };
 
   const onReturnSerialVerified = (serial) => {
@@ -230,15 +236,15 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
                           ? <span className="text-[9px] text-red-400 font-bold uppercase">⚠ Refund Not Allowed</span>
                           : alreadyRet > 0 && !fullyRefunded && <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyRet} refunded · {maxQty} left</span>}
                         {fullyRefunded && !isGiftCard && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already refunded</span>}
-                        {itemHasSerials(item) && verifiedReturnSerials[i] && <span className="text-[9px] text-indigo-400 font-mono">SN: {verifiedReturnSerials[i]}</span>}
-                        {itemHasSerials(item) && !verifiedReturnSerials[i] && checked && <span className="text-[9px] text-indigo-400/70 font-mono">awaiting serial</span>}
+                        {isSerializedProduct(item) && verifiedReturnSerials[i] && <span className="text-[9px] text-indigo-400 font-mono">SN: {verifiedReturnSerials[i]}</span>}
+                        {isSerializedProduct(item) && !verifiedReturnSerials[i] && checked && <span className="text-[9px] text-indigo-400/70 font-mono">awaiting serial</span>}
                       </div>
                     </div>
                     {checked && (
                       <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        {!itemHasSerials(item) && <button onClick={() => setReturnQty(i, returnSel[i] - 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>}
+                        {!isSerializedProduct(item) && <button onClick={() => setReturnQty(i, returnSel[i] - 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>}
                         <span className="text-white text-[10px] w-4 text-center">{returnSel[i]}</span>
-                        {!itemHasSerials(item) && <button onClick={() => setReturnQty(i, returnSel[i] + 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>}
+                        {!isSerializedProduct(item) && <button onClick={() => setReturnQty(i, returnSel[i] + 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>}
                       </div>
                     )}
                     {!fullyRefunded && (
@@ -321,8 +327,8 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
       <POSSerialVerifyDialog
         open={!!returnSerialVerify}
         item={returnSerialVerify ? origItems[returnSerialVerify.index] : null}
-        mode="receipt"
-        verify={verifyExchangeReceiptSerial}
+        mode="inventory"
+        verify={verifyReturnSerial}
         onVerified={onReturnSerialVerified}
         onClose={() => setReturnSerialVerify(null)}
       />

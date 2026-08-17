@@ -4,7 +4,7 @@ import { RotateCcw, FileX, ShieldCheck } from "lucide-react";
 import POSNoReceiptReturn from "@/components/pos/POSNoReceiptReturn";
 import ReturnReasonDialog from "@/components/pos/ReturnReasonDialog";
 import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
-import { markSerialReturned, itemHasSerials } from "@/lib/serialUtils";
+import { markSerialReturned, itemHasSerials, isSerialSoldForSku } from "@/lib/serialUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -69,6 +69,10 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const remainingQty = (item) => item.qty - (refundedQty[item.sku] || 0);
   const isItemFullyRefunded = (item) => remainingQty(item) <= 0;
   const isItemExpired = (i) => expiredItems.includes(i);
+  const isSerializedProduct = (item) => {
+    const prod = products.find(p => p.sku === item.sku);
+    return !!(prod?.serialized) || itemHasSerials(item);
+  };
 
   const toggleItem = (i, item) => {
     if (isItemFullyRefunded(item)) return; // blocked
@@ -83,9 +87,9 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
       setItemDecisions(prev => { const n = { ...prev }; delete n[i]; return n; });
       setVerifiedSerials(prev => { const n = { ...prev }; delete n[i]; return n; });
     } else {
-      // selecting — serialized items must have their serial verified against the receipt first
-      if (itemHasSerials(item)) {
-        setSerialVerify({ index: i, mode: "receipt" });
+      // selecting — serialized items must have their serial verified against the LP Serialized Sold Records first
+      if (isSerializedProduct(item)) {
+        setSerialVerify({ index: i, mode: "inventory" });
         return;
       }
       // prompt for return reason and restock decision first
@@ -94,11 +98,13 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
     }
   };
 
-  const verifyReceiptSerial = async (serial) => {
+  const verifyReturnSerial = async (serial) => {
     const idx = serialVerify?.index;
     if (idx == null) return false;
     const item = items[idx];
-    return (item?.serial_numbers || []).map(s => (s || "").toUpperCase()).includes((serial || "").toUpperCase());
+    const s = (serial || "").toUpperCase();
+    if ((item?.serial_numbers || []).some(x => (x || "").toUpperCase() === s)) return true;
+    return await isSerialSoldForSku(item.sku, s);
   };
 
   const onSerialVerified = (serial) => {
@@ -173,7 +179,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
     if (!d || pendingItem === null) { setReasonOpen(false); setPendingItem(null); return; }
     setItemDecisions(prev => ({ ...prev, [pendingItem]: { reason: d.reason, restockable: d.restockable } }));
     const item = items[pendingItem];
-    setSelectedItems(prev => ({ ...prev, [pendingItem]: itemHasSerials(item) ? 1 : remainingQty(item) }));
+    setSelectedItems(prev => ({ ...prev, [pendingItem]: isSerializedProduct(item) ? 1 : remainingQty(item) }));
     setReasonOpen(false);
     setPendingItem(null);
   };
@@ -442,7 +448,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
 
       <ReturnReasonDialog
         open={reasonOpen}
-        items={pendingItem !== null ? [{ ...items[pendingItem], qty: itemHasSerials(items[pendingItem]) ? 1 : remainingQty(items[pendingItem]) }] : []}
+        items={pendingItem !== null ? [{ ...items[pendingItem], qty: isSerializedProduct(items[pendingItem]) ? 1 : remainingQty(items[pendingItem]) }] : []}
         onClose={onItemReasonClose}
         onComplete={onItemReasonComplete}
       />
@@ -450,8 +456,8 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
       <POSSerialVerifyDialog
         open={!!serialVerify}
         item={serialVerify ? items[serialVerify.index] : null}
-        mode={serialVerify?.mode || "receipt"}
-        verify={verifyReceiptSerial}
+        mode={serialVerify?.mode || "inventory"}
+        verify={verifyReturnSerial}
         onVerified={onSerialVerified}
         onClose={() => setSerialVerify(null)}
       />
