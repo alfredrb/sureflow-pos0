@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Search, Eye, Download } from "lucide-react";
+import { Search, Eye, Download, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -130,6 +130,67 @@ export default function AdminTransactions() {
   const olderKeys = Object.keys(groups.Older).sort((a, b) => moment(b, "MMMM D, YYYY") - moment(a, "MMMM D, YYYY"));
   const hasRows = filtered.length > 0;
 
+  const handlePrint = (tx) => {
+    if (!tx) return;
+    const isNeg = tx.status === "refunded" || tx.status === "exchanged";
+    const itemsRows = (tx.items || []).map(it => `
+      <tr>
+        <td>${it.name || ""}${it.qty > 1 ? ` &times; ${it.qty}` : ""}</td>
+        <td style="text-align:right">$${(it.price || 0).toFixed(2)}</td>
+        <td style="text-align:right">$${(it.total || 0).toFixed(2)}</td>
+      </tr>`).join("");
+    const badge = getStatusBadge(tx);
+    const html = `<!DOCTYPE html><html><head><title>Receipt ${tx.transaction_id}</title>
+      <style>
+        * { font-family: ui-monospace, "Courier New", monospace; }
+        body { width: 300px; margin: 0 auto; padding: 8px; color: #111; font-size: 12px; }
+        h1 { font-size: 16px; text-align: center; margin: 0 0 2px; }
+        .sub { text-align: center; font-size: 11px; color: #555; margin-bottom: 8px; }
+        .meta { font-size: 11px; line-height: 1.5; margin-bottom: 8px; border-bottom: 1px dashed #999; padding-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th { text-align: left; font-size: 10px; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; padding: 2px 0; }
+        td { padding: 2px 0; vertical-align: top; }
+        .totals { margin-top: 8px; border-top: 1px dashed #999; padding-top: 6px; font-size: 12px; }
+        .totals .row { display: flex; justify-content: space-between; }
+        .totals .grand { font-size: 14px; font-weight: bold; border-top: 1px solid #111; padding-top: 4px; margin-top: 4px; }
+        .badge { display: inline-block; padding: 1px 6px; border-radius: 8px; background: #eee; font-size: 10px; font-weight: bold; }
+        .foot { text-align: center; font-size: 10px; color: #777; margin-top: 10px; border-top: 1px dashed #999; padding-top: 6px; }
+      </style></head><body>
+      <h1>SureFlow POS</h1>
+      <div class="sub">Transaction Receipt</div>
+      <div class="meta">
+        <div><strong>TX:</strong> ${tx.transaction_id}</div>
+        <div><strong>Date:</strong> ${moment(tx.created_date).format("MMM D, YYYY h:mm A")}</div>
+        <div><strong>Operator:</strong> ${tx.operator_name || "—"} (${tx.operator_id || ""})</div>
+        <div><strong>Register:</strong> ${tx.register_id || "—"}</div>
+        <div><strong>Payment:</strong> <span style="text-transform:capitalize">${tx.payment_method || ""}</span></div>
+        <div><strong>Status:</strong> <span class="badge">${badge.label}</span></div>
+        ${tx.loyalty_member_name ? `<div><strong>Loyalty:</strong> ${tx.loyalty_member_name} (${tx.loyalty_id || ""})</div>` : ""}
+        ${tx.tax_exempt_id ? `<div><strong>Tax Exempt:</strong> ${tx.tax_exempt_id}</div>` : ""}
+      </div>
+      <table>
+        <thead><tr><th>Item</th><th style="text-align:right">Price</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody>${itemsRows}</tbody>
+      </table>
+      <div class="totals">
+        <div class="row"><span>Subtotal</span><span>$${(tx.subtotal || 0).toFixed(2)}</span></div>
+        <div class="row"><span>Tax</span><span>$${(tx.tax || 0).toFixed(2)}</span></div>
+        <div class="row grand"><span>Total</span><span>${isNeg ? "−" : ""}$${(Math.abs(tx.total) || 0).toFixed(2)}</span></div>
+        ${tx.payment_method === "cash" ? `<div class="row"><span>Tendered</span><span>$${(tx.amount_tendered || 0).toFixed(2)}</span></div><div class="row"><span>Change</span><span>$${(tx.change_due || 0).toFixed(2)}</span></div>` : ""}
+        ${tx.rewards_applied ? `<div class="row"><span>Rewards Applied</span><span>−$${(tx.rewards_applied || 0).toFixed(2)}</span></div>` : ""}
+        ${tx.rewards_earned ? `<div class="row"><span>Rewards Earned</span><span>+$${(tx.rewards_earned || 0).toFixed(2)}</span></div>` : ""}
+        ${tx.override_operator_name ? `<div class="row" style="color:#b45309"><span>Return Override By</span><span>${tx.override_operator_name}</span></div>` : ""}
+      </div>
+      <div class="foot">Thank you — this receipt was reprinted from the Transaction Log.</div>
+      </body></html>`;
+    const w = window.open("", "_blank", "width=380,height=640");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-full">
       <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
@@ -197,7 +258,14 @@ export default function AdminTransactions() {
 
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Transaction {detail?.transaction_id}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-2 pr-6">
+              <DialogTitle>Transaction {detail?.transaction_id}</DialogTitle>
+              <Button variant="outline" size="sm" onClick={() => handlePrint(detail)} disabled={!detail} className="border-gray-300">
+                <Printer className="w-4 h-4 mr-1.5" /> Print
+              </Button>
+            </div>
+          </DialogHeader>
           {detail && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
