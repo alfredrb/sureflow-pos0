@@ -109,7 +109,9 @@ export default function AdminOperators() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 {op.status === "active" ? <UserCheck className="w-3.5 h-3.5 text-emerald-500" /> : <UserX className="w-3.5 h-3.5 text-red-400" />}
                 <span className="text-xs text-gray-500">{op.status}</span>
-                {op.pos_access === false && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">No POS</span>}
+                {op.pos_access === false
+                  ? <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">No POS Access</span>
+                  : <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">POS Access</span>}
               </div>
               <div className="hidden md:flex gap-1">
                 <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
