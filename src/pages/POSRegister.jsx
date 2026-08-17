@@ -19,6 +19,7 @@ import POSCSModePanel from "@/components/POSCSModePanel";
 import POSReturnsPanel from "@/components/POSReturnsPanel";
 import POSExchangePanel from "@/components/POSExchangePanel";
 import POSSalePanel from "@/components/POSSalePanel";
+import POSItemList from "@/components/POSItemList";
 import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 
@@ -1087,49 +1088,17 @@ export default function POSRegister() {
       </div>
 
       {/* Item List Dialog */}
-      <Dialog open={itemListOpen} onOpenChange={v => { setItemListOpen(v); if (!v) { setItemSearch(""); setSelectedCat("All"); } }}>
-        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2 text-sm">
-              <List className="w-4 h-4" /> Item List
-            </DialogTitle>
-          </DialogHeader>
-          <div className="relative flex-shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-300/40" />
-            <Input
-              placeholder="Search items..."
-              value={itemSearch}
-              onChange={e => setItemSearch(e.target.value)}
-              className="pl-8 bg-[#0a0e27] border-blue-500/10 text-white placeholder:text-blue-300/30 text-sm h-8"
-              autoFocus
-            />
-          </div>
-          <div className="flex gap-1 flex-shrink-0 overflow-x-auto pb-1">
-            {categories.map(cat => (
-              <button key={cat} onClick={() => setSelectedCat(cat)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${selectedCat === cat ? "bg-blue-600 text-white" : "bg-[#0a0e27] text-blue-300/50 hover:text-blue-200 border border-blue-500/10"}`}
-              >{cat}</button>
-            ))}
-          </div>
-          <div className="overflow-y-auto flex-1">
-            <div className="grid grid-cols-3 gap-1.5">
-              {filteredProducts.map(p => (
-                <button key={p.id}
-                  onClick={() => { addToCart(p); setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); }}
-                  className="bg-[#0a0e27] border border-blue-500/10 rounded-lg p-2 text-left hover:border-blue-500/40 hover:bg-[#161d50] transition-all active:scale-95"
-                >
-                  <p className="text-white text-xs font-medium leading-tight truncate">{p.name}</p>
-                  <p className="text-blue-300/40 text-[10px]">{p.sku}</p>
-                  <p className="text-blue-400 font-bold text-sm mt-1">${p.price.toFixed(2)}</p>
-                </button>
-              ))}
-              {filteredProducts.length === 0 && (
-                <div className="col-span-3 text-center py-8 text-blue-300/20 text-xs">No items found</div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <POSItemList
+        open={itemListOpen}
+        onOpenChange={v => { setItemListOpen(v); if (!v) { setItemSearch(""); setSelectedCat("All"); } }}
+        filteredProducts={filteredProducts}
+        categories={categories}
+        selectedCat={selectedCat}
+        setSelectedCat={setSelectedCat}
+        itemSearch={itemSearch}
+        setItemSearch={setItemSearch}
+        onAdd={(p) => { addToCart(p); setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); }}
+      />
 
       {/* Payment Dialog */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
