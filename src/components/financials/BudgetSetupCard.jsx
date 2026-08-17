@@ -3,25 +3,26 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, Target } from "lucide-react";
+import { Save, Target, Sparkles } from "lucide-react";
 
 const FIELDS = [
-  { key: "revenue_budget", label: "Revenue Target", hint: "Gross sales subtotal" },
+  { key: "revenue_budget", label: "Revenue Target", hint: "Gross sales subtotal (min $10,000)" },
   { key: "cogs_budget", label: "COGS Target", hint: "Cost of goods sold" },
   { key: "labor_budget", label: "Labor Target", hint: "Payroll cost" },
   { key: "loss_budget", label: "Loss Allowance", hint: "Expected profit loss" },
   { key: "expenses_budget", label: "Other Expenses", hint: "Rent, utilities, supplies" }
 ];
 
-export default function BudgetSetupCard({ month, budget, onSave }) {
+export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
   const [form, setForm] = useState({
-    revenue_budget: 0, cogs_budget: 0, labor_budget: 0, loss_budget: 0, expenses_budget: 0, notes: ""
+    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, loss_budget: 0, expenses_budget: 0, notes: ""
   });
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
 
   useEffect(() => {
     setForm({
-      revenue_budget: budget?.revenue_budget || 0,
+      revenue_budget: budget?.revenue_budget != null ? budget.revenue_budget : 10000,
       cogs_budget: budget?.cogs_budget || 0,
       labor_budget: budget?.labor_budget || 0,
       loss_budget: budget?.loss_budget || 0,
@@ -29,6 +30,23 @@ export default function BudgetSetupCard({ month, budget, onSave }) {
       notes: budget?.notes || ""
     });
   }, [budget?.id, month]);
+
+  const handleSuggest = async () => {
+    if (!onSuggest) return;
+    setSuggesting(true);
+    try {
+      const s = await onSuggest();
+      if (s) setForm(f => ({
+        revenue_budget: Math.max(10000, Math.round(s.revenue_budget) || 10000),
+        cogs_budget: Math.max(0, Math.round(s.cogs_budget) || 0),
+        labor_budget: Math.max(0, Math.round(s.labor_budget) || 0),
+        loss_budget: Math.max(0, Math.round(s.loss_budget) || 0),
+        expenses_budget: Math.max(0, Math.round(s.expenses_budget) || 0),
+        notes: s.notes || f.notes,
+      }));
+    } catch { /* toast handled in page */ }
+    setSuggesting(false);
+  };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -68,9 +86,16 @@ export default function BudgetSetupCard({ month, budget, onSave }) {
         <Label className="text-xs text-gray-600">Notes</Label>
         <Textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} className="mt-1" placeholder="Budget assumptions, notes..." />
       </div>
-      <Button onClick={submit} disabled={saving} className="mt-4 bg-blue-600 hover:bg-blue-700 gap-2 w-full sm:w-auto">
-        <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Budget"}
-      </Button>
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+        <Button onClick={submit} disabled={saving} className="bg-blue-600 hover:bg-blue-700 gap-2 w-full sm:w-auto">
+          <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Budget"}
+        </Button>
+        {onSuggest && (
+          <Button onClick={handleSuggest} disabled={suggesting} variant="outline" className="gap-2 w-full sm:w-auto border-purple-200 text-purple-700 hover:bg-purple-50 hover:text-purple-700">
+            <Sparkles className="w-4 h-4 text-purple-500" /> {suggesting ? "Analyzing history..." : "AI Suggest Budget"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

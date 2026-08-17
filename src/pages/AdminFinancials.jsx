@@ -161,6 +161,52 @@ export default function AdminFinancials() {
     { name: "Net Profit", Budget: Math.round(netBudget), Actual: Math.round(netProfit) },
   ];
 
+  const suggestBudget = async () => {
+    // Build last-3-months actuals so the AI can target realistic growth.
+    const history = [];
+    for (let i = 1; i <= 3; i++) {
+      const m = moment(month).subtract(i, "months");
+      const ms = m.clone().startOf("month"), me = m.clone().endOf("month");
+      const inM = (d) => !!d && moment(d).isBetween(ms, me, null, "[]");
+      const ct = txns.filter(t => inM(t.created_date) && t.status === "completed" && !t.training_mode);
+      const rev = ct.reduce((s, t) => s + (t.subtotal || 0), 0);
+      const c = ct.reduce((s, t) => s + (t.items || []).reduce((a, it) => a + (costBySku[it.sku] || 0) * (it.qty || 0), 0), 0);
+      const lb = payrollFromTimeClock(entries.filter(e => inM(e.clock_in)), operators, payRates, overtimeThreshold).reduce((s, p) => s + p.total_pay, 0);
+      const ls = losses.filter(l => inM(l.date)).reduce((s, l) => s + (l.amount || 0), 0);
+      history.push({ month: m.format("YYYY-MM"), revenue: Math.round(rev), cogs: Math.round(c), gross_profit: Math.round(rev - c), labor: Math.round(lb), losses: Math.round(ls), sales_count: ct.length });
+    }
+    const prompt = `You are a retail store financial planner. Recommend a monthly budget for ${month}.
+Historical actuals for the previous 3 months (oldest to newest): ${JSON.stringify(history)}.
+Guidelines:
+- revenue_budget should reflect recent trends with modest growth, and MUST be at least 10000.
+- cogs_budget should track the historical COGS-to-revenue ratio.
+- labor_budget should track historical labor cost, keeping labor under ~30% of revenue where possible.
+- loss_budget should be a small acceptable allowance for disposed/claimed returns.
+- expenses_budget should be a modest estimate for rent/utilities/supplies if not evident in history.
+Return a short notes field explaining the recommendation in one or two sentences.`;
+    try {
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            revenue_budget: { type: "number" },
+            cogs_budget: { type: "number" },
+            labor_budget: { type: "number" },
+            loss_budget: { type: "number" },
+            expenses_budget: { type: "number" },
+            notes: { type: "string" }
+          },
+          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget"]
+        }
+      });
+      return res;
+    } catch (err) {
+      toast({ title: "AI suggestion failed", description: "Could not generate a budget suggestion.", variant: "destructive" });
+      return null;
+    }
+  };
+
   const saveBudget = async (patch, done) => {
     try {
       if (budget?.id) {
@@ -296,7 +342,7 @@ export default function AdminFinancials() {
 
       <FinancialCharts budgetVsActual={budgetVsActual} dailyData={dailyData} dailyLabor={dailyLabor} lossByMethod={lossByMethod} />
 
-      <BudgetSetupCard month={month} budget={budget} onSave={saveBudget} />
+      <BudgetSetupCard month={month} budget={budget} onSave={saveBudget} onSuggest={suggestBudget} />
     </div>
   );
 }
