@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
-import { Database, Upload, FileJson, Eye, X } from "lucide-react";
+import { base44 } from "@/api/data";
+import { Database, Upload, FileJson, Eye, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -27,10 +28,11 @@ function Meta({ label, value }) {
   );
 }
 
-export default function DataViewerPanel() {
+export default function DataViewerPanel({ onAdded }) {
   const [data, setData] = useState(null);
   const [viewEvidence, setViewEvidence] = useState(null);
   const [fileName, setFileName] = useState("");
+  const [adding, setAdding] = useState(false);
   const fileInputRef = useRef(null);
   const { toast } = useToast();
 
@@ -56,6 +58,43 @@ export default function DataViewerPanel() {
 
   const reset = () => { setData(null); setFileName(""); };
 
+  const addAsNew = async () => {
+    if (!data) return;
+    setAdding(true);
+    try {
+      const now = new Date().toISOString();
+      const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
+      const by = admin?.full_name || admin?.operator_id || "Admin";
+      const status = ["open", "in_progress", "closed"].includes(data.status) ? data.status : "open";
+      const payload = {
+        title: data.title || "Imported investigation",
+        type: data.type || "other",
+        severity: data.severity || "medium",
+        status,
+        operator_name: data.operator_name || "",
+        operator_id: data.operator_id || "",
+        register_id: data.register_id || "",
+        assigned_to: data.assigned_to || "",
+        linked_operators: Array.isArray(data.linked_operators) ? data.linked_operators : [],
+        amount_impact: Number(data.amount_impact) || 0,
+        date_range_start: data.date_range_start || "",
+        date_range_end: data.date_range_end || "",
+        summary: data.summary || "",
+        resolution: data.resolution || "",
+        stolen_items: Array.isArray(data.stolen_items) ? data.stolen_items : [],
+        evidence: Array.isArray(data.evidence) ? data.evidence : [],
+        activity_log: [...(Array.isArray(data.activity_log) ? data.activity_log : []), { date: now, by, action: "Imported from exported JSON", note: fileName || "" }],
+        created_by: by,
+      };
+      const created = await base44.entities.Investigation.create(payload);
+      toast({ title: "Investigation created", description: "Imported from JSON — view it in the Investigations tab." });
+      if (onAdded) onAdded(created);
+    } catch (err) {
+      toast({ title: "Failed to create investigation", description: err?.message, variant: "destructive" });
+    }
+    setAdding(false);
+  };
+
   const evidence = Array.isArray(data?.evidence) ? data.evidence : [];
   const activityLog = Array.isArray(data?.activity_log) ? data.activity_log : [];
   const stolenItems = Array.isArray(data?.stolen_items) ? data.stolen_items : [];
@@ -72,6 +111,7 @@ export default function DataViewerPanel() {
           <div className="flex items-center gap-2">
             <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleFile} />
             <Button onClick={() => fileInputRef.current?.click()} className="bg-amber-600 hover:bg-amber-500"><Upload className="w-4 h-4 mr-1.5" /> Upload JSON</Button>
+            {data && <Button variant="outline" onClick={addAsNew} disabled={adding}><Plus className="w-4 h-4 mr-1.5" /> {adding ? "Adding…" : "Add as New Investigation"}</Button>}
             {data && <Button variant="outline" onClick={reset}><X className="w-4 h-4 mr-1.5" /> Clear</Button>}
           </div>
         </div>

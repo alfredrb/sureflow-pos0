@@ -60,6 +60,7 @@ export default function AdminLossPrevention() {
   const startInvestigation = (partial) => setInvestigation({ __new: true, ...partial });
   const openInvestigation = (inv) => setInvestigation(inv);
   const onInvestigationSaved = () => { setInvestigation(null); setInvRefresh(r => r + 1); };
+  const onInvestigationAdded = () => setInvRefresh(r => r + 1);
 
   if (loading) return (
     <div className="flex items-center justify-center h-full p-10">
@@ -121,7 +122,7 @@ export default function AdminLossPrevention() {
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
-      {tab === "data" && <DataViewerPanel />}
+      {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
 
       <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
     </div>
