@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert } from "lucide-react";
+import { Users, Package, Receipt, Monitor, DollarSign, TrendingUp, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert, Percent, RotateCcw, FolderSearch, Award, Gift, Scale } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
 import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
 import AuditFrequencyChart from "@/components/AuditFrequencyChart";
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, lowStock: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0 });
+  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, avgSale: 0, refunds: 0, refundAmount: 0, lowStock: 0, outOfStock: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0, openCases: 0, loyaltyMembers: 0, activeGiftCards: 0, giftBalance: 0, cashDiscrepancies: 0, voids: 0 });
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,13 +23,29 @@ export default function AdminDashboard() {
     const sysAlerts = await base44.entities.SystemAlert.filter({ status: "active" });
     const maintLogs = await base44.entities.MaintenanceLog.list("-service_date", 200);
     const regLogs = await base44.entities.RegisterLog.list("-created_date", 200);
-    const revenue = transactions.filter(t => t.status === "completed").reduce((s, t) => s + (t.total || 0), 0);
+    const investigations = await base44.entities.Investigation.list("-created_date", 200);
+    const loyalty = await base44.entities.LoyaltyMember.list();
+    const giftcards = await base44.entities.GiftCard.list();
+    const audits = await base44.entities.CashAudit.list("-audit_date", 200);
+    const completed = transactions.filter(t => t.status === "completed");
+    const revenue = completed.reduce((s, t) => s + (t.total || 0), 0);
+    const avgSale = completed.length ? revenue / completed.length : 0;
+    const refunds = transactions.filter(t => t.status === "refunded");
+    const refundAmount = refunds.reduce((s, t) => s + Math.abs(t.total || 0), 0);
     const lowStock = products.filter(p => (p.stock_qty || 0) < 10).length;
+    const outOfStock = products.filter(p => (p.stock_qty || 0) <= 0).length;
     const maintenanceOpen = maintLogs.filter(m => m.status !== "completed").length;
     const hardwareIssues = registers.filter(r => r.status !== "online" || r.printer_status === "disconnected" || r.scanner_status === "disconnected").length;
     const sevenAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-    const lossEvents = regLogs.filter(l => (l.event_type === "void" || l.event_type === "override") && new Date(l.created_date) >= sevenAgo).length;
-    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, lowStock, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents });
+    const recentLossLogs = regLogs.filter(l => new Date(l.created_date) >= sevenAgo);
+    const voids = recentLossLogs.filter(l => l.event_type === "void").length;
+    const lossEvents = recentLossLogs.filter(l => l.event_type === "void" || l.event_type === "override").length;
+    const openCases = investigations.filter(i => i.status !== "closed").length;
+    const loyaltyMembers = loyalty.filter(l => l.status === "active").length;
+    const activeGiftCards = giftcards.filter(g => g.status === "active").length;
+    const giftBalance = giftcards.reduce((s, g) => s + (g.balance || 0), 0);
+    const cashDiscrepancies = audits.filter(a => Math.abs(a.discrepancy || 0) > 0.01).length;
+    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies });
     setRecentTx(transactions.slice(0, 8));
     setLoading(false);
   };
@@ -47,6 +63,16 @@ export default function AdminDashboard() {
     { label: "System Alerts", value: stats.systemAlerts, icon: Siren, color: stats.systemAlerts > 0 ? "bg-red-600" : "bg-slate-500" },
     { label: "Maintenance Open", value: stats.maintenanceOpen, icon: Wrench, color: "bg-amber-500" },
     { label: "Hardware Issues", value: stats.hardwareIssues, icon: HardDrive, color: stats.hardwareIssues > 0 ? "bg-red-600" : "bg-cyan-500" },
+    { label: "Avg Sale", value: `$${stats.avgSale.toFixed(2)}`, icon: Percent, color: "bg-emerald-600" },
+    { label: "Refunds", value: stats.refunds, icon: RotateCcw, color: "bg-rose-500" },
+    { label: "Refund Amount", value: `$${stats.refundAmount.toFixed(2)}`, icon: DollarSign, color: "bg-rose-600" },
+    { label: "Voids (7d)", value: stats.voids, icon: RotateCcw, color: "bg-amber-500" },
+    { label: "Open Cases", value: stats.openCases, icon: FolderSearch, color: stats.openCases > 0 ? "bg-amber-600" : "bg-amber-500" },
+    { label: "Out of Stock", value: stats.outOfStock, icon: AlertTriangle, color: stats.outOfStock > 0 ? "bg-red-600" : "bg-orange-500" },
+    { label: "Loyalty Members", value: stats.loyaltyMembers, icon: Award, color: "bg-pink-500" },
+    { label: "Gift Cards", value: stats.activeGiftCards, icon: Gift, color: "bg-indigo-500" },
+    { label: "Gift Balance", value: `$${stats.giftBalance.toFixed(2)}`, icon: Gift, color: "bg-indigo-600" },
+    { label: "Cash Discrepancies", value: stats.cashDiscrepancies, icon: Scale, color: stats.cashDiscrepancies > 0 ? "bg-orange-600" : "bg-slate-500" },
     { label: "Loss Events (7d)", value: stats.lossEvents, icon: ShieldAlert, color: "bg-orange-600" },
   ];
 
