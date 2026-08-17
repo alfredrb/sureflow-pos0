@@ -233,15 +233,15 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   return (
     <>
       <Dialog open={!!value} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               {isNew ? "Start Investigation" : "Investigation"}
               {value.ai_generated && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 inline-flex items-center gap-0.5"><Sparkles className="w-2.5 h-2.5" /> AI</span>}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
             <div>
               <Label>Title</Label>
               <Input value={form.title} onChange={e => set("title", e.target.value)} placeholder="e.g. Repeated cash shorts — Register 3" />
@@ -374,7 +374,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
             )}
           </div>
 
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter className="sm:justify-between px-6 pb-6 pt-3 border-t flex-shrink-0">
             <Button variant="outline" onClick={exportCase}><FileDown className="w-4 h-4" /> Export Case</Button>
             <div className="flex gap-2">
               {!isNew && form.status !== "closed" && <Button variant="outline" onClick={handleCloseCase} disabled={saving} className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="w-4 h-4" /> Close Case</Button>}
