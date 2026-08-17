@@ -5,6 +5,7 @@ import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashbo
 import { useToast } from "@/components/ui/use-toast";
 import SelfTimeClock from "@/components/SelfTimeClock";
 import VersionLogDialog from "@/components/VersionLogDialog";
+import POSVersionButton from "@/components/POSVersionButton";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
 export default function POSLogin() {
@@ -460,43 +461,17 @@ export default function POSLogin() {
           )}
         </div>
 
-        <button onClick={() => setVersionOpen(true)} className="text-blue-300/20 hover:text-blue-300/60 text-[10px] mt-6 transition-colors cursor-pointer">
-          v{version} — Terminal Ready
-        </button>
+        <POSVersionButton
+          version={version}
+          onVersionClick={() => setVersionOpen(true)}
+          onShowShiftLookup={() => setShowShiftLookup(true)}
+          onShowTimeClock={() => setShowTimeClock(true)}
+          onAdmin={() => navigate("/admin/login")}
+          onConfig={handleConfigOpen}
+        />
         <VersionLogDialog open={versionOpen} onOpenChange={setVersionOpen} />
       </div>
 
-      {/* Bottom Control Buttons */}
-      <div className="absolute bottom-3 right-3 flex items-center gap-2">
-        <button
-          onClick={() => setShowShiftLookup(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
-        >
-          <Calendar className="w-3 h-3" />
-          <span>Shift Lookup</span>
-        </button>
-        <button
-          onClick={() => setShowTimeClock(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
-        >
-          <Clock className="w-3 h-3" />
-          <span>Clock In/Out</span>
-        </button>
-        <button
-          onClick={() => navigate("/admin/login")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
-        >
-          <LayoutDashboard className="w-3 h-3" />
-          <span>Admin</span>
-        </button>
-        <button
-          onClick={handleConfigOpen}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
-        >
-          <Lock className="w-3 h-3" />
-          <span>Configuration</span>
-        </button>
-      </div>
 
       {/* Shift Lookup Modal */}
       {showShiftLookup && (
