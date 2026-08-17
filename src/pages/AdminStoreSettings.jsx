@@ -15,6 +15,7 @@ const DEFAULTS = {
   tax_inclusive: false, require_sod: true, return_period_days: 30, default_cash_limit: 5000,
   low_stock_threshold: 10, training_mode_default: false, require_override_pin: true, enable_remote_logout: true,
   loyalty_points_percentage: 5,
+  no_receipt_return_limit: 0,
 };
 
 function NumberField({ label, value, onChange, suffix }) {
@@ -167,9 +168,10 @@ export default function AdminStoreSettings() {
         <Toggle label="Require Override PIN" description="CSM/Manager PIN needed for restricted function keys" checked={form.require_override_pin} onChange={v => set("require_override_pin", v)} />
         <Toggle label="Enable Remote Logout" description="Admins can remotely log out operators from the workstation" checked={form.enable_remote_logout} onChange={v => set("enable_remote_logout", v)} />
         <Toggle label="Training Mode by Default" description="New register sessions start in training mode" checked={form.training_mode_default} onChange={v => set("training_mode_default", v)} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
           <NumberField label="Default Cash Limit" value={form.default_cash_limit} onChange={v => set("default_cash_limit", v)} suffix={form.currency_symbol || "$"} />
           <NumberField label="Low Stock Threshold" value={form.low_stock_threshold} onChange={v => set("low_stock_threshold", v)} suffix="units" />
+          <NumberField label="No-Receipt Return Limit" value={form.no_receipt_return_limit} onChange={v => set("no_receipt_return_limit", v)} suffix="returns · 0 = off" />
         </div>
       </div>
     </div>

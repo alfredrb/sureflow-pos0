@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, BarChart3, Users } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,9 +19,7 @@ import MerchandiseProtectionPanel from "@/components/lossprevention/MerchandiseP
 import DataViewerPanel from "@/components/lossprevention/DataViewerPanel";
 import HighRiskEventsPanel from "@/components/lossprevention/HighRiskEventsPanel";
 import TimeTheftPanel from "@/components/lossprevention/TimeTheftPanel";
-import NoReceiptReturnsPanel from "@/components/lossprevention/NoReceiptReturnsPanel";
-import NoReceiptAnalyticsPanel from "@/components/lossprevention/NoReceiptAnalyticsPanel";
-import NoReceiptCustomerManager from "@/components/lossprevention/NoReceiptCustomerManager";
+import NoReceiptWorkbenchTab from "@/components/lossprevention/NoReceiptWorkbenchTab";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -117,8 +115,6 @@ export default function AdminLossPrevention() {
     { id: "tasks", label: "Tasks", icon: ListTodo },
     { id: "time", label: "Time Theft", icon: Clock },
     { id: "noreturns", label: "No-Receipt Returns", icon: RotateCcw },
-    { id: "nranalytics", label: "No-Receipt Analytics", icon: BarChart3 },
-    { id: "nrcustomers", label: "No-Receipt Customers", icon: Users },
     { id: "mpp", label: "Merch Protection", icon: Shield },
     { id: "data", label: "Data Viewer", icon: Database },
   ];
@@ -170,9 +166,7 @@ export default function AdminLossPrevention() {
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
       {tab === "time" && <TimeTheftPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
-      {tab === "noreturns" && <NoReceiptReturnsPanel txns={txns} onStartInvestigation={startInvestigation} />}
-      {tab === "nranalytics" && <NoReceiptAnalyticsPanel txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
-      {tab === "nrcustomers" && <NoReceiptCustomerManager />}
+      {tab === "noreturns" && <NoReceiptWorkbenchTab txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
       {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
 

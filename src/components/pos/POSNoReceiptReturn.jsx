@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
-import { FileX, ShieldCheck, ArrowLeft, Search, Trash2, Ban } from "lucide-react";
+import { FileX, ShieldCheck, ArrowLeft, Search, Trash2, Ban, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -8,12 +8,13 @@ function makeGiftCardNumber() {
   return "GC-" + Date.now().toString().slice(-8) + Math.floor(Math.random() * 90 + 10);
 }
 
-function buildReceiptHTML({ store, txId, operatorName, registerName, items, subtotal, tax, total, paymentMethod, giftCardNumber, customerId, mode, managerName, refusal }) {
+function buildReceiptHTML({ store, txId, operatorName, registerName, items, subtotal, tax, total, paymentMethod, giftCardNumber, customerId, mode, managerName, refusal, denialReason, limitWarn }) {
   const storeName = store?.store_name || "Supermart";
   const isManager = mode === "manager_override";
   const title = refusal ? "NO-RECEIPT RETURN DENIED" : isManager ? "MANAGER OVERRIDE RETURN" : "NO-RECEIPT RETURN";
   const itemsHTML = (items || []).map(i => `<div class="row"><span>${i.qty}x ${i.name}</span><span>$${i.total.toFixed(2)}</span></div>`).join("");
-  const refusalBlock = refusal ? `<div class="refusal">CUSTOMER ID ${customerId} IS NOT PERMITTED TO MAKE NO-RECEIPT RETURNS. PLEASE SEE A MANAGER.</div>` : "";
+  const refusalBlock = refusal ? `<div class="refusal">CUSTOMER ID ${customerId} IS NOT PERMITTED TO MAKE NO-RECEIPT RETURNS.${denialReason ? `<br>${denialReason}` : ""} PLEASE SEE A MANAGER.</div>` : "";
+  const warnBlock = !refusal && limitWarn ? `<div class="warn">${limitWarn}</div>` : "";
   const custBlock = !refusal && customerId ? `<div class="row"><span>Customer ID:</span><span>${customerId}</span></div>` : "";
   const mgrBlock = !refusal && isManager && managerName ? `<div class="row"><span>Authorized by:</span><span>${managerName}</span></div>` : "";
   const totalsBlock = !refusal
@@ -33,6 +34,7 @@ function buildReceiptHTML({ store, txId, operatorName, registerName, items, subt
     .bold{font-weight:bold;font-size:13px}
     .title{font-weight:bold;font-size:12px;text-align:center;margin:8px 0}
     .refusal{border:2px solid #000;padding:8px;margin:10px 0;font-weight:bold;font-size:11px;text-align:center}
+    .warn{border:2px solid #000;background:#fff3cd;padding:6px;margin:8px 0;font-weight:bold;font-size:10px;text-align:center}
   </style></head><body>
     <div class="center">
       <div class="header">${storeName}</div>
@@ -51,6 +53,7 @@ function buildReceiptHTML({ store, txId, operatorName, registerName, items, subt
       ${itemsHTML}
       ${refusalBlock}
       ${totalsBlock}
+      ${warnBlock}
       <div class="div"></div>
       <div class="sub center">No-receipt returns are logged and monitored for fraud.</div>
       <div class="sub center">Thank You!</div>
@@ -85,6 +88,9 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
   const [customerId, setCustomerId] = useState("");
   const [customerVerified, setCustomerVerified] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [blockReason, setBlockReason] = useState("");
+  const [customerRec, setCustomerRec] = useState(null);
+  const [posWarn, setPosWarn] = useState("");
   const [returnItems, setReturnItems] = useState([]);
   const [itemSearch, setItemSearch] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -117,11 +123,15 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
   const lookupCustomer = async () => {
     if (!customerId.trim()) return;
     setBlocked(false);
+    setPosWarn("");
     try {
       const records = await base44.entities.NoReceiptCustomer.filter({ customer_id: customerId.trim() });
       const rec = records[0];
       const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+      const lim = store?.no_receipt_return_limit || 0;
+      const used = rec?.return_count || 0;
       if (rec && rec.disabled) {
+        setBlockReason("is disabled from making no-receipt returns.");
         setBlocked(true);
         base44.entities.RegisterLog.create({
           event_type: "override",
@@ -134,6 +144,27 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         printDoc(buildReceiptHTML({ store, txId: "DENIED-" + Date.now().toString(36).toUpperCase(), operatorName: operator.full_name, registerName: registerId, items: [], subtotal: 0, tax: 0, total: 0, paymentMethod: "", customerId: customerId.trim(), mode, managerName: managerAuth?.full_name, refusal: true }));
         toast({ title: "Customer Blocked", description: "Receipt printed — customer cannot make no-receipt returns. See manager.", variant: "destructive" });
         return;
+      }
+      if (lim > 0 && used >= lim) {
+        setBlockReason(`has reached the no-receipt return limit (${used} of ${lim} used).`);
+        setBlocked(true);
+        base44.entities.RegisterLog.create({
+          event_type: "override",
+          operator_id: operator.operator_id,
+          operator_name: operator.full_name,
+          operator_role: operator.role,
+          register_id: registerId,
+          detail: `No-receipt return BLOCKED — Customer ID ${customerId.trim()} reached the return limit (${used}/${lim})`,
+        });
+        printDoc(buildReceiptHTML({ store, txId: "DENIED-" + Date.now().toString(36).toUpperCase(), operatorName: operator.full_name, registerName: registerId, items: [], subtotal: 0, tax: 0, total: 0, paymentMethod: "", customerId: customerId.trim(), mode, managerName: managerAuth?.full_name, refusal: true, denialReason: `Return limit reached (${used}/${lim}).` }));
+        toast({ title: "Return Limit Reached", description: "Customer has hit the no-receipt return limit. See manager.", variant: "destructive" });
+        return;
+      }
+      setCustomerRec(rec || null);
+      if (lim > 0 && used >= Math.ceil(0.75 * lim)) {
+        setPosWarn(`High-risk customer: ${used} of ${lim} no-receipt returns used (75%+). They will be cut off soon.`);
+      } else {
+        setPosWarn("");
       }
       setCustomerVerified(true);
     } catch (e) {
@@ -210,11 +241,14 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         ...(managerAuth ? { override_operator_id: managerAuth.operator_id, override_operator_name: managerAuth.full_name } : {}),
       });
 
+      const lim = store?.no_receipt_return_limit || 0;
+      let newCount = 1;
       const existing = await base44.entities.NoReceiptCustomer.filter({ customer_id: custId });
       if (existing.length > 0) {
         const r = existing[0];
+        newCount = (r.return_count || 0) + 1;
         await base44.entities.NoReceiptCustomer.update(r.id, {
-          return_count: (r.return_count || 0) + 1,
+          return_count: newCount,
           total_refunded: +((r.total_refunded || 0) + total).toFixed(2),
           last_return_date: new Date().toISOString(),
           last_store_id: sessionStorage.getItem("pos_store_id") || "",
@@ -228,6 +262,11 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
           last_store_id: sessionStorage.getItem("pos_store_id") || "",
         });
       }
+      let receiptWarn = "";
+      if (lim > 0) {
+        if (newCount >= lim) receiptWarn = `You have reached your no-receipt return limit (${newCount}/${lim}). Future no-receipt returns will be denied.`;
+        else if (newCount >= Math.ceil(0.75 * lim)) receiptWarn = `You have reached 75% of your no-receipt return limit (${newCount}/${lim}). You will be cut off soon.`;
+      }
 
       base44.entities.RegisterLog.create({
         event_type: "override",
@@ -239,10 +278,10 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         ...(managerAuth ? { override_operator_id: managerAuth.operator_id, override_operator_name: managerAuth.full_name, override_action: "Manager Override Return" } : {}),
       });
 
-      printDoc(buildReceiptHTML({ store, txId, operatorName: operator.full_name, registerName: registerId, items: returnItems, subtotal, tax, total, paymentMethod: "giftcard", giftCardNumber, customerId: custId, mode, managerName: managerAuth?.full_name, refusal: false }));
+      printDoc(buildReceiptHTML({ store, txId, operatorName: operator.full_name, registerName: registerId, items: returnItems, subtotal, tax, total, paymentMethod: "giftcard", giftCardNumber, customerId: custId, mode, managerName: managerAuth?.full_name, refusal: false, limitWarn: receiptWarn }));
 
       toast({ title: "Return Processed", description: `${txId} — $${total.toFixed(2)} issued to gift card ${giftCardNumber}` });
-      setReturnItems([]); setCustomerId(""); setCustomerVerified(false); setBlocked(false);
+      setReturnItems([]); setCustomerId(""); setCustomerVerified(false); setBlocked(false); setCustomerRec(null); setPosWarn("");
       if (isManager) setManagerAuth(null);
       onPreviewChange(null);
       loadData();
@@ -284,9 +323,9 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
           <div className="w-14 h-14 bg-red-500/20 rounded-full flex items-center justify-center"><Ban className="w-7 h-7 text-red-400" /></div>
           <h2 className="text-white font-bold text-lg">Customer Blocked</h2>
-          <p className="text-red-300/70 text-sm max-w-xs">Customer ID <span className="font-mono font-bold text-red-300">{customerId}</span> is disabled from making no-receipt returns. A denial receipt has been printed. See a manager.</p>
+          <p className="text-red-300/70 text-sm max-w-xs">Customer ID <span className="font-mono font-bold text-red-300">{customerId}</span> {blockReason || "is disabled from making no-receipt returns."} A denial receipt has been printed. See a manager.</p>
           <div className="flex gap-2">
-            <Button onClick={() => { setBlocked(false); setCustomerId(""); }} variant="outline" className="border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">New Customer</Button>
+            <Button onClick={() => { setBlocked(false); setCustomerId(""); setBlockReason(""); }} variant="outline" className="border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">New Customer</Button>
             <Button onClick={onBack} variant="outline" className="border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Back to Returns</Button>
           </div>
         </div>
@@ -300,9 +339,16 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
                 <p className={`${THEME.label} text-[10px] uppercase tracking-wider`}>Customer ID</p>
                 <p className="text-white font-mono font-bold">{customerId}</p>
               </div>
-              <button onClick={() => { setCustomerVerified(false); setCustomerId(""); setReturnItems([]); onPreviewChange(null); }} className="text-blue-300/50 hover:text-blue-300 text-[10px] uppercase tracking-wider">Change</button>
+              <button onClick={() => { setCustomerVerified(false); setCustomerId(""); setReturnItems([]); onPreviewChange(null); setPosWarn(""); }} className="text-blue-300/50 hover:text-blue-300 text-[10px] uppercase tracking-wider">Change</button>
             </div>
           </div>
+
+          {posWarn && (
+            <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-3 flex items-start gap-2 flex-shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-amber-300 text-xs font-medium">{posWarn}</p>
+            </div>
+          )}
 
           <div className="bg-[#111638] rounded-xl border border-blue-500/10 p-3 space-y-2 flex-shrink-0">
             <div className="relative">

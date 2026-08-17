@@ -77,6 +77,11 @@
       "default": 5,
       "description": "Percentage of the sale subtotal earned back as rewards credit (e.g. 5 = 5%)"
     },
+    "no_receipt_return_limit": {
+      "type": "number",
+      "default": 0,
+      "description": "Maximum no-receipt / manager-override returns a customer can make before being automatically blocked at the POS. 0 = no limit. The POS shows a visual warning at 75% and prints a cut-off notice on the receipt."
+    },
     "lp_disabled_events": {
       "type": "array",
       "items": {
