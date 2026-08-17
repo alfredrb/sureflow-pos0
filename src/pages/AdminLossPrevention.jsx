@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -19,6 +19,7 @@ import InvestigationDetailDialog from "@/components/lossprevention/Investigation
 import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendChart";
 import MerchandiseProtectionPanel from "@/components/lossprevention/MerchandiseProtectionPanel";
 import DataViewerPanel from "@/components/lossprevention/DataViewerPanel";
+import HighRiskEventsPanel from "@/components/lossprevention/HighRiskEventsPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -105,6 +106,7 @@ export default function AdminLossPrevention() {
 
   const TABS = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "events", label: "High-Risk Events", icon: AlertTriangle },
     { id: "shorts", label: "Shorts & Longs", icon: Scale },
     { id: "investigations", label: "Investigations", icon: FolderSearch },
     { id: "theft", label: "Theft Trends", icon: TrendingDown },
@@ -177,6 +179,7 @@ export default function AdminLossPrevention() {
       </div>
 
       {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} />}
+      {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}
