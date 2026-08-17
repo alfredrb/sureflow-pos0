@@ -386,7 +386,7 @@ export default function AdminInventory() {
       )}
 
       {tab === "serialized" && (
-        <SerializedInventoryTab products={products} onChanged={load} />
+        <SerializedInventoryTab products={products} onChanged={load} operator={operator} />
       )}
 
       {tab === "categories" && (

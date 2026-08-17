@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
-import { markSerialReturned, recordSerializedSales, itemHasSerials } from "@/lib/serialUtils";
+import { markSerialReturned, recordSerializedSales, itemHasSerials, verifySerialInStock } from "@/lib/serialUtils";
 
 export default function ExchangePanel({ operator, products, loadData, toast, onPreviewChange }) {
   const [txId, setTxId] = useState("");
@@ -82,12 +82,24 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
     });
   };
 
-  const onReplaceSerialCaptured = (serials) => {
+  const onReplaceSerialCaptured = async (serials) => {
     const prod = replaceSerialCapture?.product;
-    setReplaceSerialCapture(null);
-    if (prod) {
-      setReplaceCart(prev => [...prev, { sku: prod.sku, name: prod.name, price: prod.price, qty: 1, total: prod.price, tax_rate: prod.tax_rate || 0, serialized: true, serial_numbers: [serials[0]] }]);
+    const sn = serials[0];
+    if (prod && sn) {
+      if (replaceCart.some(i => i.sku === prod.sku && (i.serial_numbers || []).includes(sn))) {
+        toast({ title: "Duplicate Serial", description: "That serial is already in this exchange.", variant: "destructive" });
+        setReplaceSerialCapture(null);
+        return;
+      }
+      const check = await verifySerialInStock(prod.sku, sn);
+      if (!check.ok) {
+        toast({ title: "Serial Not Verified", description: check.reason, variant: "destructive" });
+        setReplaceSerialCapture(null);
+        return;
+      }
+      setReplaceCart(prev => [...prev, { sku: prod.sku, name: prod.name, price: prod.price, qty: 1, total: prod.price, tax_rate: prod.tax_rate || 0, serialized: true, serial_numbers: [sn] }]);
     }
+    setReplaceSerialCapture(null);
   };
 
   const removeReplace = (key) => setReplaceCart(prev => prev.filter(i => (i.serial_numbers?.[0] || i.sku) !== key));

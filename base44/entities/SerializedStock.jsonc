@@ -1,0 +1,52 @@
+{
+  "name": "SerializedStock",
+  "type": "object",
+  "properties": {
+    "serial_number": {
+      "type": "string",
+      "description": "Serial number pre-registered for a serialized product unit currently in stock. The POS verifies any scanned serial against this registry before allowing the sale."
+    },
+    "sku": {
+      "type": "string",
+      "description": "SKU of the serialized product this serial belongs to."
+    },
+    "product_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_stock",
+        "sold",
+        "removed"
+      ],
+      "default": "in_stock",
+      "description": "Lifecycle of the registered unit. in_stock = on hand and sellable at the POS; sold = sold via the POS (linked to a transaction); removed = manually removed from the registry."
+    },
+    "added_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the serial was registered to stock."
+    },
+    "added_by": {
+      "type": "string",
+      "description": "Operator who registered the serial."
+    },
+    "sale_transaction_id": {
+      "type": "string",
+      "description": "Transaction that sold this registered unit."
+    },
+    "sale_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "serial_number",
+    "sku",
+    "status"
+  ]
+}

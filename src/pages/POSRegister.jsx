@@ -24,7 +24,7 @@ import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
-import { recordSerializedSales } from "@/lib/serialUtils";
+import { recordSerializedSales, verifySerialInStock } from "@/lib/serialUtils";
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function POSRegister() {
@@ -306,8 +306,18 @@ export default function POSRegister() {
     setSerialCapture({
       product,
       needed: 1,
-      onDone: (serials) => {
-        commitSerializedAdd(product, serials[0]);
+      onDone: async (serials) => {
+        const sn = serials[0];
+        if (cart.some(i => i.sku === product.sku && (i.serial_numbers || []).includes(sn))) {
+          toast({ title: "Duplicate Serial", description: "That serial is already in this transaction.", variant: "destructive" });
+          return;
+        }
+        const check = await verifySerialInStock(product.sku, sn);
+        if (!check.ok) {
+          toast({ title: "Serial Not Verified", description: check.reason, variant: "destructive" });
+          return;
+        }
+        commitSerializedAdd(product, sn);
         setItemListOpen(false); setItemSearch(""); setSelectedCat("All");
       }
     });
@@ -364,10 +374,20 @@ export default function POSRegister() {
         setSerialCapture({
           product: prod || { name: item.name, sku },
           needed: 1,
-          onDone: (serials) => {
+          onDone: async (serials) => {
+            const sn = serials[0];
+            if (cart.some(i => i.sku === sku && (i.serial_numbers || []).includes(sn))) {
+              toast({ title: "Duplicate Serial", description: "That serial is already in this transaction.", variant: "destructive" });
+              return;
+            }
+            const check = await verifySerialInStock(sku, sn);
+            if (!check.ok) {
+              toast({ title: "Serial Not Verified", description: check.reason, variant: "destructive" });
+              return;
+            }
             setCart(prev => prev.map(j => (j.sku === sku && j.serialized) ? {
               ...j,
-              serial_numbers: [...(j.serial_numbers || []), serials[0]],
+              serial_numbers: [...(j.serial_numbers || []), sn],
               qty: (j.serial_numbers || []).length + 1,
               total: +(((j.serial_numbers || []).length + 1) * j.price).toFixed(2)
             } : j));
