@@ -33,6 +33,9 @@ function genCompanyId() {
   for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
   return "VEND-" + s;
 }
+function genPin() {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+}
 
 export default function AdminVendorCompanies() {
   const [companies, setCompanies] = useState([]);
@@ -98,14 +101,33 @@ export default function AdminVendorCompanies() {
         toast({ title: "Company Updated", description: form.company_name });
       } else {
         const companyId = genCompanyId();
+        const pin = genPin();
+        // Vendor ID is the Company ID — the vendor logs in with this + the generated PIN.
+        const existingOp = await base44.entities.Operator.filter({ operator_id: companyId });
+        if (existingOp.length > 0) {
+          toast({ title: "Vendor ID collision", description: "Please retry — a duplicate Vendor ID was generated.", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
         const created = await base44.entities.VendorCompany.create({
           ...form,
           company_id: companyId,
           status: "active",
           issued_date: new Date().toISOString(),
         });
-        toast({ title: "Vendor Company Created", description: `Company ID: ${companyId}` });
-        setViewCompany({ ...created, ...form, company_id: companyId, status: "active", issued_date: new Date().toISOString() });
+        // Auto-create the vendor's operator login: role locked to Vendor, POS access off.
+        await base44.entities.Operator.create({
+          operator_id: companyId,
+          full_name: form.contact_name?.trim() || form.company_name,
+          pin,
+          role: "vendor",
+          status: "active",
+          email: form.email || "",
+          pos_access: false,
+          company_id: companyId,
+        });
+        toast({ title: "Vendor Company & Operator Created", description: `${form.company_name} — Vendor ID ${companyId} · PIN ${pin}` });
+        setViewCompany({ ...created, ...form, company_id: companyId, status: "active", issued_date: new Date().toISOString(), operator_id: companyId, pin });
       }
       setFormOpen(false);
       await load(true);
@@ -239,7 +261,10 @@ export default function AdminVendorCompanies() {
               <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="e.g. Grocery, Produce, Electronics" />
             </div>
             <div><Label>Notes</Label><textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="w-full rounded-md border border-input px-3 py-2 text-sm" rows={2} /></div>
-            {!editing && <p className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2">A unique Company ID will be generated automatically when you save. Use it when creating vendor operators and tagging inventory.</p>}
+            {!editing && <div className="text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg p-2 space-y-1">
+              <p>A unique Company ID will be generated automatically and used as the vendor's login <span className="font-medium">Vendor ID</span>.</p>
+              <p>An operator login is created automatically with <span className="font-medium text-blue-700">Role: Vendor (locked)</span> and <span className="font-medium text-red-600">POS Access: Off (locked)</span>, plus a generated 4-digit PIN. The credentials are shown after saving.</p>
+            </div>}
           </div>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" onClick={() => setFormOpen(false)} className="flex-1">Cancel</Button>
@@ -259,6 +284,18 @@ export default function AdminVendorCompanies() {
                 <p className="font-mono text-lg font-bold text-gray-900">{viewCompany.company_id}</p>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block ${viewCompany.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-600"}`}>{viewCompany.status}</span>
               </div>
+              {viewCompany.operator_id && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <p className="text-blue-700 text-[10px] font-bold uppercase tracking-wider text-center mb-2">Vendor Operator Login</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-gray-500 block text-xs">Vendor ID</span><span className="font-mono font-medium">{viewCompany.operator_id}</span></div>
+                    <div><span className="text-gray-500 block text-xs">PIN</span><span className="font-mono font-medium">{viewCompany.pin}</span></div>
+                    <div><span className="text-gray-500 block text-xs">Role</span><span className="font-medium">Vendor (locked)</span></div>
+                    <div><span className="text-gray-500 block text-xs">POS Access</span><span className="font-medium text-red-600">Off (locked)</span></div>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-2 text-center">Give these credentials to the vendor. They log in from the home screen.</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div><span className="text-gray-500 block text-xs">Company Name</span><span className="font-medium">{viewCompany.company_name}</span></div>
                 <div><span className="text-gray-500 block text-xs">Category</span><span className="font-medium">{viewCompany.category || "—"}</span></div>
