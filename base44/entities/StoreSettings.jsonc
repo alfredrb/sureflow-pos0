@@ -85,6 +85,11 @@
       "default": [],
       "description": "Loss Prevention event categories excluded from High-Risk Events and the operator risk ranking (e.g. voids, price_override, id_verify, tax_exempt, loyalty, no_sale, refund, cash_request, robbery)."
     },
+    "weekly_hours_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Store-allocated weekly labor hour budget. Used by the AI scheduling recommendation to balance total scheduled hours against the budget cap. 0 = no cap."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number these settings apply to. Blank = global default settings."

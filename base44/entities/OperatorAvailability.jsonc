@@ -1,0 +1,71 @@
+{
+  "name": "OperatorAvailability",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string",
+      "description": "Operator ID this availability record belongs to."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "weekly_max_hours": {
+      "type": "number",
+      "default": 40,
+      "description": "Maximum hours per week this employee is willing/available to work. Used by the AI scheduler to avoid over-assigning."
+    },
+    "days": {
+      "type": "array",
+      "description": "Per day-of-week recurring availability (0=Sunday..6=Saturday).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day_of_week": {
+            "type": "number"
+          },
+          "available": {
+            "type": "boolean",
+            "default": true
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Earliest start time this employee can work on this day (HH:MM)."
+          },
+          "end_time": {
+            "type": "string",
+            "description": "Latest end time this employee can work on this day (HH:MM)."
+          }
+        }
+      }
+    },
+    "unavailable_dates": {
+      "type": "array",
+      "description": "Specific dates the employee cannot work (YYYY-MM-DD).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional notes from the employee or manager (preferences, constraints)."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "submitted",
+        "approved"
+      ],
+      "default": "draft",
+      "description": "Lifecycle: draft = manager entry, submitted = employee-filled form received, approved = confirmed for scheduling."
+    },
+    "submitted_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the employee's availability form was submitted."
+    }
+  },
+  "required": [
+    "operator_id"
+  ]
+}

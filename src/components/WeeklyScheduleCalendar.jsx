@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus } from "lucide-react";
+import DayUtilizationChart from "@/components/scheduling/DayUtilizationChart";
 
 const ROLE_LABELS = { cashier: "Cashier", csm: "CSM", manager: "Manager", technician: "Technician", loss_prevention: "LP", vendor: "Vendor" };
 const ROLE_ORDER = ["cashier", "csm", "manager", "technician", "loss_prevention"];
@@ -34,6 +35,7 @@ const coverageFor = (dayDate, dayShifts, peakTimes) => {
 export default function WeeklyScheduleCalendar({ shifts, operators, registers, peakTimes, groupBy, onGroupByChange, onCreate, onEdit, onMove, onDelete }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dragOver, setDragOver] = useState(null); // `${rowKey}|${dateStr}`
+  const [utilDay, setUtilDay] = useState(null); // day index with utilization chart expanded
 
   const weekStart = getWeekStart(currentDate);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; }), [weekStart]);
@@ -150,10 +152,32 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                     <Icon className="w-3 h-3" />
                     {cov.scheduled}/{cov.required} hrs
                   </div>
+                  <button
+                    onClick={() => setUtilDay(utilDay === idx ? null : idx)}
+                    className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-700 transition"
+                    title="Hourly utilization"
+                  >
+                    <ChevronDown className={`w-3 h-3 transition-transform ${utilDay === idx ? "rotate-180" : ""}`} />
+                    Util
+                  </button>
                 </div>
               );
             })}
           </div>
+
+          {/* Utilization dropdown row */}
+          {utilDay !== null && (
+            <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `160px repeat(7, 1fr)` }}>
+              <div className="border-r border-gray-100" />
+              {days.map((day, idx) => (
+                <div key={idx} className="border-l border-gray-100 p-1.5">
+                  {idx === utilDay ? (
+                    <DayUtilizationChart dayDate={day} dayShifts={weekShifts.filter(s => s.date === toISO(day))} peakTimes={peakTimes} />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Rows */}
           {rows.length === 0 ? (

@@ -4,10 +4,12 @@ import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight, Calendar, List, Sparkles } from "lucide-react";
+import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight, Calendar, List, Sparkles, CalendarDays, UserCheck } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import PeakTimeAnalysis from "@/components/PeakTimeAnalysis";
 import WeeklyScheduleCalendar from "@/components/WeeklyScheduleCalendar";
+import WeeklyHoursBudget from "@/components/scheduling/WeeklyHoursBudget";
+import AvailabilityTab from "@/components/scheduling/AvailabilityTab";
 
 const timeToMinutes = (time) => {
   const [h, m] = time.split(":").map(Number);
@@ -39,6 +41,7 @@ export default function AdminShiftScheduling() {
   const [view, setView] = useState("calendar");
   const [groupBy, setGroupBy] = useState("position");
   const [generating, setGenerating] = useState(false);
+  const [tab, setTab] = useState("schedule");
   const [form, setForm] = useState({
     date: new Date().toISOString().split("T")[0],
     operator_id: "",
@@ -276,9 +279,14 @@ export default function AdminShiftScheduling() {
   const generateAIDraft = async () => {
     setGenerating(true);
     try {
-      const allPeakTimes = await base44.entities.PeakTime.list("-created_date", 500);
+      const [allPeakTimes, allAvailability] = await Promise.all([
+        base44.entities.PeakTime.list("-created_date", 500),
+        base44.entities.OperatorAvailability.list("-created_date", 500)
+      ]);
       // Technicians are auto-scheduled from the Maintenance Log — exclude from AI draft.
       const schedulable = operators.filter(o => o.status === "active" && o.pos_access !== false && ["cashier", "csm", "manager"].includes(o.role));
+      const availByOp = {};
+      allAvailability.forEach(a => { availByOp[a.operator_id] = a; });
 
       // Build a compact peak-time summary per day-of-week (operating hours 6–22).
       const peakSummary = {};
@@ -292,7 +300,20 @@ export default function AdminShiftScheduling() {
       const dates = [];
       for (let i = 0; i < 21; i++) { const d = new Date(baseDate); d.setDate(d.getDate() + i); dates.push(d.toISOString().split("T")[0]); }
 
-      const opList = schedulable.map(o => `${o.operator_id}|${o.full_name}|${o.role}`).join("; ");
+      const opList = schedulable.map(o => {
+        const a = availByOp[o.operator_id];
+        let availStr = "no-availability-set";
+        if (a && Array.isArray(a.days) && a.days.length) {
+          const labels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+          availStr = a.days
+            .filter(d => d.available)
+            .map(d => `${labels[d.day_of_week]}:${d.start_time || ""}-${d.end_time || ""}`)
+            .join(",") || "no-days";
+        }
+        const maxH = a?.weekly_max_hours ?? "none";
+        const blockedDates = (a?.unavailable_dates || []).join(",") || "none";
+        return `${o.operator_id}|${o.full_name}|${o.role}|avail:${availStr}|maxwk:${maxH}|blocked:${blockedDates}`;
+      }).join("; ");
 
       const prompt = `You are an expert retail shift scheduler. Build a 3-week (21-day) draft shift schedule for a retail store.
 Start date: ${dates[0]}. End date: ${dates[20]}.
@@ -303,7 +324,11 @@ ${opList}
 Peak-time staffing requirements by day-of-week (0=Sunday..6=Saturday), operating 06:00–22:00. "req" = recommended staff count for that hour:
 ${Object.entries(peakSummary).map(([d, h]) => `Day ${d}: ${h}`).join("\n")}
 
+Each operator's availability is listed as avail: (day:start-end, ...) , maxwk (weekly max hours), and blocked (specific dates they cannot work).
+
 Rules:
+- STRICTLY respect each operator's availability: only schedule them on days listed in their avail: field, and only between the start–end times given for that day. Never schedule an operator on a blocked date. Never exceed their maxwk weekly hours across any 7-day period.
+- If an operator has "no-availability-set", you may schedule them on any day with reasonable hours, but prefer operators with explicit availability first.
 - Schedule MULTIPLE staff per day to cover peak hours — each day typically needs several overlapping shifts (openers, mid-day, closers). Never schedule only one person for a whole day unless demand is truly minimal.
 - Cover every peak hour with enough staff to meet the "req" recommendation; stagger start times across the day to match demand (e.g., openers at 6-8, mid-day coverage, closers until 22:00). Multiple operators may overlap during high-demand hours.
 - Do not over-schedule quiet hours. Balance total scheduled staff-hours close to total required staff-hours per day.
@@ -440,21 +465,43 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
           <p className="text-gray-500 text-sm mt-1">{shifts.length} shifts scheduled</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button onClick={() => setView("calendar")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "calendar" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><Calendar className="w-3.5 h-3.5" /> Calendar</button>
-            <button onClick={() => setView("list")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><List className="w-3.5 h-3.5" /> List</button>
-          </div>
-          <Button onClick={() => setDraftDialog(true)} className="bg-emerald-600 hover:bg-emerald-700"><Sparkles className="w-4 h-4 mr-2" /> Generate AI Draft</Button>
-          <Button onClick={() => setTemplateDialog(true)} variant="outline" className="border-gray-300"><Save className="w-4 h-4 mr-2" /> Save as Template</Button>
-          <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> New Shift</Button>
+          {tab === "schedule" && (
+            <>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <button onClick={() => setView("calendar")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "calendar" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><Calendar className="w-3.5 h-3.5" /> Calendar</button>
+                <button onClick={() => setView("list")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><List className="w-3.5 h-3.5" /> List</button>
+              </div>
+              <Button onClick={() => setDraftDialog(true)} className="bg-emerald-600 hover:bg-emerald-700"><Sparkles className="w-4 h-4 mr-2" /> Generate AI Draft</Button>
+              <Button onClick={() => setTemplateDialog(true)} variant="outline" className="border-gray-300"><Save className="w-4 h-4 mr-2" /> Save as Template</Button>
+              <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> New Shift</Button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="mb-6">
+      {/* Tab bar */}
+      <div className="mb-6 flex gap-1 border-b border-gray-200">
+        <button onClick={() => setTab("schedule")} className={`px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 -mb-px transition ${tab === "schedule" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
+          <CalendarDays className="w-4 h-4" /> Schedule
+        </button>
+        <button onClick={() => setTab("availability")} className={`px-4 py-2.5 text-sm font-medium flex items-center gap-2 border-b-2 -mb-px transition ${tab === "availability" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"}`}>
+          <UserCheck className="w-4 h-4" /> Availability
+        </button>
+      </div>
+
+      {tab === "availability" && (
+        <AvailabilityTab operators={operators} />
+      )}
+
+      <div className={`mb-6 ${tab === "schedule" ? "" : "hidden"}`}>
+        <WeeklyHoursBudget shifts={shifts} peakTimes={peakTimes} />
+      </div>
+
+      <div className={`mb-6 ${tab === "schedule" ? "" : "hidden"}`}>
         <PeakTimeAnalysis />
       </div>
 
-      {templates.length > 0 && (
+      {tab === "schedule" && templates.length > 0 && (
         <div className="mb-6 bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Templates</h2>
           <div className="flex gap-2 flex-wrap">
@@ -473,7 +520,7 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
         </div>
       )}
 
-      {view === "calendar" && (
+      {tab === "schedule" && view === "calendar" && (
         <WeeklyScheduleCalendar
           shifts={shifts}
           operators={operators}
@@ -488,7 +535,7 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
         />
       )}
 
-      <div className={`space-y-6 ${view === "list" ? "" : "hidden"}`}>
+      <div className={`space-y-6 ${view === "list" && tab === "schedule" ? "" : "hidden"}`}>
          {swapLogs.length > 0 && (
            <div className="bg-white rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden shadow-sm">
              <div className="bg-amber-100 px-6 py-4 border-b border-amber-200">
