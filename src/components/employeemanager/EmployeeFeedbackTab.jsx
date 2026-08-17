@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
-import { Plus, MessageSquare, Trash2 } from "lucide-react";
+import { Plus, MessageSquare, Trash2, FileText, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { today } from "@/lib/employeeActions";
+import { TIER_META, getTemplate, printDocument } from "@/lib/disciplinaryTemplates";
+import DisciplinaryDocumentDialog from "./DisciplinaryDocumentDialog";
 
 const CATEGORIES = {
   praise: { label: "Praise", cls: "bg-emerald-100 text-emerald-700" },
@@ -25,6 +27,7 @@ export default function EmployeeFeedbackTab({ employee }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ category: "feedback", title: "", detail: "", date: today(), severity: "low", action_taken: "" });
+  const [generateOpen, setGenerateOpen] = useState(false);
   const { toast } = useToast();
 
   const load = async () => {
@@ -59,11 +62,19 @@ export default function EmployeeFeedbackTab({ employee }) {
     catch (e) { toast({ title: "Error", description: e?.message, variant: "destructive" }); }
   };
 
+  const printRecord = (r) => {
+    const template = getTemplate(r.template_type) || { tier: r.tier || "yellow", type: r.template_type, title: r.title, category: r.category, sbiHints: {} };
+    printDocument(template, employee, { situation: r.situation, behavior: r.behavior, impact: r.impact, action_taken: r.action_taken, follow_up: r.follow_up, date: r.date });
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-blue-600" /> Feedback & Disciplinary Records ({records.length})</h3>
-        <Button size="sm" onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" /> Add Record</Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}><FileText className="w-3.5 h-3.5 mr-1" /> Generate Document</Button>
+          <Button size="sm" onClick={() => setOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" /> Add Record</Button>
+        </div>
       </div>
 
       {loading ? <p className="text-sm text-gray-400">Loading…</p> :
@@ -73,11 +84,15 @@ export default function EmployeeFeedbackTab({ employee }) {
               <div key={r.id} className="border border-gray-100 rounded-xl p-3">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {r.tier && <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TIER_META[r.tier]?.cls || ""}`}>{r.tier}</span>}
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORIES[r.category]?.cls || "bg-gray-100"}`}>{CATEGORIES[r.category]?.label || r.category}</span>
                     {r.severity && r.severity !== "low" && <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${SEV_CLS[r.severity]}`}>{r.severity}</span>}
                     <span className="text-xs text-gray-400">{r.date}</span>
                   </div>
-                  <Button size="sm" variant="ghost" className="text-red-500 h-7 px-2" onClick={() => remove(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-gray-500" onClick={() => printRecord(r)} title="Print document"><Printer className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="text-red-500 h-7 px-2" onClick={() => remove(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
                 </div>
                 <p className="text-sm font-medium text-gray-900">{r.title}</p>
                 {r.detail && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{r.detail}</p>}
@@ -129,6 +144,8 @@ export default function EmployeeFeedbackTab({ employee }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DisciplinaryDocumentDialog open={generateOpen} onClose={() => setGenerateOpen(false)} employee={employee} onSaved={load} />
     </div>
   );
 }

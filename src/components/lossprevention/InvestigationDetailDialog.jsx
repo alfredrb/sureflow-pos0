@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
+import FeedbackEvidencePicker from "@/components/lossprevention/FeedbackEvidencePicker";
 
 const TYPES = [
   { value: "cash_short", label: "Cash Short" }, { value: "cash_over", label: "Cash Over" },
@@ -41,6 +42,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [addOpId, setAddOpId] = useState("");
   const [viewTx, setViewTx] = useState(null);
+  const [feedbackPickerOpen, setFeedbackPickerOpen] = useState(false);
   const [stolenItems, setStolenItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [stolenPick, setStolenPick] = useState("");
@@ -431,6 +433,9 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
             {/* Evidence */}
             <div>
               <Label>Linked Evidence ({evidence.length})</Label>
+              <div className="mb-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setFeedbackPickerOpen(true)}><Paperclip className="w-3.5 h-3.5 mr-1" /> Add Feedback / DA</Button>
+              </div>
               {evidence.length === 0 ? (
                 <p className="text-xs text-gray-400">No evidence linked yet — use the explorer to add receipts.</p>
               ) : (
@@ -504,6 +509,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
       />
 
       <TransactionDetailDialog tx={viewTx} onClose={() => setViewTx(null)} />
+      <FeedbackEvidencePicker open={feedbackPickerOpen} onClose={() => setFeedbackPickerOpen(false)} onAttach={(ev) => addEvidence(ev)} />
     </>
   );
 }

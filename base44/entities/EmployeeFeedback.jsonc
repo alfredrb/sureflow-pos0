@@ -26,13 +26,42 @@
       "default": "feedback",
       "description": "Type of record: praise/recognition (positive), feedback (general), warning/disciplinary (corrective)."
     },
+    "tier": {
+      "type": "string",
+      "enum": [
+        "green",
+        "yellow",
+        "red"
+      ],
+      "description": "Disciplinary document tier. green = coaching, yellow = formal warning, red = serious action."
+    },
+    "template_type": {
+      "type": "string",
+      "description": "The standard template type used to generate this record (e.g. verbal_warning, written_warning, final_warning)."
+    },
     "title": {
       "type": "string",
       "description": "Short title / summary of the record."
     },
+    "situation": {
+      "type": "string",
+      "description": "SBI \u2014 Situation: when and where the incident occurred."
+    },
+    "behavior": {
+      "type": "string",
+      "description": "SBI \u2014 Behavior: what the employee did or failed to do."
+    },
+    "impact": {
+      "type": "string",
+      "description": "SBI \u2014 Impact: how the behavior affected the team, operation, or safety."
+    },
+    "follow_up": {
+      "type": "string",
+      "description": "Follow-up / next steps required."
+    },
     "detail": {
       "type": "string",
-      "description": "Full description of the feedback or disciplinary action."
+      "description": "Full description of the feedback or disciplinary action (freeform)."
     },
     "date": {
       "type": "string",
