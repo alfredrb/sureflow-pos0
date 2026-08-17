@@ -1,4 +1,4 @@
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, Ban } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone } from "lucide-react";
 
 export const adminNavGroups = [
   {
@@ -40,7 +40,6 @@ export const adminNavGroups = [
     label: "Security & Alerts", icon: ShieldAlert, items: [
       { label: "Emergency Log", path: "/admin/emergency-log", icon: AlertTriangle },
       { label: "Loss Prevention", path: "/admin/loss-prevention", icon: ShieldAlert },
-      { label: "No-Receipt Customers", path: "/admin/no-receipt-customers", icon: Ban },
       { label: "System Alerts", path: "/admin-system-alerts", icon: Siren },
       { label: "Announcements", path: "/admin-announcements", icon: Megaphone },
     ],
