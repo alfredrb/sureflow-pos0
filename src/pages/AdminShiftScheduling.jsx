@@ -38,6 +38,7 @@ export default function AdminShiftScheduling() {
   const [draftDate, setDraftDate] = useState(new Date().toISOString().split("T")[0]);
   const [peakTimes, setPeakTimes] = useState([]);
   const [swapLogs, setSwapLogs] = useState([]);
+  const [availability, setAvailability] = useState([]);
   const [view, setView] = useState("calendar");
   const [groupBy, setGroupBy] = useState("position");
   const [generating, setGenerating] = useState(false);
@@ -60,13 +61,14 @@ export default function AdminShiftScheduling() {
 
   const load = async () => {
     try {
-      const [shiftData, opData, regData, templateData, peakData, swapReqs] = await Promise.all([
+      const [shiftData, opData, regData, templateData, peakData, swapReqs, availData] = await Promise.all([
         base44.entities.Shift.list("-date", 100),
         base44.entities.Operator.filter({ status: "active" }),
         base44.entities.Register.list(),
         base44.entities.ShiftTemplate.list("-created_date", 100),
         base44.entities.PeakTime.list("-created_date", 500),
-        base44.entities.ShiftSwapRequest.filter({ status: "approved" })
+        base44.entities.ShiftSwapRequest.filter({ status: "approved" }),
+        base44.entities.OperatorAvailability.list("-created_date", 500)
       ]);
 
       // Auto-sync technician shifts from the Maintenance Log (not AI-driven).
@@ -116,6 +118,7 @@ export default function AdminShiftScheduling() {
       setTemplates(templateData);
       setPeakTimes(peakData);
       setSwapLogs(swapReqs);
+      setAvailability(availData);
     } catch (e) {
       console.error("Error loading:", e);
       toast({ title: "Error loading data", variant: "destructive" });
@@ -526,6 +529,7 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
           operators={operators}
           registers={registers}
           peakTimes={peakTimes}
+          availability={availability}
           groupBy={groupBy}
           onGroupByChange={setGroupBy}
           onCreate={handleDropCreate}

@@ -9,6 +9,15 @@
     "operator_name": {
       "type": "string"
     },
+    "employment_type": {
+      "type": "string",
+      "enum": [
+        "full_time",
+        "part_time"
+      ],
+      "default": "full_time",
+      "description": "Employment classification. Shown as FT/PT on the scheduling calendar."
+    },
     "weekly_max_hours": {
       "type": "number",
       "default": 40,

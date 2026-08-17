@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Edit2, Save, UserCircle2, CalendarOff } from "lucide-react";
+import { Edit2, Save, UserCircle2, CalendarOff, Users, Check } from "lucide-react";
 import AvailabilityPrintFormButton from "./AvailabilityPrintForm";
+import BulkAvailabilityEditor from "./BulkAvailabilityEditor";
+import { OPEN_AVAILABILITY } from "@/lib/availabilityUtils";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -31,6 +33,7 @@ export default function AvailabilityTab({ operators }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const load = async () => {
     try {
@@ -57,6 +60,7 @@ export default function AvailabilityTab({ operators }) {
     setForm({
       operator_id: operator.operator_id,
       operator_name: operator.full_name,
+      employment_type: existing?.employment_type || "full_time",
       weekly_max_hours: existing?.weekly_max_hours ?? 40,
       days: existing?.days?.length === 7 ? existing.days : emptyDays(),
       unavailable_dates: (existing?.unavailable_dates || []).join("\n"),
@@ -71,12 +75,17 @@ export default function AvailabilityTab({ operators }) {
     setForm(prev => ({ ...prev, days: prev.days.map(d => d.day_of_week === dow ? { ...d, ...patch } : d) }));
   };
 
+  const setOpenAvailability = () => {
+    setForm(prev => ({ ...prev, days: prev.days.map(d => ({ ...d, available: true, start_time: OPEN_AVAILABILITY.start_time, end_time: OPEN_AVAILABILITY.end_time })) }));
+  };
+
   const save = async () => {
     setSaving(true);
     try {
       const payload = {
         operator_id: form.operator_id,
         operator_name: form.operator_name,
+        employment_type: form.employment_type,
         weekly_max_hours: Number(form.weekly_max_hours) || 40,
         days: form.days,
         unavailable_dates: form.unavailable_dates.split("\n").map(s => s.trim()).filter(Boolean),
@@ -111,7 +120,12 @@ export default function AvailabilityTab({ operators }) {
             <h2 className="text-base font-semibold text-gray-900">Employee Availability</h2>
             <p className="text-xs text-gray-500">Set each employee's weekly availability — the AI scheduler uses this when drafting shifts.</p>
           </div>
-          <AvailabilityPrintFormButton />
+          <div className="flex gap-2">
+            <Button onClick={() => setBulkOpen(true)} variant="outline" className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+              <Users className="w-4 h-4 mr-2" /> Bulk Edit
+            </Button>
+            <AvailabilityPrintFormButton />
+          </div>
         </div>
       </div>
 
@@ -127,7 +141,14 @@ export default function AvailabilityTab({ operators }) {
                   <UserCircle2 className="w-5 h-5 text-gray-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{op.full_name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{op.full_name}</p>
+                    {rec && (
+                      <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${rec.employment_type === "part_time" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                        {rec.employment_type === "part_time" ? "PT" : "FT"}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 capitalize">{op.role} · {op.operator_id}</p>
                 </div>
                 <div className="hidden sm:block text-xs text-gray-600">
@@ -160,7 +181,14 @@ export default function AvailabilityTab({ operators }) {
           </DialogHeader>
           {form && (
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Employment type</label>
+                  <select value={form.employment_type} onChange={e => setForm({ ...form, employment_type: e.target.value })} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                    <option value="full_time">Full Time (FT)</option>
+                    <option value="part_time">Part Time (PT)</option>
+                  </select>
+                </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Max hours per week</label>
                   <Input type="number" min={0} value={form.weekly_max_hours} onChange={e => setForm({ ...form, weekly_max_hours: e.target.value })} />
@@ -176,7 +204,12 @@ export default function AvailabilityTab({ operators }) {
               </div>
 
               <div className="border-t pt-3">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Weekly availability</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Weekly availability</h3>
+                  <Button size="sm" variant="outline" onClick={setOpenAvailability} className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                    <Check className="w-3 h-3 mr-1" /> Open Availability (24h)
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   {form.days.map(d => (
                     <div key={d.day_of_week} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2.5">
@@ -217,6 +250,8 @@ export default function AvailabilityTab({ operators }) {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkAvailabilityEditor open={bulkOpen} onOpenChange={setBulkOpen} operators={operators} records={records} onSaved={load} />
     </div>
   );
 }
