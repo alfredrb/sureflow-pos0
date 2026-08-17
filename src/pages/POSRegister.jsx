@@ -108,6 +108,10 @@ export default function POSRegister() {
   const [lunchOverridePin, setLunchOverridePin] = useState("");
   const [lunchOverrideError, setLunchOverrideError] = useState("");
   const [lunchOverrideApplied, setLunchOverrideApplied] = useState(false);
+  const [diagnosticsMode, setDiagnosticsMode] = useState(false);
+  const [diagOverrideDialog, setDiagOverrideDialog] = useState(false);
+  const [diagOverridePin, setDiagOverridePin] = useState("");
+  const [diagOverrideError, setDiagOverrideError] = useState("");
   const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -850,6 +854,41 @@ export default function POSRegister() {
     }
   };
 
+  const requestDiagnostics = () => {
+    setDiagOverridePin(""); setDiagOverrideError("");
+    setDiagOverrideDialog(true);
+  };
+
+  const authorizeDiagnostics = async () => {
+    setDiagOverrideError("");
+    if (!diagOverridePin.trim()) { setDiagOverrideError("Enter CSM / Manager PIN"); return; }
+    try {
+      const ops = await base44.entities.Operator.filter({ pin: diagOverridePin.trim() });
+      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
+      if (!sup) { setDiagOverrideError("Invalid PIN or insufficient role (CSM/Manager required)"); return; }
+      setDiagnosticsMode(true);
+      setTrainingMode(true);
+      setDiagOverrideDialog(false);
+      setDiagOverridePin("");
+      toast({ title: "Diagnostics Mode Enabled", description: `${sup.full_name} authorized — Training Mode active` });
+      writeLog("override", `Diagnostics mode enabled — authorized by ${sup.full_name}`, {
+        override_operator_id: sup.operator_id,
+        override_operator_name: sup.full_name,
+        override_action: "Enable Diagnostics Mode",
+      });
+    } catch (e) {
+      setDiagOverrideError("Authorization failed — try again");
+    }
+  };
+
+  const exitDiagnostics = () => {
+    setDiagnosticsMode(false);
+    setTrainingMode(false);
+    if (posMode === "diagnostics") setPosMode("sale");
+    toast({ title: "Diagnostics Exited", description: "Normal operations resumed" });
+    writeLog("override", "Diagnostics mode exited — normal operations resumed", { override_action: "Exit Diagnostics Mode" });
+  };
+
   // Lunch enforcement state derived from today's scheduled shift + active clock entry
   const lunchState = (() => {
     if (!todayShift || !todayShift.lunch_start) return null;
@@ -982,7 +1021,7 @@ export default function POSRegister() {
     ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
     ...(registerFeatures.feature_exchange ? [{ id: "exchange", label: "Exchange", icon: ArrowLeftRight, activeColor: "bg-teal-600 text-white", inactiveColor: "bg-[#0a0e27] text-teal-300/50 border border-teal-500/10 hover:border-teal-500/30" }] : []),
     ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "CS Mode", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
-    ...(operator?.role === "technician" ? [{ id: "diagnostics", label: "Diagnostics", icon: Wrench, activeColor: "bg-slate-600 text-white", inactiveColor: "bg-[#0a0e27] text-slate-300/50 border border-slate-500/10 hover:border-slate-500/30" }] : []),
+    ...((operator?.role === "technician" || diagnosticsMode) ? [{ id: "diagnostics", label: "Diagnostics", icon: Wrench, activeColor: "bg-slate-600 text-white", inactiveColor: "bg-[#0a0e27] text-slate-300/50 border border-slate-500/10 hover:border-slate-500/30" }] : []),
   ];
 
   if (loading) return (
@@ -1103,8 +1142,12 @@ export default function POSRegister() {
             open={helpMenuOpen}
             setOpen={setHelpMenuOpen}
             trainingMode={trainingMode}
-            trainingLocked={trainingLocked}
+            trainingLocked={trainingLocked || diagnosticsMode}
+            diagnosticsMode={diagnosticsMode}
+            onHoldVersion={requestDiagnostics}
+            onExitDiagnostics={exitDiagnostics}
             onToggleTraining={() => {
+              if (diagnosticsMode) { toast({ title: "Training Mode Locked", description: "Use Exit Diagnostics to return to normal operations" }); return; }
               if (trainingLocked) { toast({ title: "Training Mode Locked", description: "Technician sessions are locked in Training Mode" }); return; }
               if (trainingMode) { setTrainingMode(false); setHelpMenuOpen(false); toast({ title: "Training Mode Disabled", description: "Normal operations resumed" }); }
               else { setTrainingModeDialog(true); setHelpMenuOpen(false); }
@@ -1777,6 +1820,32 @@ export default function POSRegister() {
           >
             Enable Training Mode
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diagnostics Mode Authorization Dialog */}
+      <Dialog open={diagOverrideDialog} onOpenChange={v => { setDiagOverrideDialog(v); if (!v) { setDiagOverridePin(""); setDiagOverrideError(""); } }}>
+        <DialogContent className="bg-[#111638] border-emerald-500/20 text-white max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-emerald-400 text-sm flex items-center gap-2">
+              <Wrench className="w-4 h-4" /> Enable Diagnostics Mode
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-blue-300/60 text-xs">Holding the version button requires a CSM or Manager PIN. Enabling Diagnostics adds the Diagnostics tab and puts the register in Training Mode until you sign out or exit.</p>
+          <Input
+            type="password"
+            placeholder="CSM / Manager PIN"
+            value={diagOverridePin}
+            onChange={e => setDiagOverridePin(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && authorizeDiagnostics()}
+            className="bg-[#0a0e27] border-emerald-500/20 text-white text-center text-lg tracking-widest"
+            autoFocus
+          />
+          {diagOverrideError && <p className="text-red-400 text-xs text-center">{diagOverrideError}</p>}
+          <div className="flex gap-2">
+            <Button onClick={() => setDiagOverrideDialog(false)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Cancel</Button>
+            <Button onClick={authorizeDiagnostics} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">Authorize</Button>
+          </div>
         </DialogContent>
       </Dialog>
 

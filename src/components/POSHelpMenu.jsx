@@ -1,16 +1,32 @@
-import React, { useState, useEffect } from "react";
-import { BookOpen, GitBranch } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { BookOpen, GitBranch, Wrench } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
 import VersionLogDialog from "@/components/VersionLogDialog";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
-export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked }) {
+export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics }) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [version, setVersion] = useState(VERSION_FALLBACK);
+  const holdTimer = useRef(null);
+  const holdTriggered = useRef(false);
+  const HOLD_MS = 450;
 
   useEffect(() => { getLatestVersionString().then(setVersion).catch(() => {}); }, []);
+  useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current); }, []);
+
+  const startHold = () => {
+    holdTriggered.current = false;
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = setTimeout(() => { holdTriggered.current = true; setOpen(false); onHoldVersion?.(); }, HOLD_MS);
+  };
+  const cancelHold = () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; } };
+  const handleVersionClick = () => {
+    cancelHold();
+    if (holdTriggered.current) { holdTriggered.current = false; return; }
+    setVersionOpen(true); setOpen(false);
+  };
 
   return (
     <div className="relative">
@@ -31,9 +47,22 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           <button onClick={onReportRobbery} disabled={robberyLoading || robberyLocked} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {robberyLocked ? "Report Robbery (Locked)" : robberyLoading ? "Calculating..." : "Report Robbery"}
           </button>
-          <button onClick={() => { setVersionOpen(true); setOpen(false); }} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-blue-300/60 hover:text-blue-200 hover:bg-blue-600/20 border-t border-red-500/10 rounded-b-lg transition-colors text-xs font-mono">
-            <GitBranch className="w-3.5 h-3.5" /> v{version}
+          <button
+            onMouseDown={startHold}
+            onMouseUp={cancelHold}
+            onMouseLeave={cancelHold}
+            onTouchStart={startHold}
+            onTouchEnd={cancelHold}
+            onClick={handleVersionClick}
+            className={`w-full flex items-center justify-center gap-1.5 px-4 py-2 border-t border-red-500/10 transition-colors text-xs font-mono ${diagnosticsMode ? "text-emerald-400 bg-emerald-600/10 hover:bg-emerald-600/20" : "text-blue-300/60 hover:text-blue-200 hover:bg-blue-600/20"} ${diagnosticsMode ? "" : "rounded-b-lg"}`}
+          >
+            <GitBranch className="w-3.5 h-3.5" /> v{version}{diagnosticsMode ? " · DIAGNOSTICS" : ""}
           </button>
+          {diagnosticsMode && (
+            <button onClick={() => { onExitDiagnostics?.(); setOpen(false); }} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-emerald-300 hover:text-white hover:bg-emerald-600/30 border-t border-red-500/10 rounded-b-lg transition-colors text-xs font-bold">
+              <Wrench className="w-3.5 h-3.5" /> Exit Diagnostics
+            </button>
+          )}
         </div>
       )}
 
