@@ -84,7 +84,10 @@ export default function AdminInventory() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...emptyProduct });
+  const [companies, setCompanies] = useState([]);
   const { toast } = useToast();
+
+  useEffect(() => { base44.entities.VendorCompany.list("-issued_date", 500).then(setCompanies).catch(() => {}); }, []);
 
   const load = async () => {
     let prods = await base44.entities.Product.list();
@@ -243,8 +246,16 @@ export default function AdminInventory() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Vendor Company ID</label>
-              <Input value={form.vendor_company_id} onChange={e => setForm({ ...form, vendor_company_id: e.target.value })} placeholder="e.g. VEND-001" disabled={isVendor} />
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Vendor Company</label>
+              <select
+                value={form.vendor_company_id}
+                onChange={e => setForm({ ...form, vendor_company_id: e.target.value })}
+                disabled={isVendor}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-100 disabled:text-gray-500"
+              >
+                <option value="">None (store-owned)</option>
+                {companies.map(c => <option key={c.id} value={c.company_id}>{c.company_id} — {c.company_name}</option>)}
+              </select>
               {isVendor && <p className="text-xs text-gray-400 mt-1">Locked to your company ({vendorCompanyId}).</p>}
             </div>
             <div>
