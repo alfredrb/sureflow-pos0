@@ -303,7 +303,7 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
               onDragStart={(e) => { e.dataTransfer.setData("shift_id", shift.id); e.dataTransfer.effectAllowed = "move"; setDraggingOp(shift.operator_id); }}
               onDragEnd={() => setDraggingOp(null)}
               onClick={() => onEdit(shift)}
-              className={`group bg-white border rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:shadow-sm transition h-[44px] flex flex-col justify-center ${conflict?.conflict ? "ring-1 ring-red-400 border-red-300 bg-red-50/40" : ""}`}
+              className={`group bg-white border rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:shadow-sm transition h-[58px] flex flex-col justify-center ${conflict?.conflict ? "ring-1 ring-red-400 border-red-300 bg-red-50/40" : ""}`}
               style={{ borderLeftColor: conflict?.conflict ? "#ef4444" : (ROLE_DOT[role] || "#6b7280"), borderLeftWidth: 3 }}
               title={[conflict?.conflict ? conflict.reasons.join(" · ") : "", shift.notes, groupBy !== "register" && shift.register_name].filter(Boolean).join(" · ")}
             >
@@ -324,10 +324,13 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
               <p className="flex items-center gap-1 text-gray-600 truncate">
                 <Clock className="w-3 h-3 flex-shrink-0" />
                 <span className="truncate">{shift.start_time}–{shift.end_time}</span>
-                {shift.lunch_start && shift.lunch_end && (
-                  <span className="flex items-center gap-0.5 text-purple-600 flex-shrink-0">·<Utensils className="w-3 h-3" />{shift.lunch_start}–{shift.lunch_end}</span>
-                )}
               </p>
+              {shift.lunch_start && shift.lunch_end && (
+                <p className="flex items-center gap-1 text-purple-600 truncate">
+                  <Utensils className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{shift.lunch_start}–{shift.lunch_end}</span>
+                </p>
+              )}
             </div>
           );
         })}
