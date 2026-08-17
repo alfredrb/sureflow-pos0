@@ -288,6 +288,10 @@ export default function POSRegister() {
       toast({ title: "Item Recalled", description: `${product.name} has been recalled and cannot be sold. Please give the item to a manager.`, variant: "destructive" });
       return false;
     }
+    if (product.loss_blocked) {
+      toast({ title: "Sale Blocked", description: `${product.name} has been blocked from sale due to excessive return loss. See Claims Audit in the LP Workbench.`, variant: "destructive" });
+      return false;
+    }
     if (product.release_date && new Date(product.release_date) > new Date()) {
       toast({ title: "Not Yet Available", description: `${product.name} cannot be sold until ${new Date(product.release_date).toLocaleString()}.`, variant: "destructive" });
       return false;

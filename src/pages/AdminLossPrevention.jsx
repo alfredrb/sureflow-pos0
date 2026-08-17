@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ import DataViewerPanel from "@/components/lossprevention/DataViewerPanel";
 import HighRiskEventsPanel from "@/components/lossprevention/HighRiskEventsPanel";
 import TimeTheftPanel from "@/components/lossprevention/TimeTheftPanel";
 import NoReceiptWorkbenchTab from "@/components/lossprevention/NoReceiptWorkbenchTab";
+import ClaimsAuditPanel from "@/components/lossprevention/ClaimsAuditPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -115,6 +116,7 @@ export default function AdminLossPrevention() {
     { id: "tasks", label: "Tasks", icon: ListTodo },
     { id: "time", label: "Time Theft", icon: Clock },
     { id: "noreturns", label: "No-Receipt Returns", icon: RotateCcw },
+    { id: "claims", label: "Claims Audit", icon: PackageX },
     { id: "mpp", label: "Merch Protection", icon: Shield },
     { id: "data", label: "Data Viewer", icon: Database },
   ];
@@ -167,6 +169,7 @@ export default function AdminLossPrevention() {
       {tab === "tasks" && <TasksPanel />}
       {tab === "time" && <TimeTheftPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "noreturns" && <NoReceiptWorkbenchTab txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
+      {tab === "claims" && <ClaimsAuditPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
       {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
 

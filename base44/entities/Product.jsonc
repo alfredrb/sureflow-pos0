@@ -86,6 +86,11 @@
       "default": "none",
       "description": "If set to 18 or 21, the POS prompts the cashier to verify the customer's date of birth before adding the item to the sale. Birthday must be on or before today minus the required age."
     },
+    "loss_blocked": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, the POS blocks this item from being sold because it is causing excessive return-related profit loss. Set from the Loss Prevention Claims Audit tab."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number this product belongs to. Blank = shared/catalog product available to all stores."
