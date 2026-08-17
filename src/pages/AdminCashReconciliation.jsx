@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TillCheckoutModal, TillCheckinModal } from "@/components/TillCheckModals";
-import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText, Printer } from "lucide-react";
+import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText, Printer, Zap } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -39,6 +39,8 @@ export default function AdminCashReconciliation() {
   const [auditDialog, setAuditDialog] = useState(false);
   const [auditForm, setAuditForm] = useState({ register_id: "" });
   const [cancelAuditDialog, setCancelAuditDialog] = useState(null);
+  const [pushedIds, setPushedIds] = useState(() => new Set());
+  const [pushingId, setPushingId] = useState(null);
   const { toast } = useToast();
 
   const loadData = async () => {
@@ -180,6 +182,90 @@ export default function AdminCashReconciliation() {
     }
   };
 
+  const sevFor = (amount, isShort) => {
+    const a = Math.abs(amount);
+    if (isShort) { if (a >= 100) return "critical"; if (a >= 50) return "high"; if (a >= 20) return "medium"; return "low"; }
+    if (a >= 100) return "high"; if (a >= 50) return "medium"; return "low";
+  };
+
+  const handlePushToLP = async (rec, kind) => {
+    const id = `${kind}-${rec.id}`;
+    if (pushedIds.has(id)) return;
+    setPushingId(id);
+    try {
+      let type, title, amount, operator_id = "", operator_name = "", register_id = "", register_name = "", evidence = [], date, dateStr, detail;
+      if (kind === "audit") {
+        const disc = rec.discrepancy || 0;
+        const isShort = disc < 0;
+        type = isShort ? "cash_short" : "cash_over";
+        amount = Math.abs(disc);
+        operator_id = rec.operator_id || ""; operator_name = rec.operator_name || "";
+        register_id = rec.register_id || ""; register_name = rec.register_name || "";
+        date = rec.audit_date;
+        dateStr = date ? new Date(date).toISOString().split("T")[0] : "";
+        detail = `Cash audit: counted $${(rec.total_counted || 0).toFixed(2)} vs expected $${(rec.expected_amount || 0).toFixed(2)}${rec.triggered_by_cash_limit ? " · limit-triggered" : ""}`;
+        title = `${isShort ? "Cash short" : "Cash over"} — ${register_name || register_id}${operator_name ? ` (${operator_name})` : ""}`;
+        evidence = [{ type: "cash_audit", ref: rec.id, detail, amount: disc, date }];
+      } else if (kind === "deposit") {
+        const diff = rec.difference || 0;
+        const isShort = diff < 0;
+        type = isShort ? "cash_short" : "cash_over";
+        amount = Math.abs(diff);
+        operator_id = rec.operator_id || ""; operator_name = rec.operator_name || "";
+        register_id = rec.register_id || ""; register_name = rec.register_name || "";
+        date = rec.report_date; dateStr = date ? new Date(date).toISOString().split("T")[0] : "";
+        detail = `EOD deposit: expected $${(rec.expected_cash || 0).toFixed(2)} vs deposited $${(rec.actual_cash_deposited || 0).toFixed(2)}`;
+        title = `${isShort ? "Deposit short" : "Deposit over"} — ${register_name || register_id}${operator_name ? ` (${operator_name})` : ""}`;
+        evidence = [{ type: "deposit", ref: rec.id, detail, amount: diff, date }];
+      } else {
+        const disc = rec.discrepancy || 0;
+        const isShort = disc < 0;
+        type = isShort ? "cash_short" : "cash_over";
+        amount = Math.abs(disc);
+        operator_id = rec.operator_id || ""; operator_name = rec.operator_name || "";
+        register_id = rec.register_id || ""; register_name = rec.register_name || "";
+        date = rec.checkin_date; dateStr = date ? new Date(date).toISOString().split("T")[0] : "";
+        detail = `Till check-in: expected $250.00 vs actual $${(rec.checkin_total || 0).toFixed(2)}`;
+        title = `${isShort ? "Till short" : "Till over"} — ${register_name || register_id}${operator_name ? ` (${operator_name})` : ""}`;
+        evidence = [{ type: "till_checkin", ref: rec.id, detail, amount: disc, date }];
+      }
+      const severity = sevFor(amount, type === "cash_short");
+      const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
+      const by = admin?.full_name || admin?.operator_id || "Admin";
+      await base44.entities.Investigation.create({
+        title, type, severity, status: "open",
+        operator_name, operator_id, register_id,
+        summary: `Pushed instantly from Cash Reconciliation. ${detail}`,
+        amount_impact: amount,
+        date_range_start: dateStr, date_range_end: dateStr,
+        evidence,
+        activity_log: [{ date: new Date().toISOString(), by, action: "Pushed from Cash Reconciliation", note: "" }],
+        created_by: by,
+      });
+      setPushedIds(prev => new Set(prev).add(id));
+      toast({ title: "Pushed to Loss Prevention", description: title });
+    } catch (e) {
+      toast({ title: "Failed to push to Loss Prevention", variant: "destructive" });
+    }
+    setPushingId(null);
+  };
+
+  const renderPushBtn = (rec, kind) => {
+    const id = `${kind}-${rec.id}`;
+    const pushed = pushedIds.has(id);
+    return (
+      <button
+        onClick={() => handlePushToLP(rec, kind)}
+        disabled={pushed || pushingId === id}
+        className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+          pushed ? "bg-emerald-100 text-emerald-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+        }`}
+      >
+        <Zap className="w-3.5 h-3.5" /> {pushed ? "Pushed" : pushingId === id ? "Pushing..." : "Push to LP"}
+      </button>
+    );
+  };
+
   const groupByDate = () => {
     const grouped = {};
     deposits.forEach((deposit) => {
@@ -312,7 +398,7 @@ export default function AdminCashReconciliation() {
             <div className="text-center py-12 text-gray-500">No cash audits found</div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_80px] gap-4 px-6 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_160px] gap-4 px-6 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <span>Register & Operator</span>
                 <span>Amount Counted</span>
                 <span>Expected</span>
@@ -324,7 +410,7 @@ export default function AdminCashReconciliation() {
               </div>
               <div className="divide-y divide-gray-100">
                 {audits.map((audit) => (
-                  <div key={audit.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_80px] gap-4 px-6 py-3 items-center hover:bg-gray-50">
+                  <div key={audit.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_160px] gap-4 px-6 py-3 items-center hover:bg-gray-50">
                     <div>
                       <p className="font-semibold text-gray-900">{audit.register_name}</p>
                       <p className="text-xs text-gray-600">{audit.operator_name} ({audit.operator_id})</p>
@@ -347,14 +433,14 @@ export default function AdminCashReconciliation() {
                       {audit.status}
                     </p>
                     <p className="text-sm text-gray-600">{new Date(audit.audit_date).toLocaleDateString()}</p>
-                    {audit.status !== "canceled" && (
-                      <Button 
-                        onClick={() => setCancelAuditDialog(audit)}
-                        className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 px-2"
-                      >
-                        Cancel
-                      </Button>
-                    )}
+                    <div className="flex flex-col gap-1.5">
+                      {(audit.discrepancy || 0) !== 0 && renderPushBtn(audit, "audit")}
+                      {audit.status !== "canceled" && (
+                        <Button onClick={() => setCancelAuditDialog(audit)} className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 px-2">
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -427,6 +513,7 @@ export default function AdminCashReconciliation() {
                               </div>
                             </div>
                             {deposit.notes && <p className="text-xs text-gray-600 mt-2 italic">Note: {deposit.notes}</p>}
+                            {diff !== 0 && <div className="flex justify-end mt-2">{renderPushBtn(deposit, "deposit")}</div>}
                           </div>
                         );
                       })}
@@ -729,7 +816,8 @@ export default function AdminCashReconciliation() {
                            <th className="text-right px-4 py-3 font-bold text-gray-700">Expected ($250)</th>
                            <th className="text-right px-4 py-3 font-bold text-gray-700">Actual</th>
                            <th className="text-right px-4 py-3 font-bold text-gray-700">Discrepancy</th>
-                         </tr>
+                           <th className="text-right px-4 py-3 font-bold text-gray-700">Action</th>
+                           </tr>
                        </thead>
                        <tbody>
                          {tillCheckouts
@@ -745,6 +833,7 @@ export default function AdminCashReconciliation() {
                                <td className={`px-4 py-3 text-right font-bold ${till.discrepancy < 0 ? "text-red-600" : "text-green-600"}`}>
                                  {till.discrepancy >= 0 ? "+" : ""}${till.discrepancy.toFixed(2)}
                                </td>
+                               <td className="px-4 py-3 text-right">{(till.discrepancy || 0) !== 0 && renderPushBtn(till, "till")}</td>
                              </tr>
                            ))}
                        </tbody>
