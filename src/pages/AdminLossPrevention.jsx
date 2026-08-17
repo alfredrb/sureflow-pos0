@@ -30,7 +30,7 @@ export default function AdminLossPrevention() {
   const [tab, setTab] = useState("overview");
   const [investigation, setInvestigation] = useState(null);
   const [invRefresh, setInvRefresh] = useState(0);
-  const [lpFlags, setLpFlags] = useState({ voids: true, overrides: true, refunds: true, no_sales: true });
+  const [disabledEvents, setDisabledEvents] = useState([]);
   const [settingsRecId, setSettingsRecId] = useState(null);
   const tabRef = useRef(null);
   const { toast } = useToast();
@@ -40,14 +40,14 @@ export default function AdminLossPrevention() {
     el.scrollBy({ left: dir * 240, behavior: "smooth" });
   };
 
-  const toggleFlag = async (key) => {
-    const next = { ...lpFlags, [key]: !lpFlags[key] };
-    setLpFlags(next);
+  const toggleCategory = async (cat) => {
+    const next = disabledEvents.includes(cat) ? disabledEvents.filter(c => c !== cat) : [...disabledEvents, cat];
+    setDisabledEvents(next);
     try {
       if (settingsRecId) {
-        await base44.entities.StoreSettings.update(settingsRecId, { [`lp_show_${key}`]: next[key] });
+        await base44.entities.StoreSettings.update(settingsRecId, { lp_disabled_events: next });
       } else {
-        const created = await base44.entities.StoreSettings.create({ store_name: "Supermart", lp_show_voids: next.voids, lp_show_overrides: next.overrides, lp_show_refunds: next.refunds, lp_show_no_sales: next.no_sales });
+        const created = await base44.entities.StoreSettings.create({ store_name: "Supermart", lp_disabled_events: next });
         setSettingsRecId(created.id);
       }
     } catch (e) {
@@ -71,9 +71,9 @@ export default function AdminLossPrevention() {
         const s = settings[0];
         if (s) {
           setSettingsRecId(s.id);
-          setLpFlags({ voids: s.lp_show_voids !== false, overrides: s.lp_show_overrides !== false, refunds: s.lp_show_refunds !== false, no_sales: s.lp_show_no_sales !== false });
+          setDisabledEvents(Array.isArray(s.lp_disabled_events) ? s.lp_disabled_events : []);
         } else {
-          setLpFlags({ voids: true, overrides: true, refunds: true, no_sales: true });
+          setDisabledEvents([]);
         }
       } catch (_) {}
     } catch (e) {
@@ -153,8 +153,8 @@ export default function AdminLossPrevention() {
         <button onClick={() => scrollTabs(1)} className="p-1.5 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 flex-shrink-0" title="Scroll tabs right"><ChevronRight className="w-5 h-5" /></button>
       </div>
 
-      {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} />}
-      {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} onToggleFlag={toggleFlag} />}
+      {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} disabledEvents={disabledEvents} />}
+      {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} disabledEvents={disabledEvents} onToggleCategory={toggleCategory} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}

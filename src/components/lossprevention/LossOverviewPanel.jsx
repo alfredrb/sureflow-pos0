@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Ban, TrendingUp, RotateCcw, DollarSign, AlertTriangle, FolderSearch } from "lucide-react";
 import moment from "moment";
+import { classifyLogEvent } from "@/lib/lossPrevention";
 
 const RISK_WEIGHTS = { voids: 1.5, overrides: 2, refunds: 2, no_sales: 0.5 };
 
@@ -12,8 +13,9 @@ const EVENT_BADGE = {
 
 const TYPE_MAP = { Void: "voids", Override: "overrides", Refund: "refunds" };
 
-export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStartInvestigation, enabledFlags }) {
-  const flags = { voids: enabledFlags?.voids !== false, overrides: enabledFlags?.overrides !== false, refunds: enabledFlags?.refunds !== false, no_sales: enabledFlags?.no_sales !== false };
+export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStartInvestigation, disabledEvents }) {
+  const enabled = (cat) => !(disabledEvents || []).includes(cat);
+  const OVERRIDE_CATS = ["price_override", "supervisor_override", "override", "id_verify", "tax_exempt", "loyalty"];
   const start = moment(fromDate).startOf("day");
   const end = moment(toDate).endOf("day");
   const inRange = (d) => !!d && moment(d).isSameOrAfter(start) && moment(d).isSameOrBefore(end);
@@ -21,10 +23,11 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
   const rangeLogs = useMemo(() => logs.filter(l => inRange(l.created_date)), [logs, fromDate, toDate]);
   const rangeTxns = useMemo(() => txns.filter(t => inRange(t.created_date)), [txns, fromDate, toDate]);
 
-  const voids = flags.voids ? rangeLogs.filter(l => l.event_type === "void") : [];
-  const overrides = flags.overrides ? rangeLogs.filter(l => l.event_type === "override") : [];
-  const noSales = flags.no_sales ? rangeLogs.filter(l => l.event_type === "no_sale") : [];
-  const refunds = flags.refunds ? rangeTxns.filter(t => t.status === "refunded") : [];
+  const catOf = (l) => classifyLogEvent(l);
+  const voids = rangeLogs.filter(l => catOf(l) === "voids" && enabled("voids"));
+  const overrides = rangeLogs.filter(l => OVERRIDE_CATS.includes(catOf(l)) && enabled(catOf(l)));
+  const noSales = rangeLogs.filter(l => l.event_type === "no_sale" && enabled("no_sale"));
+  const refunds = rangeTxns.filter(t => t.status === "refunded" && enabled("refund"));
 
   const overrideValue = overrides.reduce((s, l) => s + (l.transaction_total || 0), 0);
   const refundValue = refunds.reduce((s, t) => s + (t.total || 0), 0);
@@ -75,10 +78,10 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          flags.voids && { label: "Voids", value: voids.length, icon: Ban, color: "text-red-600", bg: "bg-red-50" },
-          flags.overrides && { label: "Price Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
-          flags.refunds && { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50" },
-          (flags.overrides || flags.refunds) && { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
+          enabled("voids") && { label: "Voids", value: voids.length, icon: Ban, color: "text-red-600", bg: "bg-red-50" },
+          OVERRIDE_CATS.some(enabled) && { label: "Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
+          enabled("refund") && { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50" },
+          (OVERRIDE_CATS.some(enabled) || enabled("refund")) && { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
         ].filter(Boolean).map(s => (
           <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-5 h-5 ${s.color}`} /></div>
