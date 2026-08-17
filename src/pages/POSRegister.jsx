@@ -868,6 +868,12 @@ export default function POSRegister() {
     return { lunchStart, lunchEnd, onLunch, lunchTaken, upcoming, past };
   })();
 
+  // Auto-dismiss the "scheduled lunch" info dialog once lunch is overdue so it
+  // doesn't linger behind the lockout and freeze the lockout's controls.
+  useEffect(() => {
+    if (lunchState?.past) setLunchDialogOpen(false);
+  }, [lunchState?.past]);
+
   const filteredProducts = products.filter(p => {
     const matchSearch = !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch);
     const matchCat = selectedCat === "All" || p.category === selectedCat;
@@ -2054,34 +2060,31 @@ export default function POSRegister() {
         </DialogContent>
       </Dialog>
 
-      {/* Lunch Lockout Overlay — past scheduled lunch while still working */}
-      {lunchState?.past && !lunchOverrideApplied && (
-        <div className="fixed inset-0 z-[60] bg-[#0a0e27] flex items-center justify-center">
-          <div className="flex flex-col items-center gap-6 text-center max-w-sm">
-            <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center">
-              <AlertTriangle className="w-8 h-8 text-amber-400" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-white">Lunch Break Overdue</h1>
-              <p className="text-blue-300/60 text-sm">Your scheduled lunch began at <span className="font-mono font-bold text-amber-400">{todayShift?.lunch_start}</span>. Take your lunch break now, or have a supervisor authorize continued work.</p>
-            </div>
-            <div className="w-full max-w-xs space-y-2">
-              <Input
-                type="password"
-                placeholder="CSM / Manager PIN"
-                value={lunchOverridePin}
-                onChange={e => setLunchOverridePin(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleLunchOverride()}
-                className="bg-[#0a0e27] border-amber-500/20 text-white text-center text-lg tracking-widest"
-                autoFocus
-              />
-              {lunchOverrideError && <p className="text-red-400 text-xs text-center">{lunchOverrideError}</p>}
-              <Button onClick={handleLunchOverride} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold">Authorize & Continue</Button>
-              <Button onClick={logout} variant="outline" className="w-full border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Log Out</Button>
-            </div>
+      {/* Lunch Lockout — past scheduled lunch while still working */}
+      <Dialog open={!!(lunchState?.past && !lunchOverrideApplied)} onOpenChange={() => {}}>
+        <DialogContent className="bg-[#0a0e27] border-amber-500/30 text-white max-w-sm [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle className="text-amber-400 text-base flex items-center gap-2 justify-center">
+              <AlertTriangle className="w-5 h-5" /> Lunch Break Overdue
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-blue-300/60 text-sm text-center">Your scheduled lunch began at <span className="font-mono font-bold text-amber-400">{todayShift?.lunch_start}</span>. Take your lunch break now, or have a supervisor authorize continued work.</p>
+            <Input
+              type="password"
+              placeholder="CSM / Manager PIN"
+              value={lunchOverridePin}
+              onChange={e => setLunchOverridePin(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleLunchOverride()}
+              className="bg-[#0a0e27] border-amber-500/20 text-white text-center text-lg tracking-widest"
+              autoFocus
+            />
+            {lunchOverrideError && <p className="text-red-400 text-xs text-center">{lunchOverrideError}</p>}
+            <Button onClick={handleLunchOverride} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold">Authorize & Continue</Button>
+            <Button onClick={logout} variant="outline" className="w-full border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Log Out</Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
       </div>
       );
       }
