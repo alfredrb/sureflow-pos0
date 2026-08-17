@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Megaphone, Plus, Pencil, Archive, ArchiveRestore, Search, Info, AlertTriangle, AlertOctagon, Eye } from "lucide-react";
+import { Megaphone, Plus, Pencil, Archive, ArchiveRestore, Search, Info, AlertTriangle, AlertOctagon, Eye, Sparkles } from "lucide-react";
+import AnnouncementAISuggestions from "@/components/announcements/AnnouncementAISuggestions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,12 +35,25 @@ export default function AdminAnnouncements() {
   const [preview, setPreview] = useState(null);
   const [adminOperator, setAdminOperator] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [storeName, setStoreName] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     const stored = sessionStorage.getItem("admin_operator");
     if (stored) setAdminOperator(JSON.parse(stored));
   }, []);
+
+  useEffect(() => {
+    base44.entities.StoreSettings.list().then(s => { if (s[0]) setStoreName(s[0].store_name); }).catch(() => {});
+  }, []);
+
+  const useSuggestion = (s) => {
+    setEditing(null);
+    setForm({ title: s.title, body: s.body, severity: s.severity, status: "active", start_date: "", end_date: "" });
+    setAiOpen(false);
+    setFormOpen(true);
+  };
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -151,7 +165,10 @@ export default function AdminAnnouncements() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2"><Megaphone className="w-7 h-7 text-blue-600" /> Store Announcements</h1>
           <p className="text-gray-500 text-sm mt-1">Post important updates and policy changes. Active announcements appear on the POS login screen.</p>
         </div>
-        <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500"><Plus className="w-4 h-4 mr-2" /> New Announcement</Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setAiOpen(true)} variant="outline"><Sparkles className="w-4 h-4 mr-2 text-blue-600" /> AI Suggestions</Button>
+          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500"><Plus className="w-4 h-4 mr-2" /> New Announcement</Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
@@ -270,6 +287,8 @@ export default function AdminAnnouncements() {
           <p className="text-[11px] text-gray-400 text-center">This is how the announcement appears to operators on the POS login screen.</p>
         </DialogContent>
       </Dialog>
+
+      <AnnouncementAISuggestions open={aiOpen} onOpenChange={setAiOpen} onUse={useSuggestion} storeName={storeName} />
     </div>
   );
 }
