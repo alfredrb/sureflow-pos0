@@ -90,3 +90,8 @@
     @apply bg-background text-foreground font-body;
   }
 }
+
+/* Admin panel theme modes (applied to the admin content shell) */
+.theme-grayscale { filter: grayscale(100%); }
+.theme-dark { filter: invert(1) hue-rotate(180deg); }
+.theme-dark img, .theme-dark video { filter: invert(1) hue-rotate(-180deg); }

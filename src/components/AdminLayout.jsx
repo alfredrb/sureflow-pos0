@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { Settings, ChevronLeft, ChevronDown, Menu, LogOut, Monitor, AlertCircle, Volume2, VolumeX, Trash2, Download, BarChart3 } from "lucide-react";
+import { Settings, ChevronLeft, ChevronDown, Menu, LogOut, Monitor, AlertCircle, Volume2, VolumeX, Trash2, Download, BarChart3, Palette } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { adminNavGroups } from "@/lib/adminNav";
 import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
+import { getTheme, setTheme } from "@/lib/theme";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [soundEnabled, setSoundEnabledState] = useState(getSoundEnabled());
+  const [theme, setThemeState] = useState(getTheme());
   const [adminOperator, setAdminOperator] = useState(null);
   const [permission, setPermission] = useState(null);
   const [openGroups, setOpenGroups] = useState(new Set());
@@ -157,7 +159,7 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="h-screen flex bg-gray-50 w-full">
+    <div className={`h-screen flex bg-gray-50 w-full ${theme === "grayscale" ? "theme-grayscale" : ""}`}>
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-[#0f172a] text-white flex items-center justify-between px-4 h-14 shadow-md">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center"><Settings className="w-4 h-4" /></div>
@@ -233,6 +235,16 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-3 border-t border-white/5 space-y-1">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm w-full text-slate-300">
+            <Palette className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && (
+              <select value={theme} onChange={(e) => { setTheme(e.target.value); setThemeState(e.target.value); }} className="flex-1 bg-transparent text-sm text-slate-200 border-none outline-none cursor-pointer">
+                <option value="default" className="bg-slate-800">Theme: Default</option>
+                <option value="dark" className="bg-slate-800">Theme: Dark</option>
+                <option value="grayscale" className="bg-slate-800">Theme: Grayscale</option>
+              </select>
+            )}
+          </div>
           {isManager && (
             <button onClick={() => setResetDialogOpen(true)} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-orange-400 hover:bg-orange-500/10">
               <Trash2 className="w-4 h-4 flex-shrink-0" />
@@ -257,7 +269,7 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto pt-14 lg:pt-0">
+      <main className={`flex-1 overflow-y-auto pt-14 lg:pt-0 ${theme === "dark" ? "theme-dark" : ""}`}>
         <Outlet />
       </main>
 

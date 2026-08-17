@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import AISuggestionsPanel from "@/components/lossprevention/AISuggestionsPanel";
 import DocumentsPanel from "@/components/lossprevention/DocumentsPanel";
 import TasksPanel from "@/components/lossprevention/TasksPanel";
 import InvestigationDetailDialog from "@/components/lossprevention/InvestigationDetailDialog";
+import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendChart";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -68,6 +69,7 @@ export default function AdminLossPrevention() {
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "shorts", label: "Shorts & Longs", icon: Scale },
     { id: "investigations", label: "Investigations", icon: FolderSearch },
+    { id: "theft", label: "Theft Trends", icon: TrendingDown },
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "tasks", label: "Tasks", icon: ListTodo },
@@ -110,6 +112,7 @@ export default function AdminLossPrevention() {
       {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
+      {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
