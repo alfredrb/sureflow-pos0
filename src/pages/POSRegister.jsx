@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench, Award } from "lucide-react";
+import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench, Award, Megaphone } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,6 +97,8 @@ export default function POSRegister() {
   const [loyaltyLookupOpen, setLoyaltyLookupOpen] = useState(false);
   const [loyaltySignupOpen, setLoyaltySignupOpen] = useState(false);
   const [idVerify, setIdVerify] = useState(null); // { product, age } — pending age verification
+  const [newsOpen, setNewsOpen] = useState(false);
+  const [newsAnnouncements, setNewsAnnouncements] = useState([]);
   const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -104,6 +106,27 @@ export default function POSRegister() {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Load active store announcements for the NEWS button
+  useEffect(() => {
+    base44.entities.Announcement.list("-created_date", 50).then(all => {
+      const now = new Date();
+      const active = all.filter(a => a.status === "active" &&
+        (!a.start_date || new Date(a.start_date) <= now) &&
+        (!a.end_date || new Date(a.end_date) >= now));
+      setNewsAnnouncements(active);
+    }).catch(() => {});
+    const unsub = base44.entities.Announcement.subscribe(() => {
+      base44.entities.Announcement.list("-created_date", 50).then(all => {
+        const now = new Date();
+        const active = all.filter(a => a.status === "active" &&
+          (!a.start_date || new Date(a.start_date) <= now) &&
+          (!a.end_date || new Date(a.end_date) >= now));
+        setNewsAnnouncements(active);
+      }).catch(() => {});
+    });
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -893,6 +916,17 @@ export default function POSRegister() {
               "bg-blue-500/20 text-blue-300"
             }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : operator?.role === "technician" ? "Technician" : "Cashier"}</span>
           </div>
+          <button
+            onClick={() => setNewsOpen(true)}
+            className="relative flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0a0e27] border border-blue-500/20 text-blue-300/70 hover:text-blue-200 hover:border-blue-500/40 transition-colors text-[10px] font-bold uppercase tracking-wider"
+            title="Store Announcements"
+          >
+            <Megaphone className="w-3.5 h-3.5" />
+            News
+            {newsAnnouncements.length > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">{newsAnnouncements.length}</span>
+            )}
+          </button>
           <POSHelpMenu
             open={helpMenuOpen}
             setOpen={setHelpMenuOpen}
@@ -1775,6 +1809,44 @@ export default function POSRegister() {
         toast={toast}
       />
       <POSIDVerifyDialog open={!!idVerify} product={idVerify?.product} age={idVerify?.age} onClose={() => setIdVerify(null)} onVerified={handleIDVerified} />
+
+      {/* Store Announcements / News Dialog */}
+      <Dialog open={newsOpen} onOpenChange={setNewsOpen}>
+        <DialogContent className="bg-[#111638] border-blue-500/20 text-white max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white text-sm flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-blue-400" /> Store Announcements
+            </DialogTitle>
+          </DialogHeader>
+          {newsAnnouncements.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-blue-300/30 gap-2">
+              <Megaphone className="w-8 h-8" />
+              <p className="text-xs">No active announcements</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {newsAnnouncements.map(a => {
+                const sev = a.severity === "critical"
+                  ? "border-red-500/30 bg-red-500/10"
+                  : a.severity === "warning"
+                    ? "border-amber-500/30 bg-amber-500/10"
+                    : "border-blue-500/30 bg-blue-500/10";
+                const iconColor = a.severity === "critical" ? "text-red-400" : a.severity === "warning" ? "text-amber-400" : "text-blue-400";
+                return (
+                  <div key={a.id} className={`rounded-xl border p-3 ${sev}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className={`w-4 h-4 ${iconColor}`} />
+                      <h3 className="font-semibold text-white text-sm">{a.title}</h3>
+                    </div>
+                    <p className="text-blue-100/80 text-xs leading-relaxed whitespace-pre-wrap">{a.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Button onClick={() => setNewsOpen(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs">Close</Button>
+        </DialogContent>
+      </Dialog>
       </div>
       );
       }

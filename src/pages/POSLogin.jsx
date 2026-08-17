@@ -312,31 +312,40 @@ export default function POSLogin() {
         </div>
       </div>
 
+      {/* Announcements — left side, under the clock */}
+      {announcements.filter(a => !dismissed.has(a.id)).length > 0 && (
+        <div className="absolute left-4 top-12 w-72 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide space-y-2 pr-1">
+          <p className="text-blue-300/30 text-[10px] uppercase tracking-widest font-semibold flex items-center gap-1.5 mb-1">
+            <AlertTriangle className="w-3 h-3" /> Store Announcements
+          </p>
+          {announcements.filter(a => !dismissed.has(a.id)).map(a => {
+            const sev = a.severity === "critical"
+              ? "border-red-500/30 bg-red-500/10 text-red-100"
+              : a.severity === "warning"
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                : "border-blue-500/30 bg-blue-500/10 text-blue-100";
+            return (
+              <div key={a.id} className={`rounded-xl border p-3 flex items-start gap-2 ${sev}`}>
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold leading-tight">{a.title}</p>
+                  <p className="text-xs mt-1 leading-relaxed opacity-90 whitespace-pre-wrap">{a.body}</p>
+                </div>
+                <button onClick={() => {
+                  setDismissed(prev => {
+                    const next = new Set(prev); next.add(a.id);
+                    sessionStorage.setItem("pos_dismissed_announcements", JSON.stringify([...next]));
+                    return next;
+                  });
+                }} className="text-blue-300/40 hover:text-blue-100 text-xs flex-shrink-0">Dismiss</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Login Area */}
       <div className="flex-1 flex flex-col items-center justify-center p-4">
-        {announcements.filter(a => !dismissed.has(a.id)).map(a => {
-          const sev = a.severity === "critical"
-            ? "border-red-500/30 bg-red-500/10 text-red-100"
-            : a.severity === "warning"
-              ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
-              : "border-blue-500/30 bg-blue-500/10 text-blue-100";
-          return (
-            <div key={a.id} className={`w-full max-w-sm mb-4 rounded-xl border p-3 flex items-start gap-2 ${sev}`}>
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold leading-tight">{a.title}</p>
-                <p className="text-xs mt-1 leading-relaxed opacity-90 whitespace-pre-wrap">{a.body}</p>
-              </div>
-              <button onClick={() => {
-                setDismissed(prev => {
-                  const next = new Set(prev); next.add(a.id);
-                  sessionStorage.setItem("pos_dismissed_announcements", JSON.stringify([...next]));
-                  return next;
-                });
-              }} className="text-blue-300/40 hover:text-blue-100 text-xs flex-shrink-0">Dismiss</button>
-            </div>
-          );
-        })}
         <div className="flex items-center gap-3 justify-center mb-6">
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/20">
             <Monitor className="w-5 h-5 text-white" />
