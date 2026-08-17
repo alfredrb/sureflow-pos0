@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 import FeedbackEvidencePicker from "@/components/lossprevention/FeedbackEvidencePicker";
+import EvidenceViewerDialog from "@/components/lossprevention/EvidenceViewerDialog";
 
 const TYPES = [
   { value: "cash_short", label: "Cash Short" }, { value: "cash_over", label: "Cash Over" },
@@ -43,6 +44,9 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   const [addOpId, setAddOpId] = useState("");
   const [viewTx, setViewTx] = useState(null);
   const [feedbackPickerOpen, setFeedbackPickerOpen] = useState(false);
+  const [viewEvidence, setViewEvidence] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const [stolenItems, setStolenItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [stolenPick, setStolenPick] = useState("");
@@ -171,6 +175,22 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
 
   const removeEvidence = (idx) => setEvidence(prev => prev.filter((_, i) => i !== idx));
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await base44.integrations.Core.UploadFile({ file });
+      const file_url = res?.file_url;
+      if (!file_url) throw new Error("Upload returned no URL");
+      addEvidence({ type: "file", file_url, file_name: file.name, detail: file.name, date: new Date().toISOString() });
+    } catch (err) {
+      toast({ title: "Upload failed", description: err?.message, variant: "destructive" });
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const stolenTotalLoss = stolenItems.reduce((s, it) => s + (Number(it.total_loss) || 0), 0);
 
   const addStolenItem = () => {
@@ -247,7 +267,11 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
       if (ev.type === "document" && ev.document_html) {
         docBlock = `<div style="margin-top:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#444;margin-bottom:8px;">${escapeHtml(ev.document_title || "Document")}</div>${ev.document_html}</div>`;
       }
-      return `<div style="border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-weight:600;"><span>${i + 1}. ${escapeHtml(ev.type || "item")}${ev.ref ? ` · ${escapeHtml(ev.ref)}` : ""}</span><span>${ev.amount != null ? `$${Number(ev.amount).toFixed(2)}` : ""}</span></div><div style="font-size:12px;color:#555;">${escapeHtml(ev.detail || "")}</div><div style="font-size:11px;color:#999;">${ev.date ? moment(ev.date).format("MMM D, YYYY h:mm A") : ""}</div>${receipt}${docBlock}</div>`;
+      let fileBlock = "";
+      if (ev.type === "file" && ev.file_url) {
+        fileBlock = `<div style="margin-top:8px;font-size:11px;"><a href="${escapeHtml(ev.file_url)}" target="_blank" style="color:#2563eb;text-decoration:none;">&#128206; ${escapeHtml(ev.file_name || ev.file_url)}</a></div>`;
+      }
+      return `<div style="border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-weight:600;"><span>${i + 1}. ${escapeHtml(ev.type || "item")}${ev.ref ? ` · ${escapeHtml(ev.ref)}` : ""}</span><span>${ev.amount != null ? `$${Number(ev.amount).toFixed(2)}` : ""}</span></div><div style="font-size:12px;color:#555;">${escapeHtml(ev.detail || "")}</div><div style="font-size:11px;color:#999;">${ev.date ? moment(ev.date).format("MMM D, YYYY h:mm A") : ""}</div>${receipt}${docBlock}${fileBlock}</div>`;
     }).join("");
 
     const activityRows = activityLog.map(a => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${moment(a.date).format("MMM D, YYYY h:mm A")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.by || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.action || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.note || "")}</td></tr>`).join("");
@@ -433,8 +457,10 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
             {/* Evidence */}
             <div>
               <Label>Linked Evidence ({evidence.length})</Label>
-              <div className="mb-2">
+              <div className="mb-2 flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setFeedbackPickerOpen(true)}><Paperclip className="w-3.5 h-3.5 mr-1" /> Add Feedback / DA</Button>
+                <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.csv,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.txt,.xlsx,.xls,.doc,.docx" onChange={handleFileUpload} />
+                <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Upload className="w-3.5 h-3.5 mr-1" /> {uploading ? "Uploading…" : "Upload File"}</Button>
               </div>
               {evidence.length === 0 ? (
                 <p className="text-xs text-gray-400">No evidence linked yet — use the explorer to add receipts.</p>
@@ -450,6 +476,9 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {ev.type === "receipt" && txns.find(x => x.transaction_id === ev.ref) && (
                           <button onClick={() => setViewTx(txns.find(x => x.transaction_id === ev.ref))} className="text-gray-400 hover:text-amber-600 p-1 rounded" title="View full receipt"><Eye className="w-3.5 h-3.5" /></button>
+                        )}
+                        {(ev.type === "document" || ev.type === "file") && (
+                          <button onClick={() => setViewEvidence(ev)} className="text-gray-400 hover:text-blue-600 p-1 rounded" title="View evidence"><Eye className="w-3.5 h-3.5" /></button>
                         )}
                         <button onClick={() => removeEvidence(idx)} className="text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
                       </div>
@@ -510,6 +539,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
 
       <TransactionDetailDialog tx={viewTx} onClose={() => setViewTx(null)} />
       <FeedbackEvidencePicker open={feedbackPickerOpen} onClose={() => setFeedbackPickerOpen(false)} onAttach={(ev) => addEvidence(ev)} />
+      <EvidenceViewerDialog evidence={viewEvidence} onClose={() => setViewEvidence(null)} />
     </>
   );
 }
