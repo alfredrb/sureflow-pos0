@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Users, Package, Monitor, DollarSign, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert, Percent, RotateCcw, FolderSearch, Award, Gift, Scale, SlidersHorizontal, TrendingUp } from "lucide-react";
+import { Users, Package, Monitor, DollarSign, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert, Percent, RotateCcw, FolderSearch, Award, Gift, Scale, SlidersHorizontal, TrendingUp, Tag, Clock } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
 import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
@@ -14,7 +14,7 @@ export default function AdminDashboard() {
   const operator = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator") || "null"); } catch { return null; } })();
   const [config, setConfig] = useState(() => loadConfig(operator?.operator_id, operator?.role));
   const [customizeOpen, setCustomizeOpen] = useState(false);
-  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, avgSale: 0, refunds: 0, refundAmount: 0, lowStock: 0, outOfStock: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0, voids: 0, openCases: 0, totalStolen: 0, loyaltyMembers: 0, activeGiftCards: 0, giftBalance: 0, cashDiscrepancies: 0 });
+  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, avgSale: 0, refunds: 0, refundAmount: 0, lowStock: 0, outOfStock: 0, recalled: 0, promotional: 0, upcomingReleases: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0, voids: 0, openCases: 0, totalStolen: 0, loyaltyMembers: 0, activeGiftCards: 0, giftBalance: 0, cashDiscrepancies: 0 });
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +42,9 @@ export default function AdminDashboard() {
     const refundAmount = refunds.reduce((s, t) => s + Math.abs(t.total || 0), 0);
     const lowStock = products.filter(p => (p.stock_qty || 0) < 10).length;
     const outOfStock = products.filter(p => (p.stock_qty || 0) <= 0).length;
+    const recalled = products.filter(p => p.recalled).length;
+    const promotional = products.filter(p => p.promotional).length;
+    const upcomingReleases = products.filter(p => p.release_date && new Date(p.release_date) > new Date()).length;
     const maintenanceOpen = maintLogs.filter(m => m.status !== "completed").length;
     const hardwareIssues = registers.filter(r => r.status !== "online" || r.printer_status === "disconnected" || r.scanner_status === "disconnected").length;
     const sevenAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
@@ -54,7 +57,7 @@ export default function AdminDashboard() {
     const activeGiftCards = giftcards.filter(g => g.status === "active").length;
     const giftBalance = giftcards.reduce((s, g) => s + (g.balance || 0), 0);
     const cashDiscrepancies = audits.filter(a => Math.abs(a.discrepancy || 0) > 0.01).length;
-    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies });
+    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, recalled, promotional, upcomingReleases, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies });
     setRecentTx(transactions.slice(0, 8));
     setLoading(false);
   };
@@ -70,6 +73,9 @@ export default function AdminDashboard() {
     { category: "inventory", label: "Products", value: stats.products, icon: Package, color: "bg-violet-500" },
     { category: "inventory", label: "Low Stock", value: stats.lowStock, icon: AlertTriangle, color: "bg-orange-500" },
     { category: "inventory", label: "Out of Stock", value: stats.outOfStock, icon: AlertTriangle, color: stats.outOfStock > 0 ? "bg-red-600" : "bg-orange-500" },
+    { category: "inventory", label: "Recalled", value: stats.recalled, icon: AlertTriangle, color: stats.recalled > 0 ? "bg-red-600" : "bg-rose-500" },
+    { category: "inventory", label: "Promotional", value: stats.promotional, icon: Tag, color: "bg-indigo-500" },
+    { category: "inventory", label: "Upcoming Releases", value: stats.upcomingReleases, icon: Clock, color: stats.upcomingReleases > 0 ? "bg-amber-600" : "bg-amber-500" },
     { category: "system", label: "Operators", value: stats.operators, icon: Users, color: "bg-amber-500" },
     { category: "system", label: "Registers", value: stats.registers, icon: Monitor, color: "bg-cyan-500" },
     { category: "system", label: "Emergencies", value: stats.emergencies, icon: Bell, color: stats.emergencies > 0 ? "bg-red-600" : "bg-red-500" },

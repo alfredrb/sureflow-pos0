@@ -53,24 +53,24 @@ const parseCSV = (text) => {
 };
 
 // Upsert by SKU: existing products are updated in place, new SKUs are created.
-const importFromCSV = async (file, onDone) => {
+const importFromCSV = async (file, opts, onDone) => {
+  const { isVendor, vendorCompanyId } = opts || {};
   const rows = parseCSV(await file.text());
   const existing = await base44.entities.Product.list();
   const bySku = {};
-  existing.forEach(p => { if (p.sku) bySku[p.sku] = p; });
-  let created = 0, updated = 0;
+  existing.forEach(p => { if (p.sku) (bySku[p.sku] ||= []).push(p); });
+  let created = 0, updated = 0, skipped = 0;
   for (const row of rows) {
-    if (!row.sku) continue;
-    const match = bySku[row.sku];
-    if (match) {
-      await base44.entities.Product.update(match.id, row);
-      updated++;
-    } else {
-      await base44.entities.Product.create(row);
-      created++;
-    }
+    if (!row.sku) { skipped++; continue; }
+    if (isVendor) row.vendor_company_id = vendorCompanyId;
+    const matches = bySku[row.sku] || [];
+    const own = isVendor ? matches.find(p => (p.vendor_company_id || "") === vendorCompanyId) : matches[0];
+    // Vendors cannot overwrite another company's product — skip those rows.
+    if (isVendor && matches.length && !own) { skipped++; continue; }
+    if (own) { await base44.entities.Product.update(own.id, row); updated++; }
+    else { await base44.entities.Product.create(row); created++; }
   }
-  onDone?.({ created, updated });
+  onDone?.({ created, updated, skipped });
 };
 
 export default function AdminInventory() {
@@ -141,19 +141,17 @@ export default function AdminInventory() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => exportToCSV(products, "inventory.csv")} variant="outline" className="border-gray-300"><Download className="w-4 h-4 mr-2" /> Export</Button>
-          {!isVendor && (
-            <label>
-              <input type="file" accept=".csv" onChange={e => {
-                if (e.target.files?.[0]) {
-                  importFromCSV(e.target.files[0], ({ created, updated }) => {
-                    toast({ title: "Import complete", description: `${created} added, ${updated} updated` });
-                    load();
-                  }).catch(() => toast({ title: "Import failed", variant: "destructive" }));
-                }
-              }} hidden />
-              <Button asChild variant="outline" className="border-gray-300 cursor-pointer"><span><Upload className="w-4 h-4 mr-2" /> Import</span></Button>
-            </label>
-          )}
+          <label>
+            <input type="file" accept=".csv" onChange={e => {
+              if (e.target.files?.[0]) {
+                importFromCSV(e.target.files[0], { isVendor, vendorCompanyId }, ({ created, updated, skipped }) => {
+                  toast({ title: "Import complete", description: `${created} added, ${updated} updated${skipped ? `, ${skipped} skipped` : ""}` });
+                  load();
+                }).catch(() => toast({ title: "Import failed", variant: "destructive" }));
+              }
+            }} hidden />
+            <Button asChild variant="outline" className="border-gray-300 cursor-pointer"><span><Upload className="w-4 h-4 mr-2" /> Import</span></Button>
+          </label>
           <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
         </div>
       </div>
