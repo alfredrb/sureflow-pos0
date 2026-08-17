@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
@@ -26,6 +26,8 @@ const STATUSES = [
 ];
 
 const empty = { title: "", type: "other", severity: "medium", status: "open", operator_name: "", operator_id: "", register_id: "", summary: "", amount_impact: 0, resolution: "", date_range_start: "", date_range_end: "" };
+
+const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 export default function InvestigationDetailDialog({ value, onClose, onSaved, logs = [], txns = [], audits = [] }) {
   const [form, setForm] = useState(empty);
@@ -135,6 +137,66 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   };
 
   const removeEvidence = (idx) => setEvidence(prev => prev.filter((_, i) => i !== idx));
+
+  const exportCase = () => {
+    const ops = [{ operator_id: form.operator_id, operator_name: form.operator_name }, ...linkedOperators].filter(o => o.operator_id || o.operator_name);
+    const start = form.date_range_start, end = form.date_range_end;
+    const inRange = (d) => {
+      if (!d) return false;
+      const m = moment(d);
+      if (start && end) return m.isSameOrAfter(moment(start).startOf("day")) && m.isSameOrBefore(moment(end).endOf("day"));
+      if (start) return m.isSame(moment(start), "day");
+      return true;
+    };
+    const matchesOp = (rec, op) => (op.operator_id && rec.operator_id && rec.operator_id === op.operator_id) || (op.operator_name && rec.operator_name && rec.operator_name === op.operator_name);
+
+    const evidenceHtml = evidence.map((ev, i) => {
+      let receipt = "";
+      if (ev.type === "receipt") {
+        const t = txns.find(x => x.transaction_id === ev.ref);
+        if (t) {
+          const rows = (t.items || []).map(it => `<tr><td>${escapeHtml(it.name)}${it.qty > 1 ? ` &times; ${it.qty}` : ""}</td><td style="text-align:right">$${(it.price || 0).toFixed(2)}</td><td style="text-align:right">$${(it.total || 0).toFixed(2)}</td></tr>`).join("");
+          receipt = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;"><thead><tr><th style="text-align:left;border-bottom:1px solid #ddd">Item</th><th style="text-align:right;border-bottom:1px solid #ddd">Price</th><th style="text-align:right;border-bottom:1px solid #ddd">Total</th></tr></thead><tbody>${rows}</tbody></table>
+            <div style="margin-top:4px;font-size:11px;"><div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>$${(t.subtotal || 0).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between"><span>Tax</span><span>$${(t.tax || 0).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;font-weight:bold"><span>Total</span><span>$${(t.total || 0).toFixed(2)}</span></div><div style="color:#666;margin-top:2px">${moment(t.created_date).format("MMM D, YYYY h:mm A")} · ${escapeHtml(t.payment_method)} · ${escapeHtml(t.status)}</div></div>`;
+        }
+      }
+      return `<div style="border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-weight:600;"><span>${i + 1}. ${escapeHtml(ev.type || "item")}${ev.ref ? ` · ${escapeHtml(ev.ref)}` : ""}</span><span>${ev.amount != null ? `$${Number(ev.amount).toFixed(2)}` : ""}</span></div><div style="font-size:12px;color:#555;">${escapeHtml(ev.detail || "")}</div><div style="font-size:11px;color:#999;">${ev.date ? moment(ev.date).format("MMM D, YYYY h:mm A") : ""}</div>${receipt}</div>`;
+    }).join("");
+
+    const activityRows = activityLog.map(a => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${moment(a.date).format("MMM D, YYYY h:mm A")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.by || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.action || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.note || "")}</td></tr>`).join("");
+
+    let operatorActivity = "";
+    if (ops.length) {
+      const items = [];
+      ops.forEach(op => {
+        logs.forEach(l => { if (matchesOp(l, op) && inRange(l.created_date)) items.push({ op: op.operator_name, kind: "Register Log", type: l.event_type, date: l.created_date, detail: l.detail || l.event_type, amount: l.transaction_total }); });
+        txns.forEach(t => { if (matchesOp(t, op) && inRange(t.created_date)) items.push({ op: op.operator_name, kind: "Transaction", type: t.status === "refunded" ? "refund" : "sale", date: t.created_date, detail: `${t.transaction_id} · ${t.payment_method}`, amount: t.total }); });
+        audits.forEach(a => { if (matchesOp(a, op) && inRange(a.audit_date)) items.push({ op: op.operator_name, kind: "Cash Audit", type: "cash_audit", date: a.audit_date, detail: `Drawer ${a.discrepancy < 0 ? "short" : a.discrepancy > 0 ? "over" : "balanced"} · counted $${(a.total_counted || 0).toFixed(2)}`, amount: a.discrepancy }); });
+      });
+      items.sort((a, b) => moment(b.date).diff(moment(a.date)));
+      const rows = items.map(it => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${moment(it.date).format("MMM D, h:mm A")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(it.op || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(it.kind)} · ${escapeHtml(it.type || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(it.detail || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;text-align:right;">${it.amount != null ? `$${Math.abs(it.amount).toFixed(2)}` : ""}</td></tr>`).join("");
+      operatorActivity = `<h2>Operator Activity${start ? ` (${escapeHtml(start)}${end ? ` – ${escapeHtml(end)}` : ""})` : ""}</h2><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Date</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Operator</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Action</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Detail</th><th style="text-align:right;border-bottom:1px solid #999;padding:4px 8px;">Amount</th></tr></thead><tbody>${rows || `<tr><td colspan="5" style="padding:8px;color:#999;">No activity in range</td></tr>`}</tbody></table>`;
+    }
+
+    const linkedOps = linkedOperators.map(o => escapeHtml(o.operator_name || "")).join(", ") || "None";
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Investigation — ${escapeHtml(form.title)}</title><style>*{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;}body{color:#111;padding:24px;max-width:900px;margin:0 auto;}h1{font-size:22px;margin:0 0 4px;}.sub{color:#666;font-size:13px;margin-bottom:20px;}h2{font-size:16px;border-bottom:2px solid #111;padding-bottom:4px;margin-top:28px;}.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px;}.kv .k{color:#666;font-weight:600;}.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700;background:#eee;}.toolbar{position:fixed;top:12px;right:12px;}.toolbar button{padding:6px 14px;font-size:13px;cursor:pointer;}@media print{.toolbar{display:none;}}</style></head><body>
+      <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
+      <h1>${escapeHtml(form.title)}</h1>
+      <div class="sub">Investigation Case Export · Generated ${moment().format("MMM D, YYYY h:mm A")}${value.id ? ` · Case ID ${escapeHtml(value.id)}` : ""}</div>
+      <div class="kv"><span class="k">Type</span><span><span class="badge">${escapeHtml(form.type)}</span></span><span class="k">Severity</span><span><span class="badge">${escapeHtml(form.severity)}</span></span><span class="k">Status</span><span><span class="badge">${escapeHtml(form.status)}</span></span><span class="k">Primary Operator</span><span>${escapeHtml(form.operator_name || "—")}${form.operator_id ? ` (${escapeHtml(form.operator_id)})` : ""}</span><span class="k">Linked Operators</span><span>${linkedOps}</span><span class="k">Register</span><span>${escapeHtml(form.register_id || "—")}</span><span class="k">Amount Impact</span><span>$${(Number(form.amount_impact) || 0).toFixed(2)}</span><span class="k">Date Range</span><span>${form.date_range_start || "—"} → ${form.date_range_end || "—"}</span></div>
+      <h2>Summary</h2><p style="font-size:13px;white-space:pre-wrap;">${escapeHtml(form.summary || "—")}</p>
+      <h2>Linked Evidence (${evidence.length})</h2>${evidenceHtml || "<p style='color:#999;font-size:13px;'>No evidence linked.</p>"}
+      <h2>Case Activity Log</h2><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Date</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">By</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Action</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Note</th></tr></thead><tbody>${activityRows || `<tr><td colspan="4" style="padding:8px;color:#999;">No activity logged.</td></tr>`}</tbody></table>
+      ${operatorActivity}
+      ${form.resolution ? `<h2>Resolution</h2><p style="font-size:13px;white-space:pre-wrap;">${escapeHtml(form.resolution)}</p>` : ""}
+      <p style="margin-top:32px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:8px;">SureFlow POS — Loss Prevention Workbench</p>
+    </body></html>`;
+    const w = window.open("", "_blank", "width=900,height=1000");
+    if (!w) { toast({ title: "Pop-up blocked", description: "Allow pop-ups to export the case.", variant: "destructive" }); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+  };
 
   const explorerOperators = [
     { operator_id: form.operator_id || "", operator_name: form.operator_name || "Primary operator" },
@@ -284,9 +346,12 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="bg-amber-600 hover:bg-amber-500">{saving ? "Saving..." : isNew ? "Start Investigation" : "Save"}</Button>
+          <DialogFooter className="sm:justify-between">
+            <Button variant="outline" onClick={exportCase}><FileDown className="w-4 h-4" /> Export Case</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleSave} disabled={saving} className="bg-amber-600 hover:bg-amber-500">{saving ? "Saving..." : isNew ? "Start Investigation" : "Save"}</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
