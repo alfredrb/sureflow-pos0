@@ -31,7 +31,7 @@ export default function AdminLayout() {
   const isVendor = adminOperator?.role === "vendor";
   const TECHNICIAN_PAGES = ["/admin/registers", "/admin/network", "/admin/hardware", "/admin-maintenance-log", "/admin/diagnostics"];
   const LP_PAGES = ["/admin/register-log", "/admin/loss-prevention", "/admin/transactions", "/admin/emergency-log", "/admin-system-alerts", "/admin/eod-reports", "/admin/cash-reconciliation", "/admin-maintenance-log", "/admin/staff-report"];
-  const VENDOR_PAGES = ["/admin", "/admin/inventory", "/admin/vendor-insights"];
+  const VENDOR_PAGES = ["/admin/inventory", "/admin/vendor-insights"];
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -54,22 +54,22 @@ export default function AdminLayout() {
   }, [adminOperator, isManager]);
 
   const canAccess = (path) => {
-    if (path === "/admin") return !isTechnician;
+    if (path === "/admin") return !isVendor;
     if (isManager) return true;
     if (!adminOperator) return true;
+    if (isVendor) return VENDOR_PAGES.includes(path);
     if (isTechnician) return TECHNICIAN_PAGES.includes(path);
     if (isLossPrevention) return LP_PAGES.includes(path);
-    if (isVendor) return VENDOR_PAGES.includes(path);
     if (!permission) return true; // not configured yet => full access
     return (permission.allowed_pages || []).includes(path);
   };
 
   useEffect(() => {
     if (!adminOperator) return;
-    if (isTechnician && location.pathname === "/admin") { navigate("/admin/hardware", { replace: true }); return; }
+    if (isVendor) { navigate("/vendor-dashboard", { replace: true }); return; }
     if (location.pathname === "/admin") return;
     if (!canAccess(location.pathname)) navigate("/admin");
-  }, [location.pathname, adminOperator, permission, isTechnician]);
+  }, [location.pathname, adminOperator, permission, isVendor]);
 
   useEffect(() => {
     const g = adminNavGroups.find(gr => gr.items.some(i => i.path === location.pathname));

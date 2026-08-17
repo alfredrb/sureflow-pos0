@@ -30,7 +30,7 @@ export default function AdminLogin() {
       } else {
         sessionStorage.setItem("admin_operator", JSON.stringify(admin));
         toast({ title: "Welcome", description: `Logged in as ${admin.full_name}` });
-        navigate(admin.role === "technician" ? "/admin/hardware" : "/admin");
+        navigate(admin.role === "vendor" ? "/vendor-dashboard" : "/admin");
       }
     } catch (e) {
       toast({ title: "Error", description: "Login failed", variant: "destructive" });

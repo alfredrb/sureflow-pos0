@@ -8,6 +8,7 @@ import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
 import AuditFrequencyChart from "@/components/AuditFrequencyChart";
 import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendChart";
 import DashboardCustomizer from "@/components/DashboardCustomizer";
+import SystemHealthPanel from "@/components/SystemHealthPanel";
 import { loadConfig, saveConfig, roleDefault } from "@/lib/dashboardConfig";
 
 export default function AdminDashboard() {
@@ -192,6 +193,13 @@ export default function AdminDashboard() {
             </div>
             <InventoryReorderSuggestions />
           </div>
+        </section>
+      )}
+
+      {config.graphs.system && (
+        <section className="mb-6 sm:mb-8 space-y-6">
+          <SectionHeader icon={HardDrive} title="System Health" subtitle="Register, hardware, and maintenance status" color="bg-cyan-500" />
+          <SystemHealthPanel />
         </section>
       )}
 

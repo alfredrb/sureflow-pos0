@@ -2,7 +2,7 @@ const STORAGE_PREFIX = "admin_dash_";
 
 export const DEFAULT_CONFIG = {
   metrics: { sales: true, inventory: true, loss: true, system: true, loyalty: true },
-  graphs: { sales: true, loss: true, inventory: true },
+  graphs: { sales: true, loss: true, inventory: true, system: true },
 };
 
 // Role-based defaults so each profile starts with relevant metrics/graphs.
@@ -10,13 +10,13 @@ export function roleDefault(role) {
   if (role === "loss_prevention") {
     return {
       metrics: { sales: false, inventory: false, loss: true, system: true, loyalty: false },
-      graphs: { sales: false, loss: true, inventory: false },
+      graphs: { sales: false, loss: true, inventory: false, system: false },
     };
   }
   if (role === "technician") {
     return {
       metrics: { sales: false, inventory: false, loss: false, system: true, loyalty: false },
-      graphs: { sales: false, loss: false, inventory: false },
+      graphs: { sales: false, loss: false, inventory: false, system: true },
     };
   }
   return DEFAULT_CONFIG;

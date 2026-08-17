@@ -15,6 +15,7 @@ const GRAPH_GROUPS = [
   { id: "sales", label: "Sales & Staffing" },
   { id: "loss", label: "Loss Prevention" },
   { id: "inventory", label: "Inventory" },
+  { id: "system", label: "System & Hardware" },
 ];
 
 export default function DashboardCustomizer({ open, onClose, config, onChange, onReset }) {
