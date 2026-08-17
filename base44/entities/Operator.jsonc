@@ -34,6 +34,11 @@
       ],
       "default": "active"
     },
+    "on_leave": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the linked employee is on leave. Displayed as an On Leave badge in Operator Management. While on leave the operator status is set to inactive."
+    },
     "email": {
       "type": "string"
     },

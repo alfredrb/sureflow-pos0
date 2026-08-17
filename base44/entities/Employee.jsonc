@@ -42,9 +42,12 @@
       "type": "string",
       "enum": [
         "active",
-        "inactive"
+        "inactive",
+        "on_leave",
+        "terminated"
       ],
-      "default": "active"
+      "default": "active",
+      "description": "Employment status. on_leave disables the linked operator for the duration; terminated disables the operator and starts a 30-day rehire window."
     },
     "emergency_contact_name": {
       "type": "string"
@@ -55,6 +58,38 @@
     "operator_id": {
       "type": "string",
       "description": "Operator ID of the operator automatically created for this employee."
+    },
+    "leave_start": {
+      "type": "string",
+      "format": "date",
+      "description": "First day of an active leave."
+    },
+    "leave_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Scheduled last day of leave. The operator is re-enabled when the employee is reactivated."
+    },
+    "termination_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the employee was terminated."
+    },
+    "rehire_eligible_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Last day the employee is eligible for rehire (termination date + 30 days)."
+    },
+    "last_action_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the most recent HR status action was performed."
+    },
+    "last_action_by": {
+      "type": "string",
+      "description": "Operator who performed the most recent HR action."
+    },
+    "last_action_note": {
+      "type": "string"
     },
     "notes": {
       "type": "string"
