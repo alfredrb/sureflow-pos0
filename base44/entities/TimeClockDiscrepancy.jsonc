@@ -1,0 +1,91 @@
+{
+  "name": "TimeClockDiscrepancy",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string",
+      "description": "Operator ID this discrepancy belongs to."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date the discrepancy relates to."
+    },
+    "discrepancy_type": {
+      "type": "string",
+      "enum": [
+        "manual_adjustment",
+        "missing_clockout",
+        "overlong_shift",
+        "overlapping_entries",
+        "short_shift",
+        "future_clockin"
+      ],
+      "description": "Kind of time-clock discrepancy detected or logged."
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable explanation of the discrepancy."
+    },
+    "hours_impact": {
+      "type": "number",
+      "default": 0,
+      "description": "Hours involved in the discrepancy (worked hours, missing hours, overlap, etc.)."
+    },
+    "amount_impact": {
+      "type": "number",
+      "default": 0,
+      "description": "Estimated dollar exposure (hours_impact \u00d7 applicable pay rate)."
+    },
+    "entry_ids": {
+      "type": "array",
+      "description": "Linked TimeClockEntry record ids.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the discrepancy was logged or detected."
+    },
+    "detected_by": {
+      "type": "string",
+      "description": "Operator who logged/detected the discrepancy (manager name or 'System' for scans)."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "investigating",
+        "resolved"
+      ],
+      "default": "open"
+    },
+    "linked_investigation_id": {
+      "type": "string",
+      "description": "Investigation case created from this discrepancy."
+    },
+    "resolution_note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "operator_id",
+    "discrepancy_type",
+    "status"
+  ]
+}

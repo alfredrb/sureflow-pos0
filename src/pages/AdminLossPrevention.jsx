@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendC
 import MerchandiseProtectionPanel from "@/components/lossprevention/MerchandiseProtectionPanel";
 import DataViewerPanel from "@/components/lossprevention/DataViewerPanel";
 import HighRiskEventsPanel from "@/components/lossprevention/HighRiskEventsPanel";
+import TimeTheftPanel from "@/components/lossprevention/TimeTheftPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -111,6 +112,7 @@ export default function AdminLossPrevention() {
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "tasks", label: "Tasks", icon: ListTodo },
+    { id: "time", label: "Time Theft", icon: Clock },
     { id: "mpp", label: "Merch Protection", icon: Shield },
     { id: "data", label: "Data Viewer", icon: Database },
   ];
@@ -161,6 +163,7 @@ export default function AdminLossPrevention() {
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
+      {tab === "time" && <TimeTheftPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
       {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
 

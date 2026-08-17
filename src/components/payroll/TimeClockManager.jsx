@@ -134,6 +134,32 @@ export default function TimeClockManager({ operators }) {
       };
       if (editing && editing.id) {
         await base44.entities.TimeClockEntry.update(editing.id, payload);
+        // Log a timeclock discrepancy for the LP workbench (manual adjustment)
+        try {
+          const beforeH = entryNetHours(editing);
+          const afterH = entryNetHours({ ...editing, ...payload });
+          const delta = Math.round((afterH - beforeH) * 100) / 100;
+          const by = (() => {
+            try {
+              const a = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
+              return a?.full_name || a?.operator_id || "Manager";
+            } catch { return "Manager"; }
+          })();
+          await base44.entities.TimeClockDiscrepancy.create({
+            operator_id: editing.operator_id,
+            operator_name: editing.operator_name,
+            date: (editing.date || (editing.clock_in || "").slice(0, 10)),
+            discrepancy_type: "manual_adjustment",
+            severity: Math.abs(delta) >= 2 ? "high" : "medium",
+            description: `Manager adjusted time entry${delta !== 0 ? ` (hours ${beforeH.toFixed(2)} → ${afterH.toFixed(2)}, Δ ${delta > 0 ? "+" : ""}${delta.toFixed(2)}h)` : ""}. Note: ${form.adjustment_note || "Manager adjustment"}.`,
+            hours_impact: Math.abs(delta),
+            amount_impact: 0,
+            entry_ids: [editing.id],
+            detected_at: new Date().toISOString(),
+            detected_by: by,
+            status: "open",
+          });
+        } catch (_) {}
         toast({ title: "Time entry adjusted" });
       } else {
         payload.date = toIso(form.clock_in).slice(0, 10);

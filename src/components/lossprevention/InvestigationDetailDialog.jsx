@@ -18,7 +18,7 @@ const TYPES = [
   { value: "cash_short", label: "Cash Short" }, { value: "cash_over", label: "Cash Over" },
   { value: "voids", label: "Voids" }, { value: "overrides", label: "Overrides" },
   { value: "refunds", label: "Refunds" }, { value: "no_sales", label: "No-Sales" },
-  { value: "stock_theft", label: "Stock Theft" }, { value: "pattern", label: "Pattern" }, { value: "other", label: "Other" },
+  { value: "stock_theft", label: "Stock Theft" }, { value: "pattern", label: "Pattern" }, { value: "time_theft", label: "Time Theft" }, { value: "other", label: "Other" },
 ];
 const SEVERITIES = [
   { value: "low", label: "Low" }, { value: "medium", label: "Medium" },
