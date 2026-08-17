@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
-import { Plus, FolderSearch, Sparkles, Search } from "lucide-react";
+import { Plus, FolderSearch, Sparkles, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 
 const TYPE_LABEL = {
@@ -24,6 +26,23 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await base44.entities.Investigation.delete(deleteTarget.id);
+      toast({ title: "Investigation deleted" });
+      setDeleteTarget(null);
+      await load();
+    } catch {
+      toast({ title: "Failed to delete investigation", variant: "destructive" });
+    }
+    setDeleting(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -79,28 +98,46 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map(inv => (
-            <button key={inv.id} onClick={() => onOpenInvestigation(inv)} className="text-left bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{TYPE_LABEL[inv.type] || inv.type}</span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${SEVERITY_BADGE[inv.severity] || "bg-gray-100 text-gray-600"}`}>{inv.severity}</span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_BADGE[inv.status] || "bg-gray-100 text-gray-600"}`}>{STATUS_LABEL[inv.status] || inv.status}</span>
-                    {inv.ai_generated && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 inline-flex items-center gap-0.5"><Sparkles className="w-2.5 h-2.5" /> AI</span>}
+            <div key={inv.id} className="text-left bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
+              <button onClick={() => onOpenInvestigation(inv)} className="w-full text-left">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{TYPE_LABEL[inv.type] || inv.type}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${SEVERITY_BADGE[inv.severity] || "bg-gray-100 text-gray-600"}`}>{inv.severity}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_BADGE[inv.status] || "bg-gray-100 text-gray-600"}`}>{STATUS_LABEL[inv.status] || inv.status}</span>
+                      {inv.ai_generated && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 inline-flex items-center gap-0.5"><Sparkles className="w-2.5 h-2.5" /> AI</span>}
+                    </div>
+                    <h3 className="font-semibold text-gray-900 text-sm mt-2 truncate">{inv.title}</h3>
                   </div>
-                  <h3 className="font-semibold text-gray-900 text-sm mt-2 truncate">{inv.title}</h3>
+                  {inv.amount_impact ? <span className="text-sm font-bold text-gray-900 whitespace-nowrap">${Number(inv.amount_impact).toFixed(2)}</span> : null}
                 </div>
-                {inv.amount_impact ? <span className="text-sm font-bold text-gray-900 whitespace-nowrap">${Number(inv.amount_impact).toFixed(2)}</span> : null}
+                <p className="text-xs text-gray-500 line-clamp-2">{inv.summary || "—"}</p>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+                  <span className="text-xs text-gray-400">{inv.operator_name ? `Operator: ${inv.operator_name}` : "No operator"}</span>
+                  <span className="text-xs text-gray-400">{moment(inv.created_date).format("MMM D, YYYY")}</span>
+                </div>
+              </button>
+              <div className="flex justify-end mt-3">
+                <button onClick={() => setDeleteTarget(inv)} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
               </div>
-              <p className="text-xs text-gray-500 line-clamp-2">{inv.summary || "—"}</p>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-                <span className="text-xs text-gray-400">{inv.operator_name ? `Operator: ${inv.operator_name}` : "No operator"}</span>
-                <span className="text-xs text-gray-400">{moment(inv.created_date).format("MMM D, YYYY")}</span>
-              </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete investigation?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove “{deleteTarget?.title}” and all its linked evidence. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-500">{deleting ? "Deleting..." : "Delete"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
