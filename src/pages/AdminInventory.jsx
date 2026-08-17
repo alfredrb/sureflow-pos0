@@ -275,7 +275,25 @@ export default function AdminInventory() {
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Barcode</label><Input value={form.barcode} onChange={e => setForm({ ...form, barcode: e.target.value })} /></div>
             </div>
             <div><label className="text-sm font-medium text-gray-700 mb-1 block">Product Name</label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-            <div><label className="text-sm font-medium text-gray-700 mb-1 block">Category</label><Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} /></div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Category</label>
+              <Select value={form.category || "__none"} onValueChange={v => setForm({ ...form, category: v === "__none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">None</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id} value={c.name}>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: c.color || "#6b7280" }} />
+                        <span className="font-medium">{c.name}</span>
+                        {c.tax_rate ? <span className="text-xs text-gray-400">· {c.tax_rate}% tax</span> : null}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(() => { const sel = categories.find(c => c.name === form.category); return sel?.description ? <p className="text-xs text-gray-500 mt-1">{sel.description}</p> : null; })()}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Price</label><Input type="number" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: parseFloat(e.target.value) || 0 })} /></div>
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Cost</label><Input type="number" step="0.01" value={form.cost} onChange={e => setForm({ ...form, cost: parseFloat(e.target.value) || 0 })} /></div>
