@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import BulkEditDialog from "@/components/inventory/BulkEditDialog";
 
 const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "" };
 const MPP_LABELS = { none: "—", wrapped: "Wrap", case: "Case", counter: "Counter", locked: "Locked", other: "Other" };
@@ -86,6 +87,8 @@ export default function AdminInventory() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...emptyProduct });
   const [companies, setCompanies] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => { base44.entities.VendorCompany.list("-issued_date", 500).then(setCompanies).catch(() => {}); }, []);
@@ -137,6 +140,19 @@ export default function AdminInventory() {
 
   const filtered = products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.includes(search) || (p.barcode || "").includes(search));
 
+  const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allSelected = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
+  const toggleSelectAll = () => setSelectedIds(prev => { const n = new Set(prev); if (allSelected) filtered.forEach(p => n.delete(p.id)); else filtered.forEach(p => n.add(p.id)); return n; });
+
+  const applyBulk = async (changes) => {
+    const updates = Array.from(selectedIds).map(id => ({ id, ...changes }));
+    await base44.entities.Product.bulkUpdate(updates);
+    toast({ title: `${updates.length} product${updates.length === 1 ? "" : "s"} updated` });
+    setBulkOpen(false);
+    setSelectedIds(new Set());
+    load();
+  };
+
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
   return (
@@ -147,6 +163,11 @@ export default function AdminInventory() {
           <p className="text-gray-500 text-sm mt-1">{products.length} products{isVendor ? " (your catalog)" : ""}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {selectedIds.size > 0 && (
+            <Button onClick={() => setBulkOpen(true)} variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100">
+              <Edit2 className="w-4 h-4 mr-2" /> Bulk Edit ({selectedIds.size})
+            </Button>
+          )}
           <Button onClick={() => exportToCSV(products, "inventory.csv")} variant="outline" className="border-gray-300"><Download className="w-4 h-4 mr-2" /> Export</Button>
           <label>
             <input type="file" accept=".csv" onChange={e => {
@@ -173,6 +194,7 @@ export default function AdminInventory() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-3 w-10"><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="rounded border-gray-300" /></th>
                 <th className="px-5 py-3 text-left">Product</th>
                 <th className="px-3 py-3 text-left">SKU</th>
                 <th className="px-3 py-3 text-left">Category</th>
@@ -189,6 +211,7 @@ export default function AdminInventory() {
                 const released = !p.release_date || new Date(p.release_date) <= new Date();
                 return (
                   <tr key={p.id} className="hover:bg-gray-50/50">
+                    <td className="px-3 py-3"><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} className="rounded border-gray-300" /></td>
                     <td className="px-5 py-3">
                       <p className="font-medium text-gray-900">{p.name}</p>
                       {p.barcode && <p className="text-xs text-gray-400">{p.barcode}</p>}
@@ -304,6 +327,16 @@ export default function AdminInventory() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <BulkEditDialog
+        open={bulkOpen}
+        products={products.filter(p => selectedIds.has(p.id))}
+        companies={companies}
+        isVendor={isVendor}
+        vendorCompanyId={vendorCompanyId}
+        onApply={applyBulk}
+        onClose={() => setBulkOpen(false)}
+      />
     </div>
   );
 }
