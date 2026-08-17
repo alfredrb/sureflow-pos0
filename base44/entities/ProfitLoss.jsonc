@@ -1,0 +1,53 @@
+{
+  "name": "ProfitLoss",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "disposal",
+        "claim_loss",
+        "other"
+      ],
+      "default": "disposal",
+      "description": "Source of the profit loss."
+    },
+    "sku": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "qty": {
+      "type": "number",
+      "default": 0
+    },
+    "unit_cost": {
+      "type": "number",
+      "default": 0
+    },
+    "amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Dollar amount deducted from profit. For disposals this is qty * unit_cost."
+    },
+    "claim_id": {
+      "type": "string",
+      "description": "Claim record that generated this loss (when type is disposal)."
+    },
+    "disposal_method": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "amount"
+  ]
+}

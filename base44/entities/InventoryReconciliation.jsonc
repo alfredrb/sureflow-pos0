@@ -1,0 +1,80 @@
+{
+  "name": "InventoryReconciliation",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the physical count was performed."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "completed"
+      ],
+      "default": "completed"
+    },
+    "total_items": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of products counted."
+    },
+    "matched_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Items where counted_qty equals system_qty."
+    },
+    "short_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Items where counted_qty is less than system_qty."
+    },
+    "over_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Items where counted_qty is greater than system_qty."
+    },
+    "applied": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if counted quantities were written back to product stock on save."
+    },
+    "lines": {
+      "type": "array",
+      "description": "Per-product count lines with the system vs counted quantities and the discrepancy.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "system_qty": {
+            "type": "number"
+          },
+          "counted_qty": {
+            "type": "number"
+          },
+          "discrepancy": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status"
+  ]
+}

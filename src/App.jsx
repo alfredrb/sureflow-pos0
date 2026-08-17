@@ -56,6 +56,9 @@ import AdminDiagnosticTools from '@/pages/AdminDiagnosticTools';
 import AdminAuditLog from '@/pages/AdminAuditLog';
 import AdminAnnouncements from '@/pages/AdminAnnouncements';
 import AdminNoReceiptCustomers from '@/pages/AdminNoReceiptCustomers';
+import AdminInventoryReconciliation from '@/pages/AdminInventoryReconciliation';
+import AdminClaims from '@/pages/AdminClaims';
+import AdminProfitLoss from '@/pages/AdminProfitLoss';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -129,6 +132,9 @@ const AuthenticatedApp = () => {
           <Route path="/admin-audit-log" element={<AdminAuditLog />} />
           <Route path="/admin-announcements" element={<AdminAnnouncements />} />
           <Route path="/admin/no-receipt-customers" element={<AdminNoReceiptCustomers />} />
+          <Route path="/admin/inventory-reconciliation" element={<AdminInventoryReconciliation />} />
+          <Route path="/admin/claims" element={<AdminClaims />} />
+          <Route path="/admin/profit-loss" element={<AdminProfitLoss />} />
         </Route>
       </Route>
 

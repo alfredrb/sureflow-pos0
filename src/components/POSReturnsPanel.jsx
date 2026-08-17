@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { RotateCcw, FileX, ShieldCheck } from "lucide-react";
 import POSNoReceiptReturn from "@/components/pos/POSNoReceiptReturn";
+import ReturnReasonDialog from "@/components/pos/ReturnReasonDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +19,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const [overrideOperator, setOverrideOperator] = useState(null); // set after successful override
   const [expiredItems, setExpiredItems] = useState([]); // indices of items past return period
   const [returnMode, setReturnMode] = useState("receipt"); // "receipt" | "no_receipt" | "manager_override"
+  const [reasonOpen, setReasonOpen] = useState(false);
 
   const lookUp = async () => {
     if (!returnTxId) return;
@@ -123,9 +125,27 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
     })
   );
 
-  const confirmReturn = async () => {
+  const confirmReturn = () => {
     if (selectedCount === 0) { toast({ title: "No items selected", variant: "destructive" }); return; }
+    setReasonOpen(true);
+  };
+
+  const completeReturn = async (decisions) => {
+    setReasonOpen(false);
+    if (returnItems.length === 0) { toast({ title: "No items selected", variant: "destructive" }); return; }
     const txId = "RET-" + Date.now().toString(36).toUpperCase();
+
+    // Restock items flagged restockable, send the rest to Claims
+    let restocked = 0, claimed = 0;
+    for (const d of decisions) {
+      const prod = products.find(p => p.sku === d.sku);
+      if (d.restockable) {
+        if (prod) { try { await base44.entities.Product.update(prod.id, { stock_qty: (prod.stock_qty || 0) + d.qty }); restocked += d.qty; } catch {} }
+      } else {
+        const unit_cost = prod?.cost || 0;
+        try { await base44.entities.Claim.create({ sku: d.sku, name: d.name, qty: d.qty, unit_cost, total_cost: +(unit_cost * d.qty).toFixed(2), reason: d.reason, condition: "pending", disposition: "pending", status: "open", transaction_id: txId, operator_name: operator.full_name, operator_id: operator.operator_id, date_created: new Date().toISOString(), profit_loss_recorded: false }); claimed += 1; } catch {}
+      }
+    }
 
     // Build updated refunded_qty map
     const newRefundedQty = { ...refundedQty };
@@ -160,7 +180,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
       ...(overrideOperator ? { override_operator_id: overrideOperator.operator_id, override_operator_name: overrideOperator.full_name } : {})
     });
 
-    toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned` });
+    toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned · ${restocked} restocked · ${claimed} to Claims` });
     setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]);
     onPreviewChange(null);
     loadData();
@@ -361,6 +381,8 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
           <Button onClick={handleOverrideSubmit} className="w-full bg-red-600 hover:bg-red-500 text-white">Authorize Override</Button>
         </DialogContent>
       </Dialog>
+
+      <ReturnReasonDialog open={reasonOpen} items={returnItems} onClose={() => setReasonOpen(false)} onComplete={completeReturn} />
     </div>
   );
 }

@@ -1,0 +1,123 @@
+{
+  "name": "Claim",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "SKU of the returned item."
+    },
+    "name": {
+      "type": "string"
+    },
+    "qty": {
+      "type": "number",
+      "default": 1
+    },
+    "unit_cost": {
+      "type": "number",
+      "default": 0,
+      "description": "Store cost of the item at the time it was sent to claims."
+    },
+    "total_cost": {
+      "type": "number",
+      "default": 0,
+      "description": "qty * unit_cost. The amount deducted from profit when the item is disposed."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Return reason selected by the cashier at the POS."
+    },
+    "condition": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "good",
+        "damaged",
+        "defective",
+        "expired",
+        "unsanitary",
+        "open_package"
+      ],
+      "default": "pending",
+      "description": "Inspected condition of the item."
+    },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "restock",
+        "dispose",
+        "ship_back"
+      ],
+      "default": "pending",
+      "description": "What was done with the item after inspection."
+    },
+    "disposal_method": {
+      "type": "string",
+      "enum": [
+        "",
+        "trash",
+        "donate",
+        "recycle",
+        "return_to_vendor",
+        "liquidate"
+      ],
+      "default": "",
+      "description": "How a disposed item was destroyed / removed."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "inspected",
+        "restocked",
+        "disposed",
+        "shipped"
+      ],
+      "default": "open"
+    },
+    "transaction_id": {
+      "type": "string",
+      "description": "Return transaction that created this claim."
+    },
+    "operator_name": {
+      "type": "string",
+      "description": "Cashier who processed the return."
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "customer_id": {
+      "type": "string"
+    },
+    "date_created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "inspected_by": {
+      "type": "string",
+      "description": "Admin who inspected the item."
+    },
+    "inspected_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "disposed_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "profit_loss_recorded": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once a ProfitLoss record has been created for this claim (prevents double counting)."
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "sku",
+    "name",
+    "status"
+  ]
+}
