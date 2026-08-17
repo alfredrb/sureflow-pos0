@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import TimeTheftPanel from "@/components/lossprevention/TimeTheftPanel";
 import NoReceiptWorkbenchTab from "@/components/lossprevention/NoReceiptWorkbenchTab";
 import ClaimsAuditPanel from "@/components/lossprevention/ClaimsAuditPanel";
 import SerializedInventoryPanel from "@/components/lossprevention/SerializedInventoryPanel";
+import ShrinkageReportPanel from "@/components/lossprevention/ShrinkageReportPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -112,6 +113,7 @@ export default function AdminLossPrevention() {
     { id: "shorts", label: "Shorts & Longs", icon: Scale },
     { id: "investigations", label: "Investigations", icon: FolderSearch },
     { id: "theft", label: "Theft Trends", icon: TrendingDown },
+    { id: "shrinkage", label: "Shrinkage", icon: BarChart3 },
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "tasks", label: "Tasks", icon: ListTodo },
@@ -166,6 +168,7 @@ export default function AdminLossPrevention() {
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}
+      {tab === "shrinkage" && <ShrinkageReportPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
