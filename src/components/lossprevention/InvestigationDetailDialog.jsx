@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip, Upload, Download } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
+import DOMPurify from "dompurify";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 import FeedbackEvidencePicker from "@/components/lossprevention/FeedbackEvidencePicker";
@@ -267,7 +268,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
       }
       let docBlock = "";
       if (ev.type === "document" && ev.document_html) {
-        docBlock = `<div style="margin-top:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#444;margin-bottom:8px;">${escapeHtml(ev.document_title || "Document")}</div>${ev.document_html}</div>`;
+        docBlock = `<div style="margin-top:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#444;margin-bottom:8px;">${escapeHtml(ev.document_title || "Document")}</div>${DOMPurify.sanitize(ev.document_html)}</div>`;
       }
       let fileBlock = "";
       if (ev.type === "file" && ev.file_url) {

@@ -3,6 +3,7 @@ import { ExternalLink, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import moment from "moment";
+import DOMPurify from "dompurify";
 
 const isImage = (url = "") => /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(url);
 const isPdf = (url = "") => /\.pdf(\?|$)/i.test(url);
@@ -25,7 +26,7 @@ export default function EvidenceViewerDialog({ evidence, onClose }) {
           {evidence.date && <p className="text-xs text-gray-400">{moment(evidence.date).format("MMM D, YYYY h:mm A")}</p>}
 
           {evidence.type === "document" && evidence.document_html && (
-            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 overflow-x-auto" dangerouslySetInnerHTML={{ __html: evidence.document_html }} />
+            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 overflow-x-auto" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(evidence.document_html) }} />
           )}
 
           {evidence.type === "file" && evidence.file_url && isImage(evidence.file_url) && (
