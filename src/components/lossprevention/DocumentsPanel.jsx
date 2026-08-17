@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Scale, AlertTriangle, FileSignature, Printer, ChevronRight, Paperclip } from "lucide-react";
+import { FileText, Scale, AlertTriangle, FileSignature, Printer, ChevronRight, Paperclip, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 
@@ -77,7 +77,10 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
   const [forms, setForms] = useState(initial);
   const [operators, setOperators] = useState([]);
   const [investigations, setInvestigations] = useState([]);
-  const [selectedInv, setSelectedInv] = useState("");
+  const [selectedInvs, setSelectedInvs] = useState(new Set());
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
   const [linking, setLinking] = useState(false);
   const { toast } = useToast();
   const adminName = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator"))?.full_name || "Admin"; } catch { return "Admin"; } })();
@@ -143,23 +146,58 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
     if (!printDoc(title, body)) toast({ title: "Pop-up blocked", description: "Allow pop-ups to print the document.", variant: "destructive" });
   };
 
+  const toggleInv = (id) => setSelectedInvs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelectedInvs(prev => (prev.size === investigations.length && investigations.length > 0) ? new Set() : new Set(investigations.map(i => i.id)));
+
   const addToInvestigation = async () => {
-    if (!selectedInv) { toast({ title: "Select an investigation first", variant: "destructive" }); return; }
+    if (selectedInvs.size === 0) { toast({ title: "Select at least one investigation", variant: "destructive" }); return; }
     const f = forms[active];
     setLinking(true);
     try {
-      const inv = await base44.entities.Investigation.get(selectedInv);
-      const evidence = Array.isArray(inv.evidence) ? inv.evidence : [];
-      const activity = Array.isArray(inv.activity_log) ? inv.activity_log : [];
-      const now = new Date().toISOString();
       const { title, body } = buildDoc(active);
-      evidence.push({ type: "document", ref: active, detail: docSummary(active, f), amount: docAmount(active, f), date: now, document_title: title, document_html: body });
-      activity.push({ date: now, by: adminName, action: "document_added", note: `Added ${DOCS.find(d => d.id === active).label}` });
-      await base44.entities.Investigation.update(selectedInv, { evidence, activity_log: activity });
-      toast({ title: "Added to investigation", description: docSummary(active, f) });
+      const docLabel = DOCS.find(d => d.id === active).label;
+      const now = new Date().toISOString();
+      const entry = { type: "document", ref: active, detail: docSummary(active, f), amount: docAmount(active, f), date: now, document_title: title, document_html: body };
+      const ids = [...selectedInvs];
+      await Promise.all(ids.map(async id => {
+        const inv = await base44.entities.Investigation.get(id);
+        const evidence = Array.isArray(inv.evidence) ? inv.evidence : [];
+        const activity = Array.isArray(inv.activity_log) ? inv.activity_log : [];
+        evidence.push(entry);
+        activity.push({ date: now, by: adminName, action: "document_added", note: `Added ${docLabel}` });
+        return base44.entities.Investigation.update(id, { evidence, activity_log: activity });
+      }));
+      toast({ title: `Added to ${ids.length} investigation${ids.length > 1 ? "s" : ""}`, description: docSummary(active, f) });
+      setSelectedInvs(new Set());
     } catch (e) {
       toast({ title: "Failed to add", description: String(e.message || e), variant: "destructive" });
     } finally { setLinking(false); }
+  };
+
+  const handleUpload = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { toast({ title: "Choose a file to upload", variant: "destructive" }); return; }
+    if (selectedInvs.size === 0) { toast({ title: "Select at least one investigation", variant: "destructive" }); return; }
+    setUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const now = new Date().toISOString();
+      const label = uploadTitle.trim() || file.name;
+      const entry = { type: "document", ref: file.name, detail: label, date: now, document_title: label, document_html: `<p style="font-size:13px;">Uploaded document/receipt: <a href="${file_url}" target="_blank" rel="noopener">${file.name}</a></p>` };
+      const ids = [...selectedInvs];
+      await Promise.all(ids.map(async id => {
+        const inv = await base44.entities.Investigation.get(id);
+        const evidence = Array.isArray(inv.evidence) ? inv.evidence : [];
+        const activity = Array.isArray(inv.activity_log) ? inv.activity_log : [];
+        evidence.push(entry);
+        activity.push({ date: now, by: adminName, action: "document_uploaded", note: `Uploaded ${file.name}` });
+        return base44.entities.Investigation.update(id, { evidence, activity_log: activity });
+      }));
+      toast({ title: `Linked to ${ids.length} investigation${ids.length > 1 ? "s" : ""}`, description: file.name });
+      setUploadTitle(""); if (fileRef.current) fileRef.current.value = ""; setSelectedInvs(new Set());
+    } catch (e) {
+      toast({ title: "Upload failed", description: String(e.message || e), variant: "destructive" });
+    } finally { setUploading(false); }
   };
 
   const renderAssign = (doc) => (
@@ -295,18 +333,36 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
           <Button onClick={() => handlePrint(active)} className="bg-amber-600 hover:bg-amber-500"><Printer className="w-4 h-4 mr-1.5" /> Print Document</Button>
         </div>
         {renderForm()}
-        <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-end gap-3">
-          <div className="flex-1">
-            <Label>Link to Investigation</Label>
-            <Select value={selectedInv} onValueChange={setSelectedInv}>
-              <SelectTrigger><span className={selectedInv ? "text-gray-900" : "text-gray-400"}>{selectedInv ? (investigations.find(i => i.id === selectedInv)?.title || "Selected") : "Select an open investigation..."}</span></SelectTrigger>
-              <SelectContent>
-                {investigations.length === 0 && <div className="px-3 py-2 text-sm text-gray-400">No open investigations</div>}
-                {investigations.map(i => <SelectItem key={i.id} value={i.id}>{i.title} ({i.status})</SelectItem>)}
-              </SelectContent>
-            </Select>
+        <div className="mt-5 pt-4 border-t border-gray-100 space-y-4">
+          <div>
+            <Label>Upload Document / Receipt</Label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="flex-1 text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 file:font-medium hover:file:bg-gray-200" />
+              <Input placeholder="Title / note (optional)" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} className="sm:w-64" />
+              <Button variant="outline" onClick={handleUpload} disabled={uploading}><Upload className="w-4 h-4 mr-1.5" />{uploading ? "Uploading..." : "Upload & Link"}</Button>
+            </div>
           </div>
-          <Button variant="outline" onClick={addToInvestigation} disabled={linking || !selectedInv}><Paperclip className="w-4 h-4 mr-1.5" />{linking ? "Adding..." : "Add to Investigation"}</Button>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Link to Open Investigations</Label>
+              <button onClick={toggleAll} className="text-xs text-amber-600 hover:text-amber-700 font-medium">{selectedInvs.size === investigations.length && investigations.length > 0 ? "Clear all" : "Select all"}</button>
+            </div>
+            <div className="border border-gray-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
+              {investigations.length === 0 ? <div className="px-3 py-4 text-sm text-gray-400 text-center">No open investigations</div> : investigations.map(i => (
+                <label key={i.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input type="checkbox" checked={selectedInvs.has(i.id)} onChange={() => toggleInv(i.id)} className="w-4 h-4" />
+                  <span className="text-sm text-gray-800 flex-1 truncate">{i.title}</span>
+                  <span className="text-[11px] text-gray-400">{i.status} · {i.operator_name || "—"}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <Button onClick={addToInvestigation} disabled={linking || selectedInvs.size === 0} className="bg-amber-600 hover:bg-amber-500"><Paperclip className="w-4 h-4 mr-1.5" />{linking ? "Adding..." : `Add Form to ${selectedInvs.size || "Selected"} Investigation${selectedInvs.size === 1 ? "" : "s"}`}</Button>
+            <span className="text-xs text-gray-400">The current {DOCS.find(d => d.id === active).label} will be attached as evidence to each selected case.</span>
+          </div>
         </div>
       </div>
     </div>
