@@ -13,8 +13,6 @@ const FIELDS = () => ({
   status: { enabled: false, value: "active" },
   tax_rate: { enabled: false, value: 0 },
   return_period_days: { enabled: false, value: "" },
-  mpp_plan: { enabled: false, value: "none" },
-  id_required: { enabled: false, value: "none" },
   promotional: { enabled: false, value: false },
   recalled: { enabled: false, value: false },
   recall_reason: { enabled: false, value: "" },
@@ -29,7 +27,7 @@ const toLocalInput = (iso) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-export default function BulkEditDialog({ open, products, companies, isVendor, vendorCompanyId, onApply, onClose }) {
+export default function BulkEditDialog({ open, products, companies, categories, isVendor, vendorCompanyId, onApply, onClose }) {
   const [fields, setFields] = useState(FIELDS);
   const [saving, setSaving] = useState(false);
 
@@ -42,8 +40,6 @@ export default function BulkEditDialog({ open, products, companies, isVendor, ve
     if (fields.status.enabled) c.status = fields.status.value;
     if (fields.tax_rate.enabled) c.tax_rate = parseFloat(fields.tax_rate.value) || 0;
     if (fields.return_period_days.enabled) c.return_period_days = fields.return_period_days.value === "" ? 0 : (parseInt(fields.return_period_days.value) || 0);
-    if (fields.mpp_plan.enabled) c.mpp_plan = fields.mpp_plan.value;
-    if (fields.id_required.enabled) c.id_required = fields.id_required.value;
     if (fields.promotional.enabled) c.promotional = !!fields.promotional.value;
     if (fields.recalled.enabled) {
       c.recalled = !!fields.recalled.value;
@@ -95,7 +91,12 @@ export default function BulkEditDialog({ open, products, companies, isVendor, ve
           </Row>
 
           <Row id="category" label="Category">
-            <Input value={fields.category.value} onChange={e => setField("category", { value: e.target.value })} placeholder="e.g. Grocery" />
+            <Select value={fields.category.value} onValueChange={v => setField("category", { value: v })}>
+              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectContent>
+                {categories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </Row>
 
           <Row id="status" label="Status">
@@ -114,31 +115,6 @@ export default function BulkEditDialog({ open, products, companies, isVendor, ve
 
           <Row id="return_period_days" label="Return Period (days)" hint="0 = no restriction">
             <Input type="number" min="0" value={fields.return_period_days.value} onChange={e => setField("return_period_days", { value: e.target.value })} placeholder="e.g. 30" />
-          </Row>
-
-          <Row id="mpp_plan" label="Merchandise Protection" hint="Physical protection method applied at the store.">
-            <Select value={fields.mpp_plan.value} onValueChange={v => setField("mpp_plan", { value: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="wrapped">Wrap</SelectItem>
-                <SelectItem value="case">Locked Case</SelectItem>
-                <SelectItem value="counter">Behind Counter</SelectItem>
-                <SelectItem value="locked">Locked Device</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </Row>
-
-          <Row id="id_required" label="ID Verification" hint="Age the cashier must verify at the POS.">
-            <Select value={fields.id_required.value} onValueChange={v => setField("id_required", { value: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                <SelectItem value="18">18+</SelectItem>
-                <SelectItem value="21">21+</SelectItem>
-              </SelectContent>
-            </Select>
           </Row>
 
           <Row id="promotional" label="Promotional">

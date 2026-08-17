@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import BulkEditDialog from "@/components/inventory/BulkEditDialog";
+import CategoryManager from "@/components/inventory/CategoryManager";
 
 const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "" };
 const MPP_LABELS = { none: "—", wrapped: "Wrap", case: "Case", counter: "Counter", locked: "Locked", other: "Other" };
@@ -89,9 +90,13 @@ export default function AdminInventory() {
   const [companies, setCompanies] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [tab, setTab] = useState("products");
   const { toast } = useToast();
 
+  const loadCategories = async () => { try { setCategories(await base44.entities.Category.list()); } catch {} };
   useEffect(() => { base44.entities.VendorCompany.list("-issued_date", 500).then(setCompanies).catch(() => {}); }, []);
+  useEffect(() => { loadCategories(); }, []);
 
   const load = async () => {
     let prods = await base44.entities.Product.list();
@@ -162,6 +167,7 @@ export default function AdminInventory() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inventory{isVendor && vendorCompanyId ? ` — ${vendorCompanyId}` : ""}</h1>
           <p className="text-gray-500 text-sm mt-1">{products.length} products{isVendor ? " (your catalog)" : ""}</p>
         </div>
+        {tab === "products" && (
         <div className="flex flex-wrap gap-2">
           {selectedIds.size > 0 && (
             <Button onClick={() => setBulkOpen(true)} variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100">
@@ -182,8 +188,18 @@ export default function AdminInventory() {
           </label>
           <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> Add Product</Button>
         </div>
+        )}
       </div>
 
+      {!isVendor && (
+        <div className="flex gap-1 mb-4 border-b border-gray-200">
+          <button onClick={() => setTab("products")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "products" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Products</button>
+          <button onClick={() => setTab("categories")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "categories" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Categories</button>
+        </div>
+      )}
+
+      {tab === "products" ? (
+        <>
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <Input placeholder="Search by name, SKU, or barcode..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
@@ -332,11 +348,16 @@ export default function AdminInventory() {
         open={bulkOpen}
         products={products.filter(p => selectedIds.has(p.id))}
         companies={companies}
+        categories={categories}
         isVendor={isVendor}
         vendorCompanyId={vendorCompanyId}
         onApply={applyBulk}
         onClose={() => setBulkOpen(false)}
       />
+        </>
+      ) : (
+        <CategoryManager categories={categories} onChanged={loadCategories} />
+      )}
     </div>
   );
 }

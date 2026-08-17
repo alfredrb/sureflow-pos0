@@ -1,0 +1,27 @@
+{
+  "name": "Category",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Category name (e.g. Grocery, Produce, Electronics)"
+    },
+    "tax_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Default tax rate percentage applied to items grouped under this category."
+    },
+    "description": {
+      "type": "string",
+      "description": "Details / notes about this category."
+    },
+    "color": {
+      "type": "string",
+      "default": "#6b7280",
+      "description": "Display color for the category badge."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
