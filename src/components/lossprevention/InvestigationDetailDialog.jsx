@@ -16,7 +16,7 @@ const TYPES = [
   { value: "cash_short", label: "Cash Short" }, { value: "cash_over", label: "Cash Over" },
   { value: "voids", label: "Voids" }, { value: "overrides", label: "Overrides" },
   { value: "refunds", label: "Refunds" }, { value: "no_sales", label: "No-Sales" },
-  { value: "pattern", label: "Pattern" }, { value: "other", label: "Other" },
+  { value: "stock_theft", label: "Stock Theft" }, { value: "pattern", label: "Pattern" }, { value: "other", label: "Other" },
 ];
 const SEVERITIES = [
   { value: "low", label: "Low" }, { value: "medium", label: "Medium" },
@@ -41,9 +41,14 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [addOpId, setAddOpId] = useState("");
   const [viewTx, setViewTx] = useState(null);
+  const [stolenItems, setStolenItems] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [stolenPick, setStolenPick] = useState("");
+  const [stolenQty, setStolenQty] = useState(1);
   const { toast } = useToast();
 
   useEffect(() => { base44.entities.Operator.list().then(setOperators).catch(() => {}); }, []);
+  useEffect(() => { base44.entities.Product.list().then(setProducts).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!value) return;
@@ -57,6 +62,8 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
     }
     setEvidence(Array.isArray(value.evidence) ? value.evidence : []);
     setActivityLog(Array.isArray(value.activity_log) ? value.activity_log : []);
+    setStolenItems(Array.isArray(value.stolen_items) ? value.stolen_items : []);
+    setStolenPick(""); setStolenQty(1);
     setNote("");
     setAddOpId("");
   }, [value]);
@@ -95,22 +102,26 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
       const now = new Date().toISOString();
       if (isNew) {
         const activity_log = [{ date: now, by, action: "Created", note: form.summary || "" }];
-        const payload = { ...form, amount_impact: Number(form.amount_impact) || 0, linked_operators: linkedOperators, evidence, activity_log, created_by: by };
+        const autoAmount = (form.type === "stock_theft" && stolenItems.length > 0 && !Number(form.amount_impact)) ? stolenTotalLoss : (Number(form.amount_impact) || 0);
+        const payload = { ...form, amount_impact: autoAmount, linked_operators: linkedOperators, evidence, stolen_items: stolenItems, activity_log, created_by: by };
         await base44.entities.Investigation.create(payload);
-        toast({ title: "Investigation started" });
+        await applyInventoryAdjustment([], stolenItems);
+        toast({ title: "Investigation started", description: form.type === "stock_theft" && stolenItems.length > 0 ? `Stock adjusted for ${stolenItems.length} stolen item(s)` : undefined });
       } else {
+        const autoAmount = (form.type === "stock_theft" && stolenItems.length > 0 && !Number(form.amount_impact)) ? stolenTotalLoss : (Number(form.amount_impact) || 0);
         const updates = {
           title: form.title, type: form.type, severity: form.severity, status: form.status,
           operator_name: form.operator_name, operator_id: form.operator_id, register_id: form.register_id,
-          summary: form.summary, amount_impact: Number(form.amount_impact) || 0, resolution: form.resolution,
+          summary: form.summary, amount_impact: autoAmount, resolution: form.resolution,
           date_range_start: form.date_range_start, date_range_end: form.date_range_end,
-          linked_operators: linkedOperators,
+          linked_operators: linkedOperators, stolen_items: stolenItems,
         };
         const newEntries = [];
         if (value.status !== form.status) newEntries.push({ date: now, by, action: `Status: ${value.status} → ${form.status}`, note: "" });
         if (note.trim()) newEntries.push({ date: now, by, action: "Note", note: note.trim() });
         if (newEntries.length) updates.activity_log = [...activityLog, ...newEntries];
         await base44.entities.Investigation.update(value.id, updates);
+        await applyInventoryAdjustment(value.stolen_items, stolenItems);
         toast({ title: "Investigation updated" });
       }
       onSaved();
@@ -126,11 +137,12 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
     try {
       const by = adminName();
       const now = new Date().toISOString();
-      const updates = { status: "closed", resolution: form.resolution };
+      const updates = { status: "closed", resolution: form.resolution, stolen_items: stolenItems };
       const newEntries = [{ date: now, by, action: `Status: ${form.status} → closed`, note: note.trim() || "" }];
       if (note.trim()) newEntries.push({ date: now, by, action: "Note", note: note.trim() });
       updates.activity_log = [...activityLog, ...newEntries];
       await base44.entities.Investigation.update(value.id, updates);
+      await applyInventoryAdjustment(value.stolen_items, stolenItems);
       toast({ title: "Case closed" });
       onSaved();
     } catch { toast({ title: "Failed to close case", variant: "destructive" }); }
@@ -156,6 +168,56 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   };
 
   const removeEvidence = (idx) => setEvidence(prev => prev.filter((_, i) => i !== idx));
+
+  const stolenTotalLoss = stolenItems.reduce((s, it) => s + (Number(it.total_loss) || 0), 0);
+
+  const addStolenItem = () => {
+    const p = products.find(x => x.id === stolenPick);
+    if (!p) return;
+    const qty = Number(stolenQty) || 1;
+    setStolenItems(prev => {
+      const existing = prev.find(s => s.sku === p.sku);
+      if (existing) {
+        return prev.map(s => s.sku === p.sku ? { ...s, qty: s.qty + qty, total_loss: +(((s.qty + qty)) * (Number(s.unit_cost) || 0)).toFixed(2) } : s);
+      }
+      const unitCost = Number(p.cost) > 0 ? Number(p.cost) : (Number(p.price) || 0);
+      return [...prev, { sku: p.sku, name: p.name, qty, unit_cost: unitCost, total_loss: +(qty * unitCost).toFixed(2) }];
+    });
+    setStolenPick(""); setStolenQty(1);
+  };
+
+  const updateStolenItem = (sku, patch) => setStolenItems(prev => prev.map(s => {
+    if (s.sku !== sku) return s;
+    const next = { ...s, ...patch };
+    next.total_loss = +(((Number(next.qty) || 0)) * (Number(next.unit_cost) || 0)).toFixed(2);
+    return next;
+  }));
+
+  const removeStolenItem = (sku) => setStolenItems(prev => prev.filter(s => s.sku !== sku));
+
+  // Apply the net change in stolen items to product stock (deduct on add, restore on remove/reduce).
+  const applyInventoryAdjustment = async (oldItems, newItems) => {
+    const oldMap = {}, newMap = {};
+    (oldItems || []).forEach(it => { if (it.sku) oldMap[it.sku] = (oldMap[it.sku] || 0) + (Number(it.qty) || 0); });
+    newItems.forEach(it => { if (it.sku) newMap[it.sku] = (newMap[it.sku] || 0) + (Number(it.qty) || 0); });
+    const deltas = [];
+    Object.keys({ ...oldMap, ...newMap }).forEach(sku => {
+      const d = (newMap[sku] || 0) - (oldMap[sku] || 0);
+      if (d !== 0) deltas.push({ sku, delta: d });
+    });
+    if (!deltas.length) return;
+    try {
+      const all = await base44.entities.Product.list();
+      const bySku = {};
+      all.forEach(p => { if (p.sku) bySku[p.sku] = p; });
+      await Promise.all(deltas.map(({ sku, delta }) => {
+        const p = bySku[sku];
+        if (!p) return Promise.resolve();
+        const newStock = Math.max(0, (p.stock_qty || 0) - delta);
+        return base44.entities.Product.update(p.id, { stock_qty: newStock });
+      }));
+    } catch { /* non-fatal */ }
+  };
 
   const exportCase = () => {
     const ops = [{ operator_id: form.operator_id, operator_name: form.operator_name }, ...linkedOperators].filter(o => o.operator_id || o.operator_name);
@@ -201,6 +263,9 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
       operatorActivity = `<h2>Operator Activity${start ? ` (${escapeHtml(start)}${end ? ` – ${escapeHtml(end)}` : ""})` : ""}</h2><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Date</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Operator</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Action</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Detail</th><th style="text-align:right;border-bottom:1px solid #999;padding:4px 8px;">Amount</th></tr></thead><tbody>${rows || `<tr><td colspan="5" style="padding:8px;color:#999;">No activity in range</td></tr>`}</tbody></table>`;
     }
 
+    const stolenRows = stolenItems.map((it, i) => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${i + 1}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(it.name || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(it.sku || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;text-align:right;">${Number(it.qty || 0)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;text-align:right;">$${Number(it.unit_cost || 0).toFixed(2)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;text-align:right;">$${Number(it.total_loss || 0).toFixed(2)}</td></tr>`).join("");
+    const stolenHtml = stolenItems.length ? `<h2>Stolen Items (${stolenItems.length})</h2><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">#</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Item</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">SKU</th><th style="text-align:right;border-bottom:1px solid #999;padding:4px 8px;">Qty</th><th style="text-align:right;border-bottom:1px solid #999;padding:4px 8px;">Unit Cost</th><th style="text-align:right;border-bottom:1px solid #999;padding:4px 8px;">Total Loss</th></tr></thead><tbody>${stolenRows}</tbody></table>` : "";
+
     const linkedOps = linkedOperators.map(o => escapeHtml(o.operator_name || "")).join(", ") || "None";
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Investigation — ${escapeHtml(form.title)}</title><style>*{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;}body{color:#111;padding:24px;max-width:900px;margin:0 auto;}h1{font-size:22px;margin:0 0 4px;}.sub{color:#666;font-size:13px;margin-bottom:20px;}h2{font-size:16px;border-bottom:2px solid #111;padding-bottom:4px;margin-top:28px;}.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px;}.kv .k{color:#666;font-weight:600;}.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700;background:#eee;}.toolbar{position:fixed;top:12px;right:12px;}.toolbar button{padding:6px 14px;font-size:13px;cursor:pointer;}.row{display:flex;gap:16px;margin-bottom:10px;}.field{flex:1;}.field .k{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666;font-weight:600;}.field .v{font-size:14px;border-bottom:1px solid #999;padding:4px 0 2px;min-height:22px;}.section{font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.5px;color:#444;margin:14px 0 6px;border-bottom:1px solid #ddd;padding-bottom:3px;}.body{font-size:13px;line-height:1.6;margin:8px 0 14px;white-space:pre-wrap;}.sigs{display:flex;gap:40px;margin-top:32px;}.sig{flex:1;}.sig .line{border-top:1px solid #111;padding-top:4px;font-size:11px;color:#555;text-align:center;}@media print{.toolbar{display:none;}}</style></head><body>
       <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
@@ -208,6 +273,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
       <div class="sub">Investigation Case Export · Generated ${moment().format("MMM D, YYYY h:mm A")}${value.id ? ` · Case ID ${escapeHtml(value.id)}` : ""}</div>
       <div class="kv"><span class="k">Type</span><span><span class="badge">${escapeHtml(form.type)}</span></span><span class="k">Severity</span><span><span class="badge">${escapeHtml(form.severity)}</span></span><span class="k">Status</span><span><span class="badge">${escapeHtml(form.status)}</span></span><span class="k">Primary Operator</span><span>${escapeHtml(form.operator_name || "—")}${form.operator_id ? ` (${escapeHtml(form.operator_id)})` : ""}</span><span class="k">Linked Operators</span><span>${linkedOps}</span><span class="k">Register</span><span>${escapeHtml(form.register_id || "—")}</span><span class="k">Amount Impact</span><span>$${(Number(form.amount_impact) || 0).toFixed(2)}</span><span class="k">Date Range</span><span>${form.date_range_start || "—"} → ${form.date_range_end || "—"}</span></div>
       <h2>Summary</h2><p style="font-size:13px;white-space:pre-wrap;">${escapeHtml(form.summary || "—")}</p>
+      ${stolenHtml}
       <h2>Linked Evidence (${evidence.length})</h2>${evidenceHtml || "<p style='color:#999;font-size:13px;'>No evidence linked.</p>"}
       <h2>Case Activity Log</h2><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Date</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">By</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Action</th><th style="text-align:left;border-bottom:1px solid #999;padding:4px 8px;">Note</th></tr></thead><tbody>${activityRows || `<tr><td colspan="4" style="padding:8px;color:#999;">No activity logged.</td></tr>`}</tbody></table>
       ${operatorActivity}
@@ -311,6 +377,47 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
               <Label>Summary</Label>
               <Textarea rows={3} value={form.summary} onChange={e => set("summary", e.target.value)} placeholder="What is being investigated and why..." />
             </div>
+
+            {form.type === "stock_theft" && (
+              <div>
+                <Label>Stolen Items <span className="text-gray-400 font-normal text-xs">— stock is deducted from inventory on save</span></Label>
+                <div className="flex gap-2 mt-1">
+                  <Select value={stolenPick} onValueChange={setStolenPick}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select a product…" /></SelectTrigger>
+                    <SelectContent>
+                      {products.filter(p => p.status !== "discontinued").map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku}) · {p.stock_qty || 0} in stock</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Input type="number" min="1" value={stolenQty} onChange={e => setStolenQty(e.target.value)} className="w-20" />
+                  <Button type="button" variant="outline" size="sm" onClick={addStolenItem} disabled={!stolenPick}><Plus className="w-4 h-4" /></Button>
+                </div>
+                {stolenItems.length > 0 && (
+                  <div className="border border-gray-100 rounded-xl divide-y divide-gray-50 mt-2">
+                    {stolenItems.map((it) => (
+                      <div key={it.sku} className="px-3 py-2 flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-700 truncate">{it.name} <span className="text-gray-400">· {it.sku}</span></p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[11px] text-gray-400">Qty</span>
+                            <Input type="number" min="1" value={it.qty} onChange={e => updateStolenItem(it.sku, { qty: parseInt(e.target.value) || 1 })} className="h-7 w-16 text-xs" />
+                            <span className="text-[11px] text-gray-400">Cost $</span>
+                            <Input type="number" step="0.01" min="0" value={it.unit_cost} onChange={e => updateStolenItem(it.sku, { unit_cost: parseFloat(e.target.value) || 0 })} className="h-7 w-20 text-xs" />
+                          </div>
+                        </div>
+                        <p className="text-sm font-semibold text-gray-900 w-20 text-right">${Number(it.total_loss || 0).toFixed(2)}</p>
+                        <button onClick={() => removeStolenItem(it.sku)} className="text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {stolenItems.length > 0 && (
+                  <div className="flex justify-between items-center mt-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                    <span className="text-xs font-medium text-amber-800">Total loss</span>
+                    <span className="text-sm font-bold text-amber-900">${stolenTotalLoss.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Explorer trigger */}
             <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-100 rounded-xl p-3">

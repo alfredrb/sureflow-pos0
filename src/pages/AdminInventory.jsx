@@ -25,22 +25,42 @@ const exportToCSV = (data, filename) => {
   window.URL.revokeObjectURL(url);
 };
 
-const importFromCSV = async (file, onImport) => {
-  const text = await file.text();
+const parseCSV = (text) => {
   const lines = text.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.replace(/"/g, ""));
-  const rows = lines.slice(1).map(line => {
-    const values = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => v.replace(/"/g, ""));
+  const splitLine = (line) => line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(v => v.replace(/^"|"$/g, ""));
+  const headers = splitLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const values = splitLine(line);
     return headers.reduce((obj, h, i) => {
       let val = values[i] ?? "";
       if (h === "price" || h === "cost" || h === "tax_rate") val = parseFloat(val) || 0;
-      if (h === "stock_qty" || h === "return_period_days") val = val === "" ? (h === "return_period_days" ? "" : 0) : parseInt(val) || 0;
+      else if (h === "stock_qty") val = val === "" ? 0 : parseInt(val) || 0;
+      else if (h === "return_period_days") val = val === "" ? "" : parseInt(val) || 0;
       obj[h] = val;
       return obj;
     }, {});
   });
-  await Promise.all(rows.map(p => base44.entities.Product.create(p)));
-  onImport();
+};
+
+// Upsert by SKU: existing products are updated in place, new SKUs are created.
+const importFromCSV = async (file, onDone) => {
+  const rows = parseCSV(await file.text());
+  const existing = await base44.entities.Product.list();
+  const bySku = {};
+  existing.forEach(p => { if (p.sku) bySku[p.sku] = p; });
+  let created = 0, updated = 0;
+  for (const row of rows) {
+    if (!row.sku) continue;
+    const match = bySku[row.sku];
+    if (match) {
+      await base44.entities.Product.update(match.id, row);
+      updated++;
+    } else {
+      await base44.entities.Product.create(row);
+      created++;
+    }
+  }
+  onDone?.({ created, updated });
 };
 
 export default function AdminInventory() {
@@ -91,8 +111,8 @@ export default function AdminInventory() {
           <label>
             <input type="file" accept=".csv" onChange={e => {
               if (e.target.files?.[0]) {
-                importFromCSV(e.target.files[0], () => {
-                  toast({ title: "Import complete" });
+                importFromCSV(e.target.files[0], ({ created, updated }) => {
+                  toast({ title: "Import complete", description: `${created} added, ${updated} updated` });
                   load();
                 }).catch(() => toast({ title: "Import failed", variant: "destructive" }));
               }

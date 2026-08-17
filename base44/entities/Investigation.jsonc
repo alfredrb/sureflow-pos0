@@ -14,11 +14,12 @@
         "overrides",
         "refunds",
         "no_sales",
+        "stock_theft",
         "pattern",
         "other"
       ],
       "default": "other",
-      "description": "Primary category of the investigation"
+      "description": "Primary category of the investigation. stock_theft covers customer-related theft / shrinkage where specific items were stolen and should be deducted from inventory."
     },
     "severity": {
       "type": "string",
@@ -75,7 +76,7 @@
     "amount_impact": {
       "type": "number",
       "default": 0,
-      "description": "Estimated dollar exposure"
+      "description": "Estimated dollar exposure (auto-calculated from stolen items for stock_theft cases when left blank)"
     },
     "date_range_start": {
       "type": "string",
@@ -84,6 +85,33 @@
     "date_range_end": {
       "type": "string",
       "format": "date"
+    },
+    "stolen_items": {
+      "type": "array",
+      "description": "Items stolen in a stock_theft investigation. Quantities are deducted from Product.stock_qty when the investigation is saved.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number",
+            "default": 1
+          },
+          "unit_cost": {
+            "type": "number",
+            "default": 0
+          },
+          "total_loss": {
+            "type": "number",
+            "default": 0
+          }
+        }
+      }
     },
     "evidence": {
       "type": "array",
