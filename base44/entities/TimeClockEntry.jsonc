@@ -1,0 +1,105 @@
+{
+  "name": "TimeClockEntry",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string",
+      "description": "Operator ID this clock entry belongs to."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "cashier",
+        "csm",
+        "manager",
+        "technician",
+        "loss_prevention",
+        "vendor"
+      ],
+      "description": "Operator role snapshot at clock-in (used to apply the correct pay rate)."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date (the calendar day the shift started)."
+    },
+    "clock_in": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the employee clocked in."
+    },
+    "clock_out": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the employee clocked out. Blank while the shift is still open."
+    },
+    "meal_start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Start of an unpaid meal break."
+    },
+    "meal_end": {
+      "type": "string",
+      "format": "date-time",
+      "description": "End of an unpaid meal break."
+    },
+    "break_start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Start of a paid rest break."
+    },
+    "break_end": {
+      "type": "string",
+      "format": "date-time",
+      "description": "End of a paid rest break."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "on_break",
+        "on_meal",
+        "closed"
+      ],
+      "default": "open",
+      "description": "Current state of the clock entry. open = clocked in, closed = clocked out."
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register where the employee clocked in (if applicable)."
+    },
+    "adjusted": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when a manager has manually edited this entry."
+    },
+    "adjusted_by_id": {
+      "type": "string",
+      "description": "Operator ID of the manager who adjusted this entry."
+    },
+    "adjusted_by_name": {
+      "type": "string"
+    },
+    "adjustment_note": {
+      "type": "string",
+      "description": "Reason for the manual adjustment."
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "clock",
+        "manual"
+      ],
+      "default": "clock",
+      "description": "clock = employee clocked in/out; manual = manager-created entry."
+    }
+  },
+  "required": [
+    "operator_id",
+    "clock_in",
+    "status"
+  ]
+}

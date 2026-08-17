@@ -137,7 +137,9 @@ export default function AdminLayout() {
     if (adminOperator.pin !== overridePin) { alert("Incorrect PIN"); return; }
     setResetting(true);
     try {
-      const entitiesToReset = ["Transaction", "EODCashDeposit", "CashAudit", "CashAdvance", "CashPickup", "Robbery", "RegisterLog", "SODProtocol", "EODReport", "ShiftAlert", "CashLimitAlert", "TillCheckout"];
+      // Note: Transaction records are intentionally preserved so the Peak Time
+      // Analysis retains its historical transaction data after a reset.
+      const entitiesToReset = ["EODCashDeposit", "CashAudit", "CashAdvance", "CashPickup", "Robbery", "RegisterLog", "SODProtocol", "EODReport", "ShiftAlert", "CashLimitAlert", "TillCheckout"];
       for (const entityName of entitiesToReset) {
         const records = await base44.entities[entityName].list(undefined, 500);
         if (records && records.length > 0) await base44.entities[entityName].deleteMany({});

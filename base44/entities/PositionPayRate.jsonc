@@ -1,0 +1,43 @@
+{
+  "name": "PositionPayRate",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "cashier",
+        "csm",
+        "manager",
+        "technician",
+        "loss_prevention"
+      ],
+      "description": "Operator role / position this pay rate applies to."
+    },
+    "position_label": {
+      "type": "string",
+      "description": "Display label for the position (e.g. Cashier, CSM)."
+    },
+    "base_rate": {
+      "type": "number",
+      "default": 15,
+      "description": "Base hourly pay rate for this position."
+    },
+    "overtime_multiplier": {
+      "type": "number",
+      "default": 1.5,
+      "description": "Multiplier applied to the base rate for overtime hours (e.g. 1.5 = time-and-a-half)."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Name of the operator who last saved this rate."
+    }
+  },
+  "required": [
+    "role",
+    "base_rate"
+  ]
+}

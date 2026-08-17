@@ -10,6 +10,7 @@ import PeakTimeAnalysis from "@/components/PeakTimeAnalysis";
 import WeeklyScheduleCalendar from "@/components/WeeklyScheduleCalendar";
 import WeeklyHoursBudget from "@/components/scheduling/WeeklyHoursBudget";
 import AvailabilityTab from "@/components/scheduling/AvailabilityTab";
+import { weeklyHoursByOperator, getRateForRole } from "@/lib/payrollUtils";
 
 const timeToMinutes = (time) => {
   const [h, m] = time.split(":").map(Number);
@@ -39,6 +40,8 @@ export default function AdminShiftScheduling() {
   const [peakTimes, setPeakTimes] = useState([]);
   const [swapLogs, setSwapLogs] = useState([]);
   const [availability, setAvailability] = useState([]);
+  const [payRates, setPayRates] = useState([]);
+  const [storeSettings, setStoreSettings] = useState(null);
   const [view, setView] = useState("calendar");
   const [groupBy, setGroupBy] = useState("position");
   const [generating, setGenerating] = useState(false);
@@ -61,14 +64,16 @@ export default function AdminShiftScheduling() {
 
   const load = async () => {
     try {
-      const [shiftData, opData, regData, templateData, peakData, swapReqs, availData] = await Promise.all([
+      const [shiftData, opData, regData, templateData, peakData, swapReqs, availData, rateData, settingsData] = await Promise.all([
         base44.entities.Shift.list("-date", 100),
         base44.entities.Operator.filter({ status: "active" }),
         base44.entities.Register.list(),
         base44.entities.ShiftTemplate.list("-created_date", 100),
         base44.entities.PeakTime.list("-created_date", 500),
         base44.entities.ShiftSwapRequest.filter({ status: "approved" }),
-        base44.entities.OperatorAvailability.list("-created_date", 500)
+        base44.entities.OperatorAvailability.list("-created_date", 500),
+        base44.entities.PositionPayRate.list("-created_date", 50),
+        base44.entities.StoreSettings.list()
       ]);
 
       // Auto-sync technician shifts from the Maintenance Log (not AI-driven).
@@ -119,6 +124,8 @@ export default function AdminShiftScheduling() {
       setPeakTimes(peakData);
       setSwapLogs(swapReqs);
       setAvailability(availData);
+      setPayRates(rateData);
+      setStoreSettings(settingsData[0] || null);
     } catch (e) {
       console.error("Error loading:", e);
       toast({ title: "Error loading data", variant: "destructive" });
@@ -303,6 +310,22 @@ export default function AdminShiftScheduling() {
       const dates = [];
       for (let i = 0; i < 21; i++) { const d = new Date(baseDate); d.setDate(d.getDate() + i); dates.push(d.toISOString().split("T")[0]); }
 
+      // Carried overtime: hours each operator was already scheduled in the 7 days
+      // BEFORE the draft start. Any hours beyond the overtime threshold count as
+      // overtime already worked, so the AI should cut their coming-week hours to
+      // respect the weekly hours budget and the labor cost budget.
+      const overtimeThreshold = storeSettings?.overtime_threshold_hours ?? 40;
+      const laborBudget = storeSettings?.weekly_labor_budget || 0;
+      let prevHoursByOp = {};
+      try {
+        const recentShifts = await base44.entities.Shift.list("-date", 500);
+        const prevStart = new Date(baseDate); prevStart.setDate(prevStart.getDate() - 7);
+        const prevStartStr = prevStart.toISOString().split("T")[0];
+        const prevEndStr = new Date(baseDate.getTime() - 86400000).toISOString().split("T")[0];
+        const prevShifts = recentShifts.filter(s => s.date >= prevStartStr && s.date <= prevEndStr);
+        prevHoursByOp = weeklyHoursByOperator(prevShifts);
+      } catch (e) { console.error("Error loading prior shifts for OT carry:", e); }
+
       const opList = schedulable.map(o => {
         const a = availByOp[o.operator_id];
         let availStr = "no-availability-set";
@@ -315,7 +338,10 @@ export default function AdminShiftScheduling() {
         }
         const maxH = a?.weekly_max_hours ?? "none";
         const blockedDates = (a?.unavailable_dates || []).join(",") || "none";
-        return `${o.operator_id}|${o.full_name}|${o.role}|avail:${availStr}|maxwk:${maxH}|blocked:${blockedDates}`;
+        const prevHrs = prevHoursByOp[o.operator_id] || 0;
+        const carriedOT = Math.max(0, prevHrs - overtimeThreshold);
+        const rate = getRateForRole(payRates, o.role);
+        return `${o.operator_id}|${o.full_name}|${o.role}|avail:${availStr}|maxwk:${maxH}|blocked:${blockedDates}|prevhrs:${Math.round(prevHrs)}|carriedOT:${Math.round(carriedOT)}|rate:${rate.base_rate}|otmult:${rate.overtime_multiplier}`;
       }).join("; ");
 
       const prompt = `You are an expert retail shift scheduler. Build a 3-week (21-day) draft shift schedule for a retail store.
@@ -327,7 +353,9 @@ ${opList}
 Peak-time staffing requirements by day-of-week (0=Sunday..6=Saturday), operating 06:00–22:00. "req" = recommended staff count for that hour:
 ${Object.entries(peakSummary).map(([d, h]) => `Day ${d}: ${h}`).join("\n")}
 
-Each operator's availability is listed as avail: (day:start-end, ...) , maxwk (weekly max hours), and blocked (specific dates they cannot work).
+Each operator's availability is listed as avail: (day:start-end, ...) , maxwk (weekly max hours), blocked (specific dates), prevhrs (hours already scheduled in the previous 7 days), carriedOT (overtime hours already banked in the previous week), rate (base hourly pay), and otmult (overtime pay multiplier).
+
+Overtime threshold: ${overtimeThreshold} hours/week. Weekly labor cost budget: ${laborBudget > 0 ? "$" + laborBudget : "no cap"}.
 
 Rules:
 - STRICTLY respect each operator's availability: only schedule them on days listed in their avail: field, and only between the start–end times given for that day. Never schedule an operator on a blocked date. Never exceed their maxwk weekly hours across any 7-day period.
@@ -336,7 +364,8 @@ Rules:
 - Cover every peak hour with enough staff to meet the "req" recommendation; stagger start times across the day to match demand (e.g., openers at 6-8, mid-day coverage, closers until 22:00). Multiple operators may overlap during high-demand hours.
 - Do not over-schedule quiet hours. Balance total scheduled staff-hours close to total required staff-hours per day.
 - Give most hours to cashiers; always include a CSM during busy periods and a manager for open/close. Do NOT schedule technicians (they are handled separately).
-- An individual operator works at most ONE shift per day, but different operators can and should be scheduled on the same day to meet coverage.
+- ABSOLUTELY NEVER schedule the same operator more than ONE shift on the same date. Each operator gets at most one shift per day; cover extra demand with different operators.
+- OVERTIME & BUDGET: An operator who has carriedOT > 0 has already worked overtime in the previous week — CUT their hours this week so their weekly total stays at or below the overtime threshold (prefer giving those hours to other operators). Hours worked beyond ${overtimeThreshold} in any rolling 7-day window count as overtime and are paid at base_rate × otmult, so minimize overtime unless coverage demands it.${laborBudget > 0 ? ` Keep the total weekly labor cost (sum of shift_hours × rate, with overtime hours × rate × otmult) under $${laborBudget} per week — trim hours from higher-paid positions first when over budget.` : ""}
 - Reasonable shift lengths (4–8 hours). Include a 30-min break near the middle and a 1-hour lunch for shifts over 6 hours.
 - Use 24-hour HH:MM times only.
 
@@ -370,9 +399,13 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
 
       const draftShifts = Array.isArray(res?.shifts) ? res.shifts : [];
       let created = 0;
+      const seenOpDate = new Set(); // enforce at most one shift per operator per day
       for (const s of draftShifts) {
         const op = schedulable.find(o => o.operator_id === s.operator_id);
         if (!op || !dates.includes(s.date)) continue;
+        const dedupeKey = `${s.operator_id}|${s.date}`;
+        if (seenOpDate.has(dedupeKey)) continue; // skip duplicate same-day assignments
+        seenOpDate.add(dedupeKey);
         await base44.entities.Shift.create({
           date: s.date,
           operator_id: op.operator_id,
@@ -540,6 +573,9 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
           onEdit={openEdit}
           onMove={handleMoveShift}
           onDelete={deleteShift}
+          payRates={payRates}
+          laborBudget={storeSettings?.weekly_labor_budget || 0}
+          overtimeThreshold={storeSettings?.overtime_threshold_hours ?? 40}
         />
       )}
 

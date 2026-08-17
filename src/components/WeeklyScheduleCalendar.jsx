@@ -6,6 +6,7 @@ import AvailabilityOverrideDialog from "@/components/scheduling/AvailabilityOver
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { CalendarDays } from "lucide-react";
 import { dayAvailability, shiftAvailabilityConflict, employmentBadge } from "@/lib/availabilityUtils";
+import LaborCostIndicator from "@/components/scheduling/LaborCostIndicator";
 
 const ROLE_LABELS = { cashier: "Cashier", csm: "CSM", manager: "Manager", technician: "Technician", loss_prevention: "LP", vendor: "Vendor" };
 const ROLE_ORDER = ["cashier", "csm", "manager", "technician", "loss_prevention"];
@@ -37,7 +38,7 @@ const coverageFor = (dayDate, dayShifts, peakTimes) => {
   return { required: Math.round(required), scheduled: Math.round(scheduled * 10) / 10 };
 };
 
-export default function WeeklyScheduleCalendar({ shifts, operators, registers, peakTimes, availability, groupBy, onGroupByChange, onCreate, onEdit, onMove, onDelete }) {
+export default function WeeklyScheduleCalendar({ shifts, operators, registers, peakTimes, availability, groupBy, onGroupByChange, onCreate, onEdit, onMove, onDelete, payRates, laborBudget, overtimeThreshold }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dragOver, setDragOver] = useState(null); // `${rowKey}|${dateStr}`
   const [utilDay, setUtilDay] = useState(null); // day index with utilization chart expanded
@@ -150,6 +151,13 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <LaborCostIndicator
+            weekShifts={weekShifts}
+            operators={operators}
+            payRates={payRates}
+            laborBudget={laborBudget}
+            overtimeThreshold={overtimeThreshold}
+          />
           <Popover>
             <PopoverTrigger asChild>
               <button

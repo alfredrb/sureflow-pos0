@@ -90,6 +90,16 @@
       "default": 0,
       "description": "Store-allocated weekly labor hour budget. Used by the AI scheduling recommendation to balance total scheduled hours against the budget cap. 0 = no cap."
     },
+    "weekly_labor_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Store-allocated weekly labor cost budget (dollars). The scheduling calendar labor-cost indicator turns red when the week's estimated pay exceeds this. 0 = no cap."
+    },
+    "overtime_threshold_hours": {
+      "type": "number",
+      "default": 40,
+      "description": "Weekly hours after which an employee earns overtime. Used by payroll, the labor-cost indicator, and the AI scheduler."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number these settings apply to. Blank = global default settings."
