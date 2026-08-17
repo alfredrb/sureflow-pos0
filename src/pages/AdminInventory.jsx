@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Plus, Edit2, Trash2, Search, AlertTriangle, Download, Upload, Tag, Clock } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, AlertTriangle, Download, Upload, Tag, Clock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 
 const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "" };
+const MPP_LABELS = { none: "—", wrapped: "Wrap", case: "Case", counter: "Counter", locked: "Locked", other: "Other" };
 
 const toLocalInput = (iso) => {
   if (!iso) return "";
@@ -176,6 +177,7 @@ export default function AdminInventory() {
                 <th className="px-3 py-3 text-left">SKU</th>
                 <th className="px-3 py-3 text-left">Category</th>
                 <th className="px-3 py-3 text-left">Vendor</th>
+                <th className="px-3 py-3 text-left">MPP</th>
                 <th className="px-3 py-3 text-right">Price</th>
                 <th className="px-3 py-3 text-right">Stock</th>
                 <th className="px-3 py-3 text-left">Flags</th>
@@ -194,6 +196,7 @@ export default function AdminInventory() {
                     <td className="px-3 py-3 text-gray-500">{p.sku}</td>
                     <td className="px-3 py-3 text-gray-500">{p.category || "—"}</td>
                     <td className="px-3 py-3 text-gray-500">{(() => { const c = companies.find(x => x.company_id === p.vendor_company_id); return c ? c.company_name : (p.vendor_company_id || "—"); })()}</td>
+                    <td className="px-3 py-3 text-gray-500">{p.mpp_plan && p.mpp_plan !== "none" ? (MPP_LABELS[p.mpp_plan] || p.mpp_plan) : "—"}</td>
                     <td className="px-3 py-3 text-right font-medium">${p.price.toFixed(2)}</td>
                     <td className="px-3 py-3 text-right">
                       <span className={`inline-flex items-center gap-1 ${(p.stock_qty || 0) < 10 ? "text-red-600 font-semibold" : "text-gray-700"}`}>
@@ -206,6 +209,8 @@ export default function AdminInventory() {
                         {p.recalled && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700"><AlertTriangle className="w-3 h-3" />Recalled</span>}
                         {p.promotional && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700"><Tag className="w-3 h-3" />Promo</span>}
                         {p.release_date && !released && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700"><Clock className="w-3 h-3" />Release {new Date(p.release_date).toLocaleDateString()}</span>}
+                        {p.id_required === "18" && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700"><ShieldCheck className="w-3 h-3" />ID 18+</span>}
+                        {p.id_required === "21" && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700"><ShieldCheck className="w-3 h-3" />ID 21+</span>}
                       </div>
                     </td>
                     <td className="px-3 py-3">

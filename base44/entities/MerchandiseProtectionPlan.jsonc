@@ -1,0 +1,69 @@
+{
+  "name": "MerchandiseProtectionPlan",
+  "type": "object",
+  "properties": {
+    "sku": {
+      "type": "string",
+      "description": "SKU of the protected product."
+    },
+    "product_name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category at the time the plan was created (used for exclusion matching)."
+    },
+    "mpp_plan": {
+      "type": "string",
+      "enum": [
+        "none",
+        "wrapped",
+        "case",
+        "counter",
+        "locked",
+        "other"
+      ],
+      "default": "none",
+      "description": "Physical protection method applied to the item."
+    },
+    "id_required": {
+      "type": "string",
+      "enum": [
+        "none",
+        "18",
+        "21"
+      ],
+      "default": "none",
+      "description": "ID verification age required at the POS. none = no ID check."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why this protection was applied (theft history, high-value, age-restricted, etc.)."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active"
+    },
+    "ai_generated": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if the plan was created from an AI Insights suggestion."
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Operator who created the plan."
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "sku",
+    "mpp_plan",
+    "status"
+  ]
+}

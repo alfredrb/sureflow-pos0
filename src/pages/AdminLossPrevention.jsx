@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import DocumentsPanel from "@/components/lossprevention/DocumentsPanel";
 import TasksPanel from "@/components/lossprevention/TasksPanel";
 import InvestigationDetailDialog from "@/components/lossprevention/InvestigationDetailDialog";
 import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendChart";
+import MerchandiseProtectionPanel from "@/components/lossprevention/MerchandiseProtectionPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -73,6 +74,7 @@ export default function AdminLossPrevention() {
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
     { id: "documents", label: "Documents", icon: FileText },
     { id: "tasks", label: "Tasks", icon: ListTodo },
+    { id: "mpp", label: "Merch Protection", icon: Shield },
   ];
 
   return (
@@ -116,6 +118,7 @@ export default function AdminLossPrevention() {
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
+      {tab === "mpp" && <MerchandiseProtectionPanel />}
 
       <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
     </div>

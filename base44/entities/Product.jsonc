@@ -63,6 +63,29 @@
       "format": "date-time",
       "description": "Earliest date/time this item can be sold. The POS blocks sale attempts before this date/time. Blank = no restriction."
     },
+    "mpp_plan": {
+      "type": "string",
+      "enum": [
+        "none",
+        "wrapped",
+        "case",
+        "counter",
+        "locked",
+        "other"
+      ],
+      "default": "none",
+      "description": "Merchandise Protection Plan applied to this item. Set from the Loss Prevention Merchandise Protection tab. wrapped = security wrap, case = behind locked case, counter = behind counter (ask staff), locked = spider wrap/locked device."
+    },
+    "id_required": {
+      "type": "string",
+      "enum": [
+        "none",
+        "18",
+        "21"
+      ],
+      "default": "none",
+      "description": "If set to 18 or 21, the POS prompts the cashier to verify the customer's date of birth before adding the item to the sale. Birthday must be on or before today minus the required age."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number this product belongs to. Blank = shared/catalog product available to all stores."

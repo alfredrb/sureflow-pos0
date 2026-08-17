@@ -1,0 +1,20 @@
+{
+  "name": "ProtectionExclusion",
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "Inventory category excluded from Merchandise Protection plans and AI protection suggestions (e.g. Food, Produce)."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why this category is excluded from protection."
+    },
+    "created_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "category"
+  ]
+}
