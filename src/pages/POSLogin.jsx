@@ -4,6 +4,8 @@ import { base44 } from "@/api/data";
 import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import SelfTimeClock from "@/components/SelfTimeClock";
+import VersionLogDialog from "@/components/VersionLogDialog";
+import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -33,6 +35,8 @@ export default function POSLogin() {
   const [overrideLoading, setOverrideLoading] = useState(false);
   const [lunchLockout, setLunchLockout] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
+  const [version, setVersion] = useState(VERSION_FALLBACK);
+  const [versionOpen, setVersionOpen] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem("pos_dismissed_announcements") || "[]")); } catch { return new Set(); }
   });
@@ -79,6 +83,8 @@ export default function POSLogin() {
     }
     return () => { clearInterval(t); window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
   }, []);
+
+  useEffect(() => { getLatestVersionString().then(setVersion).catch(() => {}); }, []);
 
   const numpad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "ENT"];
 
@@ -454,7 +460,10 @@ export default function POSLogin() {
           )}
         </div>
 
-        <p className="text-blue-300/20 text-[10px] mt-6">v4.2.1 — Terminal Ready</p>
+        <button onClick={() => setVersionOpen(true)} className="text-blue-300/20 hover:text-blue-300/60 text-[10px] mt-6 transition-colors cursor-pointer">
+          v{version} — Terminal Ready
+        </button>
+        <VersionLogDialog open={versionOpen} onOpenChange={setVersionOpen} />
       </div>
 
       {/* Bottom Control Buttons */}
