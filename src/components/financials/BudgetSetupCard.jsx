@@ -1,0 +1,76 @@
+import React, { useState, useEffect } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Save, Target } from "lucide-react";
+
+const FIELDS = [
+  { key: "revenue_budget", label: "Revenue Target", hint: "Gross sales subtotal" },
+  { key: "cogs_budget", label: "COGS Target", hint: "Cost of goods sold" },
+  { key: "labor_budget", label: "Labor Target", hint: "Payroll cost" },
+  { key: "loss_budget", label: "Loss Allowance", hint: "Expected profit loss" },
+  { key: "expenses_budget", label: "Other Expenses", hint: "Rent, utilities, supplies" }
+];
+
+export default function BudgetSetupCard({ month, budget, onSave }) {
+  const [form, setForm] = useState({
+    revenue_budget: 0, cogs_budget: 0, labor_budget: 0, loss_budget: 0, expenses_budget: 0, notes: ""
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      revenue_budget: budget?.revenue_budget || 0,
+      cogs_budget: budget?.cogs_budget || 0,
+      labor_budget: budget?.labor_budget || 0,
+      loss_budget: budget?.loss_budget || 0,
+      expenses_budget: budget?.expenses_budget || 0,
+      notes: budget?.notes || ""
+    });
+  }, [budget?.id, month]);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = () => {
+    setSaving(true);
+    onSave({ ...form,
+      revenue_budget: Number(form.revenue_budget) || 0,
+      cogs_budget: Number(form.cogs_budget) || 0,
+      labor_budget: Number(form.labor_budget) || 0,
+      loss_budget: Number(form.loss_budget) || 0,
+      expenses_budget: Number(form.expenses_budget) || 0,
+    }, () => setSaving(false));
+  };
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><Target className="w-4 h-4 text-blue-600" /></div>
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">Store Budget — {month}</h3>
+          <p className="text-[11px] text-gray-400">Set monthly targets to compare against actuals.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {FIELDS.map(f => (
+          <div key={f.key}>
+            <Label className="text-xs text-gray-600">{f.label}</Label>
+            <div className="relative mt-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <Input type="number" min="0" step="0.01" value={form[f.key]} onChange={e => set(f.key, e.target.value)} className="pl-7" />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-0.5">{f.hint}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3">
+        <Label className="text-xs text-gray-600">Notes</Label>
+        <Textarea rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} className="mt-1" placeholder="Budget assumptions, notes..." />
+      </div>
+      <Button onClick={submit} disabled={saving} className="mt-4 bg-blue-600 hover:bg-blue-700 gap-2 w-full sm:w-auto">
+        <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Budget"}
+      </Button>
+    </div>
+  );
+}

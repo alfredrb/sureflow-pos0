@@ -59,6 +59,7 @@ import AdminNoReceiptCustomers from '@/pages/AdminNoReceiptCustomers';
 import AdminInventoryReconciliation from '@/pages/AdminInventoryReconciliation';
 import AdminClaims from '@/pages/AdminClaims';
 import AdminProfitLoss from '@/pages/AdminProfitLoss';
+import AdminFinancials from '@/pages/AdminFinancials';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -135,6 +136,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/inventory-reconciliation" element={<AdminInventoryReconciliation />} />
           <Route path="/admin/claims" element={<AdminClaims />} />
           <Route path="/admin/profit-loss" element={<AdminProfitLoss />} />
+          <Route path="/admin/financials" element={<AdminFinancials />} />
         </Route>
       </Route>
 

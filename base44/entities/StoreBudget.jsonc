@@ -1,0 +1,41 @@
+{
+  "name": "StoreBudget",
+  "type": "object",
+  "properties": {
+    "month": {
+      "type": "string",
+      "description": "Budget period (YYYY-MM). One budget record per month."
+    },
+    "revenue_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Target gross sales revenue (subtotal) for the month."
+    },
+    "cogs_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Target cost of goods sold for the month."
+    },
+    "labor_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Target labor / payroll cost for the month."
+    },
+    "loss_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Expected / acceptable profit loss (disposed returns, claims) for the month."
+    },
+    "expenses_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Target other operating expenses for the month (rent, utilities, supplies, etc.)."
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "month"
+  ]
+}
