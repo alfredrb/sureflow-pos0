@@ -11,7 +11,13 @@ const SEVERITY_BADGE = {
 };
 const TYPE_LABEL = {
   cash_short: "Cash Short", cash_over: "Cash Over", voids: "Voids", overrides: "Overrides",
-  refunds: "Refunds", no_sales: "No-Sales", pattern: "Pattern", other: "Other",
+  refunds: "Refunds", no_sales: "No-Sales", pattern: "Pattern", time_theft: "Time Theft", other: "Other",
+};
+
+const TT_TYPE_LABEL = {
+  manual_adjustment: "Manual Adjustment", missing_clockout: "Missing Clock-Out",
+  overlong_shift: "Overlong Shift", overlapping_entries: "Overlapping Entries",
+  short_shift: "Short Shift", future_clockin: "Future Clock-In",
 };
 
 export default function AISuggestionsPanel({ logs, txns, audits, fromDate, toDate, onStartInvestigation }) {
@@ -29,6 +35,14 @@ export default function AISuggestionsPanel({ logs, txns, audits, fromDate, toDat
       const rLogs = logs.filter(l => inRange(l.created_date));
       const rTxns = txns.filter(t => inRange(t.created_date));
       const rAudits = audits.filter(a => inRange(a.audit_date));
+
+      // Time-theft discrepancies (missing clock-outs / inconsistent shifts).
+      let rDiscrepancies = [];
+      try {
+        const allD = await base44.entities.TimeClockDiscrepancy.list("-detected_at", 500);
+        rDiscrepancies = allD.filter(d => inRange(d.detected_at || d.created_date));
+      } catch { rDiscrepancies = []; }
+      const openDiscrepancies = rDiscrepancies.filter(d => d.status !== "resolved");
 
       const voids = rLogs.filter(l => l.event_type === "void");
       const overrides = rLogs.filter(l => l.event_type === "override");
@@ -49,7 +63,21 @@ export default function AISuggestionsPanel({ logs, txns, audits, fromDate, toDat
         .map(([k, v]) => `${k}: ${v.voids} voids, ${v.overrides} overrides, ${v.refunds} refunds, ${v.no_sales} no-sales, $${v.short.toFixed(2)} short, $${v.long.toFixed(2)} long`)
         .join("; ");
 
-      const prompt = `You are a retail loss prevention analyst. Based on the register activity from ${fromDate} to ${toDate}, suggest up to 5 concrete investigations a store manager should open.\n\nOperator activity:\n${opSummary || "none recorded"}\n\nTotals: ${voids.length} voids, ${overrides.length} overrides, ${refunds.length} refunds, ${noSales.length} no-sales, ${shorts.length} cash shorts ($${shorts.reduce((s, a) => s + Math.abs(a.discrepancy || 0), 0).toFixed(2)}), ${longs.length} cash longs ($${longs.reduce((s, a) => s + (a.discrepancy || 0), 0).toFixed(2)}).\n\nReturn specific, actionable investigations. Each needs a short title, a type (one of: cash_short, cash_over, voids, overrides, refunds, no_sales, pattern), a severity (low/medium/high/critical), the operator_name most involved (or empty string), a summary describing what to investigate and why, an estimated amount_impact number, and a rationale.`;
+      const ttByOp = {};
+      openDiscrepancies.forEach(d => {
+        const k = d.operator_name || "Unknown";
+        (ttByOp[k] = ttByOp[k] || { count: 0, hours: 0, amount: 0, types: {} });
+        ttByOp[k].count++;
+        ttByOp[k].hours += d.hours_impact || 0;
+        ttByOp[k].amount += d.amount_impact || 0;
+        const tl = TT_TYPE_LABEL[d.discrepancy_type] || d.discrepancy_type;
+        ttByOp[k].types[tl] = (ttByOp[k].types[tl] || 0) + 1;
+      });
+      const ttSummary = Object.entries(ttByOp)
+        .map(([k, v]) => `${k}: ${v.count} time-clock discrepancies (${Object.entries(v.types).map(([t, c]) => `${c} ${t}`).join(", ")}), ${v.hours.toFixed(2)}h, $${v.amount.toFixed(2)} est. exposure`)
+        .join("; ");
+
+      const prompt = `You are a retail loss prevention analyst. Based on the register and time-clock activity from ${fromDate} to ${toDate}, suggest up to 5 concrete investigations a store manager should open.\n\nOperator activity:\n${opSummary || "none recorded"}\n\nTime-clock discrepancies (Action Required):\n${ttSummary || "none detected"}\n\nTotals: ${voids.length} voids, ${overrides.length} overrides, ${refunds.length} refunds, ${noSales.length} no-sales, ${shorts.length} cash shorts ($${shorts.reduce((s, a) => s + Math.abs(a.discrepancy || 0), 0).toFixed(2)}), ${longs.length} cash longs ($${longs.reduce((s, a) => s + (a.discrepancy || 0), 0).toFixed(2)}), ${openDiscrepancies.length} open time-clock discrepancies (${openDiscrepancies.filter(d => d.discrepancy_type === "missing_clockout").length} missing clock-outs).\n\nReturn specific, actionable investigations. Each needs a short title, a type (one of: cash_short, cash_over, voids, overrides, refunds, no_sales, pattern, time_theft), a severity (low/medium/high/critical), the operator_name most involved (or empty string), a summary describing what to investigate and why, an estimated amount_impact number, and a rationale. Use type "time_theft" for missing clock-outs, buddy punching, or inconsistent shifts.`;
 
       const res = await base44.integrations.Core.InvokeLLM({
         prompt,
@@ -102,7 +130,7 @@ export default function AISuggestionsPanel({ logs, txns, audits, fromDate, toDat
           <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0"><Wand2 className="w-5 h-5 text-violet-600" /></div>
           <div>
             <h2 className="font-semibold text-gray-900 text-sm">AI Investigation Suggestions</h2>
-            <p className="text-gray-500 text-xs mt-0.5 max-w-md">Analyzes voids, overrides, refunds, and cash variances for {fromDate} → {toDate} and recommends where to focus.</p>
+            <p className="text-gray-500 text-xs mt-0.5 max-w-md">Analyzes voids, overrides, refunds, cash variances, and time-clock discrepancies for {fromDate} → {toDate} and recommends where to focus.</p>
           </div>
         </div>
         <Button onClick={generate} disabled={loading} className="bg-violet-600 hover:bg-violet-500 whitespace-nowrap">
