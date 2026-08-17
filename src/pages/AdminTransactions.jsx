@@ -139,12 +139,17 @@ export default function AdminTransactions() {
   const handlePrint = (tx) => {
     if (!tx) return;
     const isNeg = tx.status === "refunded" || tx.status === "exchanged";
-    const itemsRows = (tx.items || []).map(it => `
+    const itemsRows = (tx.items || []).map(it => {
+      const serials = (it.serial_numbers && it.serial_numbers.length)
+        ? it.serial_numbers.map(sn => `<tr><td colspan="3" style="padding-left:10px;font-size:10px;color:#444">SN: ${sn}</td></tr>`).join("")
+        : "";
+      return `
       <tr>
         <td>${it.name || ""}${it.qty > 1 ? ` &times; ${it.qty}` : ""}</td>
         <td style="text-align:right">$${(it.price || 0).toFixed(2)}</td>
         <td style="text-align:right">$${(it.total || 0).toFixed(2)}</td>
-      </tr>`).join("");
+      </tr>${serials}`;
+    }).join("");
     const badge = getStatusBadge(tx);
     const html = `<!DOCTYPE html><html><head><title>Receipt ${tx.transaction_id}</title>
       <style>
@@ -305,6 +310,14 @@ export default function AdminTransactions() {
                       {item.discount_type && (
                         <div className="text-xs text-green-600">
                           {item.discount_type} -{item.discount_percentage}%: Saved ${(((item.original_price || item.price) - item.price) * item.qty).toFixed(2)}
+                        </div>
+                      )}
+                      {item.serial_numbers && item.serial_numbers.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider">Serial Numbers</span>
+                          {item.serial_numbers.map((sn, i) => (
+                            <div key={i} className="text-xs text-gray-600 font-mono">SN: {sn}</div>
+                          ))}
                         </div>
                       )}
                     </div>
