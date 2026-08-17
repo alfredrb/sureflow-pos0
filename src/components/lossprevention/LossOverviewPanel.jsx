@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Ban, TrendingUp, RotateCcw, DollarSign, AlertTriangle, FolderSearch } from "lucide-react";
 import moment from "moment";
 import { classifyLogEvent } from "@/lib/lossPrevention";
+import TimeTheftOverviewReport from "./TimeTheftOverviewReport";
 
 const RISK_WEIGHTS = { voids: 1.5, overrides: 2, refunds: 2, no_sales: 0.5 };
 
@@ -148,6 +149,8 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
           </table>
         </div>
       </div>
+
+      <TimeTheftOverviewReport fromDate={fromDate} toDate={toDate} onStartInvestigation={onStartInvestigation} />
 
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900">Recent High-Risk Events</h2></div>
