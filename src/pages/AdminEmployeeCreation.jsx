@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/data";
-import { UserPlus, ArrowLeft, IdCard } from "lucide-react";
+import { UserPlus, ArrowLeft, IdCard, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { ROLE_GUIDES, getRoleGuideHtml } from "@/lib/roleTrainingGuides";
 
 const emptyEmp = { employee_id: "", full_name: "", email: "", phone: "", address_street: "", address_city: "", address_state: "", address_zip: "", hire_date: "", position: "", department: "", status: "active", emergency_contact_name: "", emergency_contact_phone: "", notes: "" };
 const emptyOp = { operator_id: "", pin: "", role: "cashier", pos_access: true, company_id: "" };
@@ -23,8 +24,73 @@ export default function AdminEmployeeCreation() {
   const [emp, setEmp] = useState(emptyEmp);
   const [op, setOp] = useState(() => ({ ...emptyOp, operator_id: genOperatorIdForRole("cashier"), pin: genPin() }));
   const [saving, setSaving] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const printOnboarding = (empData, opData, operatorId) => {
+    const roleLabel = ROLE_GUIDES[opData.role]?.label || opData.role;
+    const guideHtml = getRoleGuideHtml(opData.role);
+    const today = new Date().toLocaleDateString();
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Employee Onboarding — ${empData.full_name}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; margin: 0; padding: 32px; }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  .sub { color: #64748b; font-size: 13px; margin: 0 0 24px 0; }
+  h2 { font-size: 15px; margin: 28px 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; color: #1e293b; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 6px 8px; vertical-align: top; }
+  td.k { color: #64748b; width: 160px; font-weight: 600; }
+  .creds { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin: 10px 0; }
+  .creds h3 { margin: 0 0 8px 0; font-size: 14px; color: #1d4ed8; }
+  .creds table td.k { color: #1d4ed8; }
+  .pin { font-family: monospace; font-size: 16px; font-weight: bold; letter-spacing: 2px; }
+  .note { color: #b91c1c; font-size: 12px; margin-top: 8px; }
+  .footer { margin-top: 32px; color: #94a3b8; font-size: 11px; text-align: center; }
+</style></head><body>
+  <h1>SureFlow POS — Employee Onboarding</h1>
+  <p class="sub">Generated ${today}</p>
+
+  <h2>Employee Information</h2>
+  <table>
+    <tr><td class="k">Employee ID</td><td>${empData.employee_id}</td></tr>
+    <tr><td class="k">Full Name</td><td>${empData.full_name}</td></tr>
+    <tr><td class="k">Position</td><td>${empData.position || "—"}</td></tr>
+    <tr><td class="k">Department</td><td>${empData.department || "—"}</td></tr>
+    <tr><td class="k">Status</td><td>${empData.status}</td></tr>
+    <tr><td class="k">Hire Date</td><td>${empData.hire_date || "—"}</td></tr>
+    <tr><td class="k">Email</td><td>${empData.email || "—"}</td></tr>
+    <tr><td class="k">Phone</td><td>${empData.phone || "—"}</td></tr>
+    <tr><td class="k">Address</td><td>${[empData.address_street, empData.address_city, empData.address_state, empData.address_zip].filter(Boolean).join(", ") || "—"}</td></tr>
+    <tr><td class="k">Emergency Contact</td><td>${empData.emergency_contact_name ? empData.emergency_contact_name + (empData.emergency_contact_phone ? " — " + empData.emergency_contact_phone : "") : "—"}</td></tr>
+    ${empData.notes ? `<tr><td class="k">Notes</td><td>${empData.notes}</td></tr>` : ""}
+  </table>
+
+  <h2>POS Operator Credentials</h2>
+  <div class="creds">
+    <h3>Keep this information secure</h3>
+    <table>
+      <tr><td class="k">Operator ID</td><td class="pin">${operatorId}</td></tr>
+      <tr><td class="k">PIN</td><td class="pin">${opData.pin}</td></tr>
+      <tr><td class="k">Role</td><td>${roleLabel}</td></tr>
+      <tr><td class="k">POS Access</td><td>${opData.pos_access ? "Enabled" : "Disabled"}</td></tr>
+    </table>
+    <p class="note">Do not share your PIN. Log in at the POS using your Operator ID and PIN.</p>
+  </div>
+
+  <h2>${roleLabel} Training Guide</h2>
+  ${guideHtml}
+
+  <p class="footer">SureFlow POS · Employee Onboarding Document · Confidential</p>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { toast({ title: "Pop-up blocked", description: "Allow pop-ups to print the onboarding document.", variant: "destructive" }); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 350);
+  };
 
   const setEmpF = (k, v) => setEmp(p => ({ ...p, [k]: v }));
   const onRoleChange = (v) => {
@@ -59,6 +125,7 @@ export default function AdminEmployeeCreation() {
         operator_id: operatorId
       });
       toast({ title: "Employee & Operator created", description: `${emp.full_name} — Operator ${operatorId} (${op.role})` });
+      printOnboarding(emp, op, operatorId);
       setEmp(emptyEmp); setOp({ ...emptyOp, operator_id: genOperatorIdForRole("cashier"), pin: genPin() });
       navigate("/admin/operators");
     } catch (e) {
@@ -169,7 +236,12 @@ export default function AdminEmployeeCreation() {
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">PIN *</label>
-            <Input type="password" value={op.pin} onChange={e => setOp(p => ({ ...p, pin: e.target.value }))} placeholder="e.g. 1234" />
+            <div className="flex gap-2">
+              <Input type={showPin ? "text" : "password"} value={op.pin} onChange={e => setOp(p => ({ ...p, pin: e.target.value }))} placeholder="e.g. 1234" />
+              <Button type="button" variant="outline" onClick={() => setShowPin(v => !v)} className="shrink-0 px-3" title={showPin ? "Hide PIN" : "Show PIN"}>
+                {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Role</label>
