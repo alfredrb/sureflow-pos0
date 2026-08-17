@@ -19,6 +19,7 @@ export default function POSIDVerifyDialog({ open, product, age, onClose, onVerif
 
   const verify = () => {
     setError("");
+    if (age === 18) { onVerified(); return; }
     if (!birthday) { setError("Enter the customer's date of birth"); return; }
     const bd = new Date(birthday);
     if (isNaN(bd.getTime())) { setError("Invalid date of birth"); return; }
@@ -39,21 +40,25 @@ export default function POSIDVerifyDialog({ open, product, age, onClose, onVerif
           </DialogTitle>
         </DialogHeader>
         <p className="text-blue-300/70 text-xs">
-          Verify the customer's date of birth before selling <span className="text-white font-bold">{product?.name}</span>.
+          {age === 18
+            ? <>Confirm the customer is 18 or older before selling <span className="text-white font-bold">{product?.name}</span>.</>
+            : <>Verify the customer's date of birth before selling <span className="text-white font-bold">{product?.name}</span>.</>}
         </p>
-        <div>
-          <label className="text-blue-300/60 text-[10px] mb-1 block">Customer Date of Birth</label>
-          <Input
-            type="date"
-            value={birthday}
-            onChange={(e) => { setBirthday(e.target.value); setError(""); }}
-            className="bg-[#0a0e27] border-blue-500/10 text-white"
-            autoFocus
-          />
-          <p className="text-blue-300/50 text-[10px] mt-1">
-            Birthday must be on or before {cutoff.toLocaleDateString()}.
-          </p>
-        </div>
+        {age !== 18 && (
+          <div>
+            <label className="text-blue-300/60 text-[10px] mb-1 block">Customer Date of Birth</label>
+            <Input
+              type="date"
+              value={birthday}
+              onChange={(e) => { setBirthday(e.target.value); setError(""); }}
+              className="bg-[#0a0e27] border-blue-500/10 text-white"
+              autoFocus
+            />
+            <p className="text-blue-300/50 text-[10px] mt-1">
+              Birthday must be on or before {cutoff.toLocaleDateString()}.
+            </p>
+          </div>
+        )}
         {error && <p className="text-red-400 text-xs text-center">{error}</p>}
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => { onClose(); setBirthday(""); setError(""); }} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Cancel</Button>
