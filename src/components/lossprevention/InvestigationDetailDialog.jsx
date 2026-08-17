@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2 } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
+import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 
 const TYPES = [
   { value: "cash_short", label: "Cash Short" }, { value: "cash_over", label: "Cash Over" },
@@ -39,6 +40,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
   const [activityLog, setActivityLog] = useState([]);
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [addOpId, setAddOpId] = useState("");
+  const [viewTx, setViewTx] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => { base44.entities.Operator.list().then(setOperators).catch(() => {}); }, []);
@@ -333,7 +335,12 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
                         <p className="text-xs text-gray-500 truncate">{ev.detail}</p>
                         <p className="text-[11px] text-gray-400">{ev.date ? moment(ev.date).format("MMM D, YYYY h:mm A") : ""}{ev.amount != null ? ` · $${Number(ev.amount).toFixed(2)}` : ""}</p>
                       </div>
-                      <button onClick={() => removeEvidence(idx)} className="text-gray-300 hover:text-red-500 flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {ev.type === "receipt" && txns.find(x => x.transaction_id === ev.ref) && (
+                          <button onClick={() => setViewTx(txns.find(x => x.transaction_id === ev.ref))} className="text-gray-400 hover:text-amber-600 p-1 rounded" title="View full receipt"><Eye className="w-3.5 h-3.5" /></button>
+                        )}
+                        <button onClick={() => removeEvidence(idx)} className="text-gray-300 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -388,6 +395,8 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
         onAddEvidence={addEvidence}
         onClose={() => setExplorerOpen(false)}
       />
+
+      <TransactionDetailDialog tx={viewTx} onClose={() => setViewTx(null)} />
     </>
   );
 }

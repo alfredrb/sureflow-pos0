@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Eye, Printer, Plus, Activity, Receipt, Scale, ChevronDown, ChevronRight, CalendarDays } from "lucide-react";
 import moment from "moment";
+import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 
 const KIND_BADGE = {
   "Register Log": "bg-gray-100 text-gray-700",
@@ -81,7 +82,7 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
   const [fromDate, setFromDate] = useState(flaggedDate || moment().subtract(6, "days").format("YYYY-MM-DD"));
   const [toDate, setToDate] = useState(moment().format("YYYY-MM-DD"));
   const [filter, setFilter] = useState("all");
-  const [expanded, setExpanded] = useState(null);
+  const [viewTx, setViewTx] = useState(null);
 
   useEffect(() => {
     if (operators?.length) setSelectedKey(operators[0].operator_id || operators[0].operator_name || "");
@@ -223,31 +224,18 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-sm font-semibold text-gray-800">${Math.abs(t.total || 0).toFixed(2)}</span>
-                      <button onClick={() => setExpanded(expanded === t.id ? null : t.id)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700"><Eye className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setViewTx(t)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="View full receipt"><Eye className="w-3.5 h-3.5" /></button>
                       <button onClick={() => printReceipt(t)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700"><Printer className="w-3.5 h-3.5" /></button>
                       <button onClick={() => addReceipt(t)} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"><Plus className="w-3 h-3" /> Evidence</button>
                     </div>
                   </div>
-                  {expanded === t.id && (
-                    <div className="mt-2 pl-2 border-l-2 border-gray-100 space-y-1">
-                      {(t.items || []).map((it, i) => (
-                        <div key={i} className="flex justify-between text-xs text-gray-600">
-                          <span>{it.name} × {it.qty}</span>
-                          <span>${(it.total || 0).toFixed(2)}</span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between text-xs text-gray-500 pt-1 border-t border-gray-100">
-                        <span>Subtotal</span><span>${(t.subtotal || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500"><span>Tax</span><span>${(t.tax || 0).toFixed(2)}</span></div>
-                      <div className="flex justify-between text-xs font-bold text-gray-900"><span>Total</span><span>${(t.total || 0).toFixed(2)}</span></div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           </div>
         </div>
+
+        <TransactionDetailDialog tx={viewTx} onClose={() => setViewTx(null)} />
 
         <div className="flex justify-end pt-2">
           <Button variant="outline" onClick={onClose}>Close</Button>
