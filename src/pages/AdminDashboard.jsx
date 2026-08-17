@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Users, Package, Monitor, DollarSign, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert, Percent, RotateCcw, FolderSearch, Award, Gift, Scale, SlidersHorizontal, TrendingUp, Tag, Clock } from "lucide-react";
+import { Users, Package, Monitor, DollarSign, ShoppingCart, AlertTriangle, Bell, Siren, Wrench, HardDrive, ShieldAlert, Percent, RotateCcw, FolderSearch, Award, Gift, Scale, SlidersHorizontal, TrendingUp, Tag, Clock, Barcode, Boxes, ClipboardList, TrendingDown, Ban, Fingerprint, PackageMinus } from "lucide-react";
 import ShiftCalendarView from "@/components/ShiftCalendarView";
 import InventoryReorderSuggestions from "@/components/InventoryReorderSuggestions";
 import StaffingVsRevenueChart from "@/components/StaffingVsRevenueChart";
@@ -15,7 +15,7 @@ export default function AdminDashboard() {
   const operator = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator") || "null"); } catch { return null; } })();
   const [config, setConfig] = useState(() => loadConfig(operator?.operator_id, operator?.role));
   const [customizeOpen, setCustomizeOpen] = useState(false);
-  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, avgSale: 0, refunds: 0, refundAmount: 0, lowStock: 0, outOfStock: 0, recalled: 0, promotional: 0, upcomingReleases: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0, voids: 0, openCases: 0, totalStolen: 0, loyaltyMembers: 0, activeGiftCards: 0, giftBalance: 0, cashDiscrepancies: 0 });
+  const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, avgSale: 0, refunds: 0, refundAmount: 0, lowStock: 0, outOfStock: 0, recalled: 0, promotional: 0, upcomingReleases: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0, voids: 0, openCases: 0, totalStolen: 0, loyaltyMembers: 0, activeGiftCards: 0, giftBalance: 0, cashDiscrepancies: 0, serializedProducts: 0, serializedInStock: 0, openClaims: 0, claimsValue: 0, profitLossTotal: 0, noReceiptBlocked: 0, timeTheftFlags: 0, shrinkageLoss: 0, appVersion: "—" });
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +36,12 @@ export default function AdminDashboard() {
     const loyalty = await base44.entities.LoyaltyMember.list();
     const giftcards = await base44.entities.GiftCard.list();
     const audits = await base44.entities.CashAudit.list("-audit_date", 200);
+    const serializedStock = await base44.entities.SerializedStock.list();
+    const claims = await base44.entities.Claim.list("-date_created", 200);
+    const profitLoss = await base44.entities.ProfitLoss.list();
+    const noReceipt = await base44.entities.NoReceiptCustomer.list();
+    const timeDiscrepancies = await base44.entities.TimeClockDiscrepancy.list();
+    const appVersions = await base44.entities.AppVersion.list("-release_date", 1);
     const completed = transactions.filter(t => t.status === "completed");
     const revenue = completed.reduce((s, t) => s + (t.total || 0), 0);
     const avgSale = completed.length ? revenue / completed.length : 0;
@@ -58,7 +64,16 @@ export default function AdminDashboard() {
     const activeGiftCards = giftcards.filter(g => g.status === "active").length;
     const giftBalance = giftcards.reduce((s, g) => s + (g.balance || 0), 0);
     const cashDiscrepancies = audits.filter(a => Math.abs(a.discrepancy || 0) > 0.01).length;
-    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, recalled, promotional, upcomingReleases, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies });
+    const serializedProducts = products.filter(p => p.serialized).length;
+    const serializedInStock = serializedStock.filter(s => s.status === "in_stock").length;
+    const openClaims = claims.filter(c => c.status === "open").length;
+    const claimsValue = claims.filter(c => c.status === "open").reduce((s, c) => s + (Number(c.total_cost) || 0), 0);
+    const profitLossTotal = profitLoss.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const noReceiptBlocked = noReceipt.filter(n => n.disabled).length;
+    const timeTheftFlags = timeDiscrepancies.filter(d => d.status === "open").length;
+    const shrinkageLoss = totalStolen + profitLossTotal;
+    const appVersion = appVersions[0]?.version || "—";
+    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, recalled, promotional, upcomingReleases, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies, serializedProducts, serializedInStock, openClaims, claimsValue, profitLossTotal, noReceiptBlocked, timeTheftFlags, shrinkageLoss, appVersion });
     setRecentTx(transactions.slice(0, 8));
     setLoading(false);
   };
@@ -77,22 +92,37 @@ export default function AdminDashboard() {
     { category: "inventory", label: "Recalled", value: stats.recalled, icon: AlertTriangle, color: stats.recalled > 0 ? "bg-red-600" : "bg-rose-500" },
     { category: "inventory", label: "Promotional", value: stats.promotional, icon: Tag, color: "bg-indigo-500" },
     { category: "inventory", label: "Upcoming Releases", value: stats.upcomingReleases, icon: Clock, color: stats.upcomingReleases > 0 ? "bg-amber-600" : "bg-amber-500" },
+    { category: "inventory", label: "Serialized Products", value: stats.serializedProducts, icon: Barcode, color: "bg-purple-600" },
+    { category: "inventory", label: "Serialized In Stock", value: stats.serializedInStock, icon: Boxes, color: "bg-fuchsia-500" },
     { category: "system", label: "Operators", value: stats.operators, icon: Users, color: "bg-amber-500" },
     { category: "system", label: "Registers", value: stats.registers, icon: Monitor, color: "bg-cyan-500" },
     { category: "system", label: "Emergencies", value: stats.emergencies, icon: Bell, color: stats.emergencies > 0 ? "bg-red-600" : "bg-red-500" },
     { category: "system", label: "System Alerts", value: stats.systemAlerts, icon: Siren, color: stats.systemAlerts > 0 ? "bg-red-600" : "bg-slate-500" },
     { category: "system", label: "Maintenance Open", value: stats.maintenanceOpen, icon: Wrench, color: "bg-amber-500" },
     { category: "system", label: "Hardware Issues", value: stats.hardwareIssues, icon: HardDrive, color: stats.hardwareIssues > 0 ? "bg-red-600" : "bg-cyan-500" },
+    { category: "system", label: "App Version", value: stats.appVersion, icon: Tag, color: "bg-slate-600" },
     { category: "loss", label: "Loss Events (7d)", value: stats.lossEvents, icon: ShieldAlert, color: "bg-orange-600" },
     { category: "loss", label: "Voids (7d)", value: stats.voids, icon: RotateCcw, color: "bg-amber-500" },
     { category: "loss", label: "Open Cases", value: stats.openCases, icon: FolderSearch, color: stats.openCases > 0 ? "bg-amber-600" : "bg-amber-500" },
     { category: "loss", label: "Total Stolen", value: `$${stats.totalStolen.toFixed(2)}`, icon: ShieldAlert, color: "bg-red-600" },
     { category: "loss", label: "Cash Discrepancies", value: stats.cashDiscrepancies, icon: Scale, color: stats.cashDiscrepancies > 0 ? "bg-orange-600" : "bg-slate-500" },
+    { category: "loss", label: "Open Claims", value: stats.openClaims, icon: ClipboardList, color: stats.openClaims > 0 ? "bg-amber-600" : "bg-amber-500" },
+    { category: "loss", label: "Claims Value", value: `$${stats.claimsValue.toFixed(2)}`, icon: DollarSign, color: "bg-rose-600" },
+    { category: "loss", label: "Profit Loss", value: `$${stats.profitLossTotal.toFixed(2)}`, icon: TrendingDown, color: "bg-red-500" },
+    { category: "loss", label: "No-Receipt Blocked", value: stats.noReceiptBlocked, icon: Ban, color: stats.noReceiptBlocked > 0 ? "bg-red-600" : "bg-slate-500" },
+    { category: "loss", label: "Time Theft Flags", value: stats.timeTheftFlags, icon: Fingerprint, color: stats.timeTheftFlags > 0 ? "bg-orange-600" : "bg-slate-500" },
+    { category: "loss", label: "Shrinkage Loss", value: `$${stats.shrinkageLoss.toFixed(2)}`, icon: PackageMinus, color: "bg-red-700" },
     { category: "loyalty", label: "Loyalty Members", value: stats.loyaltyMembers, icon: Award, color: "bg-pink-500" },
     { category: "loyalty", label: "Gift Cards", value: stats.activeGiftCards, icon: Gift, color: "bg-indigo-500" },
     { category: "loyalty", label: "Gift Balance", value: `$${stats.giftBalance.toFixed(2)}`, icon: Gift, color: "bg-indigo-600" },
   ];
-  const cards = allCards.filter(c => config.metrics[c.category]);
+  const CATEGORIES = [
+    { key: "sales", label: "Sales", icon: DollarSign, color: "bg-emerald-500" },
+    { key: "inventory", label: "Inventory", icon: Package, color: "bg-violet-500" },
+    { key: "system", label: "System & Alerts", icon: HardDrive, color: "bg-cyan-500" },
+    { key: "loss", label: "Loss Prevention", icon: ShieldAlert, color: "bg-orange-500" },
+    { key: "loyalty", label: "Loyalty & Gift Cards", icon: Award, color: "bg-pink-500" },
+  ];
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
@@ -118,22 +148,34 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {cards.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4 mb-6 sm:mb-8">
-          {cards.map(c => {
-            const Icon = c.icon;
-            return (
-              <div key={c.label} className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-100 shadow-sm">
-                <div className={`w-8 sm:w-9 h-8 sm:h-9 ${c.color} rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-3`}>
-                  <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" />
-                </div>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{c.value}</p>
-                <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5">{c.label}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {CATEGORIES.map(cat => {
+        const catCards = allCards.filter(c => c.category === cat.key && config.metrics[cat.key]);
+        if (catCards.length === 0) return null;
+        const CatIcon = cat.icon;
+        return (
+          <div key={cat.key} className="mb-6 sm:mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-7 h-7 ${cat.color} rounded-lg flex items-center justify-center`}><CatIcon className="w-4 h-4 text-white" /></div>
+              <h2 className="text-base font-semibold text-gray-900">{cat.label}</h2>
+              <span className="text-xs text-gray-400">{catCards.length}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
+              {catCards.map(c => {
+                const Icon = c.icon;
+                return (
+                  <div key={c.label} className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-100 shadow-sm">
+                    <div className={`w-8 sm:w-9 h-8 sm:h-9 ${c.color} rounded-lg sm:rounded-xl flex items-center justify-center mb-2 sm:mb-3`}>
+                      <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" />
+                    </div>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{c.value}</p>
+                    <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5">{c.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
       {config.graphs.sales && (
         <section className="mb-6 sm:mb-8 space-y-6">
