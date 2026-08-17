@@ -4,9 +4,10 @@ import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight } from "lucide-react";
+import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight, Calendar, List, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import PeakTimeAnalysis from "@/components/PeakTimeAnalysis";
+import WeeklyScheduleCalendar from "@/components/WeeklyScheduleCalendar";
 
 const timeToMinutes = (time) => {
   const [h, m] = time.split(":").map(Number);
@@ -35,6 +36,9 @@ export default function AdminShiftScheduling() {
   const [draftDate, setDraftDate] = useState(new Date().toISOString().split("T")[0]);
   const [peakTimes, setPeakTimes] = useState([]);
   const [swapLogs, setSwapLogs] = useState([]);
+  const [view, setView] = useState("calendar");
+  const [groupBy, setGroupBy] = useState("position");
+  const [generating, setGenerating] = useState(false);
   const [form, setForm] = useState({
     date: new Date().toISOString().split("T")[0],
     operator_id: "",
@@ -58,7 +62,7 @@ export default function AdminShiftScheduling() {
         base44.entities.Operator.filter({ status: "active" }),
         base44.entities.Register.list(),
         base44.entities.ShiftTemplate.list("-created_date", 100),
-        base44.entities.PeakTime.filter({ day_of_week: new Date().getDay() }),
+        base44.entities.PeakTime.list("-created_date", 500),
         base44.entities.ShiftSwapRequest.filter({ status: "approved" })
       ]);
       setShifts(shiftData);
@@ -227,49 +231,137 @@ export default function AdminShiftScheduling() {
     }
   };
 
-  const generateDraftFromPeakTimes = async () => {
+  const generateAIDraft = async () => {
+    setGenerating(true);
     try {
       const allPeakTimes = await base44.entities.PeakTime.list("-created_date", 500);
-      const baseDate = new Date(draftDate);
+      const schedulable = operators.filter(o => o.status === "active" && o.pos_access !== false && ["cashier", "csm", "manager", "technician"].includes(o.role));
 
-      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-        const shiftDate = new Date(baseDate);
-        shiftDate.setDate(shiftDate.getDate() + dayOffset);
-        const dayOfWeek = shiftDate.getDay();
-        const dateStr = shiftDate.toISOString().split("T")[0];
-
-        const dayPeaks = allPeakTimes.filter(p => p.day_of_week === dayOfWeek).sort((a, b) => a.hour - b.hour);
-        if (dayPeaks.length === 0) continue;
-
-        const peakHours = dayPeaks.filter(p => p.peak_level === "high" || p.peak_level === "very_high");
-        const startHour = Math.min(...peakHours.map(p => p.hour), 8);
-        const endHour = Math.max(...peakHours.map(p => p.hour), 20) + 1;
-
-        for (const op of operators.slice(0, Math.ceil(peakHours.length / 2))) {
-          await base44.entities.Shift.create({
-            date: dateStr,
-            operator_id: op.operator_id,
-            operator_name: op.full_name,
-            register_id: "",
-            register_name: "",
-            start_time: `${String(startHour).padStart(2, "0")}:00`,
-            end_time: `${String(endHour).padStart(2, "0")}:00`,
-            break_start: `${String(Math.floor((startHour + endHour) / 2)).padStart(2, "0")}:00`,
-            break_end: `${String(Math.floor((startHour + endHour) / 2)).padStart(2, "0")}:30`,
-            lunch_start: `${String(Math.floor((startHour + endHour) / 2) + 1).padStart(2, "0")}:00`,
-            lunch_end: `${String(Math.floor((startHour + endHour) / 2) + 2).padStart(2, "0")}:00`,
-            status: "scheduled",
-            notes: "Draft from peak time analysis"
-          });
-        }
+      // Build a compact peak-time summary per day-of-week (operating hours 6–22).
+      const peakSummary = {};
+      for (let dow = 0; dow < 7; dow++) {
+        const hours = allPeakTimes.filter(p => p.day_of_week === dow && p.hour >= 6 && p.hour <= 22).sort((a, b) => a.hour - b.hour)
+          .map(p => `${String(p.hour).padStart(2, "0")}:00 req=${p.required_staff || 1} (${p.peak_level})`);
+        peakSummary[dow] = hours.join(", ") || "no data";
       }
 
-      toast({ title: "Draft schedule created from peak times" });
+      const baseDate = new Date(draftDate);
+      const dates = [];
+      for (let i = 0; i < 21; i++) { const d = new Date(baseDate); d.setDate(d.getDate() + i); dates.push(d.toISOString().split("T")[0]); }
+
+      const opList = schedulable.map(o => `${o.operator_id}|${o.full_name}|${o.role}`).join("; ");
+
+      const prompt = `You are an expert retail shift scheduler. Build a 3-week (21-day) draft shift schedule for a retail store.
+Start date: ${dates[0]}. End date: ${dates[20]}.
+
+Available operators (operator_id|full_name|role):
+${opList}
+
+Peak-time staffing requirements by day-of-week (0=Sunday..6=Saturday), operating 06:00–22:00. "req" = recommended staff count for that hour:
+${Object.entries(peakSummary).map(([d, h]) => `Day ${d}: ${h}`).join("\n")}
+
+Rules:
+- Cover every peak hour with enough staff to meet the "req" recommendation; stagger start times across the day to match demand (e.g., openers at 6-8, mid-day coverage, closers until 22:00).
+- Do not over-schedule quiet hours. Balance total scheduled staff-hours close to total required staff-hours per day.
+- Give most hours to cashiers, a CSM for supervision during busy periods, a manager for open/close, and technicians only when needed.
+- Avoid double-booking an operator twice on the same day. Each operator works at most one shift per day.
+- Reasonable shift lengths (4–8 hours). Include a 30-min break near the middle and a 1-hour lunch for shifts over 6 hours.
+- Use 24-hour HH:MM times only.
+
+Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), operator_id, start_time, end_time, break_start, break_end, lunch_start, lunch_end }. Only return the JSON.`;
+
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            shifts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  date: { type: "string" },
+                  operator_id: { type: "string" },
+                  start_time: { type: "string" },
+                  end_time: { type: "string" },
+                  break_start: { type: "string" },
+                  break_end: { type: "string" },
+                  lunch_start: { type: "string" },
+                  lunch_end: { type: "string" }
+                },
+                required: ["date", "operator_id", "start_time", "end_time"]
+              }
+            }
+          }
+        }
+      });
+
+      const draftShifts = Array.isArray(res?.shifts) ? res.shifts : [];
+      let created = 0;
+      for (const s of draftShifts) {
+        const op = schedulable.find(o => o.operator_id === s.operator_id);
+        if (!op || !dates.includes(s.date)) continue;
+        await base44.entities.Shift.create({
+          date: s.date,
+          operator_id: op.operator_id,
+          operator_name: op.full_name,
+          register_id: "",
+          register_name: "",
+          start_time: s.start_time,
+          end_time: s.end_time,
+          break_start: s.break_start || "",
+          break_end: s.break_end || "",
+          lunch_start: s.lunch_start || "",
+          lunch_end: s.lunch_end || "",
+          status: "scheduled",
+          notes: "AI draft"
+        });
+        created++;
+      }
+
+      toast({ title: "AI draft generated", description: `${created} shifts created over 3 weeks — review and edit on the calendar.` });
       setDraftDialog(false);
       load();
     } catch (e) {
-      console.error("Error generating draft:", e);
-      toast({ title: "Error generating draft", variant: "destructive" });
+      console.error("Error generating AI draft:", e);
+      toast({ title: "Error generating AI draft", description: e?.message || "Please try again.", variant: "destructive" });
+    }
+    setGenerating(false);
+  };
+
+  const handleDropCreate = (operator, dateStr, registerId) => {
+    const reg = registers.find(r => r.register_id === registerId);
+    setEditing(null);
+    setForm({
+      date: dateStr,
+      operator_id: operator.operator_id,
+      operator_name: operator.full_name,
+      register_id: registerId || "",
+      register_name: reg?.name || "",
+      start_time: "09:00",
+      end_time: "17:00",
+      break_start: "12:00",
+      break_end: "12:30",
+      lunch_start: "13:00",
+      lunch_end: "14:00",
+      notes: ""
+    });
+    setDialogOpen(true);
+  };
+
+  const handleMoveShift = async (shift, newDateStr, registerId) => {
+    try {
+      const patch = { date: newDateStr };
+      if (groupBy === "register" && registerId !== null) {
+        patch.register_id = registerId;
+        patch.register_name = registers.find(r => r.register_id === registerId)?.name || "";
+      }
+      await base44.entities.Shift.update(shift.id, patch);
+      toast({ title: "Shift moved" });
+      load();
+    } catch (e) {
+      console.error("Error moving shift:", e);
+      toast({ title: "Error moving shift", variant: "destructive" });
     }
   };
 
@@ -304,8 +396,12 @@ export default function AdminShiftScheduling() {
           <p className="text-gray-500 text-sm mt-1">{shifts.length} shifts scheduled</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setDraftDialog(true)} className="bg-emerald-600 hover:bg-emerald-700"><Plus className="w-4 h-4 mr-2" /> Generate Draft</Button>
-          <Button onClick={() => setTemplateDialog(true)} className="bg-purple-600 hover:bg-purple-700"><Save className="w-4 h-4 mr-2" /> Save as Template</Button>
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => setView("calendar")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "calendar" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><Calendar className="w-3.5 h-3.5" /> Calendar</button>
+            <button onClick={() => setView("list")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><List className="w-3.5 h-3.5" /> List</button>
+          </div>
+          <Button onClick={() => setDraftDialog(true)} className="bg-emerald-600 hover:bg-emerald-700"><Sparkles className="w-4 h-4 mr-2" /> Generate AI Draft</Button>
+          <Button onClick={() => setTemplateDialog(true)} variant="outline" className="border-gray-300"><Save className="w-4 h-4 mr-2" /> Save as Template</Button>
           <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> New Shift</Button>
         </div>
       </div>
@@ -333,7 +429,22 @@ export default function AdminShiftScheduling() {
         </div>
       )}
 
-      <div className="space-y-6">
+      {view === "calendar" && (
+        <WeeklyScheduleCalendar
+          shifts={shifts}
+          operators={operators}
+          registers={registers}
+          peakTimes={peakTimes}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
+          onCreate={handleDropCreate}
+          onEdit={openEdit}
+          onMove={handleMoveShift}
+          onDelete={deleteShift}
+        />
+      )}
+
+      <div className={`space-y-6 ${view === "list" ? "" : "hidden"}`}>
          {swapLogs.length > 0 && (
            <div className="bg-white rounded-2xl border border-amber-200 bg-amber-50 overflow-hidden shadow-sm">
              <div className="bg-amber-100 px-6 py-4 border-b border-amber-200">
@@ -532,24 +643,27 @@ export default function AdminShiftScheduling() {
         </DialogContent>
       </Dialog>
 
-      {/* Generate Draft Dialog */}
+      {/* Generate AI Draft Dialog */}
       <Dialog open={draftDialog} onOpenChange={setDraftDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Generate Draft Schedule</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Generate AI Draft Schedule</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Start Date</label>
               <Input type="date" value={draftDate} onChange={e => setDraftDate(e.target.value)} />
-              <p className="text-xs text-gray-500 mt-1">Draft will be generated for 7 days starting from this date</p>
+              <p className="text-xs text-gray-500 mt-1">AI will draft shifts for <strong>3 weeks (21 days)</strong> starting from this date.</p>
             </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs text-blue-900">
-                The system will analyze peak times and create draft shifts based on staffing needs. You can edit all shifts afterward.
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-emerald-900">
+                AI analyzes your peak-time staffing needs and builds a balanced draft covering every busy hour without over-scheduling quiet periods. Drag, drop, and edit shifts on the calendar afterward.
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setDraftDialog(false)} className="flex-1">Cancel</Button>
-              <Button onClick={generateDraftFromPeakTimes} className="flex-1 bg-emerald-600 hover:bg-emerald-700">Generate Draft</Button>
+              <Button variant="outline" onClick={() => setDraftDialog(false)} className="flex-1" disabled={generating}>Cancel</Button>
+              <Button onClick={generateAIDraft} className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={generating}>
+                {generating ? <><Sparkles className="w-4 h-4 mr-2 animate-pulse" /> Drafting…</> : <><Sparkles className="w-4 h-4 mr-2" /> Generate AI Draft</>}
+              </Button>
             </div>
           </div>
         </DialogContent>

@@ -1,0 +1,228 @@
+import React, { useState, useMemo } from "react";
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus } from "lucide-react";
+
+const ROLE_LABELS = { cashier: "Cashier", csm: "CSM", manager: "Manager", technician: "Technician", loss_prevention: "LP", vendor: "Vendor" };
+const ROLE_ORDER = ["cashier", "csm", "manager", "technician", "loss_prevention"];
+const ROLE_DOT = { cashier: "#3b82f6", csm: "#8b5cf6", manager: "#10b981", technician: "#f59e0b", loss_prevention: "#f43f5e", vendor: "#6b7280" };
+const SCHEDULABLE_ROLES = ["cashier", "csm", "manager", "technician"];
+
+const getWeekStart = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Staff-hour coverage for a day vs peak-time requirements (operating 6:00–22:00).
+const coverageFor = (dayDate, dayShifts, peakTimes) => {
+  const dow = dayDate.getDay();
+  const dayPeaks = peakTimes.filter(p => p.day_of_week === dow && p.hour >= 6 && p.hour <= 22);
+  const required = dayPeaks.reduce((s, p) => s + (p.required_staff || 1), 0);
+  const scheduled = dayShifts.reduce((s, sh) => {
+    if (!sh.start_time || !sh.end_time) return s;
+    const [shh, shm] = sh.start_time.split(":").map(Number);
+    const [ehh, em] = sh.end_time.split(":").map(Number);
+    let hrs = (ehh * 60 + em - (shh * 60 + shm)) / 60;
+    if (hrs < 0) hrs += 24;
+    return s + Math.max(0, hrs);
+  }, 0);
+  return { required: Math.round(required), scheduled: Math.round(scheduled * 10) / 10 };
+};
+
+export default function WeeklyScheduleCalendar({ shifts, operators, registers, peakTimes, groupBy, onGroupByChange, onCreate, onEdit, onMove, onDelete }) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [dragOver, setDragOver] = useState(null); // `${rowKey}|${dateStr}`
+
+  const weekStart = getWeekStart(currentDate);
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; }), [weekStart]);
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const weekShifts = useMemo(() => {
+    const start = toISO(weekStart);
+    const end = toISO(days[6]);
+    return shifts.filter(s => s.date >= start && s.date <= end);
+  }, [shifts, weekStart, days]);
+
+  const opById = useMemo(() => {
+    const m = {};
+    operators.forEach(o => { m[o.operator_id] = o; });
+    return m;
+  }, [operators]);
+
+  // Pool of draggable operators (active, POS-accessible, schedulable roles).
+  const pool = useMemo(() => operators.filter(o => o.status === "active" && o.pos_access !== false && SCHEDULABLE_ROLES.includes(o.role)), [operators]);
+
+  // Build rows based on grouping.
+  const rows = useMemo(() => {
+    if (groupBy === "register") {
+      const regIds = [...new Set(weekShifts.map(s => s.register_id || "").filter(Boolean))];
+      registers.forEach(r => { if (!regIds.includes(r.register_id)) regIds.push(r.register_id); });
+      return [{ key: "", label: "Unassigned" }, ...regIds.filter(Boolean).sort().map(id => ({ key: id, label: registers.find(r => r.register_id === id)?.name || id }))];
+    }
+    // position
+    const present = new Set(weekShifts.map(s => opById[s.operator_id]?.role).filter(Boolean));
+    return ROLE_ORDER.filter(r => present.has(r) || pool.some(o => o.role === r)).map(r => ({ key: r, label: ROLE_LABELS[r] || r }));
+  }, [groupBy, weekShifts, registers, opById, pool]);
+
+  const matchRow = (shift, rowKey) => {
+    if (groupBy === "register") return (shift.register_id || "") === rowKey;
+    return (opById[shift.operator_id]?.role || "") === rowKey;
+  };
+
+  const handleDrop = (e, rowKey, dateStr, registerId) => {
+    e.preventDefault();
+    setDragOver(null);
+    const opId = e.dataTransfer.getData("operator_id");
+    const shiftId = e.dataTransfer.getData("shift_id");
+    if (opId) {
+      const op = operators.find(o => o.operator_id === opId);
+      if (op) onCreate(op, dateStr, groupBy === "register" ? registerId : "");
+    } else if (shiftId) {
+      const shift = shifts.find(s => s.id === shiftId);
+      if (shift && shift.date !== dateStr) onMove(shift, dateStr, groupBy === "register" ? registerId : null);
+    }
+  };
+
+  const allowDrop = (e) => { e.preventDefault(); };
+
+  const prevWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setCurrentDate(d); };
+  const nextWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setCurrentDate(d); };
+  const thisWeek = () => setCurrentDate(new Date());
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={prevWeek} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
+          <button onClick={nextWeek} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronRight className="w-4 h-4 text-gray-600" /></button>
+          <button onClick={thisWeek} className="ml-1 px-3 py-1 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50">Today</button>
+          <span className="text-sm font-semibold text-gray-900 ml-2">
+            Week of {weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {days[6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={() => onGroupByChange("position")} className={`px-3 py-1 text-xs font-medium rounded-md transition ${groupBy === "position" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>By Position</button>
+          <button onClick={() => onGroupByChange("register")} className={`px-3 py-1 text-xs font-medium rounded-md transition ${groupBy === "register" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>By Register</button>
+        </div>
+      </div>
+
+      {/* Employee pool */}
+      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Drag an employee onto a day to schedule</p>
+        <div className="flex flex-wrap gap-2">
+          {pool.length === 0 && <p className="text-xs text-gray-400">No schedulable operators available.</p>}
+          {pool.map(op => (
+            <div
+              key={op.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData("operator_id", op.operator_id); e.dataTransfer.effectAllowed = "copy"; }}
+              className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs cursor-grab hover:shadow-sm hover:border-blue-300 transition active:cursor-grabbing"
+              title={`${op.full_name} · ${ROLE_LABELS[op.role] || op.role}`}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ background: ROLE_DOT[op.role] || "#6b7280" }} />
+              <span className="font-medium text-gray-800">{op.full_name}</span>
+              <span className="text-[10px] text-gray-400">{ROLE_LABELS[op.role]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[900px]">
+          {/* Day header + coverage metric */}
+          <div className="grid border-b border-gray-200 bg-gray-50" style={{ gridTemplateColumns: `160px repeat(7, 1fr)` }}>
+            <div className="px-3 py-3 text-xs font-semibold text-gray-500 uppercase">{groupBy === "register" ? "Register" : "Position"}</div>
+            {days.map((day, idx) => {
+              const dateStr = toISO(day);
+              const dayShifts = weekShifts.filter(s => s.date === dateStr);
+              const cov = coverageFor(day, dayShifts, peakTimes);
+              const isUnder = cov.required > 0 && cov.scheduled < cov.required;
+              const isOver = cov.required > 0 && cov.scheduled > cov.required * 1.25;
+              const tone = cov.required === 0 ? "text-gray-400" : isUnder ? "text-red-600" : isOver ? "text-amber-600" : "text-emerald-600";
+              const Icon = cov.required === 0 ? MinusCircle : isUnder ? AlertTriangle : isOver ? AlertTriangle : CheckCircle2;
+              return (
+                <div key={idx} className="px-2 py-2 text-center border-l border-gray-100">
+                  <p className="text-xs font-semibold text-gray-900">{dayNames[idx]}</p>
+                  <p className="text-[11px] text-gray-500">{day.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                  <div className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${tone}`}>
+                    <Icon className="w-3 h-3" />
+                    {cov.scheduled}/{cov.required} hrs
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Rows */}
+          {rows.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No rows for this week. Drag an employee onto a day to begin.</div>
+          ) : (
+            rows.map((row) => (
+              <div key={row.key} className="grid border-b border-gray-50 hover:bg-gray-50/30" style={{ gridTemplateColumns: `160px repeat(7, 1fr)` }}>
+                <div className="px-3 py-3 flex items-center gap-2 border-r border-gray-100">
+                  {groupBy === "position" && <span className="w-2.5 h-2.5 rounded-full" style={{ background: ROLE_DOT[row.key] || "#6b7280" }} />}
+                  <span className="text-sm font-medium text-gray-800 truncate">{row.label}</span>
+                </div>
+                {days.map((day, dayIdx) => {
+                  const dateStr = toISO(day);
+                  const cellShifts = weekShifts.filter(s => s.date === dateStr && matchRow(s, row.key));
+                  const cellKey = `${row.key}|${dateStr}`;
+                  const isOver = dragOver === cellKey;
+                  return (
+                    <div
+                      key={dayIdx}
+                      onDragOver={(e) => { allowDrop(e); setDragOver(cellKey); }}
+                      onDragLeave={() => setDragOver(null)}
+                      onDrop={(e) => handleDrop(e, row.key, dateStr, row.key)}
+                      className={`min-h-[88px] px-1.5 py-1.5 border-l border-gray-100 transition ${isOver ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-gray-50/40"}`}
+                    >
+                      <div className="space-y-1">
+                        {cellShifts.map(shift => {
+                          const role = opById[shift.operator_id]?.role;
+          return (
+            <div
+              key={shift.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData("shift_id", shift.id); e.dataTransfer.effectAllowed = "move"; }}
+              onClick={() => onEdit(shift)}
+              className="group bg-white border rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:shadow-sm transition"
+              style={{ borderLeftColor: ROLE_DOT[role] || "#6b7280", borderLeftWidth: 3 }}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <p className="font-semibold text-gray-900 truncate">{shift.operator_name}</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition"
+                  title="Delete shift"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+              <p className="flex items-center gap-1 text-gray-600"><Clock className="w-3 h-3" />{shift.start_time}–{shift.end_time}</p>
+              {groupBy !== "register" && shift.register_name && <p className="text-[10px] text-gray-400 truncate">{shift.register_name}</p>}
+              {shift.notes && <p className="text-[10px] text-gray-400 italic truncate">{shift.notes}</p>}
+            </div>
+          );
+        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="px-4 py-3 border-t border-gray-100 flex flex-wrap items-center gap-4 text-[11px] text-gray-500">
+        <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-600" /> Under-scheduled</span>
+        <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-amber-600" /> Over-scheduled</span>
+        <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-600" /> Balanced</span>
+        <span className="ml-auto flex items-center gap-1 text-gray-400"><UserPlus className="w-3 h-3" /> Drag from the pool above to schedule an employee.</span>
+      </div>
+    </div>
+  );
+}
