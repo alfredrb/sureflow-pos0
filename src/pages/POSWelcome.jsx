@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Monitor } from "lucide-react";
+import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
 export default function POSWelcome() {
   const [time, setTime] = useState(new Date());
+  const [version, setVersion] = useState(VERSION_FALLBACK);
+
+  useEffect(() => {
+    getLatestVersionString().then(setVersion).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -51,7 +57,7 @@ export default function POSWelcome() {
         </Link>
 
         <p className="text-blue-300/30 text-xs mt-6">
-          v4.2.1 — Terminal Ready
+          v{version} — Terminal Ready
         </p>
       </div>
     </div>

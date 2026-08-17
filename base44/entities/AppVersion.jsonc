@@ -1,0 +1,56 @@
+{
+  "name": "AppVersion",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Version number (e.g. 4.2.1). The most recent release by release_date is treated as the current version shown across the app."
+    },
+    "release_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this version was released / logged."
+    },
+    "title": {
+      "type": "string",
+      "description": "Short release name / headline."
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-paragraph overview of this release."
+    },
+    "changes": {
+      "type": "array",
+      "description": "Detailed changelog entries grouped by category.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "new",
+              "improvement",
+              "fix",
+              "security",
+              "other"
+            ],
+            "default": "new"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Operator who logged this version."
+    },
+    "created_by_role": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "version"
+  ]
+}

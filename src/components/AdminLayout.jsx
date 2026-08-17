@@ -8,6 +8,7 @@ import { getTheme, setTheme } from "@/lib/theme";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import VersionButton from "@/components/VersionButton";
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -261,6 +262,7 @@ export default function AdminLayout() {
             {soundEnabled ? <Volume2 className="w-4 h-4 flex-shrink-0" /> : <VolumeX className="w-4 h-4 flex-shrink-0" />}
             {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
           </button>
+          <VersionButton collapsed={collapsed} canManage={isManager} adminOperator={adminOperator} />
           {!isLossPrevention && !isVendor && (
           <Link to="/pos" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors">
             <Monitor className="w-4 h-4 flex-shrink-0" />
