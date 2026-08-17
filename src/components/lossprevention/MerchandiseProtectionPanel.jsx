@@ -102,6 +102,8 @@ export default function MerchandiseProtectionPanel() {
 
   // Products available to protect — exclude items whose category is on the exclusion list.
   const availableProducts = products.filter(p => p.status !== "discontinued" && !(p.category && excludedCats.includes(p.category.toLowerCase())));
+  // Unique inventory categories for the exclusion dropdown.
+  const productCategories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
 
   if (loading) return <div className="flex items-center justify-center p-10"><div className="w-7 h-7 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin" /></div>;
 
@@ -160,7 +162,10 @@ export default function MerchandiseProtectionPanel() {
         <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-1"><Ban className="w-4 h-4 text-red-500" /> Excluded Categories</h3>
         <p className="text-xs text-gray-500 mb-3">Categories here can never be given a protection plan or suggested by the AI (e.g. Food, Produce).</p>
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <Input placeholder="Category name (e.g. Food)" value={exclCategory} onChange={e => setExclCategory(e.target.value)} className="sm:max-w-xs" />
+          <select value={exclCategory} onChange={e => setExclCategory(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white sm:max-w-xs">
+            <option value="">Select a category…</option>
+            {productCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
           <Input placeholder="Reason (optional)" value={exclReason} onChange={e => setExclReason(e.target.value)} className="flex-1" />
           <Button onClick={addExclusion} variant="outline" className="border-gray-300"><Plus className="w-4 h-4 mr-1" /> Exclude</Button>
         </div>
