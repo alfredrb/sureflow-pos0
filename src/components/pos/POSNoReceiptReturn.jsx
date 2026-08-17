@@ -3,15 +3,12 @@ import { base44 } from "@/api/data";
 import { FileX, ShieldCheck, ArrowLeft, Search, Trash2, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const PAY_METHODS = [
-  { value: "cash", label: "Cash" },
-  { value: "credit", label: "Credit" },
-  { value: "store_credit", label: "Store Credit" },
-];
+function makeGiftCardNumber() {
+  return "GC-" + Date.now().toString().slice(-8) + Math.floor(Math.random() * 90 + 10);
+}
 
-function buildReceiptHTML({ store, txId, operatorName, registerName, items, subtotal, tax, total, paymentMethod, customerId, mode, managerName, refusal }) {
+function buildReceiptHTML({ store, txId, operatorName, registerName, items, subtotal, tax, total, paymentMethod, giftCardNumber, customerId, mode, managerName, refusal }) {
   const storeName = store?.store_name || "Supermart";
   const isManager = mode === "manager_override";
   const title = refusal ? "NO-RECEIPT RETURN DENIED" : isManager ? "MANAGER OVERRIDE RETURN" : "NO-RECEIPT RETURN";
@@ -24,7 +21,7 @@ function buildReceiptHTML({ store, txId, operatorName, registerName, items, subt
        <div class="row"><span>Subtotal:</span><span>$${subtotal.toFixed(2)}</span></div>
        <div class="row"><span>Tax:</span><span>$${tax.toFixed(2)}</span></div>
        <div class="row bold"><span>REFUND TOTAL:</span><span>$${total.toFixed(2)}</span></div>
-       <div class="row"><span>Method:</span><span>${paymentMethod}</span></div>`
+       <div class="row bold"><span>REFUND TO GIFT CARD:</span><span>${giftCardNumber}</span></div>`
     : "";
   return `<!DOCTYPE html><html><head><style>
     body{font-family:monospace;width:80mm;margin:0;padding:10mm}
@@ -90,7 +87,6 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
   const [blocked, setBlocked] = useState(false);
   const [returnItems, setReturnItems] = useState([]);
   const [itemSearch, setItemSearch] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("store_credit");
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -181,6 +177,20 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
       const txId = prefix + Date.now().toString(36).toUpperCase();
       const custId = customerId.trim();
 
+      const giftCardNumber = makeGiftCardNumber();
+      await base44.entities.GiftCard.create({
+        card_number: giftCardNumber,
+        balance: total,
+        original_amount: total,
+        purchase_date: new Date().toISOString(),
+        purchased_by_operator_id: operator.operator_id,
+        purchased_by_operator_name: operator.full_name,
+        register_id: registerId,
+        status: "active",
+        notes: `Issued for ${isManager ? "manager override" : "no-receipt"} return — Customer ID ${custId}`,
+        transactions: [{ transaction_id: txId, amount: total, transaction_date: new Date().toISOString(), operator_id: operator.operator_id, operator_name: operator.full_name, register_id: registerId, type: "refund", remaining_balance: total }],
+      });
+
       await base44.entities.Transaction.create({
         transaction_id: txId,
         operator_id: operator.operator_id,
@@ -188,7 +198,8 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         register_id: registerId,
         items: returnItems.map(i => ({ sku: i.sku, name: i.name, qty: i.qty, price: i.price, total: i.total })),
         subtotal, tax, total,
-        payment_method: paymentMethod,
+        payment_method: "giftcard",
+        giftcard_number: giftCardNumber,
         status: "refunded",
         refund_type: "total",
         amount_tendered: total,
@@ -224,13 +235,13 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         operator_name: operator.full_name,
         operator_role: operator.role,
         register_id: registerId,
-        detail: `${isManager ? "Manager override return" : "No-receipt return"} — Customer ID ${custId} — $${total.toFixed(2)} (${paymentMethod})`,
+        detail: `${isManager ? "Manager override return" : "No-receipt return"} — Customer ID ${custId} — $${total.toFixed(2)} (refunded to gift card ${giftCardNumber})`,
         ...(managerAuth ? { override_operator_id: managerAuth.operator_id, override_operator_name: managerAuth.full_name, override_action: "Manager Override Return" } : {}),
       });
 
-      printDoc(buildReceiptHTML({ store, txId, operatorName: operator.full_name, registerName: registerId, items: returnItems, subtotal, tax, total, paymentMethod, customerId: custId, mode, managerName: managerAuth?.full_name, refusal: false }));
+      printDoc(buildReceiptHTML({ store, txId, operatorName: operator.full_name, registerName: registerId, items: returnItems, subtotal, tax, total, paymentMethod: "giftcard", giftCardNumber, customerId: custId, mode, managerName: managerAuth?.full_name, refusal: false }));
 
-      toast({ title: "Return Processed", description: `${txId} — $${total.toFixed(2)} refunded to customer ${custId}` });
+      toast({ title: "Return Processed", description: `${txId} — $${total.toFixed(2)} issued to gift card ${giftCardNumber}` });
       setReturnItems([]); setCustomerId(""); setCustomerVerified(false); setBlocked(false);
       if (isManager) setManagerAuth(null);
       onPreviewChange(null);
@@ -336,12 +347,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
           <div className="bg-[#111638] rounded-xl border border-purple-500/20 p-3 flex-shrink-0 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-blue-300/50 text-[10px] uppercase tracking-wider">Refund Method</span>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PAY_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-2 py-0.5">Gift Card (new)</span>
             </div>
             <div className="flex justify-between text-blue-300/50 text-xs"><span>Subtotal</span><span>−${subtotal.toFixed(2)}</span></div>
             <div className="flex justify-between text-blue-300/50 text-xs"><span>Tax</span><span>−${tax.toFixed(2)}</span></div>
