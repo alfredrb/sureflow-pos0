@@ -40,10 +40,26 @@
       "default": "open"
     },
     "operator_name": {
-      "type": "string"
+      "type": "string",
+      "description": "Primary operator the investigation is about"
     },
     "operator_id": {
       "type": "string"
+    },
+    "linked_operators": {
+      "type": "array",
+      "description": "Additional operators attached to this investigation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operator_id": {
+            "type": "string"
+          },
+          "operator_name": {
+            "type": "string"
+          }
+        }
+      }
     },
     "register_id": {
       "type": "string"
@@ -67,7 +83,7 @@
     },
     "evidence": {
       "type": "array",
-      "description": "Linked events / audits that prompted the investigation",
+      "description": "Linked events / audits / receipts that support the investigation",
       "items": {
         "type": "object",
         "properties": {
