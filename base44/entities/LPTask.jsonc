@@ -1,0 +1,71 @@
+{
+  "name": "LPTask",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Follow-up action title (e.g. Interview Operator, Review Camera Footage)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Additional context / instructions for the task"
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "Name of the supervisor assigned to complete this task"
+    },
+    "assigned_operator_id": {
+      "type": "string",
+      "description": "Operator ID of the assigned supervisor"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "When the follow-up must be completed"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "cancelled"
+      ],
+      "default": "pending"
+    },
+    "investigation_id": {
+      "type": "string",
+      "description": "Optional linked investigation case"
+    },
+    "investigation_title": {
+      "type": "string"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Operator who created the task"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "due_date",
+    "severity",
+    "status"
+  ]
+}

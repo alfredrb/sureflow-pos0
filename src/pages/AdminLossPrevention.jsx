@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import ShortsLongsPanel from "@/components/lossprevention/ShortsLongsPanel";
 import InvestigationsPanel from "@/components/lossprevention/InvestigationsPanel";
 import AISuggestionsPanel from "@/components/lossprevention/AISuggestionsPanel";
 import DocumentsPanel from "@/components/lossprevention/DocumentsPanel";
+import TasksPanel from "@/components/lossprevention/TasksPanel";
 import InvestigationDetailDialog from "@/components/lossprevention/InvestigationDetailDialog";
 
 export default function AdminLossPrevention() {
@@ -69,6 +70,7 @@ export default function AdminLossPrevention() {
     { id: "investigations", label: "Investigations", icon: FolderSearch },
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
     { id: "documents", label: "Documents", icon: FileText },
+    { id: "tasks", label: "Tasks", icon: ListTodo },
   ];
 
   return (
@@ -110,6 +112,7 @@ export default function AdminLossPrevention() {
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
+      {tab === "tasks" && <TasksPanel />}
 
       <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
     </div>
