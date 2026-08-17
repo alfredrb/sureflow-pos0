@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, SlidersHorizontal, AlertTriangle } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -124,30 +122,7 @@ export default function AdminLossPrevention() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2"><ShieldAlert className="w-7 h-7 text-amber-600" /> Loss Prevention Workbench</h1>
           <p className="text-gray-500 text-sm mt-1">Investigate shorts, longs, voids, overrides, and refunds — and track open cases.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline"><SlidersHorizontal className="w-4 h-4 mr-2" /> High-Risk Settings</Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64" align="end">
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500 mb-2">Disable an event type to exclude it from High-Risk Events and the operator risk ranking.</p>
-                {[
-                  { key: "voids", label: "Voids" },
-                  { key: "overrides", label: "Price Overrides" },
-                  { key: "refunds", label: "Refunds" },
-                  { key: "no_sales", label: "No-Sales" },
-                ].map(opt => (
-                  <div key={opt.key} className="flex items-center justify-between py-1.5">
-                    <span className="text-sm text-gray-700">{opt.label}</span>
-                    <Switch checked={lpFlags[opt.key]} onCheckedChange={() => toggleFlag(opt.key)} />
-                  </div>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-          <Button variant="outline" onClick={() => load(true)}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
-        </div>
+        <Button variant="outline" onClick={() => load(true)}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
       </div>
 
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 flex flex-col sm:flex-row sm:items-end gap-3">
@@ -179,7 +154,7 @@ export default function AdminLossPrevention() {
       </div>
 
       {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} />}
-      {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} />}
+      {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} onToggleFlag={toggleFlag} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}

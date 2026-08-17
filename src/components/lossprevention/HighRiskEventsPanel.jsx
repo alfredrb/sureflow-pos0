@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import moment from "moment";
 import { Ban, TrendingUp, RotateCcw, ShieldCheck, Receipt, Award, UserCheck, DollarSign, AlertTriangle, FolderSearch, Search } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 // Every high-risk / override activity logged at the register, classified into a
 // readable category. The "override" RegisterLog event_type actually covers many
@@ -37,7 +38,7 @@ function classify(log) {
   return null;
 }
 
-export default function HighRiskEventsPanel({ logs, txns, fromDate, toDate, onStartInvestigation, enabledFlags }) {
+export default function HighRiskEventsPanel({ logs, txns, fromDate, toDate, onStartInvestigation, enabledFlags, onToggleFlag }) {
   const flags = { voids: enabledFlags?.voids !== false, overrides: enabledFlags?.overrides !== false, refunds: enabledFlags?.refunds !== false, no_sales: enabledFlags?.no_sales !== false };
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -102,6 +103,26 @@ export default function HighRiskEventsPanel({ logs, txns, fromDate, toDate, onSt
 
   return (
     <div className="space-y-5">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4">
+        <div className="mb-3">
+          <h2 className="font-semibold text-gray-900 text-sm">High-Risk Event Toggles</h2>
+          <p className="text-xs text-gray-500">Disable an event type to exclude it from High-Risk Events and the operator risk ranking.</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { key: "voids", label: "Voids" },
+            { key: "overrides", label: "Price Overrides" },
+            { key: "refunds", label: "Refunds" },
+            { key: "no_sales", label: "No-Sales" },
+          ].map(opt => (
+            <label key={opt.key} className="flex items-center justify-between gap-2 border border-gray-100 rounded-xl px-3 py-2.5 cursor-pointer">
+              <span className="text-sm text-gray-700">{opt.label}</span>
+              <Switch checked={flags[opt.key]} onCheckedChange={() => onToggleFlag?.(opt.key)} />
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {cats.length === 0 ? (
           <div className="col-span-full text-center text-gray-400 text-sm py-6">No high-risk events in this period</div>
