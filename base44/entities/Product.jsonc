@@ -40,6 +40,29 @@
       "type": "number",
       "description": "Number of days within which items can be returned. 0 or blank = no restriction."
     },
+    "vendor_company_id": {
+      "type": "string",
+      "description": "Company ID of the vendor that owns this product. Vendors can only view/edit items matching their own Company ID."
+    },
+    "recalled": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, the POS blocks this item from being sold and instructs the operator to give the item to a manager."
+    },
+    "recall_reason": {
+      "type": "string",
+      "description": "Reason for the recall, shown to the cashier when the item is scanned."
+    },
+    "promotional": {
+      "type": "boolean",
+      "default": false,
+      "description": "Flags this item as part of a promotional program (reserved for future promotional logic)."
+    },
+    "release_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Earliest date/time this item can be sold. The POS blocks sale attempts before this date/time. Blank = no restriction."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number this product belongs to. Blank = shared/catalog product available to all stores."

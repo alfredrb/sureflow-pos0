@@ -20,10 +20,11 @@
         "csm",
         "manager",
         "technician",
-        "loss_prevention"
+        "loss_prevention",
+        "vendor"
       ],
       "default": "cashier",
-      "description": "Technician role: POS access in locked Training Mode with diagnostics tools; admin access limited to Registers, Network, Hardware Status, and Maintenance Log. Loss Prevention role: admin-only access to logs, transactions, and the Loss Prevention workbench; no POS access."
+      "description": "Technician role: POS access in locked Training Mode with diagnostics tools; admin access limited to Registers, Network, Hardware Status, and Maintenance Log. Loss Prevention role: admin-only access to logs, transactions, and the Loss Prevention workbench; no POS access. Vendor role: admin access limited to Inventory (own items) and Vendor Insights; no POS access."
     },
     "status": {
       "type": "string",
@@ -44,6 +45,10 @@
       "type": "boolean",
       "default": true,
       "description": "If false, this operator cannot log into the POS or approve POS overrides."
+    },
+    "company_id": {
+      "type": "string",
+      "description": "For vendor role: the Company ID this operator represents. Used to scope inventory and sales insights to only items tagged with this Company ID."
     }
   },
   "required": [

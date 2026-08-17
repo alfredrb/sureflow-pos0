@@ -15,7 +15,7 @@ export default function AdminOperators() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true });
+  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "" });
   const { toast } = useToast();
 
   const load = async () => {
@@ -34,8 +34,8 @@ export default function AdminOperators() {
   useEffect(() => { load(); }, []);
   useRealtimeSync("Operator", load, { intervalMs: 20000 });
 
-  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true }); setDialogOpen(true); };
-  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "", pos_access: op.pos_access !== false }); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "" }); setDialogOpen(true); };
+  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "", pos_access: op.pos_access !== false, company_id: op.company_id || "" }); setDialogOpen(true); };
 
   const save = async () => {
     try {
@@ -66,8 +66,8 @@ export default function AdminOperators() {
 
   const filtered = operators.filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search));
 
-  const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700", technician: "bg-slate-200 text-slate-700", loss_prevention: "bg-purple-100 text-purple-700" };
-  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician", loss_prevention: "Loss Prevention" };
+  const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700", technician: "bg-slate-200 text-slate-700", loss_prevention: "bg-purple-100 text-purple-700", vendor: "bg-teal-100 text-teal-700" };
+  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician", loss_prevention: "Loss Prevention", vendor: "Vendor" };
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
@@ -147,7 +147,7 @@ export default function AdminOperators() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Role</label>
-                <Select value={form.role} onValueChange={v => setForm({ ...form, role: v, pos_access: v === "loss_prevention" ? false : true })}>
+                <Select value={form.role} onValueChange={v => setForm({ ...form, role: v, pos_access: (v === "loss_prevention" || v === "vendor") ? false : true })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cashier">Cashier</SelectItem>
@@ -155,6 +155,7 @@ export default function AdminOperators() {
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="technician">Technician</SelectItem>
                     <SelectItem value="loss_prevention">Loss Prevention</SelectItem>
+                    <SelectItem value="vendor">Vendor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -176,6 +177,13 @@ export default function AdminOperators() {
               </div>
               <Switch checked={form.pos_access} onCheckedChange={v => setForm({ ...form, pos_access: v })} />
             </div>
+            {form.role === "vendor" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Company ID</label>
+                <Input value={form.company_id || ""} onChange={e => setForm({ ...form, company_id: e.target.value })} placeholder="e.g. VEND-001" />
+                <p className="text-xs text-gray-400 mt-1">Ties this vendor to inventory tagged with this Company ID. They can only view and edit those items.</p>
+              </div>
+            )}
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Create"} Operator</Button>
           </div>
         </DialogContent>

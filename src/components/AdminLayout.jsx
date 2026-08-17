@@ -28,8 +28,10 @@ export default function AdminLayout() {
   const isManager = adminOperator?.role === "manager";
   const isTechnician = adminOperator?.role === "technician";
   const isLossPrevention = adminOperator?.role === "loss_prevention";
+  const isVendor = adminOperator?.role === "vendor";
   const TECHNICIAN_PAGES = ["/admin/registers", "/admin/network", "/admin/hardware", "/admin-maintenance-log", "/admin/diagnostics"];
   const LP_PAGES = ["/admin/register-log", "/admin/loss-prevention", "/admin/transactions", "/admin/emergency-log", "/admin-system-alerts", "/admin/eod-reports", "/admin/cash-reconciliation", "/admin-maintenance-log", "/admin/staff-report"];
+  const VENDOR_PAGES = ["/admin", "/admin/inventory", "/admin/vendor-insights"];
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -57,6 +59,7 @@ export default function AdminLayout() {
     if (!adminOperator) return true;
     if (isTechnician) return TECHNICIAN_PAGES.includes(path);
     if (isLossPrevention) return LP_PAGES.includes(path);
+    if (isVendor) return VENDOR_PAGES.includes(path);
     if (!permission) return true; // not configured yet => full access
     return (permission.allowed_pages || []).includes(path);
   };
@@ -182,7 +185,7 @@ export default function AdminLayout() {
                 <span className="font-bold text-sm">SureFlow POS Admin</span>
               </div>
               {adminOperator && (
-                <div className="text-xs text-blue-300/70 pl-10">{adminOperator.full_name} · {adminOperator.role === "manager" ? "Manager" : adminOperator.role === "technician" ? "Technician" : adminOperator.role === "loss_prevention" ? "Loss Prevention" : "CSM"}</div>
+                <div className="text-xs text-blue-300/70 pl-10">{adminOperator.full_name} · {adminOperator.role === "manager" ? "Manager" : adminOperator.role === "technician" ? "Technician" : adminOperator.role === "loss_prevention" ? "Loss Prevention" : adminOperator.role === "vendor" ? "Vendor" : "CSM"}</div>
               )}
             </div>
           )}
@@ -256,7 +259,7 @@ export default function AdminLayout() {
             {soundEnabled ? <Volume2 className="w-4 h-4 flex-shrink-0" /> : <VolumeX className="w-4 h-4 flex-shrink-0" />}
             {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
           </button>
-          {!isLossPrevention && (
+          {!isLossPrevention && !isVendor && (
           <Link to="/pos" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors">
             <Monitor className="w-4 h-4 flex-shrink-0" />
             {!collapsed && <span>Open POS</span>}

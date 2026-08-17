@@ -223,6 +223,14 @@ export default function POSRegister() {
   };
 
   const addToCart = (product) => {
+    if (product.recalled) {
+      toast({ title: "Item Recalled", description: `${product.name} has been recalled and cannot be sold. Please give the item to a manager.`, variant: "destructive" });
+      return false;
+    }
+    if (product.release_date && new Date(product.release_date) > new Date()) {
+      toast({ title: "Not Yet Available", description: `${product.name} cannot be sold until ${new Date(product.release_date).toLocaleString()}.`, variant: "destructive" });
+      return false;
+    }
     setCart(prev => {
       const applicableDiscounts = getApplicableDiscounts(product.category);
       const bestDiscount = applicableDiscounts.length > 0 ? applicableDiscounts[0] : null;
@@ -231,6 +239,7 @@ export default function POSRegister() {
       if (existing) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * discountedPrice, discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price } : i);
       return [...prev, { sku: product.sku, name: product.name, price: discountedPrice, qty: 1, total: discountedPrice, tax_rate: taxExemptAppliedId ? 0 : (product.tax_rate || 0), discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price }];
     });
+    return true;
   };
 
   const removeFromCart = (sku) => setCart(prev => prev.filter(i => i.sku !== sku));
@@ -1097,7 +1106,7 @@ export default function POSRegister() {
         setSelectedCat={setSelectedCat}
         itemSearch={itemSearch}
         setItemSearch={setItemSearch}
-        onAdd={(p) => { addToCart(p); setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); }}
+        onAdd={(p) => { if (addToCart(p)) { setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); } }}
       />
 
       {/* Payment Dialog */}
