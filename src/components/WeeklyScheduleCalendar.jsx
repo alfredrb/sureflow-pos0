@@ -3,6 +3,8 @@ import { ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, Mi
 import DayUtilizationChart from "@/components/scheduling/DayUtilizationChart";
 import AvailabilitySidePanel from "@/components/scheduling/AvailabilitySidePanel";
 import AvailabilityOverrideDialog from "@/components/scheduling/AvailabilityOverrideDialog";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { CalendarDays } from "lucide-react";
 import { dayAvailability, shiftAvailabilityConflict, employmentBadge } from "@/lib/availabilityUtils";
 
 const ROLE_LABELS = { cashier: "Cashier", csm: "CSM", manager: "Manager", technician: "Technician", loss_prevention: "LP", vendor: "Vendor" };
@@ -136,13 +138,7 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
   const thisWeek = () => setCurrentDate(new Date());
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col lg:flex-row">
-      <AvailabilitySidePanel
-        operators={pool}
-        records={availability}
-        conflictMode={conflictMode}
-        conflictsByOp={conflictsByOp}
-      />
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
       <div className="flex-1 min-w-0 flex flex-col">
       <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -154,6 +150,26 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition border border-gray-200 text-gray-600 hover:bg-gray-50"
+                title="Preferred days & FT/PT status"
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                Availability
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-0">
+              <AvailabilitySidePanel
+                operators={pool}
+                records={availability}
+                conflictMode={conflictMode}
+                conflictsByOp={conflictsByOp}
+                embedded
+              />
+            </PopoverContent>
+          </Popover>
           <button
             onClick={() => setConflictMode(v => !v)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition border ${conflictMode ? "bg-red-50 border-red-300 text-red-700" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
@@ -287,9 +303,9 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
               onDragStart={(e) => { e.dataTransfer.setData("shift_id", shift.id); e.dataTransfer.effectAllowed = "move"; setDraggingOp(shift.operator_id); }}
               onDragEnd={() => setDraggingOp(null)}
               onClick={() => onEdit(shift)}
-              className={`group bg-white border rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:shadow-sm transition ${conflict?.conflict ? "ring-1 ring-red-400 border-red-300 bg-red-50/40" : ""}`}
+              className={`group bg-white border rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:shadow-sm transition h-[44px] flex flex-col justify-center ${conflict?.conflict ? "ring-1 ring-red-400 border-red-300 bg-red-50/40" : ""}`}
               style={{ borderLeftColor: conflict?.conflict ? "#ef4444" : (ROLE_DOT[role] || "#6b7280"), borderLeftWidth: 3 }}
-              title={conflict?.conflict ? conflict.reasons.join(" · ") : ""}
+              title={[conflict?.conflict ? conflict.reasons.join(" · ") : "", shift.notes, groupBy !== "register" && shift.register_name].filter(Boolean).join(" · ")}
             >
               <div className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-1 min-w-0">
@@ -299,19 +315,19 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition"
+                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition flex-shrink-0"
                   title="Delete shift"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
-              <p className="flex items-center gap-1 text-gray-600"><Clock className="w-3 h-3" />{shift.start_time}–{shift.end_time}</p>
-              {shift.lunch_start && shift.lunch_end && (
-                <p className="flex items-center gap-1 text-purple-600"><Utensils className="w-3 h-3" />Lunch {shift.lunch_start}–{shift.lunch_end}</p>
-              )}
-              {conflict?.conflict && <p className="text-[9px] text-red-600 truncate">{conflict.reasons.join(" · ")}</p>}
-              {groupBy !== "register" && shift.register_name && <p className="text-[10px] text-gray-400 truncate">{shift.register_name}</p>}
-              {shift.notes && <p className="text-[10px] text-gray-400 italic truncate">{shift.notes}</p>}
+              <p className="flex items-center gap-1 text-gray-600 truncate">
+                <Clock className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{shift.start_time}–{shift.end_time}</span>
+                {shift.lunch_start && shift.lunch_end && (
+                  <span className="flex items-center gap-0.5 text-purple-600 flex-shrink-0">·<Utensils className="w-3 h-3" />{shift.lunch_start}–{shift.lunch_end}</span>
+                )}
+              </p>
             </div>
           );
         })}

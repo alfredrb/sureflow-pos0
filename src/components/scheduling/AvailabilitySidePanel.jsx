@@ -5,7 +5,7 @@ import { employmentBadge } from "@/lib/availabilityUtils";
 const DAY_DOTS = ["S", "M", "T", "W", "T", "F", "S"];
 
 // Side panel listing each schedulable operator's preferred availability alongside the calendar.
-export default function AvailabilitySidePanel({ operators, records, conflictMode, conflictsByOp }) {
+export default function AvailabilitySidePanel({ operators, records, conflictMode, conflictsByOp, embedded = false }) {
   const recordByOp = React.useMemo(() => {
     const m = {};
     (records || []).forEach(r => { m[r.operator_id] = r; });
@@ -13,11 +13,15 @@ export default function AvailabilitySidePanel({ operators, records, conflictMode
   }, [records]);
 
   return (
-    <div className="w-full lg:w-64 lg:border-r border-gray-100 border-b lg:border-b-0 bg-gray-50/50 flex-shrink-0 max-h-[640px] overflow-y-auto">
-      <div className="px-4 py-3 border-b border-gray-100 sticky top-0 bg-gray-50/95 backdrop-blur z-10">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Availability</p>
-        <p className="text-[11px] text-gray-400 mt-0.5">Preferred days & FT/PT status</p>
-      </div>
+    <div className={embedded
+      ? "w-full max-h-[420px] overflow-y-auto"
+      : "w-full lg:w-64 lg:border-r border-gray-100 border-b lg:border-b-0 bg-gray-50/50 flex-shrink-0 max-h-[640px] overflow-y-auto"}>
+      {!embedded && (
+        <div className="px-4 py-3 border-b border-gray-100 sticky top-0 bg-gray-50/95 backdrop-blur z-10">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Availability</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Preferred days & FT/PT status</p>
+        </div>
+      )}
       <div className="divide-y divide-gray-100">
         {operators.length === 0 && <div className="p-4 text-xs text-gray-400">No operators.</div>}
         {operators.map(op => {
