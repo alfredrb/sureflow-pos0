@@ -86,11 +86,13 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
 
   useEffect(() => {
     if (operators?.length) setSelectedKey(operators[0].operator_id || operators[0].operator_name || "");
+    else setSelectedKey("__all__");
     setUseDayOnly(!!flaggedDate);
     setDay(flaggedDate || moment().format("YYYY-MM-DD"));
   }, [operators, flaggedDate]);
 
-  const selectedOp = operators?.find(o => (o.operator_id || o.operator_name || "") === selectedKey) || operators?.[0];
+  const selectedOp = operators?.find(o => (o.operator_id || o.operator_name || "") === selectedKey);
+  const isAll = !selectedOp;
 
   const inRange = (d) => {
     if (!d) return false;
@@ -100,7 +102,7 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
   };
 
   const matchesOp = (rec) => {
-    if (!selectedOp) return false;
+    if (!selectedOp) return true;
     if (selectedOp.operator_id && rec.operator_id && rec.operator_id === selectedOp.operator_id) return true;
     if (selectedOp.operator_name && rec.operator_name && rec.operator_name === selectedOp.operator_name) return true;
     return false;
@@ -112,9 +114,9 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
 
   const activity = useMemo(() => {
     const items = [];
-    opLogs.forEach(l => items.push({ id: "log-" + l.id, kind: "Register Log", type: l.event_type, date: l.created_date, detail: l.detail || l.event_type, amount: l.transaction_total, ref: l.transaction_id }));
-    opTxns.forEach(t => items.push({ id: "txn-" + t.id, kind: "Transaction", type: t.status === "refunded" ? "refund" : "sale", date: t.created_date, detail: `${t.transaction_id} · ${t.payment_method}`, amount: t.total, ref: t.transaction_id, txn: t }));
-    opAudits.forEach(a => items.push({ id: "aud-" + a.id, kind: "Cash Audit", type: "cash_audit", date: a.audit_date, detail: `Drawer ${a.discrepancy < 0 ? "short" : a.discrepancy > 0 ? "over" : "balanced"} · ${(a.total_counted || 0).toFixed(2)} counted`, amount: a.discrepancy, ref: a.register_id }));
+    opLogs.forEach(l => items.push({ id: "log-" + l.id, kind: "Register Log", type: l.event_type, date: l.created_date, detail: (l.detail || l.event_type) + (isAll && l.operator_name ? " · " + l.operator_name : ""), amount: l.transaction_total, ref: l.transaction_id }));
+    opTxns.forEach(t => items.push({ id: "txn-" + t.id, kind: "Transaction", type: t.status === "refunded" ? "refund" : "sale", date: t.created_date, detail: `${t.transaction_id} · ${t.payment_method}${isAll && t.operator_name ? " · " + t.operator_name : ""}`, amount: t.total, ref: t.transaction_id, txn: t }));
+    opAudits.forEach(a => items.push({ id: "aud-" + a.id, kind: "Cash Audit", type: "cash_audit", date: a.audit_date, detail: `Drawer ${a.discrepancy < 0 ? "short" : a.discrepancy > 0 ? "over" : "balanced"} · ${(a.total_counted || 0).toFixed(2)} counted${isAll && a.operator_name ? " · " + a.operator_name : ""}`, amount: a.discrepancy, ref: a.register_id }));
     return items.sort((a, b) => moment(b.date).diff(moment(a.date)));
   }, [opLogs, opTxns, opAudits]);
 
@@ -139,6 +141,7 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
               <Select value={selectedKey} onValueChange={setSelectedKey}>
                 <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__all__">All Operators</SelectItem>
                   {operators?.map((o, idx) => {
                     const key = o.operator_id || o.operator_name || "op-" + idx;
                     return <SelectItem key={key} value={key}>{o.operator_name || "Unknown"}{o.operator_id ? ` (${o.operator_id})` : ""}{idx === 0 ? " · primary" : ""}</SelectItem>;
@@ -193,7 +196,7 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
             </div>
             <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {filteredActivity.length === 0 ? (
-                <div className="px-4 py-10 text-center text-gray-400 text-sm">No actions found for this operator in the selected period</div>
+                <div className="px-4 py-10 text-center text-gray-400 text-sm">{isAll ? "No actions found in the selected period" : "No actions found for this operator in the selected period"}</div>
               ) : filteredActivity.map(a => (
                 <div key={a.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
@@ -220,7 +223,7 @@ export default function InvestigationOperatorExplorer({ open, operators, logs, t
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{t.transaction_id} · <span className="capitalize text-gray-600">{t.payment_method}</span></p>
-                      <p className="text-[11px] text-gray-400">{moment(t.created_date).format("MMM D, YYYY h:mm A")} · {(t.items || []).length} items · {t.status}</p>
+                      <p className="text-[11px] text-gray-400">{moment(t.created_date).format("MMM D, YYYY h:mm A")} · {(t.items || []).length} items · {t.status}{isAll && t.operator_name ? ` · ${t.operator_name}` : ""}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-sm font-semibold text-gray-800">${Math.abs(t.total || 0).toFixed(2)}</span>
