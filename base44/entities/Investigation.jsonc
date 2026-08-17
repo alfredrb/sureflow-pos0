@@ -1,0 +1,133 @@
+{
+  "name": "Investigation",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "cash_short",
+        "cash_over",
+        "voids",
+        "overrides",
+        "refunds",
+        "no_sales",
+        "pattern",
+        "other"
+      ],
+      "default": "other",
+      "description": "Primary category of the investigation"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "in_progress",
+        "closed"
+      ],
+      "default": "open"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string",
+      "description": "What is being investigated and why"
+    },
+    "amount_impact": {
+      "type": "number",
+      "default": 0,
+      "description": "Estimated dollar exposure"
+    },
+    "date_range_start": {
+      "type": "string",
+      "format": "date"
+    },
+    "date_range_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Linked events / audits that prompted the investigation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "activity_log": {
+      "type": "array",
+      "description": "Append-only timeline of status changes and notes",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "by": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ai_generated": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if the case was seeded from an AI suggestion"
+    },
+    "resolution": {
+      "type": "string",
+      "description": "Outcome once the investigation is closed"
+    },
+    "created_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "type",
+    "status"
+  ]
+}
