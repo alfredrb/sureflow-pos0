@@ -1,8 +1,10 @@
 import React, { useState, useRef } from "react";
 import { base44 } from "@/api/data";
-import { Database, Upload, FileJson, Eye, X, Plus } from "lucide-react";
+import { Database, Upload, FileJson, Eye, X, Paperclip, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import EvidenceViewerDialog from "@/components/lossprevention/EvidenceViewerDialog";
@@ -32,7 +34,12 @@ export default function DataViewerPanel({ onAdded }) {
   const [data, setData] = useState(null);
   const [viewEvidence, setViewEvidence] = useState(null);
   const [fileName, setFileName] = useState("");
-  const [adding, setAdding] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [invs, setInvs] = useState([]);
+  const [loadingInvs, setLoadingInvs] = useState(false);
+  const [invSearch, setInvSearch] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [attaching, setAttaching] = useState(false);
   const fileInputRef = useRef(null);
   const { toast } = useToast();
 
@@ -58,41 +65,41 @@ export default function DataViewerPanel({ onAdded }) {
 
   const reset = () => { setData(null); setFileName(""); };
 
-  const addAsNew = async () => {
-    if (!data) return;
-    setAdding(true);
+  const openPicker = async () => {
+    setShowPicker(true);
+    setLoadingInvs(true);
+    setSelectedId("");
+    setInvSearch("");
+    try {
+      const list = await base44.entities.Investigation.list("-created_date", 200);
+      setInvs(list.filter(i => !i.archived && i.status !== "closed"));
+    } catch (e) {
+      toast({ title: "Could not load investigations", description: e?.message, variant: "destructive" });
+    }
+    setLoadingInvs(false);
+  };
+
+  const attachAsEvidence = async () => {
+    if (!data || !selectedId) return;
+    setAttaching(true);
     try {
       const now = new Date().toISOString();
       const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
       const by = admin?.full_name || admin?.operator_id || "Admin";
-      const status = ["open", "in_progress", "closed"].includes(data.status) ? data.status : "open";
-      const payload = {
-        title: data.title || "Imported investigation",
-        type: data.type || "other",
-        severity: data.severity || "medium",
-        status,
-        operator_name: data.operator_name || "",
-        operator_id: data.operator_id || "",
-        register_id: data.register_id || "",
-        assigned_to: data.assigned_to || "",
-        linked_operators: Array.isArray(data.linked_operators) ? data.linked_operators : [],
-        amount_impact: Number(data.amount_impact) || 0,
-        date_range_start: data.date_range_start || "",
-        date_range_end: data.date_range_end || "",
-        summary: data.summary || "",
-        resolution: data.resolution || "",
-        stolen_items: Array.isArray(data.stolen_items) ? data.stolen_items : [],
-        evidence: Array.isArray(data.evidence) ? data.evidence : [],
-        activity_log: [...(Array.isArray(data.activity_log) ? data.activity_log : []), { date: now, by, action: "Imported from exported JSON", note: fileName || "" }],
-        created_by: by,
-      };
-      const created = await base44.entities.Investigation.create(payload);
-      toast({ title: "Investigation created", description: "Imported from JSON — view it in the Investigations tab." });
-      if (onAdded) onAdded(created);
+      const file = new File([JSON.stringify(data, null, 2)], fileName || "investigation.json", { type: "application/json" });
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const target = await base44.entities.Investigation.get(selectedId);
+      const evidence = Array.isArray(target.evidence) ? target.evidence : [];
+      evidence.push({ type: "file", file_url, file_name: fileName || "investigation.json", detail: `Imported archived case data: ${data.title || ""}`, date: now });
+      const activity_log = [...(Array.isArray(target.activity_log) ? target.activity_log : []), { date: now, by, action: "Evidence added from imported JSON", note: data.title || fileName || "" }];
+      await base44.entities.Investigation.update(selectedId, { evidence, activity_log });
+      toast({ title: "Evidence attached", description: "The archived case data was added to the selected investigation." });
+      setShowPicker(false);
+      if (onAdded) onAdded();
     } catch (err) {
-      toast({ title: "Failed to create investigation", description: err?.message, variant: "destructive" });
+      toast({ title: "Failed to attach evidence", description: err?.message, variant: "destructive" });
     }
-    setAdding(false);
+    setAttaching(false);
   };
 
   const evidence = Array.isArray(data?.evidence) ? data.evidence : [];
@@ -111,7 +118,7 @@ export default function DataViewerPanel({ onAdded }) {
           <div className="flex items-center gap-2">
             <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleFile} />
             <Button onClick={() => fileInputRef.current?.click()} className="bg-amber-600 hover:bg-amber-500"><Upload className="w-4 h-4 mr-1.5" /> Upload JSON</Button>
-            {data && <Button variant="outline" onClick={addAsNew} disabled={adding}><Plus className="w-4 h-4 mr-1.5" /> {adding ? "Adding…" : "Add as New Investigation"}</Button>}
+            {data && <Button variant="outline" onClick={openPicker} disabled={attaching}><Paperclip className="w-4 h-4 mr-1.5" /> Add as Evidence</Button>}
             {data && <Button variant="outline" onClick={reset}><X className="w-4 h-4 mr-1.5" /> Clear</Button>}
           </div>
         </div>
@@ -225,6 +232,39 @@ export default function DataViewerPanel({ onAdded }) {
       )}
 
       <EvidenceViewerDialog evidence={viewEvidence} onClose={() => setViewEvidence(null)} />
+
+      <Dialog open={showPicker} onOpenChange={setShowPicker}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Attach to investigation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input value={invSearch} onChange={e => setInvSearch(e.target.value)} placeholder="Search investigations…" className="pl-9" />
+            </div>
+            <div className="max-h-72 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
+              {loadingInvs ? (
+                <p className="p-4 text-sm text-gray-400 text-center">Loading…</p>
+              ) : (() => {
+                const matches = invs.filter(i => !invSearch || (i.title || "").toLowerCase().includes(invSearch.toLowerCase()) || (i.operator_name || "").toLowerCase().includes(invSearch.toLowerCase()));
+                return matches.length === 0 ? (
+                  <p className="p-4 text-sm text-gray-400 text-center">No open investigations found.</p>
+                ) : matches.map(inv => (
+                  <button key={inv.id} onClick={() => setSelectedId(inv.id)} className={`w-full text-left p-3 hover:bg-amber-50/50 ${selectedId === inv.id ? "bg-amber-50" : ""}`}>
+                    <p className="text-sm font-medium text-gray-800">{inv.title}</p>
+                    <p className="text-xs text-gray-500">{inv.operator_name || "—"} · {inv.status}</p>
+                  </button>
+                ));
+              })()}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPicker(false)} disabled={attaching}>Cancel</Button>
+            <Button onClick={attachAsEvidence} disabled={!selectedId || attaching} className="bg-amber-600 hover:bg-amber-500">{attaching ? "Attaching…" : "Attach Evidence"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
