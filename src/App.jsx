@@ -45,6 +45,8 @@ import AdminMaintenanceLog from '@/pages/AdminMaintenanceLog';
 import AdminStoreSettings from '@/pages/AdminStoreSettings';
 import AdminLossPrevention from '@/pages/AdminLossPrevention';
 import AdminVendorInsights from '@/pages/AdminVendorInsights';
+import AdminVendorCompanies from '@/pages/AdminVendorCompanies';
+import VendorDashboard from '@/pages/VendorDashboard';
 import AdminHardwareStatus from '@/pages/AdminHardwareStatus';
 import AdminPermissions from '@/pages/AdminPermissions';
 import AdminDataViewer from '@/pages/AdminDataViewer';
@@ -82,6 +84,7 @@ const AuthenticatedApp = () => {
         <Route path="/pos" element={<POSLogin />} />
         <Route path="/pos/login" element={<POSLogin />} />
         <Route path="/pos/register" element={<POSRegister />} />
+        <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
@@ -111,6 +114,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/settings" element={<AdminStoreSettings />} />
           <Route path="/admin/loss-prevention" element={<AdminLossPrevention />} />
           <Route path="/admin/vendor-insights" element={<AdminVendorInsights />} />
+          <Route path="/admin/vendor-companies" element={<AdminVendorCompanies />} />
           <Route path="/admin/hardware" element={<AdminHardwareStatus />} />
           <Route path="/admin/permissions" element={<AdminPermissions />} />
           <Route path="/admin/data-viewer" element={<AdminDataViewer />} />

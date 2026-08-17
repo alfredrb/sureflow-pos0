@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock, Store, Loader2 } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,36 @@ export default function Home() {
   const [swapReason, setSwapReason] = useState("");
   const [incomingSwapRequests, setIncomingSwapRequests] = useState([]);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [vendorLoginOpen, setVendorLoginOpen] = useState(false);
+  const [vendorId, setVendorId] = useState("");
+  const [vendorPin, setVendorPin] = useState("");
+  const [vendorLoading, setVendorLoading] = useState(false);
+
+  const handleVendorLogin = async () => {
+    if (!vendorId.trim() || !vendorPin.trim()) {
+      toast({ title: "Enter your Vendor ID and PIN", variant: "destructive" });
+      return;
+    }
+    setVendorLoading(true);
+    try {
+      const ops = await base44.entities.Operator.filter({ operator_id: vendorId.trim(), pin: vendorPin.trim(), status: "active" });
+      const vendor = ops.find(o => o.role === "vendor");
+      if (!vendor) {
+        toast({ title: "Access Denied", description: "Invalid Vendor ID or PIN", variant: "destructive" });
+        setVendorPin("");
+      } else {
+        sessionStorage.setItem("admin_operator", JSON.stringify(vendor));
+        toast({ title: "Welcome", description: `Logged in as ${vendor.full_name}` });
+        setVendorLoginOpen(false);
+        setVendorId(""); setVendorPin("");
+        navigate("/vendor-dashboard");
+      }
+    } catch (e) {
+      toast({ title: "Login failed", variant: "destructive" });
+    }
+    setVendorLoading(false);
+  };
 
   useEffect(() => {
     const checkAlerts = async () => {
@@ -201,6 +231,15 @@ export default function Home() {
             <p className="text-emerald-200 text-xs">Check your schedule</p>
           </div>
         </button>
+        <button
+          onClick={() => setVendorLoginOpen(true)}
+          className="flex items-center gap-4 bg-teal-600 hover:bg-teal-500 text-white p-5 rounded-2xl transition-all hover:-translate-y-0.5 shadow-lg shadow-teal-600/20">
+          <Store className="w-6 h-6" />
+          <div>
+            <p className="font-semibold">Vendor Dashboard</p>
+            <p className="text-teal-200 text-xs">Vendor company portal</p>
+          </div>
+        </button>
       </div>
 
       {/* Shift Lookup Modal */}
@@ -346,6 +385,30 @@ export default function Home() {
                 Send Request
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vendor Login Modal */}
+      <Dialog open={vendorLoginOpen} onOpenChange={setVendorLoginOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Store className="w-5 h-5 text-teal-600" /> Vendor Login</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Vendor Operator ID</label>
+              <Input value={vendorId} onChange={e => setVendorId(e.target.value)} placeholder="Enter your vendor operator ID" autoFocus />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">PIN</label>
+              <Input type="password" value={vendorPin} onChange={e => setVendorPin(e.target.value)} placeholder="Enter your PIN" onKeyDown={e => e.key === "Enter" && handleVendorLogin()} />
+            </div>
+            <Button onClick={handleVendorLogin} disabled={vendorLoading} className="w-full bg-teal-600 hover:bg-teal-700">
+              {vendorLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              {vendorLoading ? "Signing in..." : "Sign In"}
+            </Button>
+            <p className="text-center text-xs text-gray-400">Vendor access is limited to your company's inventory and sales insights.</p>
           </div>
         </DialogContent>
       </Dialog>

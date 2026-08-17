@@ -1,0 +1,64 @@
+{
+  "name": "VendorCompany",
+  "type": "object",
+  "properties": {
+    "company_id": {
+      "type": "string",
+      "description": "Unique system-managed Vendor Company ID (e.g. VEND-XXXXXXXX). Ties vendor operators and inventory items to this company."
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "address_street": {
+      "type": "string"
+    },
+    "address_city": {
+      "type": "string"
+    },
+    "address_state": {
+      "type": "string"
+    },
+    "address_zip": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "tax_id_number": {
+      "type": "string",
+      "description": "EIN or tax ID number for the vendor company"
+    },
+    "category": {
+      "type": "string",
+      "description": "Type of vendor (e.g. Grocery, Produce, Electronics, General)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disabled"
+      ],
+      "default": "active",
+      "description": "Disabled companies cannot be used for new vendor operators or inventory."
+    },
+    "issued_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the vendor company was registered"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "company_id",
+    "company_name",
+    "status"
+  ]
+}
