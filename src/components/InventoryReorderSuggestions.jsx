@@ -100,7 +100,7 @@ export default function InventoryReorderSuggestions() {
                   <AlertTriangle className="w-4 h-4 text-red-600" />
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 text-sm">
                 <div>
                   <p className="text-gray-600 text-xs">Current Stock</p>
                   <p className="font-semibold text-gray-900">{item.currentStock}</p>

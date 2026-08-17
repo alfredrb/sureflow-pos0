@@ -73,16 +73,16 @@ export default function StaffingVsRevenueChart() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white rounded-xl border border-gray-100 p-3 sm:p-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Revenue vs Staffing</h2>
-          <p className="text-sm text-gray-500 mt-1">Sales revenue overlay with staff count by date</p>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">Revenue vs Staffing</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">Sales revenue overlay with staff count by date</p>
         </div>
         <select
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white w-full sm:w-auto"
         >
           <option value="today">Today</option>
           <option value="7days">Last 7 Days</option>
@@ -111,7 +111,7 @@ export default function StaffingVsRevenueChart() {
         </ComposedChart>
       </ResponsiveContainer>
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-4 sm:mt-6 grid grid-cols-2 gap-2 sm:gap-4">
         <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
           <p className="text-xs text-blue-700 font-medium">Avg Daily Revenue</p>
           <p className="text-xl font-bold text-blue-900">

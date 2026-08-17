@@ -172,10 +172,10 @@ export default function AdminDashboard() {
       {config.graphs.loss && (
         <section className="mb-6 sm:mb-8 space-y-6">
           <SectionHeader icon={ShieldAlert} title="Loss Prevention" subtitle="Audit patterns and stolen item trends" color="bg-amber-500" />
-          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Register Audit Frequency (Last 30 Days)</h2>
-              <p className="text-sm text-gray-500 mt-1">Tracks audit frequency and discrepancy patterns by operator</p>
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-6">
+            <div className="mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Register Audit Frequency (Last 30 Days)</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">Tracks audit frequency and discrepancy patterns by operator</p>
             </div>
             <AuditFrequencyChart />
           </div>
@@ -186,10 +186,10 @@ export default function AdminDashboard() {
       {config.graphs.inventory && (
         <section className="mb-6 sm:mb-8 space-y-6">
           <SectionHeader icon={Package} title="Inventory" subtitle="Reorder guidance based on sales patterns" color="bg-violet-500" />
-          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Inventory Reorder Suggestions</h2>
-              <p className="text-sm text-gray-500 mt-1">Based on peak time sales patterns</p>
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-6">
+            <div className="mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Inventory Reorder Suggestions</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">Based on peak time sales patterns</p>
             </div>
             <InventoryReorderSuggestions />
           </div>

@@ -83,11 +83,11 @@ export default function StolenItemsTrendChart({ rangeDays = 30 }) {
   if (loading) return <div className="flex justify-center p-8"><div className="w-6 h-6 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm space-y-6">
+    <div className="bg-white rounded-xl border border-gray-100 p-3 sm:p-6 shadow-sm space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Stolen Item Trends</h2>
-          <p className="text-sm text-gray-500 mt-1">Patterns built from stock-theft investigations</p>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">Stolen Item Trends</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">Patterns built from stock-theft investigations</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500 font-medium">Category</label>

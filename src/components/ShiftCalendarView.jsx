@@ -91,7 +91,7 @@ export default function ShiftCalendarView() {
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-full">
+        <div className="min-w-[760px]">
           {/* Header with days */}
           <div className="grid gap-1 p-3 sm:p-4 bg-gray-50 border-b border-gray-200" style={{ gridTemplateColumns: `150px repeat(7, 1fr)` }}>
             <div className="font-semibold text-xs text-gray-600 uppercase">Register</div>
