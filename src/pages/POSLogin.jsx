@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/data";
-import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle, Clock } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import SelfTimeClock from "@/components/SelfTimeClock";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -21,6 +22,7 @@ export default function POSLogin() {
   const [configLoading, setConfigLoading] = useState(false);
   const [forceConfig, setForceConfig] = useState(false);
   const [showShiftLookup, setShowShiftLookup] = useState(false);
+  const [showTimeClock, setShowTimeClock] = useState(false);
   const [shiftLookupPin, setShiftLookupPin] = useState("");
   const [currentOperator, setCurrentOperator] = useState(null);
   const [currentShift, setCurrentShift] = useState(null);
@@ -357,6 +359,13 @@ export default function POSLogin() {
           <span>Shift Lookup</span>
         </button>
         <button
+          onClick={() => setShowTimeClock(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
+        >
+          <Clock className="w-3 h-3" />
+          <span>Clock In/Out</span>
+        </button>
+        <button
           onClick={() => navigate("/admin/login")}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-blue-300/40 hover:text-blue-200 transition-colors text-xs"
         >
@@ -430,6 +439,9 @@ export default function POSLogin() {
           </div>
         </div>
       )}
+
+      {/* Self-Service Time Clock Modal */}
+      <SelfTimeClock open={showTimeClock} onOpenChange={setShowTimeClock} operators={operators} />
 
       {/* Config Modal */}
       {showConfig && (

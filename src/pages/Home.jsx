@@ -28,6 +28,7 @@ export default function Home() {
   const [vendorPin, setVendorPin] = useState("");
   const [vendorLoading, setVendorLoading] = useState(false);
   const [timeClockOpen, setTimeClockOpen] = useState(false);
+  const [storeName, setStoreName] = useState("Supermart");
 
   const handleVendorLogin = async () => {
     if (!vendorId.trim() || !vendorPin.trim()) {
@@ -82,6 +83,14 @@ export default function Home() {
     checkAlerts();
     const interval = setInterval(checkAlerts, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    base44.entities.StoreSettings.list().then(settings => {
+      if (settings && settings.length > 0 && settings[0].store_name) {
+        setStoreName(settings[0].store_name);
+      }
+    }).catch(() => {});
   }, []);
 
   const loadIncomingSwapRequests = async (operatorId) => {
@@ -187,7 +196,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex flex-col items-center justify-center p-6 max-w-[1024px] max-h-[768px] mx-auto overflow-hidden">
+    <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex flex-col items-center justify-center p-6 mx-auto overflow-auto">
       <div className="absolute top-6 right-6 flex items-center gap-2">
         <span className="text-blue-200/60 text-xs">{user?.full_name || "User"}</span>
         {pendingCount > 0 && (
@@ -201,7 +210,7 @@ export default function Home() {
       <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/30">
         <Monitor className="w-7 h-7 text-white" />
       </div>
-      <h1 className="text-4xl font-bold text-white mb-2">Supermart</h1>
+      <h1 className="text-4xl font-bold text-white mb-2">{storeName}</h1>
       <p className="text-blue-300/50 text-sm mb-12">Point of Sale Management System</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
