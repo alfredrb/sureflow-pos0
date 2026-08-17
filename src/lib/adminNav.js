@@ -1,4 +1,4 @@
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2 } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus } from "lucide-react";
 
 export const adminNavGroups = [
   {
@@ -17,6 +17,7 @@ export const adminNavGroups = [
   {
     label: "Workforce", icon: Users, items: [
       { label: "Operators", path: "/admin/operators", icon: Users },
+      { label: "New Employee", path: "/admin/employee-creation", icon: UserPlus },
       { label: "Shift Scheduling", path: "/admin/shift-scheduling", icon: Clock },
       { label: "Staff Report", path: "/admin/staff-report", icon: BarChart3 },
       { label: "Payroll", path: "/admin/payroll", icon: DollarSign },

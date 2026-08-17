@@ -20,6 +20,7 @@ import AdminLogin from '@/pages/AdminLogin';
 import AdminLayout from '@/components/AdminLayout';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AdminOperators from '@/pages/AdminOperators';
+import AdminEmployeeCreation from '@/pages/AdminEmployeeCreation';
 import AdminInventory from '@/pages/AdminInventory';
 import AdminTransactions from '@/pages/AdminTransactions';
 import AdminFunctionKeys from '@/pages/AdminFunctionKeys';
@@ -89,6 +90,7 @@ const AuthenticatedApp = () => {
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/operators" element={<AdminOperators />} />
+          <Route path="/admin/employee-creation" element={<AdminEmployeeCreation />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/transactions" element={<AdminTransactions />} />
           <Route path="/admin/function-keys" element={<AdminFunctionKeys />} />

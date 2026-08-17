@@ -64,7 +64,10 @@ export default function AdminOperators() {
     }
   };
 
-  const filtered = operators.filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search));
+  const ROLE_ORDER = { manager: 0, csm: 1, loss_prevention: 2, cashier: 3, vendor: 4, technician: 5 };
+  const filtered = operators
+    .filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search))
+    .sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99));
 
   const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700", technician: "bg-slate-200 text-slate-700", loss_prevention: "bg-purple-100 text-purple-700", vendor: "bg-teal-100 text-teal-700" };
   const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician", loss_prevention: "Loss Prevention", vendor: "Vendor" };
