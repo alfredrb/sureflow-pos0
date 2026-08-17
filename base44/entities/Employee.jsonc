@@ -47,7 +47,7 @@
         "terminated"
       ],
       "default": "active",
-      "description": "Employment status. on_leave disables the linked operator for the duration; terminated disables the operator and starts a 30-day rehire window."
+      "description": "Employment status. on_leave disables the linked operator for the duration; terminated disables the operator and starts a 30-day rehire window (unless blacklisted)."
     },
     "emergency_contact_name": {
       "type": "string"
@@ -74,10 +74,32 @@
       "format": "date",
       "description": "Date the employee was terminated."
     },
+    "termination_reason": {
+      "type": "string",
+      "enum": [
+        "voluntary",
+        "layoff",
+        "poor_performance",
+        "end_of_contract",
+        "gross_misconduct",
+        "other"
+      ],
+      "description": "Reason for termination. gross_misconduct blacklists the employee from rehire."
+    },
+    "rehire_eligible": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the employee is eligible for rehire. Set false on gross misconduct termination."
+    },
     "rehire_eligible_date": {
       "type": "string",
       "format": "date",
-      "description": "Last day the employee is eligible for rehire (termination date + 30 days)."
+      "description": "Last day the employee is eligible for rehire (termination date + 30 days). Null when blacklisted."
+    },
+    "blacklisted": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the employee is blacklisted from rehire (gross misconduct). Can be cleared manually."
     },
     "last_action_date": {
       "type": "string",

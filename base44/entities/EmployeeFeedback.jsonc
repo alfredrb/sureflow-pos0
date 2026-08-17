@@ -1,0 +1,67 @@
+{
+  "name": "EmployeeFeedback",
+  "type": "object",
+  "properties": {
+    "employee_id": {
+      "type": "string",
+      "description": "Employee ID this record belongs to."
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator ID of the employee (for cross-referencing)."
+    },
+    "employee_name": {
+      "type": "string",
+      "description": "Employee full name at the time of the record."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "praise",
+        "feedback",
+        "warning",
+        "disciplinary",
+        "recognition"
+      ],
+      "default": "feedback",
+      "description": "Type of record: praise/recognition (positive), feedback (general), warning/disciplinary (corrective)."
+    },
+    "title": {
+      "type": "string",
+      "description": "Short title / summary of the record."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Full description of the feedback or disciplinary action."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the event occurred."
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "low"
+    },
+    "action_taken": {
+      "type": "string",
+      "description": "Action taken or follow-up required."
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Operator who created the record."
+    }
+  },
+  "required": [
+    "employee_id",
+    "category",
+    "title",
+    "date"
+  ]
+}
