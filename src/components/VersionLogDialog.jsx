@@ -22,6 +22,7 @@ export default function VersionLogDialog({ open, onOpenChange, canManage = false
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const [form, setForm] = useState({ version: "", title: "", summary: "", changes: [{ category: "new", text: "" }] });
   const { toast } = useToast();
 
@@ -46,6 +47,57 @@ export default function VersionLogDialog({ open, onOpenChange, canManage = false
   const addChangeRow = () => setForm(f => ({ ...f, changes: [...f.changes, { category: "new", text: "" }] }));
   const removeChangeRow = (idx) => setForm(f => ({ ...f, changes: f.changes.filter((_, i) => i !== idx) }));
   const resetForm = () => setForm({ version: "", title: "", summary: "", changes: [{ category: "new", text: "" }] });
+
+  const handleAISuggest = async () => {
+    setAiLoading(true);
+    try {
+      const since = current?.release_date ? new Date(current.release_date) : new Date(Date.now() - 14 * 86400000);
+      const all = await base44.entities.AuditTrail.list("-created_date", 100);
+      const recent = (all || []).filter(a => a.created_date && new Date(a.created_date) >= since).slice(0, 60);
+      if (recent.length === 0) {
+        toast({ title: "No recent changes found", description: "Nothing new has been logged since the last release.", variant: "destructive" });
+        setAiLoading(false);
+        return;
+      }
+      const lines = recent.map(a => `- [${a.category || "other"}] ${a.action || ""}: ${a.description || ""}${a.actor_name ? ` (by ${a.actor_name})` : ""}`).join("\n");
+      const lastVersion = current?.version || "4.2.1";
+      const prompt = `You are drafting release notes for SureFlow POS, a retail point-of-sale and admin management app.
+The current release is v${lastVersion}. Below are recent system changes logged since that release (from the admin audit trail).
+Write a new release draft. Consolidate related entries, rephrase internal/admin actions as user-facing release notes, and drop trivial or duplicate ones.
+Pick a sensible next version number (increment minor for feature-like changes, patch for fixes-only).
+Categorize each change as new, improvement, fix, security, or other.
+Keep the summary to one sentence and limit changes to the most meaningful items (max 8).
+
+Recent changes:
+${lines}`;
+      const res = await base44.integrations.Core.InvokeLLM({
+        prompt,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            version: { type: "string" },
+            title: { type: "string" },
+            summary: { type: "string" },
+            changes: { type: "array", items: { type: "object", properties: { category: { type: "string", enum: ["new", "improvement", "fix", "security", "other"] }, text: { type: "string" } }, required: ["category", "text"] } }
+          },
+          required: ["version", "title", "summary", "changes"]
+        }
+      });
+      const draft = res || {};
+      setForm({
+        version: (draft.version || "").replace(/^v/, "").trim(),
+        title: draft.title || "",
+        summary: draft.summary || "",
+        changes: Array.isArray(draft.changes) && draft.changes.length
+          ? draft.changes.map(c => ({ category: c.category || "new", text: c.text || "" }))
+          : [{ category: "new", text: "" }],
+      });
+      toast({ title: "AI draft ready", description: "Review and edit before logging the release." });
+    } catch (e) {
+      toast({ title: "AI draft failed", variant: "destructive" });
+    }
+    setAiLoading(false);
+  };
 
   const handleSave = async () => {
     if (!form.version.trim()) { toast({ title: "Version number is required", variant: "destructive" }); return; }
@@ -89,6 +141,16 @@ export default function VersionLogDialog({ open, onOpenChange, canManage = false
 
         {adding ? (
           <div className="overflow-y-auto pr-1 space-y-4">
+            <div className="flex items-center justify-between gap-2 pb-3 border-b">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-700">Draft from recent changes</p>
+                <p className="text-[10px] text-gray-400 truncate">Reads the audit log since the last release</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleAISuggest} disabled={aiLoading} className="gap-1.5 flex-shrink-0">
+                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-indigo-500" />}
+                {aiLoading ? "Drafting..." : "AI Draft"}
+              </Button>
+            </div>
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-1">
