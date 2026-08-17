@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock, Store, Loader2, Clock } from "lucide-react";
+import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, Calendar, Lock, Store, Loader2, Clock } from "lucide-react";
 import { base44 } from "@/api/base44Client";
-import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,8 +9,6 @@ import { useToast } from "@/components/ui/use-toast";
 import SelfTimeClock from "@/components/SelfTimeClock";
 
 export default function Home() {
-  const { user } = useAuth();
-  const [pendingCount, setPendingCount] = useState(0);
   const [shiftLookupOpen, setShiftLookupOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [currentOperator, setCurrentOperator] = useState(null);
@@ -56,33 +53,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const checkAlerts = async () => {
-      try {
-        const [requests, deposits, eodReports, operatorsData] = await Promise.all([
-          base44.entities.OverrideRequest.filter({ status: "pending" }),
-          base44.entities.EODCashDeposit.list("-created_date", 100),
-          base44.entities.EODReport.list("-report_date", 30),
-          base44.entities.Operator.list()
-        ]);
-        
-        let count = requests.length;
-        const today = new Date().toISOString().split('T')[0];
-        const todayDeposits = deposits.filter(d => d.report_date === today);
-        const unresolvedCount = todayDeposits.filter(d => Math.abs(d.difference || 0) > 0.01).length;
-        
-        const lastEOD = eodReports[0];
-        const lastEODDate = lastEOD ? lastEOD.report_date : null;
-        const pendingEODCount = lastEODDate !== today ? 1 : 0;
-        
-        setPendingCount(count + unresolvedCount + pendingEODCount);
-        setOperators(operatorsData);
-      } catch (e) {
-        // silently fail
-      }
-    };
-    checkAlerts();
-    const interval = setInterval(checkAlerts, 30000);
-    return () => clearInterval(interval);
+    base44.entities.Operator.list().then(setOperators).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -197,16 +168,6 @@ export default function Home() {
 
   return (
     <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-[#0a0e27] to-slate-900 flex flex-col items-center justify-center p-6 mx-auto overflow-auto">
-      <div className="absolute top-6 right-6 flex items-center gap-2">
-        <span className="text-blue-200/60 text-xs">{user?.full_name || "User"}</span>
-        {pendingCount > 0 && (
-          <span className="flex items-center gap-1 bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-xs font-bold animate-pulse">
-            <AlertCircle className="w-3 h-3" />
-            {pendingCount}
-          </span>
-        )}
-      </div>
-
       <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/30">
         <Monitor className="w-7 h-7 text-white" />
       </div>

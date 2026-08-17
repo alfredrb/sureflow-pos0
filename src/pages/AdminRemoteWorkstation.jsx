@@ -86,6 +86,26 @@ export default function AdminRemoteWorkstation() {
     return () => clearInterval(pollRef.current);
   }, [autoRefresh]);
 
+  // Realtime subscriptions: refresh the relevant dataset the instant an alert is
+  // created, updated, or resolved — instead of waiting up to 5s for the next poll.
+  useEffect(() => {
+    const unsubs = [];
+    try {
+      unsubs.push(base44.entities.OverrideRequest.subscribe(() => loadRequests()));
+      unsubs.push(base44.entities.EmergencyAlert.subscribe(() => loadRobberies()));
+      unsubs.push(base44.entities.ShiftAlert.subscribe(() => loadShiftAlerts()));
+      unsubs.push(base44.entities.CashLimitAlert.subscribe(() => loadCashLimitAlerts()));
+      unsubs.push(base44.entities.CashAudit.subscribe(() => loadAudits()));
+      unsubs.push(base44.entities.Register.subscribe(() => loadRegisters()));
+      unsubs.push(base44.entities.Transaction.subscribe(() => loadTransactions()));
+      unsubs.push(base44.entities.RegisterLog.subscribe(() => loadLogs()));
+    } catch (e) {
+      // subscriptions are best-effort; polling remains as fallback
+    }
+    return () => unsubs.forEach(u => { try { u(); } catch {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -172,7 +192,7 @@ export default function AdminRemoteWorkstation() {
 
   const loadRobberies = async () => {
     try {
-      const alerts = await base44.entities.EmergencyAlert.filter({ status: "active" });
+      const alerts = await base44.entities.EmergencyAlert.filter({ status: "active", archived: false });
       setRobberies(alerts);
     } catch (e) {
       console.error("Error loading robberies:", e);
