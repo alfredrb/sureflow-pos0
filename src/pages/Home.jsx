@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock, Store, Loader2 } from "lucide-react";
+import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, AlertCircle, Calendar, Lock, Store, Loader2, Clock } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import SelfTimeClock from "@/components/SelfTimeClock";
 
 export default function Home() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export default function Home() {
   const [vendorId, setVendorId] = useState("");
   const [vendorPin, setVendorPin] = useState("");
   const [vendorLoading, setVendorLoading] = useState(false);
+  const [timeClockOpen, setTimeClockOpen] = useState(false);
 
   const handleVendorLogin = async () => {
     if (!vendorId.trim() || !vendorPin.trim()) {
@@ -232,6 +234,15 @@ export default function Home() {
           </div>
         </button>
         <button
+          onClick={() => setTimeClockOpen(true)}
+          className="flex items-center gap-4 bg-amber-600 hover:bg-amber-500 text-white p-5 rounded-2xl transition-all hover:-translate-y-0.5 shadow-lg shadow-amber-600/20">
+          <Clock className="w-6 h-6" />
+          <div>
+            <p className="font-semibold">Time Clock</p>
+            <p className="text-amber-200 text-xs">Clock in / out & breaks</p>
+          </div>
+        </button>
+        <button
           onClick={() => setVendorLoginOpen(true)}
           className="flex items-center gap-4 bg-teal-600 hover:bg-teal-500 text-white p-5 rounded-2xl transition-all hover:-translate-y-0.5 shadow-lg shadow-teal-600/20">
           <Store className="w-6 h-6" />
@@ -388,6 +399,9 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Self-Service Time Clock Modal */}
+      <SelfTimeClock open={timeClockOpen} onOpenChange={setTimeClockOpen} operators={operators} />
 
       {/* Vendor Login Modal */}
       <Dialog open={vendorLoginOpen} onOpenChange={setVendorLoginOpen}>
