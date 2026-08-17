@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Edit2, Save, UserCircle2, CalendarOff, Users, Check } from "lucide-react";
 import AvailabilityPrintFormButton from "./AvailabilityPrintForm";
 import BulkAvailabilityEditor from "./BulkAvailabilityEditor";
-import { OPEN_AVAILABILITY } from "@/lib/availabilityUtils";
+import { OPEN_AVAILABILITY, AVAILABILITY_TEMPLATES } from "@/lib/availabilityUtils";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -79,6 +79,12 @@ export default function AvailabilityTab({ operators }) {
     setForm(prev => ({ ...prev, days: prev.days.map(d => ({ ...d, available: true, start_time: OPEN_AVAILABILITY.start_time, end_time: OPEN_AVAILABILITY.end_time })) }));
   };
 
+  const applyTemplate = (key) => {
+    const tpl = AVAILABILITY_TEMPLATES[key];
+    if (!tpl) return;
+    setForm(prev => ({ ...prev, days: tpl.days.map(d => ({ ...d, available: d.available, start_time: d.start_time, end_time: d.end_time })) }));
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -112,6 +118,8 @@ export default function AvailabilityTab({ operators }) {
 
   if (loading) return <div className="flex items-center justify-center h-40"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
 
+  const schedulableOps = operators.filter(o => o.role !== "vendor");
+
   return (
     <div className="space-y-5">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -131,8 +139,8 @@ export default function AvailabilityTab({ operators }) {
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="divide-y divide-gray-100">
-          {operators.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">No operators found.</div>}
-          {operators.map(op => {
+          {schedulableOps.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">No operators found.</div>}
+          {schedulableOps.map(op => {
             const rec = recordByOp[op.operator_id];
             const availDays = rec?.days?.filter(d => d.available).length ?? "—";
             return (
@@ -204,11 +212,22 @@ export default function AvailabilityTab({ operators }) {
               </div>
 
               <div className="border-t pt-3">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h3 className="text-sm font-semibold text-gray-900">Weekly availability</h3>
-                  <Button size="sm" variant="outline" onClick={setOpenAvailability} className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-                    <Check className="w-3 h-3 mr-1" /> Open Availability (24h)
-                  </Button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => applyTemplate("opening")} className="h-7 text-xs border-sky-300 text-sky-700 hover:bg-sky-50">
+                      Opening (06–14)
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => applyTemplate("mid")} className="h-7 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+                      Mid (10–18)
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => applyTemplate("closing")} className="h-7 text-xs border-violet-300 text-violet-700 hover:bg-violet-50">
+                      Closing (14–22)
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={setOpenAvailability} className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                      <Check className="w-3 h-3 mr-1" /> Open (24h)
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {form.days.map(d => (
@@ -251,7 +270,7 @@ export default function AvailabilityTab({ operators }) {
         </DialogContent>
       </Dialog>
 
-      <BulkAvailabilityEditor open={bulkOpen} onOpenChange={setBulkOpen} operators={operators} records={records} onSaved={load} />
+      <BulkAvailabilityEditor open={bulkOpen} onOpenChange={setBulkOpen} operators={schedulableOps} records={records} onSaved={load} />
     </div>
   );
 }
