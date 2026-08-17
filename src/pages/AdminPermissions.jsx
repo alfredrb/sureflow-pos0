@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { logAuditEvent } from "@/lib/auditLogger";
+import DashboardRoleDefaults from "@/components/DashboardRoleDefaults";
 
 export default function AdminPermissions() {
   const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
@@ -121,6 +122,8 @@ export default function AdminPermissions() {
           ))}
         </div>
       </div>
+
+      <DashboardRoleDefaults admin={admin} />
     </div>
   );
 }

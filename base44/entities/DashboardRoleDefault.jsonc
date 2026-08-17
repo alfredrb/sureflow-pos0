@@ -1,0 +1,41 @@
+{
+  "name": "DashboardRoleDefault",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "manager",
+        "csm",
+        "cashier",
+        "technician",
+        "loss_prevention",
+        "vendor"
+      ],
+      "description": "Operator role this dashboard default applies to. One record per role."
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "default": {},
+      "description": "Override of the default metric category visibility for this role. Keys: sales, inventory, loss, system, loyalty. Unset keys fall back to the built-in role default."
+    },
+    "graphs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "default": {},
+      "description": "Override of the default graph group visibility for this role. Keys: sales, loss, inventory, system. Unset keys fall back to the built-in role default."
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Manager who last saved this role default."
+    }
+  },
+  "required": [
+    "role"
+  ]
+}

@@ -1,11 +1,13 @@
-const STORAGE_PREFIX = "admin_dash_";
+import { base44 } from "@/api/data";
+
+export const STORAGE_PREFIX = "admin_dash_";
 
 export const DEFAULT_CONFIG = {
   metrics: { sales: true, inventory: true, loss: true, system: true, loyalty: true },
   graphs: { sales: true, loss: true, inventory: true, system: true },
 };
 
-// Role-based defaults so each profile starts with relevant metrics/graphs.
+// Built-in role defaults — used as the fallback when no customized override exists.
 export function roleDefault(role) {
   if (role === "loss_prevention") {
     return {
@@ -22,19 +24,44 @@ export function roleDefault(role) {
   return DEFAULT_CONFIG;
 }
 
-export function loadConfig(operatorId, role) {
-  if (!operatorId) return roleDefault(role);
+// Merge a customized override (per role) over the built-in role default.
+export function mergeCustom(role, custom) {
+  const base = roleDefault(role);
+  if (!custom) return base;
+  return {
+    metrics: { ...base.metrics, ...(custom.metrics || {}) },
+    graphs: { ...base.graphs, ...(custom.graphs || {}) },
+  };
+}
+
+// Fetch all customized role defaults as a map: { [role]: { metrics, graphs } }.
+export async function loadRoleDefaultOverrides() {
+  try {
+    const recs = await base44.entities.DashboardRoleDefault.list();
+    const map = {};
+    (recs || []).forEach((r) => {
+      if (r.role) map[r.role] = { metrics: r.metrics || {}, graphs: r.graphs || {} };
+    });
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export function loadConfig(operatorId, role, customMap) {
+  const base = customMap ? mergeCustom(role, customMap[role]) : roleDefault(role);
+  if (!operatorId) return base;
   const raw = localStorage.getItem(STORAGE_PREFIX + operatorId);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
       return {
-        metrics: { ...roleDefault(role).metrics, ...parsed.metrics },
-        graphs: { ...roleDefault(role).graphs, ...parsed.graphs },
+        metrics: { ...base.metrics, ...parsed.metrics },
+        graphs: { ...base.graphs, ...parsed.graphs },
       };
     } catch {}
   }
-  return roleDefault(role);
+  return base;
 }
 
 export function saveConfig(operatorId, config) {

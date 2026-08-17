@@ -9,7 +9,7 @@ import AuditFrequencyChart from "@/components/AuditFrequencyChart";
 import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendChart";
 import DashboardCustomizer from "@/components/DashboardCustomizer";
 import SystemHealthPanel from "@/components/SystemHealthPanel";
-import { loadConfig, saveConfig, roleDefault } from "@/lib/dashboardConfig";
+import { loadConfig, saveConfig, mergeCustom, loadRoleDefaultOverrides, STORAGE_PREFIX } from "@/lib/dashboardConfig";
 
 export default function AdminDashboard() {
   const operator = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator") || "null"); } catch { return null; } })();
@@ -18,8 +18,18 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({ operators: 0, products: 0, transactions: 0, registers: 0, revenue: 0, avgSale: 0, refunds: 0, refundAmount: 0, lowStock: 0, outOfStock: 0, recalled: 0, promotional: 0, upcomingReleases: 0, emergencies: 0, systemAlerts: 0, maintenanceOpen: 0, hardwareIssues: 0, lossEvents: 0, voids: 0, openCases: 0, totalStolen: 0, loyaltyMembers: 0, activeGiftCards: 0, giftBalance: 0, cashDiscrepancies: 0, serializedProducts: 0, serializedInStock: 0, openClaims: 0, claimsValue: 0, profitLossTotal: 0, noReceiptBlocked: 0, timeTheftFlags: 0, shrinkageLoss: 0, appVersion: "—" });
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [roleOverrides, setRoleOverrides] = useState({});
 
   useEffect(() => { saveConfig(operator?.operator_id, config); }, [config]);
+
+  useEffect(() => {
+    (async () => {
+      const map = await loadRoleDefaultOverrides();
+      setRoleOverrides(map);
+      const hasPersonal = !!(operator?.operator_id && localStorage.getItem(STORAGE_PREFIX + operator.operator_id));
+      if (!hasPersonal) setConfig(mergeCustom(operator?.role, map[operator?.role]));
+    })();
+  }, []);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -245,7 +255,7 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      <DashboardCustomizer open={customizeOpen} onClose={() => setCustomizeOpen(false)} config={config} onChange={setConfig} onReset={() => setConfig(roleDefault(operator?.role))} />
+      <DashboardCustomizer open={customizeOpen} onClose={() => setCustomizeOpen(false)} config={config} onChange={setConfig} onReset={() => setConfig(mergeCustom(operator?.role, roleOverrides[operator?.role]))} />
     </div>
   );
 }
