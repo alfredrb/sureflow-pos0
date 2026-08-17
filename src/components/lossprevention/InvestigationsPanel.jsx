@@ -3,6 +3,7 @@ import { base44 } from "@/api/data";
 import { Plus, FolderSearch, Sparkles, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,7 +29,14 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [bulkStatus, setBulkStatus] = useState("__none");
+  const [bulkAssign, setBulkAssign] = useState("__none");
+  const [supervisors, setSupervisors] = useState([]);
+  const [applying, setApplying] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => { base44.entities.Operator.list().then(list => setSupervisors(list.filter(o => o.status !== "inactive" && (o.role === "csm" || o.role === "manager")))).catch(() => {}); }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -42,6 +50,28 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
       toast({ title: "Failed to delete investigation", variant: "destructive" });
     }
     setDeleting(false);
+  };
+
+  const selectAll = () => setSelected(new Set(filtered.map(i => i.id)));
+
+  const applyBulk = async () => {
+    if (selected.size === 0) return;
+    if (bulkStatus === "__none" && bulkAssign === "__none") { toast({ title: "Choose a status or supervisor", variant: "destructive" }); return; }
+    setApplying(true);
+    try {
+      const updates = [...selected].map(id => {
+        const u = { id };
+        if (bulkStatus !== "__none") u.status = bulkStatus;
+        if (bulkAssign === "__clear") u.assigned_to = "";
+        else if (bulkAssign !== "__none") u.assigned_to = bulkAssign;
+        return u;
+      });
+      await base44.entities.Investigation.bulkUpdate(updates);
+      toast({ title: `${selected.size} investigation${selected.size > 1 ? "s" : ""} updated` });
+      setSelected(new Set()); setBulkStatus("__none"); setBulkAssign("__none");
+      await load();
+    } catch { toast({ title: "Bulk update failed", variant: "destructive" }); }
+    setApplying(false);
   };
 
   const load = async () => {
@@ -83,9 +113,34 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-full sm:w-56" />
           </div>
+          <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
           <Button onClick={onNewInvestigation} className="bg-amber-600 hover:bg-amber-500"><Plus className="w-4 h-4 mr-1.5" /> New</Button>
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <span className="text-sm font-medium text-amber-800 whitespace-nowrap">{selected.size} selected</span>
+          <div className="flex flex-1 flex-wrap gap-2">
+            <div className="flex-1 min-w-[140px]"><Label className="text-xs">Set Status</Label>
+              <Select value={bulkStatus} onValueChange={setBulkStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+                <SelectItem value="__none">No change</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In Progress</SelectItem><SelectItem value="closed">Closed</SelectItem>
+              </SelectContent></Select>
+            </div>
+            <div className="flex-1 min-w-[140px]"><Label className="text-xs">Assign Supervisor</Label>
+              <Select value={bulkAssign} onValueChange={setBulkAssign}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+                <SelectItem value="__none">No change</SelectItem>
+                <SelectItem value="__clear">— Clear —</SelectItem>
+                {supervisors.map(o => <SelectItem key={o.id} value={o.full_name || o.operator_id}>{o.full_name}{o.operator_id ? ` (${o.operator_id})` : ""}</SelectItem>)}
+              </SelectContent></Select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={applyBulk} disabled={applying} className="bg-amber-600 hover:bg-amber-500">{applying ? "Applying..." : "Apply"}</Button>
+            <Button variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-16"><div className="w-7 h-7 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin" /></div>
@@ -114,11 +169,15 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2">{inv.summary || "—"}</p>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-                  <span className="text-xs text-gray-400">{inv.operator_name ? `Operator: ${inv.operator_name}` : "No operator"}</span>
+                  <span className="text-xs text-gray-400">{inv.operator_name ? `Operator: ${inv.operator_name}` : "No operator"}{inv.assigned_to ? ` · Assigned: ${inv.assigned_to}` : ""}</span>
                   <span className="text-xs text-gray-400">{moment(inv.created_date).format("MMM D, YYYY")}</span>
                 </div>
               </button>
-              <div className="flex justify-end mt-3">
+              <div className="flex justify-between items-center mt-3">
+                <label className="inline-flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                  <input type="checkbox" checked={selected.has(inv.id)} onChange={e => { const n = new Set(selected); e.target.checked ? n.add(inv.id) : n.delete(inv.id); setSelected(n); }} className="w-3.5 h-3.5" />
+                  Select
+                </label>
                 <button onClick={() => setDeleteTarget(inv)} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
               </div>
             </div>

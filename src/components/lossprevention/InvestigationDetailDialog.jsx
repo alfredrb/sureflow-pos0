@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
@@ -118,6 +118,23 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
     setSaving(false);
   };
 
+  const handleCloseCase = async () => {
+    if (isNew) return;
+    setSaving(true);
+    try {
+      const by = adminName();
+      const now = new Date().toISOString();
+      const updates = { status: "closed", resolution: form.resolution };
+      const newEntries = [{ date: now, by, action: `Status: ${form.status} → closed`, note: note.trim() || "" }];
+      if (note.trim()) newEntries.push({ date: now, by, action: "Note", note: note.trim() });
+      updates.activity_log = [...activityLog, ...newEntries];
+      await base44.entities.Investigation.update(value.id, updates);
+      toast({ title: "Case closed" });
+      onSaved();
+    } catch { toast({ title: "Failed to close case", variant: "destructive" }); }
+    setSaving(false);
+  };
+
   const addEvidence = async (item) => {
     const newEvidence = [...evidence, item];
     setEvidence(newEvidence);
@@ -160,7 +177,11 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
             <div style="margin-top:4px;font-size:11px;"><div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>$${(t.subtotal || 0).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between"><span>Tax</span><span>$${(t.tax || 0).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;font-weight:bold"><span>Total</span><span>$${(t.total || 0).toFixed(2)}</span></div><div style="color:#666;margin-top:2px">${moment(t.created_date).format("MMM D, YYYY h:mm A")} · ${escapeHtml(t.payment_method)} · ${escapeHtml(t.status)}</div></div>`;
         }
       }
-      return `<div style="border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-weight:600;"><span>${i + 1}. ${escapeHtml(ev.type || "item")}${ev.ref ? ` · ${escapeHtml(ev.ref)}` : ""}</span><span>${ev.amount != null ? `$${Number(ev.amount).toFixed(2)}` : ""}</span></div><div style="font-size:12px;color:#555;">${escapeHtml(ev.detail || "")}</div><div style="font-size:11px;color:#999;">${ev.date ? moment(ev.date).format("MMM D, YYYY h:mm A") : ""}</div>${receipt}</div>`;
+      let docBlock = "";
+      if (ev.type === "document" && ev.document_html) {
+        docBlock = `<div style="margin-top:10px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#fafafa;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#444;margin-bottom:8px;">${escapeHtml(ev.document_title || "Document")}</div>${ev.document_html}</div>`;
+      }
+      return `<div style="border:1px solid #eee;border-radius:6px;padding:10px;margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-weight:600;"><span>${i + 1}. ${escapeHtml(ev.type || "item")}${ev.ref ? ` · ${escapeHtml(ev.ref)}` : ""}</span><span>${ev.amount != null ? `$${Number(ev.amount).toFixed(2)}` : ""}</span></div><div style="font-size:12px;color:#555;">${escapeHtml(ev.detail || "")}</div><div style="font-size:11px;color:#999;">${ev.date ? moment(ev.date).format("MMM D, YYYY h:mm A") : ""}</div>${receipt}${docBlock}</div>`;
     }).join("");
 
     const activityRows = activityLog.map(a => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${moment(a.date).format("MMM D, YYYY h:mm A")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.by || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.action || "")}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;font-size:12px;">${escapeHtml(a.note || "")}</td></tr>`).join("");
@@ -179,7 +200,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
     }
 
     const linkedOps = linkedOperators.map(o => escapeHtml(o.operator_name || "")).join(", ") || "None";
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Investigation — ${escapeHtml(form.title)}</title><style>*{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;}body{color:#111;padding:24px;max-width:900px;margin:0 auto;}h1{font-size:22px;margin:0 0 4px;}.sub{color:#666;font-size:13px;margin-bottom:20px;}h2{font-size:16px;border-bottom:2px solid #111;padding-bottom:4px;margin-top:28px;}.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px;}.kv .k{color:#666;font-weight:600;}.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700;background:#eee;}.toolbar{position:fixed;top:12px;right:12px;}.toolbar button{padding:6px 14px;font-size:13px;cursor:pointer;}@media print{.toolbar{display:none;}}</style></head><body>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Investigation — ${escapeHtml(form.title)}</title><style>*{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;}body{color:#111;padding:24px;max-width:900px;margin:0 auto;}h1{font-size:22px;margin:0 0 4px;}.sub{color:#666;font-size:13px;margin-bottom:20px;}h2{font-size:16px;border-bottom:2px solid #111;padding-bottom:4px;margin-top:28px;}.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px;}.kv .k{color:#666;font-weight:600;}.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700;background:#eee;}.toolbar{position:fixed;top:12px;right:12px;}.toolbar button{padding:6px 14px;font-size:13px;cursor:pointer;}.row{display:flex;gap:16px;margin-bottom:10px;}.field{flex:1;}.field .k{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#666;font-weight:600;}.field .v{font-size:14px;border-bottom:1px solid #999;padding:4px 0 2px;min-height:22px;}.section{font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.5px;color:#444;margin:14px 0 6px;border-bottom:1px solid #ddd;padding-bottom:3px;}.body{font-size:13px;line-height:1.6;margin:8px 0 14px;white-space:pre-wrap;}.sigs{display:flex;gap:40px;margin-top:32px;}.sig{flex:1;}.sig .line{border-top:1px solid #111;padding-top:4px;font-size:11px;color:#555;text-align:center;}@media print{.toolbar{display:none;}}</style></head><body>
       <div class="toolbar"><button onclick="window.print()">Print / Save PDF</button></div>
       <h1>${escapeHtml(form.title)}</h1>
       <div class="sub">Investigation Case Export · Generated ${moment().format("MMM D, YYYY h:mm A")}${value.id ? ` · Case ID ${escapeHtml(value.id)}` : ""}</div>
@@ -349,6 +370,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
           <DialogFooter className="sm:justify-between">
             <Button variant="outline" onClick={exportCase}><FileDown className="w-4 h-4" /> Export Case</Button>
             <div className="flex gap-2">
+              {!isNew && form.status !== "closed" && <Button variant="outline" onClick={handleCloseCase} disabled={saving} className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="w-4 h-4" /> Close Case</Button>}
               <Button variant="outline" onClick={onClose}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving} className="bg-amber-600 hover:bg-amber-500">{saving ? "Saving..." : isNew ? "Start Investigation" : "Save"}</Button>
             </div>

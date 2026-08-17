@@ -61,6 +61,10 @@
         }
       }
     },
+    "assigned_to": {
+      "type": "string",
+      "description": "Supervisor/operator currently assigned to the investigation"
+    },
     "register_id": {
       "type": "string"
     },
@@ -83,7 +87,7 @@
     },
     "evidence": {
       "type": "array",
-      "description": "Linked events / audits / receipts that support the investigation",
+      "description": "Linked events / audits / receipts / documents that support the investigation",
       "items": {
         "type": "object",
         "properties": {
@@ -102,6 +106,14 @@
           "date": {
             "type": "string",
             "format": "date-time"
+          },
+          "document_title": {
+            "type": "string",
+            "description": "Title of the linked document (when type is document)"
+          },
+          "document_html": {
+            "type": "string",
+            "description": "Rendered HTML body of the linked document (when type is document)"
           }
         }
       }

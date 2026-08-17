@@ -92,7 +92,7 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
     setForms(f => ({ ...f, [doc]: { ...f[doc], operator_name: op.full_name || op.operator_id || "", operator_id: op.operator_id || "", employee_name: doc === "statement" ? (op.full_name || op.operator_id || "") : (f[doc].employee_name || ""), employee_id: doc === "statement" ? (op.operator_id || "") : (f[doc].employee_id || "") } }));
   };
 
-  const handlePrint = (doc) => {
+  const buildDoc = (doc) => {
     const f = forms[doc];
     let title = "", body = "";
     if (doc === "raf") {
@@ -136,6 +136,10 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
         <div class="body" style="font-size:11px;color:#555;">I declare that the statement above is true and accurate to the best of my knowledge.</div>
         <div class="sigs"><div class="sig"><div class="line">${esc(f.signature || " ")}</div>Employee Signature</div><div class="sig"><div class="line">${esc(f.witness || " ")}</div>Witness</div></div>`;
     }
+    return { title, body };
+  };
+  const handlePrint = (doc) => {
+    const { title, body } = buildDoc(doc);
     if (!printDoc(title, body)) toast({ title: "Pop-up blocked", description: "Allow pop-ups to print the document.", variant: "destructive" });
   };
 
@@ -148,7 +152,8 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
       const evidence = Array.isArray(inv.evidence) ? inv.evidence : [];
       const activity = Array.isArray(inv.activity_log) ? inv.activity_log : [];
       const now = new Date().toISOString();
-      evidence.push({ type: "document", ref: active, detail: docSummary(active, f), amount: docAmount(active, f), date: now });
+      const { title, body } = buildDoc(active);
+      evidence.push({ type: "document", ref: active, detail: docSummary(active, f), amount: docAmount(active, f), date: now, document_title: title, document_html: body });
       activity.push({ date: now, by: adminName, action: "document_added", note: `Added ${DOCS.find(d => d.id === active).label}` });
       await base44.entities.Investigation.update(selectedInv, { evidence, activity_log: activity });
       toast({ title: "Added to investigation", description: docSummary(active, f) });
