@@ -4,7 +4,7 @@ import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight, Calendar, List, Sparkles, CalendarDays, UserCheck } from "lucide-react";
+import { Plus, Edit2, Trash2, Clock, AlertTriangle, CheckCircle, Save, Copy, ArrowRight, Calendar, List, Sparkles, CalendarDays, UserCheck, Eraser } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import PeakTimeAnalysis from "@/components/PeakTimeAnalysis";
 import WeeklyScheduleCalendar from "@/components/WeeklyScheduleCalendar";
@@ -434,6 +434,23 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
     setGenerating(false);
   };
 
+  const clearAIDraft = async () => {
+    const aiShifts = shifts.filter(s => (s.notes || "").includes("AI draft"));
+    if (aiShifts.length === 0) {
+      toast({ title: "No AI-drafted shifts to clear" });
+      return;
+    }
+    if (!confirm(`Clear ${aiShifts.length} AI-drafted shift(s) from the calendar? This cannot be undone.`)) return;
+    try {
+      await Promise.all(aiShifts.map(s => base44.entities.Shift.delete(s.id)));
+      toast({ title: "AI draft cleared", description: `${aiShifts.length} shift(s) removed` });
+      load();
+    } catch (e) {
+      console.error("Error clearing AI draft:", e);
+      toast({ title: "Error clearing AI draft", variant: "destructive" });
+    }
+  };
+
   const handleDropCreate = (operator, dateStr, registerId, note) => {
     const reg = registers.find(r => r.register_id === registerId);
     setEditing(null);
@@ -512,6 +529,7 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
                 <button onClick={() => setView("list")} className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center gap-1 transition ${view === "list" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}><List className="w-3.5 h-3.5" /> List</button>
               </div>
               <Button onClick={() => setDraftDialog(true)} className="bg-emerald-600 hover:bg-emerald-700"><Sparkles className="w-4 h-4 mr-2" /> Generate AI Draft</Button>
+              <Button onClick={clearAIDraft} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50"><Eraser className="w-4 h-4 mr-2" /> Clear AI Draft</Button>
               <Button onClick={() => setTemplateDialog(true)} variant="outline" className="border-gray-300"><Save className="w-4 h-4 mr-2" /> Save as Template</Button>
               <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700"><Plus className="w-4 h-4 mr-2" /> New Shift</Button>
             </>
