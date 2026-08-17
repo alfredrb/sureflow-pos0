@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Plus, Edit2, Trash2, Search, UserCheck, UserX } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, UserCheck, UserX, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ export default function AdminOperators() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "" });
+  const [showPin, setShowPin] = useState(false);
   const { toast } = useToast();
 
   const load = async () => {
@@ -137,7 +138,12 @@ export default function AdminOperators() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">PIN</label>
-                <Input value={form.pin} onChange={e => setForm({ ...form, pin: e.target.value })} placeholder="e.g. 1234" type="password" />
+                <div className="relative">
+                  <Input value={form.pin} onChange={e => setForm({ ...form, pin: e.target.value })} placeholder="e.g. 1234" type={showPin ? "text" : "password"} className="pr-10" />
+                  <button type="button" onClick={() => setShowPin(s => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1" title={showPin ? "Hide PIN" : "View PIN"}>
+                    {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
             <div>
