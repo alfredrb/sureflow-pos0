@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus, ShieldAlert, Ban } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus, ShieldAlert, Ban, Utensils } from "lucide-react";
 import DayUtilizationChart from "@/components/scheduling/DayUtilizationChart";
 import AvailabilitySidePanel from "@/components/scheduling/AvailabilitySidePanel";
 import AvailabilityOverrideDialog from "@/components/scheduling/AvailabilityOverrideDialog";
@@ -136,7 +136,14 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
   const thisWeek = () => setCurrentDate(new Date());
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col lg:flex-row">
+      <AvailabilitySidePanel
+        operators={pool}
+        records={availability}
+        conflictMode={conflictMode}
+        conflictsByOp={conflictsByOp}
+      />
+      <div className="flex-1 min-w-0 flex flex-col">
       <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button onClick={prevWeek} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
@@ -299,6 +306,9 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                 </button>
               </div>
               <p className="flex items-center gap-1 text-gray-600"><Clock className="w-3 h-3" />{shift.start_time}–{shift.end_time}</p>
+              {shift.lunch_start && shift.lunch_end && (
+                <p className="flex items-center gap-1 text-purple-600"><Utensils className="w-3 h-3" />Lunch {shift.lunch_start}–{shift.lunch_end}</p>
+              )}
               {conflict?.conflict && <p className="text-[9px] text-red-600 truncate">{conflict.reasons.join(" · ")}</p>}
               {groupBy !== "register" && shift.register_name && <p className="text-[10px] text-gray-400 truncate">{shift.register_name}</p>}
               {shift.notes && <p className="text-[10px] text-gray-400 italic truncate">{shift.notes}</p>}
@@ -322,6 +332,15 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
         <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-600" /> Balanced</span>
         <span className="ml-auto flex items-center gap-1 text-gray-400"><UserPlus className="w-3 h-3" /> Drag from the pool above to schedule an employee.</span>
       </div>
+      </div>
+      <AvailabilityOverrideDialog
+        open={override.open}
+        onOpenChange={(v) => setOverride(prev => ({ ...prev, open: v }))}
+        operatorName={override.operatorName}
+        dateLabel={override.dateLabel}
+        reasons={override.reasons}
+        onConfirm={async (note) => { const fn = override.confirm; setOverride(prev => ({ ...prev, open: false })); if (fn) await fn(note); }}
+      />
     </div>
   );
 }

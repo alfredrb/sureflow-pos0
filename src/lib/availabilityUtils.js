@@ -64,3 +64,18 @@ export const employmentBadge = (record) => {
   if (!record) return null;
   return record.employment_type === "part_time" ? "PT" : "FT";
 };
+
+// Reusable availability templates for the bulk editor. Sunday (0) is off for opening/closing.
+const templateDays = (start, end, sundayOn = false) =>
+  Array.from({ length: 7 }, (_, i) => ({
+    day_of_week: i,
+    available: sundayOn ? true : i !== 0,
+    start_time: start,
+    end_time: end
+  }));
+
+export const AVAILABILITY_TEMPLATES = {
+  opening: { label: "Opening", desc: "06:00–14:00, Sun off", days: templateDays("06:00", "14:00") },
+  mid: { label: "Mid", desc: "10:00–18:00, all week", days: templateDays("10:00", "18:00", true) },
+  closing: { label: "Closing", desc: "14:00–22:00, Sun off", days: templateDays("14:00", "22:00") }
+};

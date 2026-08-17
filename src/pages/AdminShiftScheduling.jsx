@@ -401,7 +401,7 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
     setGenerating(false);
   };
 
-  const handleDropCreate = (operator, dateStr, registerId) => {
+  const handleDropCreate = (operator, dateStr, registerId, note) => {
     const reg = registers.find(r => r.register_id === registerId);
     setEditing(null);
     setForm({
@@ -416,20 +416,24 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
       break_end: "12:30",
       lunch_start: "13:00",
       lunch_end: "14:00",
-      notes: ""
+      notes: note || ""
     });
     setDialogOpen(true);
   };
 
-  const handleMoveShift = async (shift, newDateStr, registerId) => {
+  const handleMoveShift = async (shift, newDateStr, registerId, note) => {
     try {
       const patch = { date: newDateStr };
       if (groupBy === "register" && registerId !== null) {
         patch.register_id = registerId;
         patch.register_name = registers.find(r => r.register_id === registerId)?.name || "";
       }
+      if (note) {
+        const existing = shift.notes && !shift.notes.includes(note) ? `${shift.notes} | ` : "";
+        patch.notes = `${existing}${note}`;
+      }
       await base44.entities.Shift.update(shift.id, patch);
-      toast({ title: "Shift moved" });
+      toast({ title: note ? "Shift moved (override)" : "Shift moved" });
       load();
     } catch (e) {
       console.error("Error moving shift:", e);

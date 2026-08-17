@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { base44 } from "@/api/data";
-import { Save, Users, Check } from "lucide-react";
-import { OPEN_AVAILABILITY } from "@/lib/availabilityUtils";
+import { Save, Users, Check, Sunrise, Sun, Sunset } from "lucide-react";
+import { OPEN_AVAILABILITY, AVAILABILITY_TEMPLATES } from "@/lib/availabilityUtils";
+
+const TEMPLATE_ICON = { opening: Sunrise, mid: Sun, closing: Sunset };
 
 const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -119,11 +121,26 @@ export default function BulkAvailabilityEditor({ open, onOpenChange, operators, 
           </div>
 
           <div className="border-t pt-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <h3 className="text-sm font-semibold text-gray-900">Weekly availability</h3>
-              <Button size="sm" variant="outline" onClick={setAllOpen} className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-                <Check className="w-3 h-3 mr-1" /> Open Availability (24h)
-              </Button>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(AVAILABILITY_TEMPLATES).map(([key, tpl]) => {
+                  const Icon = TEMPLATE_ICON[key];
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setDays(tpl.days.map(d => ({ ...d })))}
+                      className="px-2.5 py-1 text-xs font-medium rounded-md border border-gray-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition flex items-center gap-1"
+                      title={tpl.desc}
+                    >
+                      <Icon className="w-3 h-3" /> {tpl.label}
+                    </button>
+                  );
+                })}
+                <Button size="sm" variant="outline" onClick={setAllOpen} className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                  <Check className="w-3 h-3 mr-1" /> Open (24h)
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               {days.map(d => (
