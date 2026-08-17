@@ -20,6 +20,8 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const [expiredItems, setExpiredItems] = useState([]); // indices of items past return period
   const [returnMode, setReturnMode] = useState("receipt"); // "receipt" | "no_receipt" | "manager_override"
   const [reasonOpen, setReasonOpen] = useState(false);
+  const [itemDecisions, setItemDecisions] = useState({}); // { [index]: { reason, restockable } }
+  const [pendingItem, setPendingItem] = useState(null);
 
   const lookUp = async () => {
     if (!returnTxId) return;
@@ -71,10 +73,15 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
       setOverrideDialog(true);
       return;
     }
-    setSelectedItems(prev => {
-      if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
-      return { ...prev, [i]: remainingQty(item) }; // default to max returnable qty
-    });
+    if (selectedItems[i] !== undefined) {
+      // deselect — also drop the stored reason/restock decision
+      setSelectedItems(prev => { const n = { ...prev }; delete n[i]; return n; });
+      setItemDecisions(prev => { const n = { ...prev }; delete n[i]; return n; });
+    } else {
+      // selecting — prompt for return reason and restock decision first
+      setPendingItem(i);
+      setReasonOpen(true);
+    }
   };
 
   const setReturnQty = (i, qty, item) => {
@@ -127,7 +134,26 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
 
   const confirmReturn = () => {
     if (selectedCount === 0) { toast({ title: "No items selected", variant: "destructive" }); return; }
-    setReasonOpen(true);
+    const decisions = returnItems.map(ri => {
+      const origIdx = items.indexOf(ri);
+      const d = itemDecisions[origIdx] || {};
+      return { sku: ri.sku, name: ri.name, qty: ri.qty, price: ri.price, reason: d.reason || "Other", restockable: d.restockable === true };
+    });
+    completeReturn(decisions);
+  };
+
+  const onItemReasonComplete = (decisions) => {
+    const d = decisions[0];
+    if (!d || pendingItem === null) { setReasonOpen(false); setPendingItem(null); return; }
+    setItemDecisions(prev => ({ ...prev, [pendingItem]: { reason: d.reason, restockable: d.restockable } }));
+    setSelectedItems(prev => ({ ...prev, [pendingItem]: remainingQty(items[pendingItem]) }));
+    setReasonOpen(false);
+    setPendingItem(null);
+  };
+
+  const onItemReasonClose = () => {
+    setReasonOpen(false);
+    setPendingItem(null);
   };
 
   const completeReturn = async (decisions) => {
@@ -382,7 +408,12 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
         </DialogContent>
       </Dialog>
 
-      <ReturnReasonDialog open={reasonOpen} items={returnItems} onClose={() => setReasonOpen(false)} onComplete={completeReturn} />
+      <ReturnReasonDialog
+        open={reasonOpen}
+        items={pendingItem !== null ? [{ ...items[pendingItem], qty: remainingQty(items[pendingItem]) }] : []}
+        onClose={onItemReasonClose}
+        onComplete={onItemReasonComplete}
+      />
     </div>
   );
 }
