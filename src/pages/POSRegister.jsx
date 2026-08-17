@@ -99,6 +99,12 @@ export default function POSRegister() {
   const [idVerify, setIdVerify] = useState(null); // { product, age } — pending age verification
   const [newsOpen, setNewsOpen] = useState(false);
   const [newsAnnouncements, setNewsAnnouncements] = useState([]);
+  const [todayShift, setTodayShift] = useState(null);
+  const [activeEntry, setActiveEntry] = useState(null);
+  const [lunchDialogOpen, setLunchDialogOpen] = useState(false);
+  const [lunchOverridePin, setLunchOverridePin] = useState("");
+  const [lunchOverrideError, setLunchOverrideError] = useState("");
+  const [lunchOverrideApplied, setLunchOverrideApplied] = useState(false);
   const loadDataDebounceRef = React.useRef(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -128,6 +134,25 @@ export default function POSRegister() {
     });
     return () => unsub();
   }, []);
+
+  // Load today's scheduled shift + active time-clock entry for lunch enforcement
+  useEffect(() => {
+    if (!operator) return;
+    const opId = operator.operator_id;
+    const load = async () => {
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const shifts = await base44.entities.Shift.filter({ operator_id: opId, date: today });
+        setTodayShift(shifts[0] || null);
+        const entries = await base44.entities.TimeClockEntry.filter({ operator_id: opId }, "-created_date", 50);
+        const ae = entries.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
+        setActiveEntry(ae || null);
+      } catch (e) { /* non-fatal */ }
+    };
+    load();
+    const unsub = base44.entities.TimeClockEntry.subscribe(load);
+    return () => unsub();
+  }, [operator?.operator_id]);
 
   useEffect(() => {
     if (receiptData) {
@@ -707,6 +732,46 @@ export default function POSRegister() {
     navigate("/pos");
   };
 
+  const handleLunchOverride = async () => {
+    setLunchOverrideError("");
+    try {
+      const ops = await base44.entities.Operator.filter({ pin: lunchOverridePin });
+      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
+      if (!sup) {
+        setLunchOverrideError("Invalid PIN or insufficient role (CSM/Manager required)");
+        return;
+      }
+      writeLog("override", `Lunch lockout override — scheduled lunch ${todayShift?.lunch_start} passed; authorized by ${sup.full_name} to continue working.`, {
+        override_operator_id: sup.operator_id,
+        override_operator_name: sup.full_name,
+        override_action: "Lunch Lockout Override",
+      });
+      setLunchOverrideApplied(true);
+      setLunchOverridePin("");
+      toast({ title: "Override Granted", description: `${sup.full_name} authorized continued work` });
+    } catch (e) {
+      setLunchOverrideError("Override failed — try again");
+    }
+  };
+
+  // Lunch enforcement state derived from today's scheduled shift + active clock entry
+  const lunchState = (() => {
+    if (!todayShift || !todayShift.lunch_start) return null;
+    const now = currentTime;
+    const [lh, lm] = todayShift.lunch_start.split(":").map(Number);
+    const lunchStart = new Date(now); lunchStart.setHours(lh, lm, 0, 0);
+    let lunchEnd = null;
+    if (todayShift.lunch_end) {
+      const [eh, em] = todayShift.lunch_end.split(":").map(Number);
+      lunchEnd = new Date(now); lunchEnd.setHours(eh, em, 0, 0);
+    }
+    const onLunch = activeEntry?.status === "on_meal";
+    const lunchTaken = !!(activeEntry?.meal_start && activeEntry?.meal_end);
+    const upcoming = !onLunch && !lunchTaken && now >= new Date(lunchStart.getTime() - 30 * 60000) && now < lunchStart;
+    const past = !onLunch && !lunchTaken && now >= lunchStart;
+    return { lunchStart, lunchEnd, onLunch, lunchTaken, upcoming, past };
+  })();
+
   const filteredProducts = products.filter(p => {
     const matchSearch = !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch);
     const matchCat = selectedCat === "All" || p.category === selectedCat;
@@ -908,6 +973,11 @@ export default function POSRegister() {
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
+            {lunchState?.upcoming && (
+              <button onClick={() => setLunchDialogOpen(true)} title="Upcoming scheduled lunch" className="text-amber-400 hover:text-amber-300 transition-colors">
+                <AlertTriangle className="w-3.5 h-3.5" />
+              </button>
+            )}
             <span className="text-blue-200/60 text-xs">{operator?.full_name}</span>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
               operator?.role === "manager" ? "bg-red-500/20 text-red-300" :
@@ -1847,6 +1917,53 @@ export default function POSRegister() {
           <Button onClick={() => setNewsOpen(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs">Close</Button>
         </DialogContent>
       </Dialog>
+
+      {/* Scheduled Lunch Info Dialog */}
+      <Dialog open={lunchDialogOpen} onOpenChange={setLunchDialogOpen}>
+        <DialogContent className="bg-[#111638] border-amber-500/20 text-white max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-amber-400 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" /> Scheduled Lunch
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-blue-300/60 text-xs">Your lunch break is scheduled to begin soon.</p>
+          <div className="bg-[#0a0e27] rounded-lg p-3 space-y-1.5 text-sm">
+            <div className="flex justify-between"><span className="text-blue-300/50">Lunch Start</span><span className="text-white font-mono">{todayShift?.lunch_start}</span></div>
+            <div className="flex justify-between"><span className="text-blue-300/50">Lunch End</span><span className="text-white font-mono">{todayShift?.lunch_end || "—"}</span></div>
+          </div>
+          <p className="text-amber-400/70 text-[11px] leading-relaxed">Take your lunch on time. After {todayShift?.lunch_start}, the register will lock until you take your lunch or a supervisor authorizes continued work.</p>
+          <Button onClick={() => setLunchDialogOpen(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs">Got it</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lunch Lockout Overlay — past scheduled lunch while still working */}
+      {lunchState?.past && !lunchOverrideApplied && (
+        <div className="fixed inset-0 z-[60] bg-[#0a0e27] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-6 text-center max-w-sm">
+            <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-amber-400" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold text-white">Lunch Break Overdue</h1>
+              <p className="text-blue-300/60 text-sm">Your scheduled lunch began at <span className="font-mono font-bold text-amber-400">{todayShift?.lunch_start}</span>. Take your lunch break now, or have a supervisor authorize continued work.</p>
+            </div>
+            <div className="w-full max-w-xs space-y-2">
+              <Input
+                type="password"
+                placeholder="CSM / Manager PIN"
+                value={lunchOverridePin}
+                onChange={e => setLunchOverridePin(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleLunchOverride()}
+                className="bg-[#0a0e27] border-amber-500/20 text-white text-center text-lg tracking-widest"
+                autoFocus
+              />
+              {lunchOverrideError && <p className="text-red-400 text-xs text-center">{lunchOverrideError}</p>}
+              <Button onClick={handleLunchOverride} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold">Authorize & Continue</Button>
+              <Button onClick={logout} variant="outline" className="w-full border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Log Out</Button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
       );
       }

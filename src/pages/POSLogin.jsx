@@ -31,6 +31,7 @@ export default function POSLogin() {
   const [overridePin, setOverridePin] = useState("");
   const [overrideError, setOverrideError] = useState("");
   const [overrideLoading, setOverrideLoading] = useState(false);
+  const [lunchLockout, setLunchLockout] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [dismissed, setDismissed] = useState(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem("pos_dismissed_announcements") || "[]")); } catch { return new Set(); }
@@ -188,6 +189,35 @@ export default function POSLogin() {
           setLoading(false);
           return;
         }
+        // Clock-in and lunch enforcement
+        const today = new Date().toISOString().split("T")[0];
+        const tcEntries = await base44.entities.TimeClockEntry.filter({ operator_id: op.operator_id }, "-created_date", 50);
+        const activeEntry = tcEntries.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
+        if (!activeEntry) {
+          toast({ title: "Operator Not Clocked In", description: "Clock in at the time clock before logging into the register.", variant: "destructive" });
+          setStep("id"); setOperatorId(""); setPin("");
+          setLoading(false);
+          return;
+        }
+        if (activeEntry.status === "on_meal") {
+          toast({ title: "Operator On Lunch", description: "You are currently on a lunch break. End your lunch to use the register.", variant: "destructive" });
+          setStep("id"); setOperatorId(""); setPin("");
+          setLoading(false);
+          return;
+        }
+        const todayShifts = await base44.entities.Shift.filter({ operator_id: op.operator_id, date: today });
+        const todayShift = todayShifts[0];
+        if (todayShift && todayShift.lunch_start) {
+          const [lh, lm] = todayShift.lunch_start.split(":").map(Number);
+          const lunchStart = new Date(); lunchStart.setHours(lh, lm, 0, 0);
+          const lunchTaken = !!(activeEntry.meal_start && activeEntry.meal_end);
+          if (!lunchTaken && new Date() >= lunchStart) {
+            setLunchLockout({ operator: op, shift: todayShift });
+            setOverridePin(""); setOverrideError("");
+            setLoading(false);
+            return;
+          }
+        }
         // Detect an active session on another register (most recent login without a later logout)
         const currentReg = sessionStorage.getItem("pos_register_num");
         const logs = await base44.entities.RegisterLog.filter({ operator_id: op.operator_id }, "-created_date", 100);
@@ -246,6 +276,40 @@ export default function POSLogin() {
       });
       sessionStorage.setItem("pos_operator", JSON.stringify(op));
       setConflict(null);
+      setOverridePin("");
+      navigate("/pos/register");
+    } catch (e) {
+      setOverrideError("Override failed — try again");
+    }
+    setOverrideLoading(false);
+  };
+
+  const handleLunchOverride = async () => {
+    setOverrideError("");
+    setOverrideLoading(true);
+    try {
+      const ops = await base44.entities.Operator.filter({ pin: overridePin });
+      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
+      if (!sup) {
+        const blocked = ops.find(o => o.role === "csm" || o.role === "manager");
+        setOverrideError(blocked ? "This supervisor's POS access is disabled" : "Invalid PIN — CSM or Manager required");
+        setOverrideLoading(false);
+        return;
+      }
+      const op = lunchLockout.operator;
+      await base44.entities.RegisterLog.create({
+        event_type: "override",
+        operator_id: op.operator_id,
+        operator_name: op.full_name,
+        operator_role: op.role,
+        register_id: sessionStorage.getItem("pos_register_num"),
+        detail: `Lunch lockout override — scheduled lunch ${lunchLockout.shift.lunch_start} passed; authorized by ${sup.full_name} to continue working.`,
+        override_operator_id: sup.operator_id,
+        override_operator_name: sup.full_name,
+        override_action: "Lunch Lockout Override",
+      });
+      sessionStorage.setItem("pos_operator", JSON.stringify(op));
+      setLunchLockout(null);
       setOverridePin("");
       navigate("/pos/register");
     } catch (e) {
@@ -610,6 +674,46 @@ export default function POSLogin() {
             </div>
             {overrideError && <p className="text-red-400 text-xs text-center">{overrideError}</p>}
             <button onClick={() => { setConflict(null); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lunch Lockout Override Modal */}
+      {lunchLockout && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
+          <div className="bg-[#111638] border border-orange-500/30 rounded-2xl p-6 w-full max-w-xs space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-orange-400" />
+              <h3 className="text-white font-semibold text-sm">Lunch Break Overdue</h3>
+            </div>
+            <p className="text-blue-300/70 text-xs leading-relaxed">
+              {lunchLockout.operator.full_name} has passed the scheduled lunch time of{" "}
+              <span className="font-mono font-bold text-orange-400">{lunchLockout.shift.lunch_start}</span>.
+              A CSM or Manager must authorize to continue working.
+            </p>
+            <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-orange-500/20 min-h-[44px] flex items-center justify-center">
+              {"•".repeat(overridePin.length) || <span className="text-blue-500/20">----</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
+                <button key={k} disabled={overrideLoading} onClick={() => {
+                  if (k === "CLR") { setOverridePin(""); setOverrideError(""); }
+                  else if (k === "ENT" && overridePin.length > 0) handleLunchOverride();
+                  else if (k !== "ENT" && overridePin.length < 6) setOverridePin(p => p + k);
+                }}
+                className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
+                  k === "ENT" ? "bg-orange-600 hover:bg-orange-500 text-white" :
+                  k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
+                  "bg-[#1a1f4a] text-white border border-blue-500/10"
+                }`}>
+                  {overrideLoading && k === "ENT" ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : k}
+                </button>
+              ))}
+            </div>
+            {overrideError && <p className="text-red-400 text-xs text-center">{overrideError}</p>}
+            <button onClick={() => { setLunchLockout(null); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
               Cancel
             </button>
           </div>
