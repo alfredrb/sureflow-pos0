@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3 } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import NoReceiptWorkbenchTab from "@/components/lossprevention/NoReceiptWorkbenc
 import ClaimsAuditPanel from "@/components/lossprevention/ClaimsAuditPanel";
 import SerializedInventoryPanel from "@/components/lossprevention/SerializedInventoryPanel";
 import ShrinkageReportPanel from "@/components/lossprevention/ShrinkageReportPanel";
+import MealExceptionsPanel from "@/components/lossprevention/MealExceptionsPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -122,6 +123,7 @@ export default function AdminLossPrevention() {
     { id: "claims", label: "Claims Audit", icon: PackageX },
     { id: "serialized", label: "Serialized Inventory", icon: ScanLine },
     { id: "mpp", label: "Merch Protection", icon: Shield },
+    { id: "meals", label: "Meal Exceptions", icon: Utensils },
     { id: "data", label: "Data Viewer", icon: Database },
   ];
 
@@ -177,6 +179,7 @@ export default function AdminLossPrevention() {
       {tab === "claims" && <ClaimsAuditPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "serialized" && <SerializedInventoryPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
+      {tab === "meals" && <MealExceptionsPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
 
       <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />

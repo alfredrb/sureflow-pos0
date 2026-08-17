@@ -17,10 +17,11 @@
         "stock_theft",
         "pattern",
         "time_theft",
+        "meal_exception",
         "other"
       ],
       "default": "other",
-      "description": "Primary category of the investigation. stock_theft covers customer-related theft / shrinkage where specific items were stolen and should be deducted from inventory. time_theft covers time-clock fraud / buddy punching / unauthorized pay from timeclock discrepancies."
+      "description": "Primary category of the investigation. stock_theft covers customer-related theft / shrinkage where specific items were stolen and should be deducted from inventory. time_theft covers time-clock fraud / buddy punching / unauthorized pay from timeclock discrepancies. meal_exception covers meal break violations \u2014 lunches not taken, taken late, or supervisor overrides allowing an operator to work past a scheduled lunch."
     },
     "severity": {
       "type": "string",

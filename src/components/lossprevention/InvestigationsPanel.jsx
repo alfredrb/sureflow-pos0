@@ -11,7 +11,7 @@ import moment from "moment";
 
 const TYPE_LABEL = {
   cash_short: "Cash Short", cash_over: "Cash Over", voids: "Voids", overrides: "Overrides",
-  refunds: "Refunds", no_sales: "No-Sales", stock_theft: "Stock Theft", pattern: "Pattern", other: "Other",
+  refunds: "Refunds", no_sales: "No-Sales", stock_theft: "Stock Theft", pattern: "Pattern", meal_exception: "Meal Exception", time_theft: "Time Theft", other: "Other",
 };
 const SEVERITY_BADGE = {
   low: "bg-gray-100 text-gray-600", medium: "bg-blue-100 text-blue-700",

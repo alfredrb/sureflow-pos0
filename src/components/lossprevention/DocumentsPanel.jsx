@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Scale, AlertTriangle, FileSignature, Printer, ChevronRight, Paperclip, Upload } from "lucide-react";
+import { FileText, Scale, AlertTriangle, FileSignature, Printer, ChevronRight, Paperclip, Upload, Utensils } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 
@@ -16,6 +16,7 @@ const DOCS = [
   { id: "robbery", label: "Robbery Report", desc: "Incident details, amount stolen, suspect info, and police notification.", icon: AlertTriangle, color: "text-red-600 bg-red-50" },
   { id: "incident", label: "Incident Report", desc: "General incident log — theft, damage, injury, disputes, or other.", icon: FileText, color: "text-blue-600 bg-blue-50" },
   { id: "statement", label: "Employee Statement", desc: "Written statement from an employee regarding an incident or case.", icon: FileSignature, color: "text-purple-600 bg-purple-50" },
+  { id: "meal", label: "Meal Exception Report", desc: "Record of a meal break exception — lunch not taken, taken late, or supervisor override to work past lunch.", icon: Utensils, color: "text-orange-600 bg-orange-50" },
 ];
 
 const initial = {
@@ -23,6 +24,7 @@ const initial = {
   robbery: { incident_date: "", register_id: "", operator_name: "", operator_id: "", amount_stolen: "", description: "", suspect: "", police_notified: "No", police_report: "", witnesses: "", reported_by: "", signature: "" },
   incident: { date: today, location: "", type: "theft", operator_name: "", operator_id: "", description: "", action_taken: "", reported_by: "", supervisor_name: "", signature: "" },
   statement: { employee_name: "", employee_id: "", date: today, subject: "", statement: "", witness: "", signature: "" },
+  meal: { date: today, operator_name: "", operator_id: "", register_id: "", exception_type: "not_taken", scheduled_lunch: "", actual_lunch: "", minutes_late: "", override_by: "", description: "", supervisor_name: "", signature: "" },
 };
 
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -68,9 +70,10 @@ const docSummary = (doc, f) => {
   if (doc === "raf") return `RAF — ${f.operator_name || "—"} — ${f.variance_type} $${Number(f.variance || 0).toFixed(2)} (reg ${f.register_id || "—"})`;
   if (doc === "robbery") return `Robbery Report — ${f.operator_name || "—"} — $${Number(f.amount_stolen || 0).toFixed(2)} stolen`;
   if (doc === "incident") return `Incident Report — ${f.type || "—"} — ${f.operator_name || "—"}`;
+  if (doc === "meal") return `Meal Exception — ${f.exception_type || "—"} — ${f.operator_name || "—"} (${f.date || "—"})`;
   return `Employee Statement — ${f.employee_name || "—"} — ${f.subject || "—"}`;
 };
-const docAmount = (doc, f) => (doc === "raf" ? Number(f.variance || 0) : doc === "robbery" ? Number(f.amount_stolen || 0) : 0);
+const docAmount = (doc, f) => (doc === "raf" ? Number(f.variance || 0) : doc === "robbery" ? Number(f.amount_stolen || 0) : doc === "meal" ? Number(f.minutes_late || 0) : 0);
 
 export default function DocumentsPanel({ logs = [], audits = [], registers = [] }) {
   const [active, setActive] = useState("raf");
@@ -130,6 +133,15 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
         <div class="section">Action Taken</div>
         <div class="body">${esc(f.action_taken || "—")}</div>
         <div class="sigs"><div class="sig"><div class="line">${esc(f.signature || " ")}</div>Reported By (${esc(f.reported_by || "—")})</div><div class="sig"><div class="line">${esc(f.supervisor_name || " ")}</div>Supervisor</div></div>`;
+    } else if (doc === "meal") {
+      title = "Meal Exception Report";
+      body = `<div class="row">${field("Date", f.date)}${field("Register", f.register_id)}${field("Exception Type", f.exception_type)}</div>
+        <div class="row">${field("Operator", f.operator_name)}${field("Operator ID", f.operator_id)}</div>
+        <div class="row">${field("Scheduled Lunch", f.scheduled_lunch)}${field("Actual Lunch Start", f.actual_lunch ? moment(f.actual_lunch).format("MMM D, YYYY h:mm A") : "")}${field("Minutes Late", f.minutes_late)}</div>
+        <div class="row">${field("Override Authorized By", f.override_by)}</div>
+        <div class="section">Description</div>
+        <div class="body">${esc(f.description || "—")}</div>
+        <div class="sigs"><div class="sig"><div class="line">${esc(f.signature || " ")}</div>Operator Signature</div><div class="sig"><div class="line">${esc(f.supervisor_name || " ")}</div>Supervisor (${esc(f.supervisor_name || "—")})</div></div>`;
     } else {
       title = "Employee Statement";
       body = `<div class="row">${field("Employee Name", f.employee_name)}${field("Employee ID", f.employee_id)}${field("Date", f.date)}</div>
@@ -287,6 +299,29 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <F k="reported_by" label="Reported By" value={f.reported_by} />
           <F k="supervisor_name" label="Supervisor" value={f.supervisor_name} />
+          <F k="signature" label="Signature (typed)" value={f.signature} />
+        </div>
+      </div>
+    );
+    if (active === "meal") return (
+      <div className="space-y-4">
+        {renderAssign("meal")}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <F k="date" label="Date" value={f.date} type="date" />
+          <F k="exception_type" label="Exception Type" value={f.exception_type} type="select" opts={["not_taken", "late", "override"]} />
+          <F k="register_id" label="Register" value={f.register_id} />
+          <F k="operator_name" label="Operator Name" value={f.operator_name} />
+          <F k="operator_id" label="Operator ID" value={f.operator_id} />
+          <F k="scheduled_lunch" label="Scheduled Lunch" value={f.scheduled_lunch} />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <F k="actual_lunch" label="Actual Lunch Start" value={f.actual_lunch} type="datetime-local" />
+          <F k="minutes_late" label="Minutes Late" value={f.minutes_late} type="number" />
+          <F k="override_by" label="Override Authorized By" value={f.override_by} />
+        </div>
+        <F k="description" label="Description / Notes" value={f.description} type="textarea" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <F k="supervisor_name" label="Supervisor Name" value={f.supervisor_name} />
           <F k="signature" label="Signature (typed)" value={f.signature} />
         </div>
       </div>

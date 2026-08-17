@@ -1,0 +1,91 @@
+{
+  "name": "MealException",
+  "type": "object",
+  "properties": {
+    "exception_type": {
+      "type": "string",
+      "enum": [
+        "not_taken",
+        "late",
+        "override"
+      ],
+      "description": "Kind of meal exception. not_taken = scheduled lunch was never recorded by the end of the shift; late = the meal break started after the scheduled lunch time (by at least the late threshold); override = a supervisor authorized the operator to continue working past the scheduled lunch."
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator the exception applies to."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "shift_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The shift date the exception relates to."
+    },
+    "scheduled_lunch_start": {
+      "type": "string",
+      "description": "Scheduled lunch start (HH:MM) from the shift."
+    },
+    "scheduled_lunch_end": {
+      "type": "string"
+    },
+    "actual_meal_start": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the meal break actually started, if any."
+    },
+    "actual_meal_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "minutes_late": {
+      "type": "number",
+      "default": 0,
+      "description": "Minutes the meal started after the scheduled lunch start (late type)."
+    },
+    "override_operator_id": {
+      "type": "string",
+      "description": "Supervisor who authorized working past lunch (override type)."
+    },
+    "override_operator_name": {
+      "type": "string"
+    },
+    "register_log_id": {
+      "type": "string",
+      "description": "Source RegisterLog entry for override-type exceptions (dedup key)."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Human-readable description of the exception."
+    },
+    "acknowledged": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once an admin has reviewed/acknowledged the exception."
+    },
+    "acknowledged_by": {
+      "type": "string",
+      "description": "Display name of the admin who acknowledged the exception."
+    },
+    "acknowledged_by_id": {
+      "type": "string"
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ack_note": {
+      "type": "string",
+      "description": "Optional note added when the exception was acknowledged."
+    }
+  },
+  "required": [
+    "exception_type",
+    "operator_id",
+    "shift_date"
+  ]
+}
