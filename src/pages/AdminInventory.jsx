@@ -175,6 +175,7 @@ export default function AdminInventory() {
                 <th className="px-5 py-3 text-left">Product</th>
                 <th className="px-3 py-3 text-left">SKU</th>
                 <th className="px-3 py-3 text-left">Category</th>
+                <th className="px-3 py-3 text-left">Vendor</th>
                 <th className="px-3 py-3 text-right">Price</th>
                 <th className="px-3 py-3 text-right">Stock</th>
                 <th className="px-3 py-3 text-left">Flags</th>
@@ -192,6 +193,7 @@ export default function AdminInventory() {
                     </td>
                     <td className="px-3 py-3 text-gray-500">{p.sku}</td>
                     <td className="px-3 py-3 text-gray-500">{p.category || "—"}</td>
+                    <td className="px-3 py-3 text-gray-500">{(() => { const c = companies.find(x => x.company_id === p.vendor_company_id); return c ? c.company_name : (p.vendor_company_id || "—"); })()}</td>
                     <td className="px-3 py-3 text-right font-medium">${p.price.toFixed(2)}</td>
                     <td className="px-3 py-3 text-right">
                       <span className={`inline-flex items-center gap-1 ${(p.stock_qty || 0) < 10 ? "text-red-600 font-semibold" : "text-gray-700"}`}>
