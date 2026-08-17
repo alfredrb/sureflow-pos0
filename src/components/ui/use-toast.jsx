@@ -122,6 +122,8 @@ function toast({ ...props }) {
   const dismiss = () =>
     dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id });
 
+  const duration = props.duration ?? 5000;
+
   dispatch({
     type: actionTypes.ADD_TOAST,
     toast: {
@@ -133,6 +135,10 @@ function toast({ ...props }) {
       },
     },
   });
+
+  if (duration !== Infinity) {
+    setTimeout(() => dismiss(), duration);
+  }
 
   return {
     id,
@@ -161,4 +167,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast }; 
+export { useToast, toast };
