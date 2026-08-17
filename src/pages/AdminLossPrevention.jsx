@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -29,12 +31,29 @@ export default function AdminLossPrevention() {
   const [tab, setTab] = useState("overview");
   const [investigation, setInvestigation] = useState(null);
   const [invRefresh, setInvRefresh] = useState(0);
+  const [lpFlags, setLpFlags] = useState({ voids: true, overrides: true, refunds: true, no_sales: true });
+  const [settingsRecId, setSettingsRecId] = useState(null);
   const tabRef = useRef(null);
   const { toast } = useToast();
 
   const scrollTabs = (dir) => {
     const el = tabRef.current; if (!el) return;
     el.scrollBy({ left: dir * 240, behavior: "smooth" });
+  };
+
+  const toggleFlag = async (key) => {
+    const next = { ...lpFlags, [key]: !lpFlags[key] };
+    setLpFlags(next);
+    try {
+      if (settingsRecId) {
+        await base44.entities.StoreSettings.update(settingsRecId, { [`lp_show_${key}`]: next[key] });
+      } else {
+        const created = await base44.entities.StoreSettings.create({ store_name: "Supermart", lp_show_voids: next.voids, lp_show_overrides: next.overrides, lp_show_refunds: next.refunds, lp_show_no_sales: next.no_sales });
+        setSettingsRecId(created.id);
+      }
+    } catch (e) {
+      toast({ title: "Could not save setting", variant: "destructive" });
+    }
   };
 
   const load = async (silent = false) => {
@@ -48,6 +67,16 @@ export default function AdminLossPrevention() {
       setLogs(logData);
       setTxns(txnData);
       setAudits(auditData);
+      try {
+        const settings = await base44.entities.StoreSettings.list("-created_date", 1);
+        const s = settings[0];
+        if (s) {
+          setSettingsRecId(s.id);
+          setLpFlags({ voids: s.lp_show_voids !== false, overrides: s.lp_show_overrides !== false, refunds: s.lp_show_refunds !== false, no_sales: s.lp_show_no_sales !== false });
+        } else {
+          setLpFlags({ voids: true, overrides: true, refunds: true, no_sales: true });
+        }
+      } catch (_) {}
     } catch (e) {
       if (!silent) toast({ title: "Error", description: "Failed to load data", variant: "destructive" });
     }
@@ -93,7 +122,30 @@ export default function AdminLossPrevention() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2"><ShieldAlert className="w-7 h-7 text-amber-600" /> Loss Prevention Workbench</h1>
           <p className="text-gray-500 text-sm mt-1">Investigate shorts, longs, voids, overrides, and refunds — and track open cases.</p>
         </div>
-        <Button variant="outline" onClick={() => load(true)}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline"><SlidersHorizontal className="w-4 h-4 mr-2" /> High-Risk Settings</Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="end">
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 mb-2">Disable an event type to exclude it from High-Risk Events and the operator risk ranking.</p>
+                {[
+                  { key: "voids", label: "Voids" },
+                  { key: "overrides", label: "Price Overrides" },
+                  { key: "refunds", label: "Refunds" },
+                  { key: "no_sales", label: "No-Sales" },
+                ].map(opt => (
+                  <div key={opt.key} className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-gray-700">{opt.label}</span>
+                    <Switch checked={lpFlags[opt.key]} onCheckedChange={() => toggleFlag(opt.key)} />
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button variant="outline" onClick={() => load(true)}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
+        </div>
       </div>
 
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 flex flex-col sm:flex-row sm:items-end gap-3">
@@ -124,7 +176,7 @@ export default function AdminLossPrevention() {
         <button onClick={() => scrollTabs(1)} className="p-1.5 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 flex-shrink-0" title="Scroll tabs right"><ChevronRight className="w-5 h-5" /></button>
       </div>
 
-      {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
+      {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} enabledFlags={lpFlags} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}

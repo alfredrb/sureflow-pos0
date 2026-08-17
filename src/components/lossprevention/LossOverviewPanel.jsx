@@ -12,7 +12,8 @@ const EVENT_BADGE = {
 
 const TYPE_MAP = { Void: "voids", Override: "overrides", Refund: "refunds" };
 
-export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStartInvestigation }) {
+export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStartInvestigation, enabledFlags }) {
+  const flags = { voids: enabledFlags?.voids !== false, overrides: enabledFlags?.overrides !== false, refunds: enabledFlags?.refunds !== false, no_sales: enabledFlags?.no_sales !== false };
   const start = moment(fromDate).startOf("day");
   const end = moment(toDate).endOf("day");
   const inRange = (d) => !!d && moment(d).isSameOrAfter(start) && moment(d).isSameOrBefore(end);
@@ -20,10 +21,10 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
   const rangeLogs = useMemo(() => logs.filter(l => inRange(l.created_date)), [logs, fromDate, toDate]);
   const rangeTxns = useMemo(() => txns.filter(t => inRange(t.created_date)), [txns, fromDate, toDate]);
 
-  const voids = rangeLogs.filter(l => l.event_type === "void");
-  const overrides = rangeLogs.filter(l => l.event_type === "override");
-  const noSales = rangeLogs.filter(l => l.event_type === "no_sale");
-  const refunds = rangeTxns.filter(t => t.status === "refunded");
+  const voids = flags.voids ? rangeLogs.filter(l => l.event_type === "void") : [];
+  const overrides = flags.overrides ? rangeLogs.filter(l => l.event_type === "override") : [];
+  const noSales = flags.no_sales ? rangeLogs.filter(l => l.event_type === "no_sale") : [];
+  const refunds = flags.refunds ? rangeTxns.filter(t => t.status === "refunded") : [];
 
   const overrideValue = overrides.reduce((s, l) => s + (l.transaction_total || 0), 0);
   const refundValue = refunds.reduce((s, t) => s + (t.total || 0), 0);
@@ -74,11 +75,11 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Voids", value: voids.length, icon: Ban, color: "text-red-600", bg: "bg-red-50" },
-          { label: "Price Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50" },
-          { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
-        ].map(s => (
+          flags.voids && { label: "Voids", value: voids.length, icon: Ban, color: "text-red-600", bg: "bg-red-50" },
+          flags.overrides && { label: "Price Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
+          flags.refunds && { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50" },
+          (flags.overrides || flags.refunds) && { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
+        ].filter(Boolean).map(s => (
           <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-5 h-5 ${s.color}`} /></div>
             <div className="min-w-0"><p className="text-xl font-bold text-gray-900 truncate">{s.value}</p><p className="text-xs text-gray-500 truncate">{s.label}</p></div>

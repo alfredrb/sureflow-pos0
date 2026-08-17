@@ -77,6 +77,26 @@
       "default": 5,
       "description": "Percentage of the sale subtotal earned back as rewards credit (e.g. 5 = 5%)"
     },
+    "lp_show_voids": {
+      "type": "boolean",
+      "default": true,
+      "description": "When false, voids are excluded from the Loss Prevention High-Risk Events list and operator risk ranking."
+    },
+    "lp_show_overrides": {
+      "type": "boolean",
+      "default": true,
+      "description": "When false, price overrides are excluded from the Loss Prevention High-Risk Events list and operator risk ranking."
+    },
+    "lp_show_refunds": {
+      "type": "boolean",
+      "default": true,
+      "description": "When false, refunds are excluded from the Loss Prevention High-Risk Events list and operator risk ranking."
+    },
+    "lp_show_no_sales": {
+      "type": "boolean",
+      "default": true,
+      "description": "When false, no-sales are excluded from the Loss Prevention operator risk ranking."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number these settings apply to. Blank = global default settings."
