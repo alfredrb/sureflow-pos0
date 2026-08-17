@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/data";
-import { ArrowLeft, CalendarOff, UserX, RotateCcw, Ban, ShieldOff, Printer } from "lucide-react";
+import { ArrowLeft, CalendarOff, UserX, RotateCcw, Ban, ShieldOff, Printer, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
   const [reason, setReason] = useState(TERMINATION_REASONS[0].value);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { toast } = useToast();
 
   const isGross = (TERMINATION_REASONS.find(r => r.value === reason) || {}).gross;
@@ -84,6 +85,28 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
 
   const rehireDays = emp.status === "terminated" ? daysUntil(emp.rehire_eligible_date) : null;
 
+  const doDelete = async () => {
+    setSaving(true);
+    try {
+      // remove linked operator
+      if (emp.operator_id) {
+        const ops = await base44.entities.Operator.filter({ operator_id: emp.operator_id });
+        if (ops.length) await base44.entities.Operator.delete(ops[0].id);
+      }
+      // remove feedback / disciplinary records
+      const feedback = await base44.entities.EmployeeFeedback.filter({ employee_id: emp.employee_id });
+      await Promise.all((feedback || []).map(f => base44.entities.EmployeeFeedback.delete(f.id)));
+      // remove the employee
+      await base44.entities.Employee.delete(emp.id);
+      toast({ title: "Employee deleted", description: "All related data has been removed." });
+      setDeleteOpen(false);
+      onBack();
+    } catch (e) {
+      toast({ title: "Error", description: e?.message, variant: "destructive" });
+    }
+    setSaving(false);
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full">
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-3">
@@ -135,6 +158,16 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
         <TabsContent value="feedback" className="mt-4"><EmployeeFeedbackTab employee={emp} /></TabsContent>
       </Tabs>
 
+      <div className="mt-6 border border-red-200 rounded-2xl p-4 bg-red-50/50">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-red-700 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Danger Zone</h3>
+            <p className="text-xs text-red-600 mt-1">Permanently delete this employee and remove all related data, including their operator login from the Operator Management panel.</p>
+          </div>
+          <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-100" onClick={() => setDeleteOpen(true)}><Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Employee</Button>
+        </div>
+      </div>
+
       {/* Leave dialog */}
       <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
         <DialogContent>
@@ -184,6 +217,23 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setTermOpen(false)}>Cancel</Button>
             <Button onClick={doTerminate} disabled={saving} className="bg-red-600 hover:bg-red-700">{saving ? "Processing…" : "Terminate"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete {emp.full_name}?</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+              <AlertTriangle className="w-4 h-4 inline mr-1" /> This permanently removes the employee and <strong>all related data</strong>, including their operator login from the Operator Management panel. This cannot be undone.
+            </p>
+            <p className="text-sm text-gray-600">Employee ID: <span className="font-mono">{emp.employee_id}</span>{emp.operator_id ? <> · Operator ID: <span className="font-mono">{emp.operator_id}</span></> : null}</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button onClick={doDelete} disabled={saving} className="bg-red-600 hover:bg-red-700">{saving ? "Deleting…" : "Delete Permanently"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
