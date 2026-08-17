@@ -192,13 +192,13 @@ export default function AdminInventory() {
         )}
       </div>
 
-      {!isVendor && (
-        <div className="flex gap-1 mb-4 border-b border-gray-200">
-          <button onClick={() => setTab("products")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "products" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Products</button>
-          <button onClick={() => setTab("serialized")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "serialized" ? "border-indigo-600 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Serialized</button>
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
+        <button onClick={() => setTab("products")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "products" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Products</button>
+        <button onClick={() => setTab("serialized")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "serialized" ? "border-indigo-600 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Serialized</button>
+        {!isVendor && (
           <button onClick={() => setTab("categories")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "categories" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Categories</button>
-        </div>
-      )}
+        )}
+      </div>
 
       {tab === "products" && (
         <>

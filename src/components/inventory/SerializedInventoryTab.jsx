@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
-import { Search, ScanLine, RefreshCw, Package } from "lucide-react";
+import { Search, ScanLine, RefreshCw, Package, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import SerializedStockManager from "@/components/inventory/SerializedStockManager";
+import BulkSerialImportDialog from "@/components/inventory/BulkSerialImportDialog";
 
 // Lists all products with a Serialized flag toggle, and shows how many units of each
 // serialized SKU are currently sold (in market) vs returned.
@@ -16,6 +17,7 @@ export default function SerializedInventoryTab({ products, onChanged, operator }
   const [search, setSearch] = useState("");
   const [toggling, setToggling] = useState(null);
   const [manageProduct, setManageProduct] = useState(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const { toast } = useToast();
 
   const loadCounts = async () => {
@@ -70,7 +72,12 @@ export default function SerializedInventoryTab({ products, onChanged, operator }
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><ScanLine className="w-5 h-5 text-indigo-600" /> Serialized Inventory Management</h2>
           <p className="text-gray-500 text-sm">Flag items as serialized to require a serial number at the POS and track every sold unit in the Loss Prevention workbench.</p>
         </div>
-        <Button variant="outline" onClick={loadCounts}><RefreshCw className="w-4 h-4 mr-2" /> Refresh Counts</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-indigo-200 text-indigo-600 hover:bg-indigo-50">
+            <Upload className="w-4 h-4 mr-2" /> Bulk Import
+          </Button>
+          <Button variant="outline" onClick={loadCounts}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -170,6 +177,14 @@ export default function SerializedInventoryTab({ products, onChanged, operator }
         product={manageProduct}
         operator={operator}
         onClose={() => setManageProduct(null)}
+        onChanged={loadCounts}
+      />
+
+      <BulkSerialImportDialog
+        open={bulkOpen}
+        products={products}
+        operator={operator}
+        onClose={() => setBulkOpen(false)}
         onChanged={loadCounts}
       />
     </div>
