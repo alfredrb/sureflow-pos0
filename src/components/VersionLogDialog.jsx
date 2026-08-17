@@ -61,15 +61,26 @@ export default function VersionLogDialog({ open, onOpenChange, canManage = false
       }
       const lines = recent.map(a => `- [${a.category || "other"}] ${a.action || ""}: ${a.description || ""}${a.actor_name ? ` (by ${a.actor_name})` : ""}`).join("\n");
       const lastVersion = current?.version || "4.2.1";
+      // Summarize changes already shipped in previous releases so the AI doesn't re-log them.
+      const prevReleases = (versions || []).slice(0, 6).map(v => {
+        const items = (v.changes || []).map(c => c.text).filter(Boolean);
+        return `v${v.version}${v.title ? ` — ${v.title}` : ""}:\n${items.length ? items.map(t => `- ${t}`).join("\n") : "- (no items)"}`;
+      }).join("\n\n");
       const prompt = `You are drafting release notes for SureFlow POS, a retail point-of-sale and admin management app.
-The current release is v${lastVersion}. Below are recent system changes logged since that release (from the admin audit trail).
-Write a new release draft. Consolidate related entries, rephrase internal/admin actions as user-facing release notes, and drop trivial or duplicate ones.
-Pick a sensible next version number (increment minor for feature-like changes, patch for fixes-only).
-Categorize each change as new, improvement, fix, security, or other.
-Keep the summary to one sentence and limit changes to the most meaningful items (max 8).
+The current release is v${lastVersion}. Below are recent system changes logged since that release (from the admin audit trail), followed by the changes already shipped in previous releases.
 
-Recent changes:
-${lines}`;
+Rules:
+- Only include NEW changes not already covered by a previous release listed below.
+- Consolidate related audit entries, rephrase internal/admin actions as user-facing release notes, and drop trivial or duplicate ones.
+- Pick a sensible next version number (increment minor for feature-like changes, patch for fixes-only).
+- Categorize each change as new, improvement, fix, security, or other.
+- Keep the summary to one sentence and limit changes to the most meaningful items (max 8).
+
+Recent changes since v${lastVersion}:
+${lines}
+
+Already released in previous versions (do NOT re-list these):
+${prevReleases || "(none)"}`;
       const res = await base44.integrations.Core.InvokeLLM({
         prompt,
         response_json_schema: {
