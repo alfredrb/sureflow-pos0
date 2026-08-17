@@ -45,6 +45,7 @@ const DEVICE_FIELD_MAP = {
 export default function AdminMaintenanceLog() {
   const [logs, setLogs] = useState([]);
   const [registers, setRegisters] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -63,12 +64,14 @@ export default function AdminMaintenanceLog() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [data, regs] = await Promise.all([
+      const [data, regs, ops] = await Promise.all([
         base44.entities.MaintenanceLog.list("-service_date", 200),
         base44.entities.Register.list(),
+        base44.entities.Operator.list(),
       ]);
       setLogs(data);
       setRegisters(regs);
+      setTechnicians(ops.filter(o => o.role === "technician" && o.status === "active").sort((a, b) => (a.full_name || "").localeCompare(b.full_name || "")));
     } catch (e) {
       if (!silent) toast({ title: "Error", description: "Failed to load logs", variant: "destructive" });
     }
@@ -302,7 +305,19 @@ export default function AdminMaintenanceLog() {
             <div><Label>Title *</Label><Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Brief description of work" /></div>
             <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="What was done / what needs doing" /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Technician</Label><Input value={form.technician_name} onChange={e => setForm(f => ({ ...f, technician_name: e.target.value }))} /></div>
+              <div>
+                <Label>Technician</Label>
+                <Select value={form.technician_name || "__none"} onValueChange={v => setForm(f => ({ ...f, technician_name: v === "__none" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">— None —</SelectItem>
+                    {technicians.map(t => <SelectItem key={t.id} value={t.full_name}>{t.full_name}</SelectItem>)}
+                    {form.technician_name && !technicians.some(t => t.full_name === form.technician_name) && (
+                      <SelectItem value={form.technician_name}>{form.technician_name}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Service Date</Label><Input type="date" value={form.service_date} onChange={e => setForm(f => ({ ...f, service_date: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
