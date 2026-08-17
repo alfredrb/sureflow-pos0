@@ -91,6 +91,11 @@
       "default": false,
       "description": "If true, the POS blocks this item from being sold because it is causing excessive return-related profit loss. Set from the Loss Prevention Claims Audit tab."
     },
+    "serialized": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, this item requires a serial number to be captured at the POS when sold, and a matching serial must be verified on any return or exchange. Each sold unit is tracked individually in the Loss Prevention Serialized Inventory workbench."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number this product belongs to. Blank = shared/catalog product available to all stores."

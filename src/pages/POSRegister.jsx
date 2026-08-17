@@ -23,6 +23,8 @@ import POSItemList from "@/components/POSItemList";
 import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
+import POSSerialDialog from "@/components/pos/POSSerialDialog";
+import { recordSerializedSales } from "@/lib/serialUtils";
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function POSRegister() {
@@ -97,6 +99,7 @@ export default function POSRegister() {
   const [loyaltyLookupOpen, setLoyaltyLookupOpen] = useState(false);
   const [loyaltySignupOpen, setLoyaltySignupOpen] = useState(false);
   const [idVerify, setIdVerify] = useState(null); // { product, age } — pending age verification
+  const [serialCapture, setSerialCapture] = useState(null); // { product, needed, onDone } — pending serial capture for a serialized item
   const [newsOpen, setNewsOpen] = useState(false);
   const [newsAnnouncements, setNewsAnnouncements] = useState([]);
   const [todayShift, setTodayShift] = useState(null);
@@ -283,6 +286,33 @@ export default function POSRegister() {
     });
   };
 
+  // Serialized items carry an array of serial numbers (one per unit). qty always equals serial_numbers.length.
+  const commitSerializedAdd = (product, serial) => {
+    setCart(prev => {
+      const existing = prev.find(i => i.sku === product.sku && i.serialized);
+      if (existing) {
+        return prev.map(i => i === existing ? {
+          ...i,
+          serial_numbers: [...(i.serial_numbers || []), serial],
+          qty: (i.serial_numbers || []).length + 1,
+          total: +(((i.serial_numbers || []).length + 1) * i.price).toFixed(2)
+        } : i);
+      }
+      return [...prev, { sku: product.sku, name: product.name, price: product.price, qty: 1, total: product.price, tax_rate: taxExemptAppliedId ? 0 : (product.tax_rate || 0), serialized: true, serial_numbers: [serial] }];
+    });
+  };
+
+  const captureSerialForAdd = (product) => {
+    setSerialCapture({
+      product,
+      needed: 1,
+      onDone: (serials) => {
+        commitSerializedAdd(product, serials[0]);
+        setItemListOpen(false); setItemSearch(""); setSelectedCat("All");
+      }
+    });
+  };
+
   const addToCart = (product) => {
     if (product.recalled) {
       toast({ title: "Item Recalled", description: `${product.name} has been recalled and cannot be sold. Please give the item to a manager.`, variant: "destructive" });
@@ -300,6 +330,10 @@ export default function POSRegister() {
       setIdVerify({ product, age: parseInt(product.id_required) });
       return false;
     }
+    if (product.serialized) {
+      captureSerialForAdd(product);
+      return false;
+    }
     commitAddToCart(product);
     return true;
   };
@@ -309,8 +343,12 @@ export default function POSRegister() {
     const age = idVerify?.age;
     setIdVerify(null);
     if (p) {
-      commitAddToCart(p);
-      setItemListOpen(false); setItemSearch(""); setSelectedCat("All");
+      if (p.serialized) {
+        captureSerialForAdd(p);
+      } else {
+        commitAddToCart(p);
+        setItemListOpen(false); setItemSearch(""); setSelectedCat("All");
+      }
       writeLog("override", `ID verified (${age}+) for ${p.name}`);
     }
   };
@@ -318,6 +356,33 @@ export default function POSRegister() {
   const removeFromCart = (sku) => setCart(prev => prev.filter(i => i.sku !== sku));
 
   const updateQty = (sku, delta) => {
+    const item = cart.find(i => i.sku === sku);
+    if (!item) return;
+    if (item.serialized) {
+      if (delta > 0) {
+        const prod = products.find(p => p.sku === sku);
+        setSerialCapture({
+          product: prod || { name: item.name, sku },
+          needed: 1,
+          onDone: (serials) => {
+            setCart(prev => prev.map(j => (j.sku === sku && j.serialized) ? {
+              ...j,
+              serial_numbers: [...(j.serial_numbers || []), serials[0]],
+              qty: (j.serial_numbers || []).length + 1,
+              total: +(((j.serial_numbers || []).length + 1) * j.price).toFixed(2)
+            } : j));
+          }
+        });
+      } else {
+        setCart(prev => prev.map(j => {
+          if (j.sku !== sku || !j.serialized) return j;
+          const ns = (j.serial_numbers || []).slice(0, -1);
+          if (ns.length === 0) return null;
+          return { ...j, serial_numbers: ns, qty: ns.length, total: +(ns.length * j.price).toFixed(2) };
+        }).filter(Boolean));
+      }
+      return;
+    }
     setCart(prev => prev.map(i => {
       if (i.sku !== sku) return i;
       const newQty = Math.max(0, i.qty + delta);
@@ -588,6 +653,11 @@ export default function POSRegister() {
 
   const completeSale = async () => {
     if (cart.length === 0) return;
+    const missingSerials = cart.find(i => i.serialized && !(i.serial_numbers && i.serial_numbers.length === i.qty));
+    if (missingSerials) {
+      toast({ title: "Missing Serial Number", description: `${missingSerials.name} requires a serial number for each unit.`, variant: "destructive" });
+      return;
+    }
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
     const changeDue = paymentMethod === "cash" ? Math.max(0, parseFloat(amountTendered || 0) - amountDue) : 0;
     const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
@@ -630,7 +700,8 @@ export default function POSRegister() {
         register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
         items: cart.map(item => ({
           sku: item.sku, name: item.name, qty: item.qty, price: item.price, total: item.total,
-          discount_type: item.discount_type || null, discount_percentage: item.discount_percentage || 0, original_price: item.original_price || item.price
+          discount_type: item.discount_type || null, discount_percentage: item.discount_percentage || 0, original_price: item.original_price || item.price,
+          ...(item.serialized ? { serialized: true, serial_numbers: item.serial_numbers } : {})
         })),
         subtotal, tax, total, payment_method: paymentMethod, status: "completed",
         amount_tendered: parseFloat(amountTendered || total), change_due: changeDue,
@@ -645,6 +716,7 @@ export default function POSRegister() {
         const prod = products.find(p => p.sku === item.sku);
         if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
       }
+      try { await recordSerializedSales({ items: cart, transactionId: txId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }); } catch {}
       let loyaltyNewBalance = null;
       if (loyaltyMember) {
         try {
@@ -1496,10 +1568,19 @@ export default function POSRegister() {
                   <div>Operator: {receiptData.operatorName}</div>
                 </div>
                 <div className="border-t border-b py-2 space-y-1">
-                  {receiptData.items.map((item) => (
-                    <div key={item.sku} className="flex justify-between">
-                      <span>{item.qty}x {item.name}</span>
-                      <span>${item.total.toFixed(2)}</span>
+                  {receiptData.items.map((item, idx) => (
+                    <div key={idx} className="space-y-0.5">
+                      <div className="flex justify-between">
+                        <span>{item.qty}x {item.name}</span>
+                        <span>${item.total.toFixed(2)}</span>
+                      </div>
+                      {item.serial_numbers && item.serial_numbers.length > 0 && (
+                        <div className="pl-2">
+                          {item.serial_numbers.map((sn, i) => (
+                            <div key={i} className="text-[10px] text-indigo-300/70">SN: {sn}</div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1819,6 +1900,7 @@ export default function POSRegister() {
                       const prod = products.find(p => p.sku === item.sku);
                       if (prod) base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
                     }
+                    recordSerializedSales({ items: cart, transactionId: txId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }).catch(() => {});
                     let loyaltyNewBalance = loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
                     if (loyaltyMember) {
                       base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id }).then(fresh => {
@@ -1883,6 +1965,18 @@ export default function POSRegister() {
         toast={toast}
       />
       <POSIDVerifyDialog open={!!idVerify} product={idVerify?.product} age={idVerify?.age} onClose={() => setIdVerify(null)} onVerified={handleIDVerified} />
+
+      <POSSerialDialog
+        open={!!serialCapture}
+        product={serialCapture?.product}
+        needed={serialCapture?.needed || 1}
+        onConfirm={(serials) => {
+          const done = serialCapture?.onDone;
+          setSerialCapture(null);
+          if (done) done(serials);
+        }}
+        onClose={() => setSerialCapture(null)}
+      />
 
       {/* Store Announcements / News Dialog */}
       <Dialog open={newsOpen} onOpenChange={setNewsOpen}>

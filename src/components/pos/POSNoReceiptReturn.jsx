@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
-import { FileX, ShieldCheck, ArrowLeft, Search, Trash2, Ban, AlertTriangle } from "lucide-react";
+import { FileX, ShieldCheck, ArrowLeft, Search, Trash2, Ban, AlertTriangle, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
+import { isSerialSoldForSku, markSerialReturned } from "@/lib/serialUtils";
 
 function makeGiftCardNumber() {
   return "GC-" + Date.now().toString().slice(-8) + Math.floor(Math.random() * 90 + 10);
@@ -12,7 +14,13 @@ function buildReceiptHTML({ store, txId, operatorName, registerName, items, subt
   const storeName = store?.store_name || "Supermart";
   const isManager = mode === "manager_override";
   const title = refusal ? "NO-RECEIPT RETURN DENIED" : isManager ? "MANAGER OVERRIDE RETURN" : "NO-RECEIPT RETURN";
-  const itemsHTML = (items || []).map(i => `<div class="row"><span>${i.qty}x ${i.name}</span><span>$${i.total.toFixed(2)}</span></div>`).join("");
+  const itemsHTML = (items || []).map(i => {
+    let row = `<div class="row"><span>${i.qty}x ${i.name}</span><span>$${i.total.toFixed(2)}</span></div>`;
+    if (i.serial_numbers && i.serial_numbers.length) {
+      row += i.serial_numbers.map(sn => `<div class="row" style="font-size:9px;padding-left:10px;"><span>SN: ${sn}</span><span></span></div>`).join("");
+    }
+    return row;
+  }).join("");
   const refusalBlock = refusal ? `<div class="refusal">CUSTOMER ID ${customerId} IS NOT PERMITTED TO MAKE NO-RECEIPT RETURNS.${denialReason ? `<br>${denialReason}` : ""} PLEASE SEE A MANAGER.</div>` : "";
   const warnBlock = !refusal && limitWarn ? `<div class="warn">${limitWarn}</div>` : "";
   const custBlock = !refusal && customerId ? `<div class="row"><span>Customer ID:</span><span>${customerId}</span></div>` : "";
@@ -94,6 +102,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
   const [returnItems, setReturnItems] = useState([]);
   const [itemSearch, setItemSearch] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [serialVerify, setSerialVerify] = useState(null); // { product }
 
   useEffect(() => {
     base44.entities.StoreSettings.list().then(s => { if (s[0]) setStore(s[0]); }).catch(() => {});
@@ -179,6 +188,10 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
   }, [itemSearch, products]);
 
   const addItem = (prod) => {
+    if (prod.serialized) {
+      setSerialVerify({ product: prod });
+      return;
+    }
     const existing = returnItems.find(i => i.sku === prod.sku);
     if (existing) {
       setReturnItems(prev => prev.map(i => i.sku === prod.sku ? { ...i, qty: i.qty + 1, total: +((i.qty + 1) * i.price).toFixed(2) } : i));
@@ -188,12 +201,27 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
     setItemSearch("");
   };
 
+  const verifyInventorySerial = async (serial) => {
+    const sku = serialVerify?.product?.sku;
+    if (!sku) return false;
+    return await isSerialSoldForSku(sku, serial);
+  };
+
+  const onSerialVerified = (serial) => {
+    const prod = serialVerify?.product;
+    setSerialVerify(null);
+    if (prod) {
+      setReturnItems(prev => [...prev, { sku: prod.sku, name: prod.name, qty: 1, price: prod.price, total: prod.price, tax_rate: prod.tax_rate || 0, serialized: true, serial, serial_numbers: [serial] }]);
+    }
+    setItemSearch("");
+  };
+
   const setQty = (sku, qty) => {
     const q = Math.max(1, parseInt(qty) || 1);
     setReturnItems(prev => prev.map(i => i.sku === sku ? { ...i, qty: q, total: +(q * i.price).toFixed(2) } : i));
   };
 
-  const removeItem = (sku) => setReturnItems(prev => prev.filter(i => i.sku !== sku));
+  const removeItem = (key) => setReturnItems(prev => prev.filter(i => (i.serial || i.sku) !== key));
 
   const subtotal = returnItems.reduce((s, i) => s + i.total, 0);
   const tax = returnItems.reduce((s, i) => s + (i.total * ((i.tax_rate || 0) / 100)), 0);
@@ -227,7 +255,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         operator_id: operator.operator_id,
         operator_name: operator.full_name,
         register_id: registerId,
-        items: returnItems.map(i => ({ sku: i.sku, name: i.name, qty: i.qty, price: i.price, total: i.total })),
+        items: returnItems.map(i => ({ sku: i.sku, name: i.name, qty: i.qty, price: i.price, total: i.total, ...(i.serial_numbers ? { serialized: true, serial_numbers: i.serial_numbers } : {}) })),
         subtotal, tax, total,
         payment_method: "giftcard",
         giftcard_number: giftCardNumber,
@@ -240,6 +268,10 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         manager_override_return: isManager,
         ...(managerAuth ? { override_operator_id: managerAuth.operator_id, override_operator_name: managerAuth.full_name } : {}),
       });
+
+      for (const i of returnItems) {
+        if (i.serial) { try { await markSerialReturned(i.sku, i.serial, { returnTransactionId: txId }); } catch {} }
+      }
 
       const lim = store?.no_receipt_return_limit || 0;
       let newCount = 1;
@@ -374,18 +406,18 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
                 <p className="text-xs">Search and add items to return</p>
               </div>
             ) : returnItems.map(i => (
-              <div key={i.sku} className="flex items-center gap-2 bg-[#0a0e27] rounded-lg p-2 border border-blue-500/10">
+              <div key={i.serial || i.sku} className="flex items-center gap-2 bg-[#0a0e27] rounded-lg p-2 border border-blue-500/10">
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs truncate">{i.name}</p>
-                  <p className="text-blue-300/40 text-[10px]">${i.price.toFixed(2)} ea</p>
+                  <p className="text-white text-xs truncate flex items-center gap-1">{i.name}{i.serialized && <ScanLine className="w-3 h-3 text-indigo-400 flex-shrink-0" />}</p>
+                  <p className="text-blue-300/40 text-[10px]">${i.price.toFixed(2)} ea{i.serial && <span className="text-indigo-400 font-mono ml-1">SN: {i.serial}</span>}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setQty(i.sku, i.qty - 1)} className="w-5 h-5 rounded bg-fuchsia-600/30 text-fuchsia-300 text-xs">−</button>
+                  {!i.serialized && <button onClick={() => setQty(i.sku, i.qty - 1)} className="w-5 h-5 rounded bg-fuchsia-600/30 text-fuchsia-300 text-xs">−</button>}
                   <span className="text-white text-xs w-5 text-center">{i.qty}</span>
-                  <button onClick={() => setQty(i.sku, i.qty + 1)} className="w-5 h-5 rounded bg-fuchsia-600/30 text-fuchsia-300 text-xs">+</button>
+                  {!i.serialized && <button onClick={() => setQty(i.sku, i.qty + 1)} className="w-5 h-5 rounded bg-fuchsia-600/30 text-fuchsia-300 text-xs">+</button>}
                 </div>
                 <p className="text-fuchsia-300 text-xs font-semibold w-14 text-right">${i.total.toFixed(2)}</p>
-                <button onClick={() => removeItem(i.sku)} className="text-red-400/60 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                <button onClick={() => removeItem(i.serial || i.sku)} className="text-red-400/60 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             ))}
           </div>
@@ -404,6 +436,15 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
           </div>
         </>
       )}
+
+      <POSSerialVerifyDialog
+        open={!!serialVerify}
+        item={serialVerify?.product}
+        mode="inventory"
+        verify={verifyInventorySerial}
+        onVerified={onSerialVerified}
+        onClose={() => setSerialVerify(null)}
+      />
     </div>
   );
 }

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
-import { ArrowLeftRight, Search, X } from "lucide-react";
+import { ArrowLeftRight, Search, X, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
+import POSSerialDialog from "@/components/pos/POSSerialDialog";
+import { markSerialReturned, recordSerializedSales, itemHasSerials } from "@/lib/serialUtils";
 
 export default function ExchangePanel({ operator, products, loadData, toast, onPreviewChange }) {
   const [txId, setTxId] = useState("");
@@ -14,6 +17,9 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   const [replaceCart, setReplaceCart] = useState([]);
   const [itemSearch, setItemSearch] = useState("");
   const [step, setStep] = useState("lookup"); // "lookup" | "select"
+  const [returnSerialVerify, setReturnSerialVerify] = useState(null); // { index }
+  const [replaceSerialCapture, setReplaceSerialCapture] = useState(null); // { product }
+  const [verifiedReturnSerials, setVerifiedReturnSerials] = useState({}); // { [index]: serial }
 
   const lookUp = async () => {
     if (!txId) return;
@@ -34,10 +40,29 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   const toggleReturn = (i, item) => {
     if (isFullyRefunded(item)) return;
     if (item.payment_method === "giftcard") return; // gift cards non-refundable
+    if (itemHasSerials(item)) {
+      setReturnSerialVerify({ index: i });
+      return;
+    }
     setReturnSel(prev => {
       if (prev[i] !== undefined) { const n = { ...prev }; delete n[i]; return n; }
       return { ...prev, [i]: remainingQty(item) };
     });
+  };
+
+  const verifyExchangeReceiptSerial = async (serial) => {
+    const idx = returnSerialVerify?.index;
+    if (idx == null) return false;
+    const item = origItems[idx];
+    return (item?.serial_numbers || []).map(s => (s || "").toUpperCase()).includes((serial || "").toUpperCase());
+  };
+
+  const onReturnSerialVerified = (serial) => {
+    const idx = returnSerialVerify?.index;
+    setReturnSerialVerify(null);
+    if (idx == null) return;
+    setVerifiedReturnSerials(prev => ({ ...prev, [idx]: serial }));
+    setReturnSel(prev => ({ ...prev, [idx]: 1 }));
   };
 
   const setReturnQty = (i, qty, item) => {
@@ -46,14 +71,26 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   };
 
   const addReplace = (product) => {
+    if (product.serialized) {
+      setReplaceSerialCapture({ product });
+      return;
+    }
     setReplaceCart(prev => {
-      const ex = prev.find(i => i.sku === product.sku);
+      const ex = prev.find(i => i.sku === product.sku && !i.serialized);
       if (ex) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: +(( i.qty + 1) * i.price).toFixed(2) } : i);
       return [...prev, { sku: product.sku, name: product.name, price: product.price, qty: 1, total: product.price, tax_rate: product.tax_rate || 0 }];
     });
   };
 
-  const removeReplace = (sku) => setReplaceCart(prev => prev.filter(i => i.sku !== sku));
+  const onReplaceSerialCaptured = (serials) => {
+    const prod = replaceSerialCapture?.product;
+    setReplaceSerialCapture(null);
+    if (prod) {
+      setReplaceCart(prev => [...prev, { sku: prod.sku, name: prod.name, price: prod.price, qty: 1, total: prod.price, tax_rate: prod.tax_rate || 0, serialized: true, serial_numbers: [serials[0]] }]);
+    }
+  };
+
+  const removeReplace = (key) => setReplaceCart(prev => prev.filter(i => (i.serial_numbers?.[0] || i.sku) !== key));
 
   const origItems = origTx?.items || [];
   const returnedItems = origItems.filter((_, i) => returnSel[i] !== undefined).map(item => {
@@ -98,6 +135,7 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
       amount_tendered: Math.max(0, diff),
       change_due: diff < 0 ? Math.abs(diff) : 0
     });
+    recordSerializedSales({ items: replaceCart, transactionId: exTxId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }).catch(() => {});
     // Track exchanged quantities the same way as refunds
     const newRefundedQty = { ...refundedQty };
     returnedItems.forEach(ri => { newRefundedQty[ri.sku] = (newRefundedQty[ri.sku] || 0) + ri.qty; });
@@ -107,14 +145,19 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
       refunded_qty: newRefundedQty,
       status: allExchanged ? "exchanged" : "completed"
     });
+    for (const ri of returnedItems) {
+      const idx = origItems.indexOf(ri);
+      const serial = verifiedReturnSerials[idx];
+      if (serial) { try { await markSerialReturned(ri.sku, serial, { returnTransactionId: exTxId, exchanged: true }); } catch {} }
+    }
     const msg = diff > 0 ? `Customer owes $${diff.toFixed(2)}` : diff < 0 ? `Refund $${Math.abs(diff).toFixed(2)} to customer` : "Even exchange";
     toast({ title: "Exchange Processed", description: `${exTxId} — ${msg}` });
-    setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup");
+    setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setVerifiedReturnSerials({}); setStep("lookup");
     onPreviewChange(null);
     loadData();
   };
 
-  const reset = () => { setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setStep("lookup"); onPreviewChange(null); };
+  const reset = () => { setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setVerifiedReturnSerials({}); setStep("lookup"); onPreviewChange(null); };
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
@@ -175,13 +218,15 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
                           ? <span className="text-[9px] text-red-400 font-bold uppercase">⚠ Refund Not Allowed</span>
                           : alreadyRet > 0 && !fullyRefunded && <span className="text-[9px] text-amber-400/80 font-bold uppercase">{alreadyRet} refunded · {maxQty} left</span>}
                         {fullyRefunded && !isGiftCard && <span className="text-[9px] text-red-400/70 font-bold uppercase">Already refunded</span>}
+                        {itemHasSerials(item) && verifiedReturnSerials[i] && <span className="text-[9px] text-indigo-400 font-mono">SN: {verifiedReturnSerials[i]}</span>}
+                        {itemHasSerials(item) && !verifiedReturnSerials[i] && checked && <span className="text-[9px] text-indigo-400/70 font-mono">awaiting serial</span>}
                       </div>
                     </div>
                     {checked && (
                       <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setReturnQty(i, returnSel[i] - 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>
+                        {!itemHasSerials(item) && <button onClick={() => setReturnQty(i, returnSel[i] - 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">−</button>}
                         <span className="text-white text-[10px] w-4 text-center">{returnSel[i]}</span>
-                        <button onClick={() => setReturnQty(i, returnSel[i] + 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>
+                        {!itemHasSerials(item) && <button onClick={() => setReturnQty(i, returnSel[i] + 1, item)} className="w-4 h-4 rounded bg-teal-600/30 text-teal-300 flex items-center justify-center text-[10px]">+</button>}
                       </div>
                     )}
                     {!fullyRefunded && (
@@ -224,11 +269,11 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
               <div className="bg-[#111638] rounded-xl border border-teal-500/20 p-2 space-y-1 flex-shrink-0 max-h-28 overflow-y-auto">
                 <p className="text-blue-300/40 text-[9px] uppercase tracking-wider">Replacement Cart</p>
                 {replaceCart.map(i => (
-                  <div key={i.sku} className="flex items-center justify-between text-[10px]">
-                    <span className="text-white">{i.qty}× {i.name}</span>
+                  <div key={i.serial_numbers?.[0] || i.sku} className="flex items-center justify-between text-[10px]">
+                    <span className="text-white truncate flex items-center gap-1">{i.qty}× {i.name}{i.serialized && <><ScanLine className="w-3 h-3 text-indigo-400" /><span className="text-indigo-400 font-mono">{i.serial_numbers?.[0]}</span></>}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-teal-300">${i.total.toFixed(2)}</span>
-                      <button onClick={() => removeReplace(i.sku)} className="text-red-400/50 hover:text-red-400"><X className="w-3 h-3" /></button>
+                      <button onClick={() => removeReplace(i.serial_numbers?.[0] || i.sku)} className="text-red-400/50 hover:text-red-400"><X className="w-3 h-3" /></button>
                     </div>
                   </div>
                 ))}
@@ -260,6 +305,22 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
           </div>
         </div>
       )}
+
+      <POSSerialVerifyDialog
+        open={!!returnSerialVerify}
+        item={returnSerialVerify ? origItems[returnSerialVerify.index] : null}
+        mode="receipt"
+        verify={verifyExchangeReceiptSerial}
+        onVerified={onReturnSerialVerified}
+        onClose={() => setReturnSerialVerify(null)}
+      />
+      <POSSerialDialog
+        open={!!replaceSerialCapture}
+        product={replaceSerialCapture?.product}
+        needed={1}
+        onConfirm={onReplaceSerialCaptured}
+        onClose={() => setReplaceSerialCapture(null)}
+      />
     </div>
   );
 }

@@ -93,6 +93,7 @@ export default function POSReceipt({
                 <span>${item.qty}x ${item.name}</span>
                 <span>$${item.total.toFixed(2)}</span>
               </div>
+              ${(item.serial_numbers && item.serial_numbers.length > 0) ? item.serial_numbers.map(sn => `<div class="item-row" style="font-size:9px;color:#444;padding-left:10px;"><span>SN: ${sn}</span><span></span></div>`).join("") : ""}
             `).join("")}
           </div>
           

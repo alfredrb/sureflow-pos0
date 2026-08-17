@@ -1,0 +1,64 @@
+{
+  "name": "SerializedSale",
+  "type": "object",
+  "properties": {
+    "serial_number": {
+      "type": "string",
+      "description": "Unique serial number captured at the POS for this serialized unit when it was sold."
+    },
+    "sku": {
+      "type": "string",
+      "description": "SKU of the serialized item sold."
+    },
+    "name": {
+      "type": "string"
+    },
+    "transaction_id": {
+      "type": "string",
+      "description": "Sale transaction that sold this serialized unit."
+    },
+    "sale_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Customer ID recorded for no-receipt / manager-override returns of this unit, if any."
+    },
+    "store_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sold",
+        "returned",
+        "exchanged"
+      ],
+      "default": "sold",
+      "description": "Lifecycle of the serialized unit. sold = currently owned by a customer; returned/exchanged = unit came back to the store."
+    },
+    "return_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "return_transaction_id": {
+      "type": "string",
+      "description": "Return/exchange transaction that brought this unit back."
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "serial_number",
+    "sku",
+    "status"
+  ]
+}

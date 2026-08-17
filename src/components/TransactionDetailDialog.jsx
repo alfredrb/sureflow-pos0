@@ -54,6 +54,14 @@ export default function TransactionDetailDialog({ tx, onClose }) {
                         {item.discount_type} -{item.discount_percentage}%: Saved ${(((item.original_price || item.price) - item.price) * item.qty).toFixed(2)}
                       </div>
                     )}
+                    {item.serial_numbers && item.serial_numbers.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider">Serial Numbers</span>
+                        {item.serial_numbers.map((sn, i) => (
+                          <div key={i} className="text-xs text-gray-600 font-mono">SN: {sn}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

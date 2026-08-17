@@ -1,12 +1,16 @@
 import React from "react";
-import { Minus, Plus, X, Pencil } from "lucide-react";
+import { Minus, Plus, X, Pencil, ScanLine } from "lucide-react";
 
 export default function POSCartItem({ item, onUpdateQty, onRemove, priceOverrideActive, onEditPrice }) {
+  const serialized = !!item.serialized;
   return (
     <div className="bg-[#0a0e27] rounded-lg p-2 flex flex-col gap-1 border border-blue-500/5">
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-white text-xs truncate font-medium">{item.name}</p>
+          <p className="text-white text-xs truncate font-medium flex items-center gap-1">
+            {item.name}
+            {serialized && <ScanLine className="w-3 h-3 text-indigo-400 flex-shrink-0" title="Serialized" />}
+          </p>
           {item.discount_type ? (
             <div className="flex items-center gap-1.5 mt-0.5">
               <p className="text-blue-300/40 text-[10px]"><span className="line-through">${item.original_price?.toFixed(2)}</span> → ${item.price.toFixed(2)}</p>
@@ -17,13 +21,19 @@ export default function POSCartItem({ item, onUpdateQty, onRemove, priceOverride
           )}
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          <button onClick={() => onUpdateQty(item.sku, -1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
-            <Minus className="w-2.5 h-2.5" />
-          </button>
-          <span className="text-white text-xs w-5 text-center">{item.qty}</span>
-          <button onClick={() => onUpdateQty(item.sku, 1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
-            <Plus className="w-2.5 h-2.5" />
-          </button>
+          {serialized ? (
+            <span className="text-white text-xs w-10 text-center font-bold">{item.qty}</span>
+          ) : (
+            <>
+              <button onClick={() => onUpdateQty(item.sku, -1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
+                <Minus className="w-2.5 h-2.5" />
+              </button>
+              <span className="text-white text-xs w-5 text-center">{item.qty}</span>
+              <button onClick={() => onUpdateQty(item.sku, 1)} className="w-5 h-5 rounded bg-blue-600/20 text-blue-300 flex items-center justify-center hover:bg-blue-600/40">
+                <Plus className="w-2.5 h-2.5" />
+              </button>
+            </>
+          )}
         </div>
         <p className="text-white font-semibold text-xs w-12 text-right flex-shrink-0">${item.total.toFixed(2)}</p>
         {priceOverrideActive && (

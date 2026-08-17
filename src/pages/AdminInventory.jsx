@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Plus, Edit2, Trash2, Search, AlertTriangle, Download, Upload, Tag, Clock, ShieldCheck } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, AlertTriangle, Download, Upload, Tag, Clock, ShieldCheck, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,8 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import BulkEditDialog from "@/components/inventory/BulkEditDialog";
 import CategoryManager from "@/components/inventory/CategoryManager";
+import SerializedInventoryTab from "@/components/inventory/SerializedInventoryTab";
 
-const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "" };
+const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "", serialized: false };
 const MPP_LABELS = { none: "—", wrapped: "Wrap", case: "Case", counter: "Counter", locked: "Locked", other: "Other" };
 
 const toLocalInput = (iso) => {
@@ -23,7 +24,7 @@ const toLocalInput = (iso) => {
 };
 
 const exportToCSV = (data, filename) => {
-  const keys = ["sku", "name", "price", "cost", "category", "barcode", "stock_qty", "tax_rate", "status", "return_period_days", "vendor_company_id", "recalled", "recall_reason", "promotional", "release_date"];
+  const keys = ["sku", "name", "price", "cost", "category", "barcode", "stock_qty", "tax_rate", "status", "return_period_days", "vendor_company_id", "recalled", "recall_reason", "promotional", "release_date", "serialized"];
   const csv = [keys.join(","), ...data.map(p => keys.map(k => {
     const val = p[k] ?? "";
     return typeof val === "string" && val.includes(",") ? `"${val}"` : val;
@@ -48,7 +49,7 @@ const parseCSV = (text) => {
       if (["price", "cost", "tax_rate"].includes(h)) val = parseFloat(val) || 0;
       else if (h === "stock_qty") val = val === "" ? 0 : parseInt(val) || 0;
       else if (h === "return_period_days") val = val === "" ? "" : parseInt(val) || 0;
-      else if (h === "recalled" || h === "promotional") val = val === "true";
+      else if (h === "recalled" || h === "promotional" || h === "serialized") val = val === "true";
       obj[h] = val;
       return obj;
     }, {});
@@ -111,7 +112,7 @@ export default function AdminInventory() {
   const openEdit = (p) => {
     if (isVendor && (p.vendor_company_id || "") !== vendorCompanyId) { toast({ title: "Access denied", description: "You can only edit your own inventory", variant: "destructive" }); return; }
     setEditing(p);
-    setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active", return_period_days: p.return_period_days ?? "", vendor_company_id: p.vendor_company_id || "", recalled: !!p.recalled, recall_reason: p.recall_reason || "", promotional: !!p.promotional, release_date: toLocalInput(p.release_date) });
+    setForm({ sku: p.sku, name: p.name, price: p.price, cost: p.cost || 0, category: p.category || "", barcode: p.barcode || "", stock_qty: p.stock_qty || 0, tax_rate: p.tax_rate || 0, status: p.status || "active", return_period_days: p.return_period_days ?? "", vendor_company_id: p.vendor_company_id || "", recalled: !!p.recalled, recall_reason: p.recall_reason || "", promotional: !!p.promotional, release_date: toLocalInput(p.release_date), serialized: !!p.serialized });
     setDialogOpen(true);
   };
 
@@ -194,11 +195,12 @@ export default function AdminInventory() {
       {!isVendor && (
         <div className="flex gap-1 mb-4 border-b border-gray-200">
           <button onClick={() => setTab("products")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "products" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Products</button>
+          <button onClick={() => setTab("serialized")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "serialized" ? "border-indigo-600 text-indigo-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Serialized</button>
           <button onClick={() => setTab("categories")} className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === "categories" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>Categories</button>
         </div>
       )}
 
-      {tab === "products" ? (
+      {tab === "products" && (
         <>
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -250,6 +252,7 @@ export default function AdminInventory() {
                         {p.release_date && !released && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700"><Clock className="w-3 h-3" />Release {new Date(p.release_date).toLocaleDateString()}</span>}
                         {p.id_required === "18" && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700"><ShieldCheck className="w-3 h-3" />ID 18+</span>}
                         {p.id_required === "21" && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700"><ShieldCheck className="w-3 h-3" />ID 21+</span>}
+                        {p.serialized && <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700"><ScanLine className="w-3 h-3" />Serialized</span>}
                       </div>
                     </td>
                     <td className="px-3 py-3">
@@ -350,6 +353,13 @@ export default function AdminInventory() {
                 </div>
                 <Switch checked={!!form.promotional} onCheckedChange={v => setForm({ ...form, promotional: v })} />
               </div>
+              <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50/40 p-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5"><ScanLine className="w-3.5 h-3.5 text-indigo-500" /> Serialized</p>
+                  <p className="text-xs text-gray-400">Requires a serial number at the POS and tracks each sold unit individually. Returns/exchanges must verify the serial.</p>
+                </div>
+                <Switch checked={!!form.serialized} onCheckedChange={v => setForm({ ...form, serialized: v })} />
+              </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-amber-500" /> Release Date / Time</label>
                 <Input type="datetime-local" value={form.release_date} onChange={e => setForm({ ...form, release_date: e.target.value })} />
@@ -373,7 +383,13 @@ export default function AdminInventory() {
         onClose={() => setBulkOpen(false)}
       />
         </>
-      ) : (
+      )}
+
+      {tab === "serialized" && (
+        <SerializedInventoryTab products={products} onChanged={load} />
+      )}
+
+      {tab === "categories" && (
         <CategoryManager categories={categories} onChanged={loadCategories} />
       )}
     </div>
