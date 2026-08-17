@@ -110,6 +110,9 @@ export default function AdminInventory() {
     try {
       const payload = { ...form };
       if (isVendor) payload.vendor_company_id = vendorCompanyId;
+      // Backend rejects empty strings for number/date fields — drop them so they're left unset.
+      if (payload.return_period_days === "") delete payload.return_period_days;
+      if (payload.release_date === "") delete payload.release_date;
       if (editing) {
         if (isVendor && (editing.vendor_company_id || "") !== vendorCompanyId) { toast({ title: "Access denied", variant: "destructive" }); return; }
         await base44.entities.Product.update(editing.id, payload);
@@ -120,7 +123,7 @@ export default function AdminInventory() {
       }
       setDialogOpen(false); load();
     } catch (e) {
-      toast({ title: "Error", variant: "destructive" });
+      toast({ title: "Error saving product", description: e?.message || "Please check the fields and try again.", variant: "destructive" });
     }
   };
 
