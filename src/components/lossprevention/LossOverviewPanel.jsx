@@ -4,6 +4,8 @@ import moment from "moment";
 import { base44 } from "@/api/data";
 import { classifyLogEvent } from "@/lib/lossPrevention";
 import TimeTheftOverviewReport from "./TimeTheftOverviewReport";
+import Sparkline from "@/components/Sparkline";
+import { rangeSeries } from "@/lib/dailySeries";
 
 const RISK_WEIGHTS = { voids: 1.5, overrides: 2, refunds: 2, no_sales: 0.5 };
 
@@ -70,6 +72,18 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
     ...refunds.map(t => ({ id: t.id, type: "Refund", operator: t.operator_name, detail: `Refund (${t.refund_type || "total"})`, amount: t.total, date: t.created_date })),
   ].sort((a, b) => moment(b.date).diff(moment(a.date))).slice(0, 25);
 
+  const valueSeriesItems = [
+    ...overrides.map(l => ({ d: l.created_date, v: l.transaction_total || 0 })),
+    ...refunds.map(t => ({ d: t.created_date, v: t.total || 0 })),
+  ];
+  const spark = {
+    voids: rangeSeries(voids, "created_date", start, end, () => 1),
+    overrides: rangeSeries(overrides, "created_date", start, end, () => 1),
+    refunds: rangeSeries(refunds, "created_date", start, end, () => 1),
+    value: rangeSeries(valueSeriesItems, "d", start, end, x => x.v),
+    meal: rangeSeries(mealInRange, "shift_date", start, end, () => 1),
+  };
+
   const investigateOperator = (o) => onStartInvestigation({
     title: `${o.operator} — high-risk activity review`,
     type: "pattern",
@@ -91,16 +105,17 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          enabled("voids") && { label: "Voids", value: voids.length, icon: Ban, color: "text-red-600", bg: "bg-red-50" },
-          OVERRIDE_CATS.some(enabled) && { label: "Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
-          enabled("refund") && { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50" },
-          (OVERRIDE_CATS.some(enabled) || enabled("refund")) && { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Meal Exceptions", value: mealInRange.length, icon: Utensils, color: "text-amber-600", bg: "bg-amber-50" },
+          enabled("voids") && { label: "Voids", value: voids.length, icon: Ban, color: "text-red-600", bg: "bg-red-50", spark: { data: spark.voids, color: "#ef4444" } },
+          OVERRIDE_CATS.some(enabled) && { label: "Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50", spark: { data: spark.overrides, color: "#f59e0b" } },
+          enabled("refund") && { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50", spark: { data: spark.refunds, color: "#a855f7" } },
+          (OVERRIDE_CATS.some(enabled) || enabled("refund")) && { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50", spark: { data: spark.value, color: "#3b82f6" } },
+          { label: "Meal Exceptions", value: mealInRange.length, icon: Utensils, color: "text-amber-600", bg: "bg-amber-50", spark: { data: spark.meal, color: "#f59e0b" } },
           { label: "Evidence Locker", value: evidenceCount, icon: Archive, color: "text-violet-600", bg: "bg-violet-50" },
         ].filter(Boolean).map(s => (
           <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-5 h-5 ${s.color}`} /></div>
-            <div className="min-w-0"><p className="text-xl font-bold text-gray-900 truncate">{s.value}</p><p className="text-xs text-gray-500 truncate">{s.label}</p></div>
+            <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center flex-shrink-0`}><s.icon className={`w-5 h-5 ${s.color}`} /></div>
+            <div className="min-w-0 flex-1"><p className="text-xl font-bold text-gray-900 truncate">{s.value}</p><p className="text-xs text-gray-500 truncate">{s.label}</p></div>
+            {s.spark && s.spark.data && <Sparkline data={s.spark.data} color={s.spark.color} width={70} height={26} />}
           </div>
         ))}
       </div>

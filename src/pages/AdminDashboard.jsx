@@ -10,6 +10,8 @@ import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendC
 import DashboardCustomizer from "@/components/DashboardCustomizer";
 import SystemHealthPanel from "@/components/SystemHealthPanel";
 import { loadConfig, saveConfig, mergeCustom, loadRoleDefaultOverrides, STORAGE_PREFIX } from "@/lib/dashboardConfig";
+import Sparkline from "@/components/Sparkline";
+import { dailySeriesTrailing } from "@/lib/dailySeries";
 
 export default function AdminDashboard() {
   const operator = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator") || "null"); } catch { return null; } })();
@@ -83,7 +85,19 @@ export default function AdminDashboard() {
     const timeTheftFlags = timeDiscrepancies.filter(d => d.status === "open").length;
     const shrinkageLoss = totalStolen + profitLossTotal;
     const appVersion = appVersions[0]?.version || "—";
-    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, recalled, promotional, upcomingReleases, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies, serializedProducts, serializedInStock, openClaims, claimsValue, profitLossTotal, noReceiptBlocked, timeTheftFlags, shrinkageLoss, appVersion });
+    const fourteenAgo = new Date(Date.now() - 13 * 24 * 3600 * 1000);
+    const regLogs14 = regLogs.filter(l => new Date(l.created_date) >= fourteenAgo);
+    const cashDiscAudits = audits.filter(a => Math.abs(a.discrepancy || 0) > 0.01);
+    const spark = {
+      revenue: dailySeriesTrailing(completed, "created_date", t => t.total || 0, 14),
+      transactions: dailySeriesTrailing(transactions, "created_date", () => 1, 14),
+      refunds: dailySeriesTrailing(refunds, "created_date", () => 1, 14),
+      refundAmount: dailySeriesTrailing(refunds, "created_date", t => Math.abs(t.total) || 0, 14),
+      voids: dailySeriesTrailing(regLogs14.filter(l => l.event_type === "void"), "created_date", () => 1, 14),
+      lossEvents: dailySeriesTrailing(regLogs14.filter(l => l.event_type === "void" || l.event_type === "override"), "created_date", () => 1, 14),
+      cashDiscrepancies: dailySeriesTrailing(cashDiscAudits, "audit_date", () => 1, 14),
+    };
+    setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, recalled, promotional, upcomingReleases, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies, serializedProducts, serializedInStock, openClaims, claimsValue, profitLossTotal, noReceiptBlocked, timeTheftFlags, shrinkageLoss, appVersion, spark });
     setRecentTx(transactions.slice(0, 8));
     setLoading(false);
   };
@@ -91,11 +105,11 @@ export default function AdminDashboard() {
   useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "SystemAlert"], load, { intervalMs: 30000 });
 
   const allCards = [
-    { category: "sales", label: "Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "bg-emerald-500" },
+    { category: "sales", label: "Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "bg-emerald-500", spark: { data: stats.spark?.revenue, color: "#10b981" } },
     { category: "sales", label: "Avg Sale", value: `$${stats.avgSale.toFixed(2)}`, icon: Percent, color: "bg-emerald-600" },
-    { category: "sales", label: "Transactions", value: stats.transactions, icon: ShoppingCart, color: "bg-blue-500" },
-    { category: "sales", label: "Refunds", value: stats.refunds, icon: RotateCcw, color: "bg-rose-500" },
-    { category: "sales", label: "Refund Amount", value: `$${stats.refundAmount.toFixed(2)}`, icon: DollarSign, color: "bg-rose-600" },
+    { category: "sales", label: "Transactions", value: stats.transactions, icon: ShoppingCart, color: "bg-blue-500", spark: { data: stats.spark?.transactions, color: "#3b82f6" } },
+    { category: "sales", label: "Refunds", value: stats.refunds, icon: RotateCcw, color: "bg-rose-500", spark: { data: stats.spark?.refunds, color: "#f43f5e" } },
+    { category: "sales", label: "Refund Amount", value: `$${stats.refundAmount.toFixed(2)}`, icon: DollarSign, color: "bg-rose-600", spark: { data: stats.spark?.refundAmount, color: "#e11d48" } },
     { category: "inventory", label: "Products", value: stats.products, icon: Package, color: "bg-violet-500" },
     { category: "inventory", label: "Low Stock", value: stats.lowStock, icon: AlertTriangle, color: "bg-orange-500" },
     { category: "inventory", label: "Out of Stock", value: stats.outOfStock, icon: AlertTriangle, color: stats.outOfStock > 0 ? "bg-red-600" : "bg-orange-500" },
@@ -111,11 +125,11 @@ export default function AdminDashboard() {
     { category: "system", label: "Maintenance Open", value: stats.maintenanceOpen, icon: Wrench, color: "bg-amber-500" },
     { category: "system", label: "Hardware Issues", value: stats.hardwareIssues, icon: HardDrive, color: stats.hardwareIssues > 0 ? "bg-red-600" : "bg-cyan-500" },
     { category: "system", label: "App Version", value: stats.appVersion, icon: Tag, color: "bg-slate-600" },
-    { category: "loss", label: "Loss Events (7d)", value: stats.lossEvents, icon: ShieldAlert, color: "bg-orange-600" },
-    { category: "loss", label: "Voids (7d)", value: stats.voids, icon: RotateCcw, color: "bg-amber-500" },
+    { category: "loss", label: "Loss Events (7d)", value: stats.lossEvents, icon: ShieldAlert, color: "bg-orange-600", spark: { data: stats.spark?.lossEvents, color: "#f97316" } },
+    { category: "loss", label: "Voids (7d)", value: stats.voids, icon: RotateCcw, color: "bg-amber-500", spark: { data: stats.spark?.voids, color: "#f59e0b" } },
     { category: "loss", label: "Open Cases", value: stats.openCases, icon: FolderSearch, color: stats.openCases > 0 ? "bg-amber-600" : "bg-amber-500" },
     { category: "loss", label: "Total Stolen", value: `$${stats.totalStolen.toFixed(2)}`, icon: ShieldAlert, color: "bg-red-600" },
-    { category: "loss", label: "Cash Discrepancies", value: stats.cashDiscrepancies, icon: Scale, color: stats.cashDiscrepancies > 0 ? "bg-orange-600" : "bg-slate-500" },
+    { category: "loss", label: "Cash Discrepancies", value: stats.cashDiscrepancies, icon: Scale, color: stats.cashDiscrepancies > 0 ? "bg-orange-600" : "bg-slate-500", spark: { data: stats.spark?.cashDiscrepancies, color: "#64748b" } },
     { category: "loss", label: "Open Claims", value: stats.openClaims, icon: ClipboardList, color: stats.openClaims > 0 ? "bg-amber-600" : "bg-amber-500" },
     { category: "loss", label: "Claims Value", value: `$${stats.claimsValue.toFixed(2)}`, icon: DollarSign, color: "bg-rose-600" },
     { category: "loss", label: "Profit Loss", value: `$${stats.profitLossTotal.toFixed(2)}`, icon: TrendingDown, color: "bg-red-500" },
@@ -179,6 +193,7 @@ export default function AdminDashboard() {
                     </div>
                     <p className="text-xl sm:text-2xl font-bold text-gray-900">{c.value}</p>
                     <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5">{c.label}</p>
+                    {c.spark && c.spark.data && <div className="mt-1 -mx-1"><Sparkline data={c.spark.data} color={c.spark.color} width={96} height={22} /></div>}
                   </div>
                 );
               })}
@@ -190,6 +205,15 @@ export default function AdminDashboard() {
       {config.graphs.sales && (
         <section className="mb-6 sm:mb-8 space-y-6">
           <SectionHeader icon={TrendingUp} title="Sales & Staffing" subtitle="Revenue, staffing, and recent sales activity" color="bg-blue-500" />
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-3 sm:p-4 flex items-center gap-3 sm:gap-5">
+            <div className="flex-shrink-0">
+              <p className="text-[10px] sm:text-xs text-gray-500">14-Day Revenue Trend</p>
+              <p className="text-base sm:text-lg font-bold text-gray-900">${stats.revenue.toFixed(2)}</p>
+            </div>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <Sparkline data={stats.spark?.revenue || []} color="#10b981" width={300} height={36} bars showAvg={false} />
+            </div>
+          </div>
           <ShiftCalendarView />
           <StaffingVsRevenueChart />
           <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
