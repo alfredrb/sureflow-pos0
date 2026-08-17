@@ -70,7 +70,7 @@ export default function AdminOperators() {
     .sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99));
 
   const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700", technician: "bg-slate-200 text-slate-700", loss_prevention: "bg-purple-100 text-purple-700", vendor: "bg-teal-100 text-teal-700" };
-  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician", loss_prevention: "Loss Prevention", vendor: "Vendor" };
+  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician", loss_prevention: "LP", vendor: "Vendor" };
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
