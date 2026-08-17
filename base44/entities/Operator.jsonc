@@ -19,10 +19,11 @@
         "cashier",
         "csm",
         "manager",
-        "technician"
+        "technician",
+        "loss_prevention"
       ],
       "default": "cashier",
-      "description": "Technician role: POS access in locked Training Mode with diagnostics tools; admin access limited to Registers, Network, Hardware Status, and Maintenance Log."
+      "description": "Technician role: POS access in locked Training Mode with diagnostics tools; admin access limited to Registers, Network, Hardware Status, and Maintenance Log. Loss Prevention role: admin-only access to logs, transactions, and the Loss Prevention workbench; no POS access."
     },
     "status": {
       "type": "string",
@@ -38,6 +39,11 @@
     "store_id": {
       "type": "string",
       "description": "Store number this operator is assigned to. Blank = unassigned (visible centrally)."
+    },
+    "pos_access": {
+      "type": "boolean",
+      "default": true,
+      "description": "If false, this operator cannot log into the POS or approve POS overrides."
     }
   },
   "required": [

@@ -351,11 +351,11 @@ export default function POSRegister() {
     }
     const ops = await base44.entities.Operator.filter({ operator_id: supOverrideUserId.trim(), pin: supOverridePin });
     const requiredRole = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
-    const sup = ops.find(o =>
-      requiredRole === "manager" ? o.role === "manager" : (o.role === "csm" || o.role === "manager")
-    );
+    const roleOk = (o) => requiredRole === "manager" ? o.role === "manager" : (o.role === "csm" || o.role === "manager");
+    const sup = ops.find(o => roleOk(o) && o.pos_access !== false);
     if (!sup) {
-      setSupOverrideError(requiredRole === "manager" ? "Invalid credentials — Manager required" : "Invalid credentials — CSM or Manager required");
+      const blocked = ops.find(o => roleOk(o));
+      setSupOverrideError(blocked ? "This supervisor's POS access is disabled" : (requiredRole === "manager" ? "Invalid credentials — Manager required" : "Invalid credentials — CSM or Manager required"));
       return;
     }
     setSupOverrideDialog(false);
@@ -456,7 +456,7 @@ export default function POSRegister() {
   const handlePauseUnlock = async () => {
     setPauseUnlockError("");
     const ops = await base44.entities.Operator.filter({ pin: pauseUnlockPin });
-    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+    const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
     if (!sup) {
       setPauseUnlockError("Invalid PIN or insufficient role (CSM/Manager required)");
       return;
@@ -1531,7 +1531,7 @@ export default function POSRegister() {
             onKeyDown={e => e.key === "Enter" && (async () => {
               setTrainingModeError("");
               const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
-              const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+              const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
               if (!sup) {
                 setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
                 return;
@@ -1549,7 +1549,7 @@ export default function POSRegister() {
             onClick={async () => {
               setTrainingModeError("");
               const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
-              const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+              const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
               if (!sup) {
                 setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
                 return;

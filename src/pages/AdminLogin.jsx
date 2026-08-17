@@ -23,7 +23,7 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const ops = await base44.entities.Operator.filter({ operator_id: operatorId.trim(), pin: pin.trim(), status: "active" });
-      const admin = ops.find(o => o.role === "manager" || o.role === "csm" || o.role === "technician");
+      const admin = ops.find(o => o.role === "manager" || o.role === "csm" || o.role === "technician" || o.role === "loss_prevention");
       if (!admin) {
         toast({ title: "Access Denied", description: "Invalid User ID or PIN", variant: "destructive" });
         setPin("");
@@ -81,7 +81,7 @@ export default function AdminLogin() {
           {loading ? "Signing in..." : "Sign In"}
         </Button>
 
-        <p className="text-blue-300/30 text-center text-xs">Managers, CSMs &amp; Technicians • PIN-protected access</p>
+        <p className="text-blue-300/30 text-center text-xs">Managers, CSMs, Technicians &amp; Loss Prevention • PIN-protected access</p>
       </form>
 
     </div>

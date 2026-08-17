@@ -171,6 +171,12 @@ export default function POSLogin() {
         setPin("");
       } else {
         const op = operatorData[0];
+        if (op.pos_access === false) {
+          toast({ title: "POS Access Disabled", description: "This account is not permitted to use the POS. See an administrator.", variant: "destructive" });
+          setStep("id"); setOperatorId(""); setPin("");
+          setLoading(false);
+          return;
+        }
         // Detect an active session on another register (most recent login without a later logout)
         const currentReg = sessionStorage.getItem("pos_register_num");
         const logs = await base44.entities.RegisterLog.filter({ operator_id: op.operator_id }, "-created_date", 100);
@@ -197,9 +203,10 @@ export default function POSLogin() {
     setOverrideLoading(true);
     try {
       const ops = await base44.entities.Operator.filter({ pin: overridePin });
-      const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
       if (!sup) {
-        setOverrideError("Invalid PIN — CSM or Manager required");
+        const blocked = ops.find(o => o.role === "csm" || o.role === "manager");
+        setOverrideError(blocked ? "This supervisor's POS access is disabled" : "Invalid PIN — CSM or Manager required");
         setOverrideLoading(false);
         return;
       }

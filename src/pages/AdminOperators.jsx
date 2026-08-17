@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function AdminOperators() {
@@ -14,7 +15,7 @@ export default function AdminOperators() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" });
+  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true });
   const { toast } = useToast();
 
   const load = async () => {
@@ -33,8 +34,8 @@ export default function AdminOperators() {
   useEffect(() => { load(); }, []);
   useRealtimeSync("Operator", load, { intervalMs: 20000 });
 
-  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "" }); setDialogOpen(true); };
-  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "" }); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true }); setDialogOpen(true); };
+  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "", pos_access: op.pos_access !== false }); setDialogOpen(true); };
 
   const save = async () => {
     try {
@@ -65,8 +66,8 @@ export default function AdminOperators() {
 
   const filtered = operators.filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search));
 
-  const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700", technician: "bg-slate-200 text-slate-700" };
-  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician" };
+  const roleBadge = { manager: "bg-red-100 text-red-700", csm: "bg-amber-100 text-amber-700", cashier: "bg-blue-100 text-blue-700", technician: "bg-slate-200 text-slate-700", loss_prevention: "bg-purple-100 text-purple-700" };
+  const roleLabel = { manager: "Manager", csm: "CSM", cashier: "Cashier", technician: "Technician", loss_prevention: "Loss Prevention" };
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>;
 
@@ -105,9 +106,10 @@ export default function AdminOperators() {
               </div>
               <p className="text-sm text-gray-500 md:block">{op.email || "—"}</p>
               <span className={`text-xs font-medium px-2 py-1 rounded-full w-fit ${roleBadge[op.role] || "bg-gray-100 text-gray-600"}`}>{roleLabel[op.role] || op.role}</span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {op.status === "active" ? <UserCheck className="w-3.5 h-3.5 text-emerald-500" /> : <UserX className="w-3.5 h-3.5 text-red-400" />}
                 <span className="text-xs text-gray-500">{op.status}</span>
+                {op.pos_access === false && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">No POS</span>}
               </div>
               <div className="hidden md:flex gap-1">
                 <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -143,13 +145,14 @@ export default function AdminOperators() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Role</label>
-                <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
+                <Select value={form.role} onValueChange={v => setForm({ ...form, role: v, pos_access: v === "loss_prevention" ? false : true })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cashier">Cashier</SelectItem>
                     <SelectItem value="csm">CSM</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="loss_prevention">Loss Prevention</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -163,6 +166,13 @@ export default function AdminOperators() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">POS Access</p>
+                <p className="text-xs text-gray-400">Allow this operator to log into the POS and approve overrides.</p>
+              </div>
+              <Switch checked={form.pos_access} onCheckedChange={v => setForm({ ...form, pos_access: v })} />
             </div>
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Create"} Operator</Button>
           </div>
