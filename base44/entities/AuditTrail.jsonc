@@ -1,0 +1,69 @@
+{
+  "name": "AuditTrail",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Short label of what was done (e.g. 'Updated Store Settings', 'Updated CSM Permissions')."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "configuration",
+        "permissions",
+        "system",
+        "operator",
+        "register",
+        "other"
+      ],
+      "default": "configuration",
+      "description": "Type of system change recorded."
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed human-readable description of the change."
+    },
+    "actor_id": {
+      "type": "string",
+      "description": "Operator ID of the admin who performed the change."
+    },
+    "actor_name": {
+      "type": "string",
+      "description": "Display name of the admin who performed the change."
+    },
+    "actor_role": {
+      "type": "string",
+      "description": "Role of the admin who performed the change."
+    },
+    "page": {
+      "type": "string",
+      "description": "Admin page (route) where the change was made."
+    },
+    "changes": {
+      "type": "array",
+      "description": "Field-level before/after diff. from/to are stringified representations.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ip_address": {
+      "type": "string",
+      "description": "Client IP address where the change originated, if available."
+    }
+  },
+  "required": [
+    "action",
+    "category"
+  ]
+}

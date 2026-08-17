@@ -5,6 +5,7 @@ import { Lock, Save, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
+import { logAuditEvent } from "@/lib/auditLogger";
 
 export default function AdminPermissions() {
   const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
@@ -49,12 +50,27 @@ export default function AdminPermissions() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const previous = new Set(record?.allowed_pages || []);
+      const current = new Set(allowed);
+      const added = adminPages.filter(p => current.has(p.path) && !previous.has(p.path));
+      const removed = adminPages.filter(p => !current.has(p.path) && previous.has(p.path));
+      const changes = [];
+      added.forEach(p => changes.push({ field: `+${p.label}`, from: "", to: "granted" }));
+      removed.forEach(p => changes.push({ field: `-${p.label}`, from: "granted", to: "" }));
       if (record?.id) {
         await base44.entities.AdminPermission.update(record.id, { allowed_pages: allowed, updated_by: admin.full_name });
       } else {
         const created = await base44.entities.AdminPermission.create({ role: "csm", allowed_pages: allowed, updated_by: admin.full_name });
         setRecord(created);
       }
+      await logAuditEvent({
+        action: "Updated CSM Permissions",
+        category: "permissions",
+        description: `CSM page access updated by ${admin.full_name}. ${added.length} page(s) granted, ${removed.length} page(s) revoked.`,
+        page: "/admin/permissions",
+        changes,
+        actor: admin,
+      });
       toast({ title: "Permissions Saved", description: "CSM page access updated." });
     } catch (e) {
       toast({ title: "Error", description: "Failed to save permissions", variant: "destructive" });

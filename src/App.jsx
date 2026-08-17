@@ -53,6 +53,8 @@ import AdminHardwareStatus from '@/pages/AdminHardwareStatus';
 import AdminPermissions from '@/pages/AdminPermissions';
 import AdminDataViewer from '@/pages/AdminDataViewer';
 import AdminDiagnosticTools from '@/pages/AdminDiagnosticTools';
+import AdminAuditLog from '@/pages/AdminAuditLog';
+import AdminAnnouncements from '@/pages/AdminAnnouncements';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -123,6 +125,8 @@ const AuthenticatedApp = () => {
           <Route path="/admin/permissions" element={<AdminPermissions />} />
           <Route path="/admin/data-viewer" element={<AdminDataViewer />} />
           <Route path="/admin/diagnostics" element={<AdminDiagnosticTools />} />
+          <Route path="/admin-audit-log" element={<AdminAuditLog />} />
+          <Route path="/admin-announcements" element={<AdminAnnouncements />} />
         </Route>
       </Route>
 

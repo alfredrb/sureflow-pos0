@@ -1,0 +1,55 @@
+{
+  "name": "Announcement",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Headline shown on the announcements board and POS login screen."
+    },
+    "body": {
+      "type": "string",
+      "description": "Announcement content / policy change shown to operators on the POS login screen."
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ],
+      "default": "info",
+      "description": "Visual urgency level. info = blue, warning = amber, critical = red."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "description": "active = visible on the POS login screen; archived = hidden but kept for history."
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the announcement becomes visible. Blank = immediately."
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the announcement stops being visible. Blank = until archived."
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Operator who posted the announcement."
+    },
+    "created_by_role": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "body",
+    "status"
+  ]
+}

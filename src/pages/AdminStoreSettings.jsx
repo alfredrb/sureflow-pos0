@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 
 const DEFAULTS = {
   store_name: "Supermart", store_address: "", store_phone: "", store_email: "",
@@ -68,12 +69,30 @@ export default function AdminStoreSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const fields = Object.keys(DEFAULTS);
+      const changes = diffChanges(record ? { ...DEFAULTS, ...record } : DEFAULTS, form, fields);
       if (record?.id) {
         const updated = await base44.entities.StoreSettings.update(record.id, form);
         setRecord(updated);
+        await logAuditEvent({
+          action: "Updated Store Settings",
+          category: "configuration",
+          description: changes.length
+            ? `Store settings updated. Changed: ${changes.map(c => c.field).join(", ")}.`
+            : "Store settings saved (no field changes detected).",
+          page: "/admin/settings",
+          changes,
+        });
       } else {
         const created = await base44.entities.StoreSettings.create(form);
         setRecord(created);
+        await logAuditEvent({
+          action: "Created Store Settings",
+          category: "configuration",
+          description: "Initial store settings record created.",
+          page: "/admin/settings",
+          changes,
+        });
       }
       toast({ title: "Settings Saved", description: "Store settings updated successfully." });
     } catch (e) {
