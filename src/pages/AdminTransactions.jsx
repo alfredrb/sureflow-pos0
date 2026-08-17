@@ -73,6 +73,11 @@ function TxRow({ tx, onView }) {
       <td className="px-3 py-3 text-gray-500 text-sm">{tx.register_id}</td>
       <td className="px-3 py-3 text-gray-500 capitalize text-sm">{tx.payment_method}</td>
       <td className="px-3 py-3">
+        {tx.no_receipt || tx.manager_override_return
+          ? <span className="font-mono text-xs text-fuchsia-700">{tx.customer_id}</span>
+          : <span className="text-gray-300 text-xs">—</span>}
+      </td>
+      <td className="px-3 py-3">
         <span className={`text-xs font-medium px-2 py-1 rounded-full ${badge.cls}`}>{badge.label}</span>
       </td>
       <td className={`px-3 py-3 text-right font-semibold text-sm ${tx.status === "refunded" || tx.status === "exchanged" ? "text-red-600" : "text-emerald-600"}`}>
@@ -93,7 +98,7 @@ function DateSection({ label, transactions, onView }) {
   return (
     <>
       <tr>
-        <td colSpan={8} className="px-5 pt-5 pb-1">
+        <td colSpan={9} className="px-5 pt-5 pb-1">
           <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
         </td>
       </tr>
@@ -121,7 +126,8 @@ export default function AdminTransactions() {
     const matchSearch = !search ||
       t.transaction_id?.toLowerCase().includes(search.toLowerCase()) ||
       t.operator_name?.toLowerCase().includes(search.toLowerCase()) ||
-      t.operator_id?.toLowerCase().includes(search.toLowerCase());
+      t.operator_id?.toLowerCase().includes(search.toLowerCase()) ||
+      t.customer_id?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || t.status === statusFilter || t.refund_type === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -167,6 +173,7 @@ export default function AdminTransactions() {
         <div><strong>Status:</strong> <span class="badge">${badge.label}</span></div>
         ${tx.loyalty_member_name ? `<div><strong>Loyalty:</strong> ${tx.loyalty_member_name} (${tx.loyalty_id || ""})</div>` : ""}
         ${tx.tax_exempt_id ? `<div><strong>Tax Exempt:</strong> ${tx.tax_exempt_id}</div>` : ""}
+        ${(tx.no_receipt || tx.manager_override_return) && tx.customer_id ? `<div><strong>Customer ID:</strong> ${tx.customer_id}</div>` : ""}
       </div>
       <table>
         <thead><tr><th>Item</th><th style="text-align:right">Price</th><th style="text-align:right">Total</th></tr></thead>
@@ -233,6 +240,7 @@ export default function AdminTransactions() {
                 <th className="px-3 py-3 text-left">Operator</th>
                 <th className="px-3 py-3 text-left">Register</th>
                 <th className="px-3 py-3 text-left">Payment</th>
+                <th className="px-3 py-3 text-left">Customer</th>
                 <th className="px-3 py-3 text-left">Status</th>
                 <th className="px-3 py-3 text-right">Total</th>
                 <th className="px-3 py-3 text-left">Time</th>
@@ -241,7 +249,7 @@ export default function AdminTransactions() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {!hasRows ? (
-                <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">No transactions found</td></tr>
+                <tr><td colSpan={9} className="px-5 py-8 text-center text-gray-400">No transactions found</td></tr>
               ) : (
                 <>
                   <DateSection label="Today" transactions={groups.Today} onView={setDetail} />
@@ -281,6 +289,9 @@ export default function AdminTransactions() {
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStatusBadge(detail).cls}`}>{getStatusBadge(detail).label}</span>
                 </div>
                 <div><span className="text-gray-500 block text-xs">Date</span><span className="font-medium">{moment(detail.created_date).format("MMM D, YYYY h:mm A")}</span></div>
+                {(detail.no_receipt || detail.manager_override_return) && (
+                  <div><span className="text-gray-500 block text-xs">Customer ID</span><span className="font-mono font-medium text-fuchsia-700">{detail.customer_id}</span></div>
+                )}
               </div>
               <div className="border rounded-xl overflow-hidden">
                 <div className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 uppercase">Items</div>

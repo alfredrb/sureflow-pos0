@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Ban, Search, Plus, ShieldX, ShieldCheck } from "lucide-react";
+import { Ban, Search, Plus, ShieldX, ShieldCheck, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,21 @@ export default function AdminNoReceiptCustomers() {
   const [disableReason, setDisableReason] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [newCust, setNewCust] = useState({ customer_id: "", disabled: true, reason: "" });
+  const [viewTarget, setViewTarget] = useState(null);
+  const [viewTxns, setViewTxns] = useState([]);
+  const [viewLoading, setViewLoading] = useState(false);
   const { toast } = useToast();
+
+  const openViewer = async (c) => {
+    setViewTarget(c);
+    setViewLoading(true);
+    setViewTxns([]);
+    try {
+      const data = await base44.entities.Transaction.filter({ customer_id: c.customer_id });
+      setViewTxns([...data].sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+    } catch (e) { toast({ title: "Error loading transactions", variant: "destructive" }); }
+    setViewLoading(false);
+  };
 
   useEffect(() => {
     const stored = sessionStorage.getItem("admin_operator");
@@ -146,9 +160,12 @@ export default function AdminNoReceiptCustomers() {
                     : "—"}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {c.disabled
-                    ? <Button size="sm" variant="outline" onClick={() => enableCustomer(c)}>Enable</Button>
-                    : <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => { setDisableTarget({ id: c.id, customer_id: c.customer_id }); setDisableReason(""); }}>Disable</Button>}
+                  <div className="flex items-center justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => openViewer(c)} title="View transactions"><Eye className="w-3.5 h-3.5" /></Button>
+                    {c.disabled
+                      ? <Button size="sm" variant="outline" onClick={() => enableCustomer(c)}>Enable</Button>
+                      : <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => { setDisableTarget({ id: c.id, customer_id: c.customer_id }); setDisableReason(""); }}>Disable</Button>}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -181,6 +198,32 @@ export default function AdminNoReceiptCustomers() {
             <Button variant="outline" onClick={() => setAddOpen(false)} className="flex-1">Cancel</Button>
             <Button onClick={createPreemptive} className="flex-1 bg-amber-600 hover:bg-amber-500 text-white">Add</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewTarget} onOpenChange={v => { if (!v) setViewTarget(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Transactions — Customer {viewTarget?.customer_id}</DialogTitle></DialogHeader>
+          {viewLoading ? (
+            <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-gray-200 border-t-amber-600 rounded-full animate-spin" /></div>
+          ) : viewTxns.length === 0 ? (
+            <p className="text-center text-gray-400 py-8">No transactions recorded for this customer.</p>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {viewTxns.map(t => (
+                <div key={t.id} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm font-mono font-bold text-gray-900">{t.transaction_id}</p>
+                    <p className="text-xs text-gray-500">{moment(t.created_date).format("MMM D, YYYY h:mm A")} · {t.operator_name} · {t.register_id}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${t.manager_override_return ? "bg-orange-100 text-orange-700" : "bg-fuchsia-100 text-fuchsia-700"}`}>{t.manager_override_return ? "Manager Override" : "No Receipt"}</span>
+                    <span className="text-sm font-bold text-amber-700">${(Math.abs(t.total) || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
