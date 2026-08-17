@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Search, Package, RefreshCw } from "lucide-react";
+import { Search, Package, RefreshCw, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
+import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 
 const STATUS_BADGE = {
   sold: { label: "Sold", cls: "bg-emerald-100 text-emerald-700" },
@@ -18,6 +19,15 @@ export default function SerializedInventoryPanel({ fromDate, toDate }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [viewTx, setViewTx] = useState(null);
+
+  const viewTransaction = async (txId) => {
+    if (!txId) return;
+    try {
+      const results = await base44.entities.Transaction.filter({ transaction_id: txId });
+      setViewTx(results[0] || null);
+    } catch (e) { setViewTx(null); }
+  };
 
   const load = async () => {
     try {
@@ -133,7 +143,14 @@ export default function SerializedInventoryPanel({ fromDate, toDate }) {
                   <td className="px-4 py-3 font-mono font-medium text-gray-900">{r.serial_number}</td>
                   <td className="px-4 py-3 text-gray-700">{r.name}</td>
                   <td className="px-4 py-3 text-gray-500">{r.sku}</td>
-                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">{r.transaction_id}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 font-mono text-xs">{r.transaction_id}</span>
+                      <button onClick={() => viewTransaction(r.transaction_id)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[10px] font-medium" title="View transaction">
+                        <Eye className="w-3 h-3" /> View
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{r.sale_date ? moment(r.sale_date).format("MMM D, YYYY h:mm A") : "—"}</td>
                   <td className="px-4 py-3 text-gray-500">{r.operator_name || "—"}</td>
                   <td className="px-4 py-3">
@@ -146,6 +163,8 @@ export default function SerializedInventoryPanel({ fromDate, toDate }) {
           </table>
         </div>
       </div>
+
+      <TransactionDetailDialog tx={viewTx} onClose={() => setViewTx(null)} />
     </div>
   );
 }

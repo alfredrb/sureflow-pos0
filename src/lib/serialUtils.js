@@ -138,3 +138,30 @@ export async function recordSerializedSales({ items, transactionId, operator, st
     return [];
   }
 }
+
+// Fetch a map of { [sku]: [serial_number, ...] } for every serialized unit sold in a
+// given transaction, pulled from the LP Serialized Sold Records (SerializedSale).
+// Used by transaction viewers to display serials even when the stored transaction
+// item didn't capture them inline.
+export async function fetchTxSerialMap(transactionId) {
+  if (!transactionId) return {};
+  try {
+    const recs = await base44.entities.SerializedSale.filter({ transaction_id: transactionId });
+    const map = {};
+    (recs || []).forEach(r => {
+      if (!r.sku || !r.serial_number) return;
+      if (!map[r.sku]) map[r.sku] = [];
+      map[r.sku].push(r.serial_number);
+    });
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+// Return the serial numbers to display for a transaction item, preferring the
+// serials stored on the item itself and falling back to the Sold Records map.
+export function serialsForItem(item, serialMap = {}) {
+  if (item?.serial_numbers && item.serial_numbers.length) return item.serial_numbers;
+  return serialMap[item?.sku] || [];
+}

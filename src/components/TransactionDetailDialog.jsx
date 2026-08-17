@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import moment from "moment";
+import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
 
 const STATUS_BADGE = {
   completed: { label: "Completed", cls: "bg-emerald-100 text-emerald-700" },
@@ -20,6 +22,17 @@ export function getTxStatusBadge(tx) {
 }
 
 export default function TransactionDetailDialog({ tx, onClose }) {
+  const [serialMap, setSerialMap] = useState({});
+  useEffect(() => {
+    let active = true;
+    if (tx?.transaction_id) {
+      fetchTxSerialMap(tx.transaction_id).then(m => { if (active) setSerialMap(m); });
+    } else {
+      setSerialMap({});
+    }
+    return () => { active = false; };
+  }, [tx?.transaction_id]);
+
   return (
     <Dialog open={!!tx} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-md">
@@ -54,14 +67,14 @@ export default function TransactionDetailDialog({ tx, onClose }) {
                         {item.discount_type} -{item.discount_percentage}%: Saved ${(((item.original_price || item.price) - item.price) * item.qty).toFixed(2)}
                       </div>
                     )}
-                    {item.serial_numbers && item.serial_numbers.length > 0 && (
+                    {(() => { const serials = serialsForItem(item, serialMap); return serials.length > 0 ? (
                       <div className="mt-1 space-y-0.5">
                         <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider">Serial Numbers</span>
-                        {item.serial_numbers.map((sn, i) => (
+                        {serials.map((sn, i) => (
                           <div key={i} className="text-xs text-gray-600 font-mono">SN: {sn}</div>
                         ))}
                       </div>
-                    )}
+                    ) : null; })()}
                   </div>
                 ))}
               </div>

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
+import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
 
 const exportToCSV = (data, filename) => {
   const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
@@ -113,6 +114,7 @@ export default function AdminTransactions() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [detail, setDetail] = useState(null);
+  const [detailSerialMap, setDetailSerialMap] = useState({});
 
   const load = async () => {
     setTransactions(await base44.entities.Transaction.list("-created_date", 200));
@@ -120,6 +122,16 @@ export default function AdminTransactions() {
   };
   useEffect(() => { load(); }, []);
   useRealtimeSync("Transaction", load, { intervalMs: 10000 });
+
+  useEffect(() => {
+    let active = true;
+    if (detail?.transaction_id) {
+      fetchTxSerialMap(detail.transaction_id).then(m => { if (active) setDetailSerialMap(m); });
+    } else {
+      setDetailSerialMap({});
+    }
+    return () => { active = false; };
+  }, [detail?.transaction_id]);
 
   const filtered = transactions.filter(t => {
     if (t.training_mode) return false;
@@ -136,13 +148,12 @@ export default function AdminTransactions() {
   const olderKeys = Object.keys(groups.Older).sort((a, b) => moment(b, "MMMM D, YYYY") - moment(a, "MMMM D, YYYY"));
   const hasRows = filtered.length > 0;
 
-  const handlePrint = (tx) => {
+  const handlePrint = async (tx) => {
     if (!tx) return;
     const isNeg = tx.status === "refunded" || tx.status === "exchanged";
+    const serialMap = await fetchTxSerialMap(tx.transaction_id);
     const itemsRows = (tx.items || []).map(it => {
-      const serials = (it.serial_numbers && it.serial_numbers.length)
-        ? it.serial_numbers.map(sn => `<tr><td colspan="3" style="padding-left:10px;font-size:10px;color:#444">SN: ${sn}</td></tr>`).join("")
-        : "";
+      const serials = serialsForItem(it, serialMap).map(sn => `<tr><td colspan="3" style="padding-left:10px;font-size:10px;color:#444">SN: ${sn}</td></tr>`).join("");
       return `
       <tr>
         <td>${it.name || ""}${it.qty > 1 ? ` &times; ${it.qty}` : ""}</td>
@@ -312,14 +323,14 @@ export default function AdminTransactions() {
                           {item.discount_type} -{item.discount_percentage}%: Saved ${(((item.original_price || item.price) - item.price) * item.qty).toFixed(2)}
                         </div>
                       )}
-                      {item.serial_numbers && item.serial_numbers.length > 0 && (
+                      {(() => { const serials = serialsForItem(item, detailSerialMap); return serials.length > 0 ? (
                         <div className="mt-1 space-y-0.5">
                           <span className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider">Serial Numbers</span>
-                          {item.serial_numbers.map((sn, i) => (
+                          {serials.map((sn, i) => (
                             <div key={i} className="text-xs text-gray-600 font-mono">SN: {sn}</div>
                           ))}
                         </div>
-                      )}
+                      ) : null; })()}
                     </div>
                   ))}
                 </div>
