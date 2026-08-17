@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Scale, AlertTriangle, FileSignature, Printer, ChevronRight } from "lucide-react";
+import { FileText, Scale, AlertTriangle, FileSignature, Printer, ChevronRight, Paperclip } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 
@@ -64,13 +64,26 @@ function printDoc(title, bodyHtml) {
 
 const field = (k, v) => `<div class="field"><div class="k">${esc(k)}</div><div class="v">${esc(v || "—")}</div></div>`;
 
+const docSummary = (doc, f) => {
+  if (doc === "raf") return `RAF — ${f.operator_name || "—"} — ${f.variance_type} $${Number(f.variance || 0).toFixed(2)} (reg ${f.register_id || "—"})`;
+  if (doc === "robbery") return `Robbery Report — ${f.operator_name || "—"} — $${Number(f.amount_stolen || 0).toFixed(2)} stolen`;
+  if (doc === "incident") return `Incident Report — ${f.type || "—"} — ${f.operator_name || "—"}`;
+  return `Employee Statement — ${f.employee_name || "—"} — ${f.subject || "—"}`;
+};
+const docAmount = (doc, f) => (doc === "raf" ? Number(f.variance || 0) : doc === "robbery" ? Number(f.amount_stolen || 0) : 0);
+
 export default function DocumentsPanel({ logs = [], audits = [], registers = [] }) {
   const [active, setActive] = useState("raf");
   const [forms, setForms] = useState(initial);
   const [operators, setOperators] = useState([]);
+  const [investigations, setInvestigations] = useState([]);
+  const [selectedInv, setSelectedInv] = useState("");
+  const [linking, setLinking] = useState(false);
   const { toast } = useToast();
+  const adminName = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator"))?.full_name || "Admin"; } catch { return "Admin"; } })();
 
   useEffect(() => { base44.entities.Operator.list().then(setOperators).catch(() => {}); }, []);
+  useEffect(() => { base44.entities.Investigation.list("-updated_date", 200).then(list => setInvestigations(list.filter(i => i.status !== "closed"))).catch(() => {}); }, []);
 
   const set = (doc, k, v) => setForms(f => ({ ...f, [doc]: { ...f[doc], [k]: v } }));
   const assignOperator = (doc, opId) => {
@@ -124,6 +137,24 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
         <div class="sigs"><div class="sig"><div class="line">${esc(f.signature || " ")}</div>Employee Signature</div><div class="sig"><div class="line">${esc(f.witness || " ")}</div>Witness</div></div>`;
     }
     if (!printDoc(title, body)) toast({ title: "Pop-up blocked", description: "Allow pop-ups to print the document.", variant: "destructive" });
+  };
+
+  const addToInvestigation = async () => {
+    if (!selectedInv) { toast({ title: "Select an investigation first", variant: "destructive" }); return; }
+    const f = forms[active];
+    setLinking(true);
+    try {
+      const inv = await base44.entities.Investigation.get(selectedInv);
+      const evidence = Array.isArray(inv.evidence) ? inv.evidence : [];
+      const activity = Array.isArray(inv.activity_log) ? inv.activity_log : [];
+      const now = new Date().toISOString();
+      evidence.push({ type: "document", ref: active, detail: docSummary(active, f), amount: docAmount(active, f), date: now });
+      activity.push({ date: now, by: adminName, action: "document_added", note: `Added ${DOCS.find(d => d.id === active).label}` });
+      await base44.entities.Investigation.update(selectedInv, { evidence, activity_log: activity });
+      toast({ title: "Added to investigation", description: docSummary(active, f) });
+    } catch (e) {
+      toast({ title: "Failed to add", description: String(e.message || e), variant: "destructive" });
+    } finally { setLinking(false); }
   };
 
   const renderAssign = (doc) => (
@@ -259,6 +290,19 @@ export default function DocumentsPanel({ logs = [], audits = [], registers = [] 
           <Button onClick={() => handlePrint(active)} className="bg-amber-600 hover:bg-amber-500"><Printer className="w-4 h-4 mr-1.5" /> Print Document</Button>
         </div>
         {renderForm()}
+        <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1">
+            <Label>Link to Investigation</Label>
+            <Select value={selectedInv} onValueChange={setSelectedInv}>
+              <SelectTrigger><span className={selectedInv ? "text-gray-900" : "text-gray-400"}>{selectedInv ? (investigations.find(i => i.id === selectedInv)?.title || "Selected") : "Select an open investigation..."}</span></SelectTrigger>
+              <SelectContent>
+                {investigations.length === 0 && <div className="px-3 py-2 text-sm text-gray-400">No open investigations</div>}
+                {investigations.map(i => <SelectItem key={i.id} value={i.id}>{i.title} ({i.status})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" onClick={addToInvestigation} disabled={linking || !selectedInv}><Paperclip className="w-4 h-4 mr-1.5" />{linking ? "Adding..." : "Add to Investigation"}</Button>
+        </div>
       </div>
     </div>
   );
