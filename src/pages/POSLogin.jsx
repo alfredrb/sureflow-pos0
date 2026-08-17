@@ -163,16 +163,13 @@ export default function POSLogin() {
     setLoading(true);
     try {
       const operatorData = await base44.entities.Operator.filter({ operator_id: operatorId, status: "active" });
-      if (operatorData.length === 0) {
-        toast({ title: "Invalid Operator", description: "Operator ID not found", variant: "destructive" });
+      if (operatorData.length === 0 || operatorData[0].pin !== pin) {
+        toast({ title: "Operator Not Found", description: "Check the Operator ID and PIN and try again.", variant: "destructive" });
         setStep("id"); setOperatorId(""); setPin("");
-      } else if (operatorData[0].pin !== pin) {
-        toast({ title: "Invalid PIN", description: "Incorrect PIN entered", variant: "destructive" });
-        setPin("");
       } else {
         const op = operatorData[0];
         if (op.pos_access === false) {
-          toast({ title: "POS Access Disabled", description: "This account is not permitted to use the POS. See an administrator.", variant: "destructive" });
+          toast({ title: "Operator Not Found", description: "Check the Operator ID and PIN and try again.", variant: "destructive" });
           setStep("id"); setOperatorId(""); setPin("");
           setLoading(false);
           return;
