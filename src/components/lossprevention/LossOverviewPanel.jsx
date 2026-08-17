@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
-import { Ban, TrendingUp, RotateCcw, DollarSign, AlertTriangle, FolderSearch } from "lucide-react";
+import React, { useMemo, useState, useEffect } from "react";
+import { Ban, TrendingUp, RotateCcw, DollarSign, AlertTriangle, FolderSearch, Utensils, Archive } from "lucide-react";
 import moment from "moment";
+import { base44 } from "@/api/data";
 import { classifyLogEvent } from "@/lib/lossPrevention";
 import TimeTheftOverviewReport from "./TimeTheftOverviewReport";
 
@@ -20,6 +21,17 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
   const start = moment(fromDate).startOf("day");
   const end = moment(toDate).endOf("day");
   const inRange = (d) => !!d && moment(d).isSameOrAfter(start) && moment(d).isSameOrBefore(end);
+
+  const [mealEx, setMealEx] = useState([]);
+  const [evidenceCount, setEvidenceCount] = useState(0);
+  useEffect(() => {
+    base44.entities.MealException.list("-created_date", 1000).then(setMealEx).catch(() => {});
+    base44.entities.Investigation.list("-created_date", 1000).then(list => {
+      setEvidenceCount((list || []).reduce((s, inv) => s + (Array.isArray(inv.evidence) ? inv.evidence.length : 0), 0));
+    }).catch(() => {});
+  }, []);
+  const mealInRange = mealEx.filter(m => inRange(m.shift_date || m.created_date));
+  const mealUnack = mealInRange.filter(m => !m.acknowledged);
 
   const rangeLogs = useMemo(() => logs.filter(l => inRange(l.created_date)), [logs, fromDate, toDate]);
   const rangeTxns = useMemo(() => txns.filter(t => inRange(t.created_date)), [txns, fromDate, toDate]);
@@ -83,6 +95,8 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
           OVERRIDE_CATS.some(enabled) && { label: "Overrides", value: overrides.length, icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
           enabled("refund") && { label: "Refunds", value: refunds.length, icon: RotateCcw, color: "text-purple-600", bg: "bg-purple-50" },
           (OVERRIDE_CATS.some(enabled) || enabled("refund")) && { label: "Override + Refund Value", value: `$${(overrideValue + refundValue).toFixed(2)}`, icon: DollarSign, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Meal Exceptions", value: mealInRange.length, icon: Utensils, color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Evidence Locker", value: evidenceCount, icon: Archive, color: "text-violet-600", bg: "bg-violet-50" },
         ].filter(Boolean).map(s => (
           <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-5 h-5 ${s.color}`} /></div>
@@ -97,6 +111,16 @@ export default function LossOverviewPanel({ logs, txns, fromDate, toDate, onStar
           <div>
             <p className="font-semibold text-red-900 text-sm">High-Risk Operators Detected</p>
             <p className="text-red-700 text-xs mt-0.5">{highRiskOperators.map(o => o.operator).join(", ")} — review the void, override, and refund activity below, or start an investigation.</p>
+          </div>
+        </div>
+      )}
+
+      {mealUnack.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+          <Utensils className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-900 text-sm">{mealUnack.length} Unacknowledged Meal Exception{mealUnack.length === 1 ? "" : "s"}</p>
+            <p className="text-amber-700 text-xs mt-0.5">Review lunches not taken, taken late, or work-past-lunch overrides in the Meal Exceptions tab.</p>
           </div>
         </div>
       )}

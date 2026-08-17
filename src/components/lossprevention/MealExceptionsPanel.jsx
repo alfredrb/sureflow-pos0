@@ -307,14 +307,16 @@ export default function MealExceptionsPanel({ fromDate, toDate, onStartInvestiga
                       {!e.acknowledged && (
                         <Button size="sm" variant="outline" onClick={() => { setAckTarget(e); setAckNote(""); }} className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 mr-1.5">Acknowledge</Button>
                       )}
-                      <Button size="sm" variant="ghost" onClick={() => onStartInvestigation({
+                      <button onClick={() => onStartInvestigation({
                         type: "meal_exception",
                         operator_name: e.operator_name || "",
                         operator_id: e.operator_id || "",
                         register_id: e.register_id || "",
                         title: `Meal Exception — ${meta.label} — ${e.operator_name || "—"} — ${e.shift_date}`,
                         summary: e.detail || "",
-                      })}>Investigate</Button>
+                      })} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
+                        <FolderSearch className="w-3.5 h-3.5" /> Investigate
+                      </button>
                     </td>
                   </tr>
                 );

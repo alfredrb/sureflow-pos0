@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3, Utensils } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3, Utensils, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import ClaimsAuditPanel from "@/components/lossprevention/ClaimsAuditPanel";
 import SerializedInventoryPanel from "@/components/lossprevention/SerializedInventoryPanel";
 import ShrinkageReportPanel from "@/components/lossprevention/ShrinkageReportPanel";
 import MealExceptionsPanel from "@/components/lossprevention/MealExceptionsPanel";
+import EvidenceLockerPanel from "@/components/lossprevention/EvidenceLockerPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -117,6 +118,7 @@ export default function AdminLossPrevention() {
     { id: "shrinkage", label: "Shrinkage", icon: BarChart3 },
     { id: "ai", label: "AI Suggestions", icon: Sparkles },
     { id: "documents", label: "Documents", icon: FileText },
+    { id: "evidence", label: "Evidence Locker", icon: Archive },
     { id: "tasks", label: "Tasks", icon: ListTodo },
     { id: "time", label: "Time Theft", icon: Clock },
     { id: "noreturns", label: "No-Receipt Returns", icon: RotateCcw },
@@ -173,6 +175,7 @@ export default function AdminLossPrevention() {
       {tab === "shrinkage" && <ShrinkageReportPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
+      {tab === "evidence" && <EvidenceLockerPanel />}
       {tab === "tasks" && <TasksPanel />}
       {tab === "time" && <TimeTheftPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "noreturns" && <NoReceiptWorkbenchTab txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
