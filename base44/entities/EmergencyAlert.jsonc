@@ -56,6 +56,29 @@
       "type": "string",
       "format": "date-time",
       "description": "When alert was acknowledged"
+    },
+    "archived": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the alert has been archived (manually or automatically after 30 days). Archived alerts are hidden from the active log and kept in a separate archived section."
+    },
+    "archived_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the alert was archived."
+    },
+    "archived_by_id": {
+      "type": "string",
+      "description": "Operator who archived the alert. Blank when auto-archived."
+    },
+    "archived_by_name": {
+      "type": "string",
+      "description": "Name of the operator who archived the alert, or 'System' for auto-archive."
+    },
+    "archived_automatically": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if archived by the 30-day automatic archive rule rather than a manual action."
     }
   },
   "required": [
