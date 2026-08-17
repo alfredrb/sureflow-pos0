@@ -65,7 +65,49 @@ export default function AdminShiftScheduling() {
         base44.entities.PeakTime.list("-created_date", 500),
         base44.entities.ShiftSwapRequest.filter({ status: "approved" })
       ]);
-      setShifts(shiftData);
+
+      // Auto-sync technician shifts from the Maintenance Log (not AI-driven).
+      // For every scheduled/in-progress maintenance entry, ensure a technician
+      // shift exists on its service_date. Idempotent via a [ML-<id>] marker.
+      let syncedShifts = shiftData;
+      try {
+        const techs = opData.filter(o => o.role === "technician");
+        if (techs.length > 0) {
+          const logs = await base44.entities.MaintenanceLog.list("-service_date", 200);
+          const pending = logs.filter(l =>
+            (l.status === "scheduled" || l.status === "in_progress") && l.service_date
+          );
+          const created = [];
+          for (const log of pending) {
+            const marker = `[ML-${log.id}]`;
+            if (shiftData.some(s => s.notes && s.notes.includes(marker))) continue;
+            const tech = techs.find(t => t.full_name === log.technician_name) || techs[0];
+            created.push(base44.entities.Shift.create({
+              date: log.service_date,
+              operator_id: tech.operator_id,
+              operator_name: tech.full_name,
+              register_id: log.register_id || "",
+              register_name: "",
+              start_time: "09:00",
+              end_time: "13:00",
+              break_start: "",
+              break_end: "",
+              lunch_start: "",
+              lunch_end: "",
+              status: "scheduled",
+              notes: `Maintenance: ${log.title}${marker}`
+            }));
+          }
+          if (created.length > 0) {
+            await Promise.all(created);
+            syncedShifts = await base44.entities.Shift.list("-date", 100);
+          }
+        }
+      } catch (e) {
+        console.error("Error syncing tech shifts from maintenance:", e);
+      }
+
+      setShifts(syncedShifts);
       setOperators(opData);
       setRegisters(regData);
       setTemplates(templateData);
@@ -235,7 +277,8 @@ export default function AdminShiftScheduling() {
     setGenerating(true);
     try {
       const allPeakTimes = await base44.entities.PeakTime.list("-created_date", 500);
-      const schedulable = operators.filter(o => o.status === "active" && o.pos_access !== false && ["cashier", "csm", "manager", "technician"].includes(o.role));
+      // Technicians are auto-scheduled from the Maintenance Log — exclude from AI draft.
+      const schedulable = operators.filter(o => o.status === "active" && o.pos_access !== false && ["cashier", "csm", "manager"].includes(o.role));
 
       // Build a compact peak-time summary per day-of-week (operating hours 6–22).
       const peakSummary = {};
@@ -261,10 +304,11 @@ Peak-time staffing requirements by day-of-week (0=Sunday..6=Saturday), operating
 ${Object.entries(peakSummary).map(([d, h]) => `Day ${d}: ${h}`).join("\n")}
 
 Rules:
-- Cover every peak hour with enough staff to meet the "req" recommendation; stagger start times across the day to match demand (e.g., openers at 6-8, mid-day coverage, closers until 22:00).
+- Schedule MULTIPLE staff per day to cover peak hours — each day typically needs several overlapping shifts (openers, mid-day, closers). Never schedule only one person for a whole day unless demand is truly minimal.
+- Cover every peak hour with enough staff to meet the "req" recommendation; stagger start times across the day to match demand (e.g., openers at 6-8, mid-day coverage, closers until 22:00). Multiple operators may overlap during high-demand hours.
 - Do not over-schedule quiet hours. Balance total scheduled staff-hours close to total required staff-hours per day.
-- Give most hours to cashiers, a CSM for supervision during busy periods, a manager for open/close, and technicians only when needed.
-- Avoid double-booking an operator twice on the same day. Each operator works at most one shift per day.
+- Give most hours to cashiers; always include a CSM during busy periods and a manager for open/close. Do NOT schedule technicians (they are handled separately).
+- An individual operator works at most ONE shift per day, but different operators can and should be scheduled on the same day to meet coverage.
 - Reasonable shift lengths (4–8 hours). Include a 30-min break near the middle and a 1-hour lunch for shifts over 6 hours.
 - Use 24-hour HH:MM times only.
 
