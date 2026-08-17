@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip, Upload } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip, Upload, Download } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationOperatorExplorer from "@/components/lossprevention/InvestigationOperatorExplorer";
@@ -122,6 +122,8 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
           date_range_start: form.date_range_start, date_range_end: form.date_range_end,
           linked_operators: linkedOperators, stolen_items: stolenItems,
         };
+        if (value.status !== "closed" && form.status === "closed") updates.closed_date = now;
+        if (value.status === "closed" && form.status !== "closed") { updates.closed_date = null; updates.archived = false; updates.archived_date = null; }
         const newEntries = [];
         if (value.status !== form.status) newEntries.push({ date: now, by, action: `Status: ${value.status} → ${form.status}`, note: "" });
         if (note.trim()) newEntries.push({ date: now, by, action: "Note", note: note.trim() });
@@ -143,7 +145,7 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
     try {
       const by = adminName();
       const now = new Date().toISOString();
-      const updates = { status: "closed", resolution: form.resolution, stolen_items: stolenItems };
+      const updates = { status: "closed", resolution: form.resolution, stolen_items: stolenItems, closed_date: now };
       const newEntries = [{ date: now, by, action: `Status: ${form.status} → closed`, note: note.trim() || "" }];
       if (note.trim()) newEntries.push({ date: now, by, action: "Note", note: note.trim() });
       updates.activity_log = [...activityLog, ...newEntries];
@@ -311,6 +313,35 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
     w.document.write(html);
     w.document.close();
     w.focus();
+  };
+
+  const exportJson = () => {
+    const payload = {
+      __type: "SureFlowInvestigationExport",
+      exported_at: new Date().toISOString(),
+      id: value.id || null,
+      title: form.title, type: form.type, severity: form.severity, status: form.status,
+      operator_name: form.operator_name, operator_id: form.operator_id, register_id: form.register_id,
+      assigned_to: value.assigned_to || "",
+      linked_operators: linkedOperators,
+      amount_impact: Number(form.amount_impact) || 0,
+      date_range_start: form.date_range_start || "", date_range_end: form.date_range_end || "",
+      summary: form.summary, resolution: form.resolution,
+      stolen_items: stolenItems, evidence, activity_log: activityLog,
+      ai_generated: !!value.ai_generated,
+      archived: !!value.archived, archived_date: value.archived_date || null, closed_date: value.closed_date || null,
+      created_date: value.created_date || null, updated_date: value.updated_date || null, created_by: value.created_by || "",
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `investigation-${(form.title || "case").replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-+|-+$/g, "")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "Exported", description: "JSON downloaded — upload it in the Data Viewer to review later." });
   };
 
   const explorerOperators = [
@@ -516,7 +547,10 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
           </div>
 
           <DialogFooter className="sm:justify-between px-6 pb-6 pt-3 border-t flex-shrink-0">
-            <Button variant="outline" onClick={exportCase}><FileDown className="w-4 h-4" /> Export Case</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={exportCase}><FileDown className="w-4 h-4" /> Export Case</Button>
+              <Button variant="outline" onClick={exportJson} disabled={isNew}><Download className="w-4 h-4" /> Export Data</Button>
+            </div>
             <div className="flex gap-2">
               {!isNew && form.status !== "closed" && <Button variant="outline" onClick={handleCloseCase} disabled={saving} className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 className="w-4 h-4" /> Close Case</Button>}
               <Button variant="outline" onClick={onClose}>Cancel</Button>

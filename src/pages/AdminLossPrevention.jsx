@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import TasksPanel from "@/components/lossprevention/TasksPanel";
 import InvestigationDetailDialog from "@/components/lossprevention/InvestigationDetailDialog";
 import StolenItemsTrendChart from "@/components/lossprevention/StolenItemsTrendChart";
 import MerchandiseProtectionPanel from "@/components/lossprevention/MerchandiseProtectionPanel";
+import DataViewerPanel from "@/components/lossprevention/DataViewerPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -75,6 +76,7 @@ export default function AdminLossPrevention() {
     { id: "documents", label: "Documents", icon: FileText },
     { id: "tasks", label: "Tasks", icon: ListTodo },
     { id: "mpp", label: "Merch Protection", icon: Shield },
+    { id: "data", label: "Data Viewer", icon: Database },
   ];
 
   return (
@@ -119,6 +121,7 @@ export default function AdminLossPrevention() {
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "tasks" && <TasksPanel />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
+      {tab === "data" && <DataViewerPanel />}
 
       <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
     </div>

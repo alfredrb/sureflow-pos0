@@ -185,6 +185,21 @@
       "type": "string",
       "description": "Outcome once the investigation is closed"
     },
+    "closed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the investigation was closed. Used by the archive lifecycle (archive after 30 days, delete after 90 days)."
+    },
+    "archived": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the investigation has been archived (auto after 30 days closed). Archived cases are hidden from the active list but remain exportable until permanent deletion at 90 days."
+    },
+    "archived_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the investigation was archived."
+    },
     "created_by": {
       "type": "string"
     }

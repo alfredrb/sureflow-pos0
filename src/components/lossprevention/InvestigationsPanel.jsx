@@ -85,14 +85,15 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
   useEffect(() => { load(); }, [refreshKey]);
 
   const filtered = items.filter(i =>
-    (statusFilter === "all" || i.status === statusFilter) &&
+    (statusFilter === "archived" ? i.archived : (!i.archived && (statusFilter === "all" || i.status === statusFilter))) &&
     (!search || (i.title || "").toLowerCase().includes(search.toLowerCase()) || (i.operator_name || "").toLowerCase().includes(search.toLowerCase()))
   );
 
   const counts = {
-    open: items.filter(i => i.status === "open").length,
-    in_progress: items.filter(i => i.status === "in_progress").length,
-    closed: items.filter(i => i.status === "closed").length,
+    open: items.filter(i => i.status === "open" && !i.archived).length,
+    in_progress: items.filter(i => i.status === "in_progress" && !i.archived).length,
+    closed: items.filter(i => i.status === "closed" && !i.archived).length,
+    archived: items.filter(i => i.archived).length,
   };
 
   return (
@@ -104,6 +105,7 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
             { k: "open", label: `Open (${counts.open})` },
             { k: "in_progress", label: `In Progress (${counts.in_progress})` },
             { k: "closed", label: `Closed (${counts.closed})` },
+            { k: "archived", label: `Archived (${counts.archived})` },
           ].map(t => (
             <button key={t.k} onClick={() => setStatusFilter(t.k)} className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${statusFilter === t.k ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>{t.label}</button>
           ))}
@@ -147,8 +149,8 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
       ) : filtered.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center">
           <FolderSearch className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 text-sm font-medium">No investigations yet</p>
-          <p className="text-gray-400 text-xs mt-1">Start one from the Overview, Shorts & Longs, or AI Suggestions tabs — or create one manually.</p>
+          <p className="text-gray-500 text-sm font-medium">{statusFilter === "archived" ? "No archived investigations" : "No investigations yet"}</p>
+          <p className="text-gray-400 text-xs mt-1">{statusFilter === "archived" ? "Closed cases are archived automatically after 30 days and permanently deleted after 90 days. Export a case to keep a copy." : "Start one from the Overview, Shorts & Longs, or AI Suggestions tabs — or create one manually."}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -161,6 +163,7 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{TYPE_LABEL[inv.type] || inv.type}</span>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${SEVERITY_BADGE[inv.severity] || "bg-gray-100 text-gray-600"}`}>{inv.severity}</span>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STATUS_BADGE[inv.status] || "bg-gray-100 text-gray-600"}`}>{STATUS_LABEL[inv.status] || inv.status}</span>
+                      {inv.archived && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-200 text-gray-600" title={inv.archived_date ? `Archived ${moment(inv.archived_date).format("MMM D, YYYY")}` : ""}>Archived</span>}
                       {inv.ai_generated && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 inline-flex items-center gap-0.5"><Sparkles className="w-2.5 h-2.5" /> AI</span>}
                     </div>
                     <h3 className="font-semibold text-gray-900 text-sm mt-2 truncate">{inv.title}</h3>
