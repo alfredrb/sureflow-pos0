@@ -25,6 +25,8 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [managerPin, setManagerPin] = useState("");
+  const [pinError, setPinError] = useState("");
   const { toast } = useToast();
 
   const isGross = (TERMINATION_REASONS.find(r => r.value === reason) || {}).gross;
@@ -86,6 +88,12 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
   const rehireDays = emp.status === "terminated" ? daysUntil(emp.rehire_eligible_date) : null;
 
   const doDelete = async () => {
+    if (!managerPin.trim()) { setPinError("Manager PIN required"); return; }
+    try {
+      const managers = await base44.entities.Operator.filter({ role: "manager", status: "active" });
+      const ok = (managers || []).some(m => m.pin && m.pin === managerPin.trim());
+      if (!ok) { setPinError("Incorrect manager PIN"); return; }
+    } catch (e) { setPinError("Could not verify PIN"); return; }
     setSaving(true);
     try {
       // remove linked operator
@@ -100,6 +108,7 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
       await base44.entities.Employee.delete(emp.id);
       toast({ title: "Employee deleted", description: "All related data has been removed." });
       setDeleteOpen(false);
+      setManagerPin(""); setPinError("");
       onBack();
     } catch (e) {
       toast({ title: "Error", description: e?.message, variant: "destructive" });
@@ -153,20 +162,10 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
           <TabsTrigger value="investigations">Investigations & Documents</TabsTrigger>
           <TabsTrigger value="feedback">Feedback & Discipline</TabsTrigger>
         </TabsList>
-        <TabsContent value="profile" className="mt-4"><EmployeeProfileTab employee={emp} onSaved={onReload} /></TabsContent>
+        <TabsContent value="profile" className="mt-4"><EmployeeProfileTab employee={emp} onSaved={onReload} onRequestDelete={() => setDeleteOpen(true)} /></TabsContent>
         <TabsContent value="investigations" className="mt-4"><EmployeeInvestigationsTab employee={emp} /></TabsContent>
         <TabsContent value="feedback" className="mt-4"><EmployeeFeedbackTab employee={emp} /></TabsContent>
       </Tabs>
-
-      <div className="mt-6 border border-red-200 rounded-2xl p-4 bg-red-50/50">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-red-700 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Danger Zone</h3>
-            <p className="text-xs text-red-600 mt-1">Permanently delete this employee and remove all related data, including their operator login from the Operator Management panel.</p>
-          </div>
-          <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-100" onClick={() => setDeleteOpen(true)}><Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Employee</Button>
-        </div>
-      </div>
 
       {/* Leave dialog */}
       <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
@@ -222,7 +221,7 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
       </Dialog>
 
       {/* Delete dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) { setManagerPin(""); setPinError(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Delete {emp.full_name}?</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -230,6 +229,11 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
               <AlertTriangle className="w-4 h-4 inline mr-1" /> This permanently removes the employee and <strong>all related data</strong>, including their operator login from the Operator Management panel. This cannot be undone.
             </p>
             <p className="text-sm text-gray-600">Employee ID: <span className="font-mono">{emp.employee_id}</span>{emp.operator_id ? <> · Operator ID: <span className="font-mono">{emp.operator_id}</span></> : null}</p>
+            <div>
+              <Label className="mb-1 block text-sm">Manager PIN <span className="text-red-500">*</span></Label>
+              <Input type="password" value={managerPin} onChange={(e) => { setManagerPin(e.target.value); setPinError(""); }} placeholder="Enter manager PIN to approve" autoFocus />
+              {pinError && <p className="text-xs text-red-600 mt-1">{pinError}</p>}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
