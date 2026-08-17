@@ -91,6 +91,9 @@
   }
 }
 
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* Admin panel theme modes (applied to the admin content shell) */
 .theme-grayscale { filter: grayscale(100%); }
 .theme-dark { filter: invert(1) hue-rotate(180deg); }
