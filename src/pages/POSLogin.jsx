@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/data";
-import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle, Clock } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle, Clock, Keyboard, Grid3x3 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
 import SelfTimeClock from "@/components/SelfTimeClock";
 import VersionLogDialog from "@/components/VersionLogDialog";
 import POSVersionButton from "@/components/POSVersionButton";
@@ -38,6 +39,7 @@ export default function POSLogin() {
   const [announcements, setAnnouncements] = useState([]);
   const [version, setVersion] = useState(VERSION_FALLBACK);
   const [versionOpen, setVersionOpen] = useState(false);
+  const [loginMode, setLoginMode] = useState(() => sessionStorage.getItem("pos_login_mode") || "pinpad");
   const [dismissed, setDismissed] = useState(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem("pos_dismissed_announcements") || "[]")); } catch { return new Set(); }
   });
@@ -425,40 +427,89 @@ export default function POSLogin() {
         </div>
 
         <div className="w-full max-w-xs bg-[#111638] border border-blue-500/10 rounded-2xl p-5 space-y-5">
-          <div className="text-center">
-            <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-2">
-              {step === "id" ? "Enter Operator ID" : "Enter PIN"}
-            </p>
-            <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-2xl text-white tracking-[0.5em] min-h-[50px] flex items-center justify-center border border-blue-500/10">
-              {step === "id"
-                ? operatorId || <span className="text-blue-500/20">---</span>
-                : "•".repeat(pin.length) || <span className="text-blue-500/20">---</span>
-              }
-            </div>
-          </div>
+          {loginMode === "pinpad" ? (
+            <>
+              <div className="text-center">
+                <p className="text-blue-300/60 text-xs uppercase tracking-widest mb-2">
+                  {step === "id" ? "Enter Operator ID" : "Enter PIN"}
+                </p>
+                <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-2xl text-white tracking-[0.5em] min-h-[50px] flex items-center justify-center border border-blue-500/10">
+                  {step === "id"
+                    ? operatorId || <span className="text-blue-500/20">---</span>
+                    : "•".repeat(pin.length) || <span className="text-blue-500/20">---</span>
+                  }
+                </div>
+              </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {numpad.map(key => (
+              <div className="grid grid-cols-3 gap-2">
+                {numpad.map(key => (
+                  <button
+                    key={key}
+                    onClick={() => handleKey(key)}
+                    disabled={loading}
+                    className={`h-12 rounded-xl font-bold text-base transition-all duration-150 active:scale-95 ${
+                      key === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
+                      key === "CLR" ? "bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/20" :
+                      "bg-[#1a1f4a] hover:bg-[#222866] text-white border border-blue-500/10"
+                    }`}
+                  >
+                    {loading && key === "ENT" ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : key}
+                  </button>
+                ))}
+              </div>
+
+              {step === "pin" && (
+                <button onClick={() => { setStep("id"); setPin(""); }} className="text-blue-400/50 hover:text-blue-300 text-xs w-full text-center transition-colors">
+                  Different operator?
+                </button>
+              )}
+            </>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
+              <div className="space-y-1.5">
+                <p className="text-blue-300/60 text-xs uppercase tracking-widest">Operator ID</p>
+                <Input
+                  value={operatorId}
+                  onChange={e => setOperatorId(e.target.value)}
+                  placeholder="Enter operator ID"
+                  autoComplete="username"
+                  autoFocus
+                  className="bg-[#0a0e27] border-blue-500/20 text-white placeholder:text-blue-500/30 font-mono h-11"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-blue-300/60 text-xs uppercase tracking-widest">PIN</p>
+                <Input
+                  type="password"
+                  value={pin}
+                  onChange={e => setPin(e.target.value)}
+                  placeholder="Enter PIN"
+                  autoComplete="current-password"
+                  className="bg-[#0a0e27] border-blue-500/20 text-white placeholder:text-blue-500/30 font-mono h-11"
+                />
+              </div>
               <button
-                key={key}
-                onClick={() => handleKey(key)}
-                disabled={loading}
-                className={`h-12 rounded-xl font-bold text-base transition-all duration-150 active:scale-95 ${
-                  key === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
-                  key === "CLR" ? "bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/20" :
-                  "bg-[#1a1f4a] hover:bg-[#222866] text-white border border-blue-500/10"
-                }`}
+                type="submit"
+                disabled={loading || !operatorId.trim() || !pin.trim()}
+                className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-base transition-colors flex items-center justify-center gap-2"
               >
-                {loading && key === "ENT" ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : key}
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loading ? "Signing in..." : "Sign In"}
               </button>
-            ))}
-          </div>
-
-          {step === "pin" && (
-            <button onClick={() => { setStep("id"); setPin(""); }} className="text-blue-400/50 hover:text-blue-300 text-xs w-full text-center transition-colors">
-              Different operator?
-            </button>
+            </form>
           )}
+
+          <button
+            onClick={() => {
+              const next = loginMode === "pinpad" ? "type" : "pinpad";
+              setLoginMode(next);
+              sessionStorage.setItem("pos_login_mode", next);
+              setStep("id"); setPin("");
+            }}
+            className="text-blue-400/50 hover:text-blue-300 text-xs w-full flex items-center justify-center gap-1.5 transition-colors"
+          >
+            {loginMode === "pinpad" ? <><Keyboard className="w-3.5 h-3.5" /> Switch to keyboard login</> : <><Grid3x3 className="w-3.5 h-3.5" /> Switch to pinpad login</>}
+          </button>
         </div>
 
         <POSVersionButton

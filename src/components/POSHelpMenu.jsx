@@ -1,10 +1,16 @@
-import React, { useState } from "react";
-import { BookOpen } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BookOpen, GitBranch } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
+import VersionLogDialog from "@/components/VersionLogDialog";
+import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
 export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked }) {
   const [guideOpen, setGuideOpen] = useState(false);
+  const [versionOpen, setVersionOpen] = useState(false);
+  const [version, setVersion] = useState(VERSION_FALLBACK);
+
+  useEffect(() => { getLatestVersionString().then(setVersion).catch(() => {}); }, []);
 
   return (
     <div className="relative">
@@ -22,8 +28,11 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM
           </button>
-          <button onClick={onReportRobbery} disabled={robberyLoading || robberyLocked} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 rounded-b-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          <button onClick={onReportRobbery} disabled={robberyLoading || robberyLocked} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {robberyLocked ? "Report Robbery (Locked)" : robberyLoading ? "Calculating..." : "Report Robbery"}
+          </button>
+          <button onClick={() => { setVersionOpen(true); setOpen(false); }} className="w-full flex items-center justify-center gap-1.5 px-4 py-2 text-blue-300/60 hover:text-blue-200 hover:bg-blue-600/20 border-t border-red-500/10 rounded-b-lg transition-colors text-xs font-mono">
+            <GitBranch className="w-3.5 h-3.5" /> v{version}
           </button>
         </div>
       )}
@@ -36,6 +45,8 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           <TrainingGuideContent />
         </DialogContent>
       </Dialog>
+
+      <VersionLogDialog open={versionOpen} onOpenChange={setVersionOpen} />
     </div>
   );
 }
