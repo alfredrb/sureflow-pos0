@@ -364,7 +364,7 @@ Rules:
 - Cover every peak hour with enough staff to meet the "req" recommendation; stagger start times across the day to match demand (e.g., openers at 6-8, mid-day coverage, closers until 22:00). Multiple operators may overlap during high-demand hours.
 - Do not over-schedule quiet hours. Balance total scheduled staff-hours close to total required staff-hours per day.
 - Give most hours to cashiers; always include a CSM during busy periods and a manager for open/close. Do NOT schedule technicians (they are handled separately).
-- ABSOLUTELY NEVER schedule the same operator more than ONE shift on the same date. Each operator gets at most one shift per day; cover extra demand with different operators.
+- An operator MAY have MULTIPLE shifts on the same day (e.g., a split shift covering the opening and closing peaks, or a double shift) when it improves coverage and respects their availability. However, an operator's shifts on the same day MUST NOT overlap each other, total scheduled hours that day should stay reasonable (no more than ~10 hours), and you should prefer distributing hours across different operators before assigning a second shift to the same person.
 - OVERTIME & BUDGET: An operator who has carriedOT > 0 has already worked overtime in the previous week — CUT their hours this week so their weekly total stays at or below the overtime threshold (prefer giving those hours to other operators). Hours worked beyond ${overtimeThreshold} in any rolling 7-day window count as overtime and are paid at base_rate × otmult, so minimize overtime unless coverage demands it.${laborBudget > 0 ? ` Keep the total weekly labor cost (sum of shift_hours × rate, with overtime hours × rate × otmult) under $${laborBudget} per week — trim hours from higher-paid positions first when over budget.` : ""}
 - Reasonable shift lengths (4–8 hours). Include a 30-min break near the middle and a 1-hour lunch for shifts over 6 hours.
 - Use 24-hour HH:MM times only.
@@ -399,13 +399,23 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
 
       const draftShifts = Array.isArray(res?.shifts) ? res.shifts : [];
       let created = 0;
-      const seenOpDate = new Set(); // enforce at most one shift per operator per day
+      // Allow multiple non-overlapping shifts per operator per day; only skip
+      // exact duplicates or shifts that overlap an already-accepted shift for
+      // the same operator on the same date.
+      const accepted = [];
+      const overlapsSameOp = (a, b) => a.operator_id === b.operator_id && a.date === b.date &&
+        timeToMinutes(a.start_time) < timeToMinutes(b.end_time) && timeToMinutes(b.start_time) < timeToMinutes(a.end_time);
+      const seenKeys = new Set();
       for (const s of draftShifts) {
         const op = schedulable.find(o => o.operator_id === s.operator_id);
         if (!op || !dates.includes(s.date)) continue;
-        const dedupeKey = `${s.operator_id}|${s.date}`;
-        if (seenOpDate.has(dedupeKey)) continue; // skip duplicate same-day assignments
-        seenOpDate.add(dedupeKey);
+        if (!s.start_time || !s.end_time || timeToMinutes(s.end_time) <= timeToMinutes(s.start_time)) continue;
+        const key = `${s.operator_id}|${s.date}|${s.start_time}|${s.end_time}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        const candidate = { operator_id: s.operator_id, date: s.date, start_time: s.start_time, end_time: s.end_time };
+        if (accepted.some(a => overlapsSameOp(a, candidate))) continue;
+        accepted.push(candidate);
         await base44.entities.Shift.create({
           date: s.date,
           operator_id: op.operator_id,

@@ -43,6 +43,7 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
         labor_budget: Math.max(0, Math.round(s.labor_budget) || 0),
         loss_budget: Math.max(0, Math.round(s.loss_budget) || 0),
         expenses_budget: Math.max(0, Math.round(s.expenses_budget) || 0),
+        weekly_hours_budget: Math.max(0, Math.round(s.weekly_hours_budget) || 0),
         notes: s.notes || f.notes,
       }));
     } catch { /* toast handled in page */ }

@@ -98,7 +98,7 @@ export default function AdminFinancials() {
     return m;
   }, [products]);
 
-  const completedTxns = useMemo(() => txns.filter(t => inMonth(t.created_date) && t.status === "completed" && !t.training_mode), [txns, month]);
+  const completedTxns = useMemo(() => txns.filter(t => inMonth(t.sale_date || t.created_date) && t.status === "completed" && !t.training_mode), [txns, month]);
   const revenue = completedTxns.reduce((s, t) => s + (t.subtotal || 0), 0);
   const cogs = completedTxns.reduce((s, t) => s + (t.items || []).reduce((a, i) => a + (costBySku[i.sku] || 0) * (i.qty || 0), 0), 0);
   const grossProfit = revenue - cogs;
@@ -126,7 +126,7 @@ export default function AdminFinancials() {
     dailyMap[d] = { date: d, label: moment(d).format("M/D"), revenue: 0, profit: 0, labor: 0, loss: 0 };
   }
   completedTxns.forEach(t => {
-    const d = moment(t.created_date).format("YYYY-MM-DD");
+    const d = moment(t.sale_date || t.created_date).format("YYYY-MM-DD");
     if (dailyMap[d]) {
       const gp = (t.subtotal || 0) - (t.items || []).reduce((a, i) => a + (costBySku[i.sku] || 0) * (i.qty || 0), 0);
       dailyMap[d].revenue += t.subtotal || 0;
@@ -181,21 +181,38 @@ export default function AdminFinancials() {
       const m = moment(month).subtract(i, "months");
       const ms = m.clone().startOf("month"), me = m.clone().endOf("month");
       const inM = (d) => !!d && moment(d).isBetween(ms, me, null, "[]");
-      const ct = txns.filter(t => inM(t.created_date) && t.status === "completed" && !t.training_mode);
+      const ct = txns.filter(t => inM(t.sale_date || t.created_date) && t.status === "completed" && !t.training_mode);
       const rev = ct.reduce((s, t) => s + (t.subtotal || 0), 0);
       const c = ct.reduce((s, t) => s + (t.items || []).reduce((a, it) => a + (costBySku[it.sku] || 0) * (it.qty || 0), 0), 0);
       const lb = payrollFromTimeClock(entries.filter(e => inM(e.clock_in)), operators, payRates, overtimeThreshold).reduce((s, p) => s + p.total_pay, 0);
       const ls = losses.filter(l => inM(l.date)).reduce((s, l) => s + (l.amount || 0), 0);
       history.push({ month: m.format("YYYY-MM"), revenue: Math.round(rev), cogs: Math.round(c), gross_profit: Math.round(rev - c), labor: Math.round(lb), losses: Math.round(ls), sales_count: ct.length });
     }
+    // Peak-time demand drives the weekly hours target: sum recommended staff
+    // across every operating hour of the week = total staff-hours/week needed.
+    let peakByDay = {}, weeklyDemandStaffHours = 0;
+    try {
+      const peaks = await base44.entities.PeakTime.list("-created_date", 500);
+      for (let dow = 0; dow < 7; dow++) {
+        const dayStaffHours = peaks.filter(p => p.day_of_week === dow && p.hour >= 6 && p.hour <= 22).reduce((s, p) => s + (p.required_staff || 0), 0);
+        peakByDay[dow] = dayStaffHours;
+        weeklyDemandStaffHours += dayStaffHours;
+      }
+    } catch (e) { console.error("Peak load for budget suggest:", e); }
+    const currentWeeklyHours = budget?.weekly_hours_budget || settings?.weekly_hours_budget || 0;
+    const laborBudgetCap = settings?.weekly_labor_budget || 0;
     const prompt = `You are a retail store financial planner. Recommend a monthly budget for ${month}.
 Historical actuals for the previous 3 months (oldest to newest): ${JSON.stringify(history)}.
+Peak-time demand (staff-hours needed per day-of-week, 0=Sunday..6=Saturday): ${JSON.stringify(peakByDay)}. Total weekly staff-hours required to cover demand: ${weeklyDemandStaffHours}.
+Current weekly hours target: ${currentWeeklyHours} hrs/wk. Weekly labor cost cap: ${laborBudgetCap > 0 ? "$" + laborBudgetCap : "no cap"}.
+
 Guidelines:
-- revenue_budget should reflect recent trends with modest growth, and MUST be at least 10000.
+- revenue_budget should reflect recent sales trends with modest growth, and MUST be at least 10000.
 - cogs_budget should track the historical COGS-to-revenue ratio.
 - labor_budget should track historical labor cost, keeping labor under ~30% of revenue where possible.
 - loss_budget should be a small acceptable allowance for disposed/claimed returns.
 - expenses_budget should be a modest estimate for rent/utilities/supplies if not evident in history.
+- weekly_hours_budget is the target labor HOURS per week. Base it on the peak-time demand (total weekly staff-hours required to cover demand), rounded to a sensible whole number.${laborBudgetCap > 0 ? ` Make sure the hours implied stay affordable under the $${laborBudgetCap}/week labor cost cap given the average pay rate.` : " Aim for efficient coverage without excessive overtime."}
 Return a short notes field explaining the recommendation in one or two sentences.`;
     try {
       const res = await base44.integrations.Core.InvokeLLM({
@@ -208,9 +225,10 @@ Return a short notes field explaining the recommendation in one or two sentences
             labor_budget: { type: "number" },
             loss_budget: { type: "number" },
             expenses_budget: { type: "number" },
+            weekly_hours_budget: { type: "number" },
             notes: { type: "string" }
           },
-          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget"]
+          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget", "weekly_hours_budget"]
         }
       });
       return res;
