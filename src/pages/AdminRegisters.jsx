@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench, ToggleLeft, ToggleRight, Building2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench, ToggleLeft, ToggleRight, Building2, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import HardwareProfileSection from "@/components/registers/HardwareProfileSection";
+import PXEBootstrapDialog from "@/components/registers/PXEBootstrapDialog";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 
 const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", mac_address: "", boot_profile: "local_disk", keyboard_model: "", scanner_interface: "usb_hid", pxe_vlan: "", backend_vlan: "", store_id: "" };
@@ -27,6 +28,7 @@ export default function AdminRegisters() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...emptyReg });
+  const [pxeRegister, setPxeRegister] = useState(null);
   const { toast } = useToast();
 
   const load = async () => {
@@ -142,6 +144,7 @@ export default function AdminRegisters() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => openEdit(r)} className="flex-1"><Edit2 className="w-3 h-3 mr-1" /> Edit</Button>
+              <Button variant="outline" size="sm" onClick={() => setPxeRegister(r)} className="flex-1"><Server className="w-3 h-3 mr-1" /> PXE</Button>
               <Button variant="outline" size="sm" onClick={() => remove(r)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-3 h-3" /></Button>
             </div>
           </div>
@@ -279,6 +282,8 @@ export default function AdminRegisters() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PXEBootstrapDialog register={pxeRegister} open={!!pxeRegister} onOpenChange={(o) => !o && setPxeRegister(null)} />
     </div>
   );
 }
