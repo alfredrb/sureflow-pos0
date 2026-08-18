@@ -817,6 +817,8 @@ export default function POSRegister() {
         register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
         items: cart.map(item => ({
           sku: item.sku, name: item.name, qty: item.qty, price: item.price, total: item.total,
+          // tax_rate must persist on the sale so refunds can return the tax charged.
+          tax_rate: item.tax_rate || 0,
           discount_type: item.discount_type || null, discount_percentage: item.discount_percentage || 0, original_price: item.original_price || item.price,
           ...(item.serialized ? { serialized: true, serial_numbers: item.serial_numbers } : {})
         })),

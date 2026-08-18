@@ -147,7 +147,10 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
     return { ...item, qty, total };
   });
   const returnSubtotal = returnItems.reduce((s, i) => s + i.total, 0);
-  const returnTax = returnItems.reduce((s, i) => s + (i.total * ((i.tax_rate || 0) / 100)), 0);
+  // Older sales didn't store tax_rate on the line item — fall back to the product's
+  // current rate so the tax charged is still refunded.
+  const rateFor = (i) => i.tax_rate ?? products.find(p => p.sku === i.sku)?.tax_rate ?? 0;
+  const returnTax = +returnItems.reduce((s, i) => s + (i.total * (rateFor(i) / 100)), 0).toFixed(2);
   const returnTotal = +(returnSubtotal + returnTax).toFixed(2);
 
   // Notify parent of preview state
