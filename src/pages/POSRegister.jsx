@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { LogOut, ShoppingCart, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench, Megaphone } from "lucide-react";
+import { ShoppingCart, RotateCcw, Headphones, ArrowLeftRight, Wrench } from "lucide-react";
 import JsBarcode from "jsbarcode";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import POSTopBar from "@/components/pos/POSTopBar";
 import SODProtocolModal from "@/components/SODProtocolModal";
 import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
@@ -38,6 +36,14 @@ import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
 import { printRecallSlip, printRobberySlip } from "@/lib/incidentSlips";
+import POSSupervisorOverrideDialog from "@/components/pos/POSSupervisorOverrideDialog";
+import POSRemoteOverrideStatus from "@/components/pos/POSRemoteOverrideStatus";
+import POSSwitchGuardDialog from "@/components/pos/POSSwitchGuardDialog";
+import POSQtyPriceDialogs from "@/components/pos/POSQtyPriceDialogs";
+import POSModeAuthDialogs from "@/components/pos/POSModeAuthDialogs";
+import POSSecurityDialogs from "@/components/pos/POSSecurityDialogs";
+import POSPausedScreen from "@/components/pos/POSPausedScreen";
+import POSStatusBanners from "@/components/pos/POSStatusBanners";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -1107,6 +1113,20 @@ export default function POSRegister() {
     }
   };
 
+  const enableTrainingMode = async () => {
+    setTrainingModeError("");
+    const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
+    const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
+    if (!sup) {
+      setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
+      return;
+    }
+    setTrainingMode(true);
+    setTrainingModeDialog(false);
+    setTrainingModePin("");
+    toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
+  };
+
   const exitDiagnostics = () => {
     setDiagnosticsMode(false);
     setTrainingMode(false);
@@ -1271,113 +1291,40 @@ export default function POSRegister() {
   );
 
   if (registerPaused) return (
-    <div className="h-screen w-screen bg-[#0a0e27] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-6 text-center">
-        <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
-          <AlertTriangle className="w-8 h-8 text-red-400" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold text-white">Register Paused</h1>
-          <p className="text-blue-300/60 text-sm">This register has been locked by an administrator</p>
-        </div>
-        
-        <Dialog open={true} onOpenChange={() => {}}>
-          <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
-            <DialogHeader>
-              <DialogTitle className="text-red-400 text-sm">Unlock Register</DialogTitle>
-            </DialogHeader>
-            <p className="text-blue-300/60 text-xs">A CSM or Manager PIN is required to unlock this register.</p>
-            <Input
-              type="password"
-              placeholder="CSM / Manager PIN"
-              value={pauseUnlockPin}
-              onChange={e => setPauseUnlockPin(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handlePauseUnlock()}
-              className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
-              autoFocus
-            />
-            {pauseUnlockError && <p className="text-red-400 text-xs text-center">{pauseUnlockError}</p>}
-            <Button onClick={handlePauseUnlock} className="w-full bg-red-600 hover:bg-red-500 text-white">Unlock Register</Button>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </div>
+    <POSPausedScreen
+      pin={pauseUnlockPin}
+      setPin={setPauseUnlockPin}
+      error={pauseUnlockError}
+      onUnlock={handlePauseUnlock}
+    />
   );
 
   return (
     <div className="h-screen w-screen bg-[#0a0e27] flex flex-col overflow-hidden">
 
       {/* Top bar */}
-      <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-              <ShoppingCart className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="text-white font-bold text-sm">SureFlow POS</span>
-            <div className="text-right leading-tight">
-              <span className="text-blue-300/40 text-[10px] block">{sessionStorage.getItem("pos_register_num") || "REG-001"}</span>
-              <span className="text-blue-300/25 text-[9px] block">OP: {operator?.operator_id || "—"}</span>
-            </div>
-            <div className="text-left leading-tight pointer-events-none pl-1.5 border-l border-blue-500/10">
-              <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
-              <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</p>
-            </div>
-          </div>
-
-          {/* Mode Buttons */}
-          <div className="flex items-center gap-1">
-            {modeTabs.map(({ id, label, icon: Icon, activeColor, inactiveColor }) => (
-              <button
-                key={id}
-                onClick={() => {
-                  if (id === posMode) return;
-                  // Check if current mode has an active transaction
-                  const hasActive =
-                    (posMode === "sale" && cart.length > 0) ||
-                    (posMode === "returns" && sidePreview && sidePreview.items && sidePreview.items.length > 0) ||
-                    (posMode === "exchange" && sidePreview && (sidePreview.returnedItems?.length > 0 || sidePreview.replaceCart?.length > 0)) ||
-                    (posMode === "cs" && cart.length > 0);
-                  if (hasActive) { setSwitchGuard({ targetMode: id }); }
-                  else { setPosMode(id); setSidePreview(null); }
-                }}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${posMode === id ? activeColor : inactiveColor}`}
-              >
-                <Icon className="w-3 h-3" />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            {lunchState?.upcoming && (
-              <button onClick={() => setLunchDialogOpen(true)} title="Upcoming scheduled lunch" className="text-amber-400 hover:text-amber-300 transition-colors">
-                <AlertTriangle className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <span className="text-blue-200/60 text-xs">{operator?.full_name}</span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              operator?.role === "manager" ? "bg-red-500/20 text-red-300" :
-              operator?.role === "csm" ? "bg-amber-500/20 text-amber-300" :
-              operator?.role === "technician" ? "bg-slate-500/20 text-slate-300" :
-              "bg-blue-500/20 text-blue-300"
-            }`}>{operator?.role === "manager" ? "Manager" : operator?.role === "csm" ? "CSM" : operator?.role === "technician" ? "Technician" : "Cashier"}</span>
-          </div>
-          <button
-            onClick={() => setNewsOpen(true)}
-            className="relative flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0a0e27] border border-blue-500/20 text-blue-300/70 hover:text-blue-200 hover:border-blue-500/40 transition-colors text-[10px] font-bold uppercase tracking-wider"
-            title="Store Announcements"
-          >
-            <Megaphone className="w-3.5 h-3.5" />
-            News
-            {newsAnnouncements.length > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">{newsAnnouncements.length}</span>
-            )}
-          </button>
+      <POSTopBar
+        operator={operator}
+        registerNum={sessionStorage.getItem("pos_register_num") || "REG-001"}
+        currentTime={currentTime}
+        modeTabs={modeTabs}
+        posMode={posMode}
+        onSelectMode={(id) => {
+          if (id === posMode) return;
+          const hasActive =
+            (posMode === "sale" && cart.length > 0) ||
+            (posMode === "returns" && sidePreview && sidePreview.items && sidePreview.items.length > 0) ||
+            (posMode === "exchange" && sidePreview && (sidePreview.returnedItems?.length > 0 || sidePreview.replaceCart?.length > 0)) ||
+            (posMode === "cs" && cart.length > 0);
+          if (hasActive) { setSwitchGuard({ targetMode: id }); }
+          else { setPosMode(id); setSidePreview(null); }
+        }}
+        lunchUpcoming={!!lunchState?.upcoming}
+        onOpenLunch={() => setLunchDialogOpen(true)}
+        newsCount={newsAnnouncements.length}
+        onOpenNews={() => setNewsOpen(true)}
+        onLogout={logout}
+        helpMenu={
           <POSHelpMenu
             open={helpMenuOpen}
             setOpen={setHelpMenuOpen}
@@ -1398,46 +1345,25 @@ export default function POSRegister() {
             robberyLocked={operator?.role === "technician"}
             operator={operator}
           />
-          <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Offline Mode Banner */}
       {isOffline && (
         <POSOfflineBanner pendingCount={pendingCount} catalogStale={catalogStale} onSyncNow={retryRelaySync} syncing={relaySyncing} />
       )}
 
-      {/* Training Mode Banner */}
-      {trainingMode && (
-        <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
-          <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED{trainingLocked ? " (LOCKED)" : ""}</span>
-        </div>
-      )}
-
-      {/* Tax Exempt Banner */}
-      {taxExemptAppliedId && (
-        <div className="bg-emerald-500/10 border-b-2 border-emerald-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
-          <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest">✓ TAX EXEMPT — {taxExemptAppliedId}</span>
-        </div>
-      )}
-
-      {/* Loyalty Banner */}
-      {loyaltyMember && (
-        <div className="bg-sky-500/10 border-b-2 border-sky-500/50 px-3 py-2 flex items-center justify-center gap-3 flex-shrink-0">
-          <span className="text-sky-400 font-bold text-xs uppercase tracking-widest">★ LOYALTY — {loyaltyMember.name} ({loyaltyMember.loyalty_id})</span>
-          {loyaltyAppliedAmount > 0 && <span className="text-green-400 font-bold text-xs">−${loyaltyAppliedAmount.toFixed(2)} rewards applied</span>}
-          <button onClick={() => { setLoyaltyMember(null); setLoyaltyAppliedAmount(0); }} className="text-sky-400/60 hover:text-sky-300 text-xs">remove</button>
-        </div>
-      )}
-
-      {/* Remote Logout Pending Banner */}
-      {remoteLogout.requested && cart.length > 0 && (
-        <div className="bg-blue-600/10 border-b-2 border-blue-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
-          <span className="text-blue-300 font-bold text-xs uppercase tracking-widest">⏱ REMOTE LOGOUT PENDING — {remoteLogout.reason || "Admin requested logout"}. Complete your transaction to log out.</span>
-        </div>
-      )}
+      {/* Status banners — training, tax exempt, loyalty, pending remote logout */}
+      <POSStatusBanners
+        trainingMode={trainingMode}
+        trainingLocked={trainingLocked}
+        taxExemptId={taxExemptAppliedId}
+        loyaltyMember={loyaltyMember}
+        loyaltyAppliedAmount={loyaltyAppliedAmount}
+        onClearLoyalty={() => { setLoyaltyMember(null); setLoyaltyAppliedAmount(0); }}
+        remoteLogoutPending={remoteLogout.requested && cart.length > 0}
+        remoteLogoutReason={remoteLogout.reason}
+      />
 
       {/* Main body */}
       <div className="flex flex-1 overflow-hidden">
@@ -1521,129 +1447,34 @@ export default function POSRegister() {
       />
 
       {/* Override Authorization Dialog */}
-      <Dialog open={supOverrideDialog} onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideUserId(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}>
-        <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-red-400 text-sm">
-              {(() => {
-                const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
-                return role === "manager" ? "Manager Authorization Required" : "CSM / Manager Authorization Required";
-              })()}
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/60 text-xs">
-            <span className="text-white font-bold">"{pendingFunctionKey?.label}"</span>{" "}
-            {(() => {
-              const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
-              return role === "manager" ? "requires Manager authorization." : "requires CSM or Manager authorization.";
-            })()} Enter their User ID and PIN, or send a remote override request.
-          </p>
-          <Input
-            placeholder="Supervisor User ID"
-            value={supOverrideUserId}
-            onChange={e => setSupOverrideUserId(e.target.value)}
-            className="bg-[#0a0e27] border-red-500/20 text-white text-center"
-            autoFocus
-          />
-          <Input
-            type="password"
-            placeholder={(() => {
-              const role = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
-              return role === "manager" ? "Manager PIN" : "CSM / Manager PIN";
-            })()}
-            value={supOverridePin}
-            onChange={e => setSupOverridePin(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSupOverrideSubmit()}
-            className="bg-[#0a0e27] border-red-500/20 text-white text-center text-lg tracking-widest"
-          />
-          {supOverrideError && <p className="text-red-400 text-xs text-center">{supOverrideError}</p>}
-          <div className="flex gap-2">
-            <Button onClick={() => setSupOverrideDialog(false)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Cancel</Button>
-            <Button onClick={handleSupOverrideSubmit} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">Authorize</Button>
-          </div>
-          <div className="border-t border-blue-500/10 pt-3">
-            <p className="text-blue-300/40 text-[10px] text-center mb-2">No one present to authorize?</p>
-            <Button onClick={sendRemoteOverrideRequest} variant="outline" className="w-full border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-xs">
-              📡 Send Remote Override Request
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <POSSupervisorOverrideDialog
+        open={supOverrideDialog}
+        onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideUserId(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}
+        fkey={pendingFunctionKey}
+        userId={supOverrideUserId}
+        setUserId={setSupOverrideUserId}
+        pin={supOverridePin}
+        setPin={setSupOverridePin}
+        error={supOverrideError}
+        onSubmit={handleSupOverrideSubmit}
+        onSendRemote={sendRemoteOverrideRequest}
+      />
 
-      {/* Remote Override Result Dialog */}
-      <Dialog open={!!remoteResultDialog} onOpenChange={v => { if (!v) setRemoteResultDialog(null); }}>
-        <DialogContent className={`bg-[#111638] text-white max-w-xs ${remoteResultDialog?.approved ? "border-green-500/30" : "border-red-500/30"}`}>
-          <DialogHeader>
-            <DialogTitle className={`text-sm flex items-center gap-2 ${remoteResultDialog?.approved ? "text-green-400" : "text-red-400"}`}>
-              {remoteResultDialog?.approved ? "✓ Remote Override Approved" : remoteResultDialog?.expired ? "⏱ Override Request Expired" : "✕ Remote Override Declined"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className={`rounded-lg border p-3 space-y-1.5 ${remoteResultDialog?.approved ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}`}>
-              <div className="flex justify-between text-xs">
-                <span className="text-blue-300/50">Action</span>
-                <span className="text-white font-bold">"{remoteResultDialog?.action}"</span>
-              </div>
-              {remoteResultDialog?.by && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-blue-300/50">{remoteResultDialog?.approved ? "Approved by" : "Declined by"}</span>
-                  <span className="text-white font-medium">{remoteResultDialog?.by}</span>
-                </div>
-              )}
-              {remoteResultDialog?.note && (
-                <div className="pt-1.5 border-t border-white/10">
-                  <p className="text-blue-300/50 text-[10px] uppercase tracking-wider mb-1">Note</p>
-                  <p className="text-white/80 text-xs">{remoteResultDialog?.note}</p>
-                </div>
-              )}
-            </div>
-            <Button onClick={() => setRemoteResultDialog(null)} className={`w-full text-white font-bold text-xs ${remoteResultDialog?.approved ? "bg-green-600 hover:bg-green-500" : "bg-red-600 hover:bg-red-500"}`}>
-              OK
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Remote Override Pending Banner — sits above the Advance tab */}
-      {remoteRequestSent && (
-        <div className="fixed bottom-16 right-3 z-50 bg-violet-600/90 backdrop-blur-md text-white rounded-xl px-4 py-2.5 shadow-2xl shadow-violet-900/50 flex items-center gap-2.5 border border-violet-300/25">
-          <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
-          <div className="leading-tight">
-            <p className="text-[11px] font-semibold tracking-wide">Remote Override Pending</p>
-            <p className="text-[9px] text-violet-200/90 max-w-[170px] truncate">Waiting for approval of "{remoteRequestSent.action}"…</p>
-          </div>
-          <button onClick={() => { if (typeof remotePollingRef.current === "function") remotePollingRef.current(); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
-            className="ml-1 w-5 h-5 grid place-items-center rounded-md text-violet-300 hover:text-white hover:bg-white/10 text-xs">✕</button>
-        </div>
-      )}
+      {/* Remote override outcome + pending badge */}
+      <POSRemoteOverrideStatus
+        result={remoteResultDialog}
+        onCloseResult={() => setRemoteResultDialog(null)}
+        pending={remoteRequestSent}
+        onCancelPending={() => { if (typeof remotePollingRef.current === "function") remotePollingRef.current(); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
+      />
 
       {/* Tab Switch Guard Dialog */}
-      <Dialog open={!!switchGuard} onOpenChange={v => { if (!v) setSwitchGuard(null); }}>
-        <DialogContent className="bg-[#111638] border-amber-500/30 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-amber-400 text-sm flex items-center gap-2">
-              ⚠ Active Transaction
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/70 text-xs leading-relaxed">
-            You have an active transaction in the{" "}
-            <span className="text-white font-bold capitalize">{posMode}</span> tab.
-            Switching tabs will not automatically cancel it, but you may lose unsaved progress.
-          </p>
-          <p className="text-blue-300/50 text-xs">Complete or cancel the current transaction before switching, or continue anyway.</p>
-          <div className="flex gap-2 mt-1">
-            <Button onClick={() => setSwitchGuard(null)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
-              Stay Here
-            </Button>
-            <Button
-              onClick={() => { setPosMode(switchGuard.targetMode); setSidePreview(null); setSwitchGuard(null); }}
-              className="flex-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
-            >
-              Switch Anyway
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <POSSwitchGuardDialog
+        open={!!switchGuard}
+        currentMode={posMode}
+        onStay={() => setSwitchGuard(null)}
+        onSwitch={() => { setPosMode(switchGuard.targetMode); setSidePreview(null); setSwitchGuard(null); }}
+      />
 
       {/* SOD Protocol Modal */}
       {operator && (
@@ -1675,149 +1506,53 @@ export default function POSRegister() {
         onDone={() => setReceiptData(null)}
       />
 
-      {/* Quantity Dialog */}
-      <Dialog open={qtyDialog} onOpenChange={setQtyDialog}>
-        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-xs">
-          <DialogHeader><DialogTitle className="text-white text-sm">Set Quantity</DialogTitle></DialogHeader>
-          <Input value={qtyValue} onChange={e => setQtyValue(e.target.value)} type="number"
-            className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" />
-          <Button onClick={() => {
-            const q = parseInt(qtyValue);
-            if (q > 0 && cart.length > 0) {
-              const last = cart[cart.length - 1];
-              setCart(prev => prev.map(i => i.sku === last.sku ? { ...i, qty: q, total: q * i.price } : i));
-            }
-            setQtyDialog(false); setQtyValue("1");
-          }} className="bg-blue-600 hover:bg-blue-500 text-white">Apply</Button>
-        </DialogContent>
-      </Dialog>
+      {/* Quantity + price override entry */}
+      <POSQtyPriceDialogs
+        qtyOpen={qtyDialog}
+        setQtyOpen={setQtyDialog}
+        qtyValue={qtyValue}
+        setQtyValue={setQtyValue}
+        onApplyQty={() => {
+          const q = parseInt(qtyValue);
+          if (q > 0 && cart.length > 0) {
+            const last = cart[cart.length - 1];
+            setCart(prev => prev.map(i => i.sku === last.sku ? { ...i, qty: q, total: q * i.price } : i));
+          }
+          setQtyDialog(false); setQtyValue("1");
+        }}
+        priceOpen={priceEditSku !== null}
+        onClosePrice={() => { setPriceEditSku(null); setPriceEditValue(""); }}
+        priceValue={priceEditValue}
+        setPriceValue={setPriceEditValue}
+        onApplyPrice={applyPriceEdit}
+      />
 
-      {/* Price Override Edit Dialog */}
-      <Dialog open={priceEditSku !== null} onOpenChange={(v) => { if (!v) { setPriceEditSku(null); setPriceEditValue(""); } }}>
-        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-xs">
-          <DialogHeader><DialogTitle className="text-white text-sm">Override Item Price</DialogTitle></DialogHeader>
-          <Input value={priceEditValue} onChange={e => setPriceEditValue(e.target.value)} type="number" step="0.01" min="0"
-            className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" />
-          <Button onClick={applyPriceEdit} className="bg-blue-600 hover:bg-blue-500 text-white">Apply</Button>
-        </DialogContent>
-      </Dialog>
+      {/* Training + Diagnostics mode authorization */}
+      <POSModeAuthDialogs
+        trainingOpen={trainingModeDialog}
+        setTrainingOpen={v => { setTrainingModeDialog(v); if (!v) { setTrainingModePin(""); setTrainingModeError(""); } }}
+        trainingPin={trainingModePin}
+        setTrainingPin={setTrainingModePin}
+        trainingError={trainingModeError}
+        onEnableTraining={enableTrainingMode}
+        diagOpen={diagOverrideDialog}
+        setDiagOpen={v => { setDiagOverrideDialog(v); if (!v) { setDiagOverridePin(""); setDiagOverrideError(""); } }}
+        diagPin={diagOverridePin}
+        setDiagPin={setDiagOverridePin}
+        diagError={diagOverrideError}
+        onEnableDiagnostics={authorizeDiagnostics}
+      />
 
-      {/* Training Mode Authorization Dialog */}
-      <Dialog open={trainingModeDialog} onOpenChange={v => { setTrainingModeDialog(v); if (!v) { setTrainingModePin(""); setTrainingModeError(""); } }}>
-        <DialogContent className="bg-[#111638] border-orange-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-orange-400 text-sm">Enable Training Mode</DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/60 text-xs">Training mode disables all financial logging. A CSM or Manager PIN is required to enable.</p>
-          <Input
-            type="password"
-            placeholder="CSM / Manager PIN"
-            value={trainingModePin}
-            onChange={e => setTrainingModePin(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && (async () => {
-              setTrainingModeError("");
-              const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
-              const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-              if (!sup) {
-                setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
-                return;
-              }
-              setTrainingMode(true);
-              setTrainingModeDialog(false);
-              setTrainingModePin("");
-              toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
-            })()}
-            className="bg-[#0a0e27] border-orange-500/20 text-white text-center text-lg tracking-widest"
-            autoFocus
-          />
-          {trainingModeError && <p className="text-red-400 text-xs text-center">{trainingModeError}</p>}
-          <Button 
-            onClick={async () => {
-              setTrainingModeError("");
-              const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
-              const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-              if (!sup) {
-                setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
-                return;
-              }
-              setTrainingMode(true);
-              setTrainingModeDialog(false);
-              setTrainingModePin("");
-              toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
-            }}
-            className="w-full bg-orange-600 hover:bg-orange-500 text-white"
-          >
-            Enable Training Mode
-          </Button>
-        </DialogContent>
-      </Dialog>
-
-      {/* Diagnostics Mode Authorization Dialog */}
-      <Dialog open={diagOverrideDialog} onOpenChange={v => { setDiagOverrideDialog(v); if (!v) { setDiagOverridePin(""); setDiagOverrideError(""); } }}>
-        <DialogContent className="bg-[#111638] border-emerald-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-emerald-400 text-sm flex items-center gap-2">
-              <Wrench className="w-4 h-4" /> Enable Diagnostics Mode
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/60 text-xs">Holding the version button requires a CSM or Manager PIN. Enabling Diagnostics adds the Diagnostics tab and puts the register in Training Mode until you sign out or exit.</p>
-          <Input
-            type="password"
-            placeholder="CSM / Manager PIN"
-            value={diagOverridePin}
-            onChange={e => setDiagOverridePin(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && authorizeDiagnostics()}
-            className="bg-[#0a0e27] border-emerald-500/20 text-white text-center text-lg tracking-widest"
-            autoFocus
-          />
-          {diagOverrideError && <p className="text-red-400 text-xs text-center">{diagOverrideError}</p>}
-          <div className="flex gap-2">
-            <Button onClick={() => setDiagOverrideDialog(false)} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Cancel</Button>
-            <Button onClick={authorizeDiagnostics} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">Authorize</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Remote Logout Dialog */}
-      <Dialog open={remoteLogoutDialog} onOpenChange={v => { if (!v) setRemoteLogoutDialog(false); }}>
-        <DialogContent className="bg-[#111638] border-blue-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-blue-400 text-sm flex items-center gap-2">
-              <LogOut className="w-4 h-4" /> Remote Logout Requested
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/60 text-xs">An administrator has requested that you log out of this register.</p>
-          {remoteLogout.reason && (
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
-              <p className="text-blue-300/50 text-[10px] uppercase tracking-wider mb-0.5">Reason</p>
-              <p className="text-white text-sm">{remoteLogout.reason}</p>
-            </div>
-          )}
-          <Button onClick={handleRemoteLogoutAck} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold">
-            Acknowledge & Log Out
-          </Button>
-        </DialogContent>
-      </Dialog>
-
-      {/* Robbery Report Dialog */}
-      <Dialog open={robberyDialog} onOpenChange={v => { setRobberyDialog(v); if (!v) setCalculatedRobberyAmount(0); }}>
-        <DialogContent className="bg-[#111638] border-red-500/20 text-white max-w-xs">
-          <DialogHeader><DialogTitle className="text-red-400 text-sm">Confirm Robbery Report</DialogTitle></DialogHeader>
-          <p className="text-blue-300/60 text-xs">Calculated amount stolen based on SOD, transactions, and cash movements:</p>
-          <div className="bg-[#0a0e27] border border-red-500/30 rounded-lg p-4 text-center">
-            <p className="text-red-400 text-sm font-bold">Amount Stolen</p>
-            <p className="text-white text-3xl font-bold mt-2">${calculatedRobberyAmount.toFixed(2)}</p>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button onClick={() => { setRobberyDialog(false); setCalculatedRobberyAmount(0); }} variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
-              Cancel
-            </Button>
-            <Button onClick={confirmRobbery} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs">
-              Confirm & Report
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Remote logout acknowledgment + robbery confirmation */}
+      <POSSecurityDialogs
+        remoteLogoutOpen={remoteLogoutDialog}
+        remoteLogoutReason={remoteLogout.reason}
+        onAckRemoteLogout={handleRemoteLogoutAck}
+        robberyOpen={robberyDialog}
+        setRobberyOpen={v => { setRobberyDialog(v); if (!v) setCalculatedRobberyAmount(0); }}
+        robberyAmount={calculatedRobberyAmount}
+        onConfirmRobbery={confirmRobbery}
+      />
 
       {/* Gift Card Payment Result Dialog */}
       <POSGiftCardResultDialog
