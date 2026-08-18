@@ -7,8 +7,16 @@ export default function Sparkline({ data = [], color = "#10b981", height = 24, w
   if (!Array.isArray(data) || data.length < 2) return null;
   return (
     <Sparklines data={data} width={width} height={height} svgWidth={width} svgHeight={height} preserveAspectRatio="xMidYMid meet">
-      {bars ? <SparklinesBars color={color} barWidth={3} /> : <SparklinesLine color={color} lineWidth={1.5} style={{ fill: "none" }} />}
-      {showAvg && <SparklinesReferenceLine type="avg" style={{ stroke: "#cbd5e1", strokeOpacity: 0.6, strokeDasharray: "2,2" }} />}
+      {/* react-sparklines clones every child, so falsy children crash it —
+          build the child list instead of using inline conditionals. */}
+      {[
+        bars
+          ? <SparklinesBars key="b" color={color} barWidth={3} />
+          : <SparklinesLine key="l" color={color} lineWidth={1.5} style={{ fill: "none" }} />,
+        ...(showAvg
+          ? [<SparklinesReferenceLine key="avg" type="avg" style={{ stroke: "#cbd5e1", strokeOpacity: 0.6, strokeDasharray: "2,2" }} />]
+          : []),
+      ]}
     </Sparklines>
   );
 }
