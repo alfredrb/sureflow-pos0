@@ -9,7 +9,13 @@ export { DEFAULT_SETUP_STEPS };
 export default function RelaySetupGuide({ steps, onToggleStep }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null);
-  const list = steps && steps.length > 0 ? steps : DEFAULT_SETUP_STEPS.map((s) => ({ ...s, completed: false }));
+  // Always render the current step catalog, carrying over completion state from
+  // the store's saved checklist so newly added steps show up on existing stores.
+  const saved = steps || [];
+  const list = DEFAULT_SETUP_STEPS.map((s) => {
+    const prev = saved.find((p) => p.step_id === s.step_id);
+    return { ...s, completed: false, ...(prev || {}), label: s.label };
+  });
   const done = list.filter((s) => s.completed).length;
   const pct = Math.round((done / list.length) * 100);
 
