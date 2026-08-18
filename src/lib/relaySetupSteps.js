@@ -357,15 +357,17 @@ SETUP_STEP_DETAILS.push(
     instructions: [
       "By default the POS Print Receipt button opens the browser's print dialog, so it only works if the Epson is installed as an OS printer on every terminal. This step replaces that with raw ESC/POS printing through the relay — no dialog, and the same command pops the cash drawer on cash sales.",
       "FILE — printer.js: add it to /opt/sureflow-relay next to db.js/sync.js/api.js. It formats the receipt for 80mm paper, sends it to the printer's IP on TCP 9100, and fires the drawer kick (ESC p, pin 2).",
-      "api.js already exposes the three routes it powers once printer.js exists: POST /api/print (receipt, with open_drawer for cash sales), POST /api/drawer (pop the drawer alone), POST /api/print-test (diagnostic slip). Re-paste api.js from the Phase 1 step if yours predates them.",
+      "FILE — api.js: you MUST also replace this file. 'Cannot POST /api/print-test' means your relay is running the older Phase 1 api.js, which has no printing routes — adding printer.js alone changes nothing. Re-paste api.js from the updated copy below; it requires ./printer and adds POST /api/print (receipt, with open_drawer for cash sales), POST /api/drawer (pop the drawer alone) and POST /api/print-test (diagnostic slip).",
       "Set each register's Printer IP in the Registers page so receipts go to that lane's printer. Left blank, the relay prints to the first address in PRINTER_IPS.",
       "Cash drawers must be plugged into the printer's DK port — the kick is sent by the printer, not the terminal. If your drawer is wired to pin 5 instead of pin 2, change \\x00 to \\x01 in the KICK constant.",
       "If the relay or printer is unreachable the POS automatically falls back to the old browser print dialog, so cashiers are never blocked.",
     ],
     commands: [
       "cd /opt/sureflow-relay",
-      "nano printer.js   # paste the file below, then Ctrl+O Enter Ctrl+X",
+      "nano printer.js   # paste FILE 1 below, then Ctrl+O Enter Ctrl+X",
+      "nano api.js      # replace the WHOLE file with FILE 2 below",
       "sudo systemctl restart sureflow-relay",
+      "grep -c print-test api.js   # must print 1 — if it prints 0 the paste did not save",
       "curl -s -X POST http://localhost:3000/api/print-test   # a test slip should print and cut",
       "curl -s -X POST http://localhost:3000/api/drawer        # the drawer should pop",
       "curl -s -X POST http://localhost:3000/api/print-test -H 'Content-Type: application/json' -d '{\"printer_ip\":\"192.168.1.61\"}'   # target a specific lane",
@@ -377,7 +379,10 @@ SETUP_STEP_DETAILS.push(
       "Prints but text wraps badly — set RECEIPT_WIDTH in .env (42 for 80mm at font A, 32 for 58mm paper).",
       "Paper does not cut — the TM-H6000IV cuts on the receipt station only; confirm the roll is loaded in the receipt side, not the slip printer.",
     ],
-    codeFiles: [{ name: "printer.js", code: RELAY_PRINTER_CODE }],
+    codeFiles: [
+      { name: "printer.js", code: RELAY_PRINTER_CODE },
+      { name: "api.js (with printing routes)", code: RELAY_API_CODE },
+    ],
   },
   {
     step_id: "verify_offline_failover",
