@@ -165,13 +165,17 @@ export default function AdminHardwareStatus() {
     try {
       const res = await fetch(`${(store.relay_url || "").replace(/\/$/, "")}/api/sync`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      toast(data.ok
-        ? { title: "Sync Complete", description: `${store.name} synced with the cloud.` }
-        : { title: "Sync Failed", description: data.error || "The relay could not reach the cloud.", variant: "destructive" });
+      if (res.status === 404) {
+        toast({ title: "Sync Endpoint Missing", description: "The relay answered but has no /api/sync route — it is still running the pre-Phase 1 server.js. Deploy db.js, sync.js, api.js and the Phase 1 server.js from the setup guide.", variant: "destructive" });
+      } else if (data.ok) {
+        toast({ title: "Sync Complete", description: `${store.name} synced with the cloud.` });
+      } else {
+        toast({ title: "Sync Failed", description: data.error || `Relay returned HTTP ${res.status}. Check the relay log: journalctl -u sureflow-relay -n 50`, variant: "destructive" });
+      }
       load(true);
       pollNow();
     } catch (e) {
-      toast({ title: "Sync Failed", description: `Could not reach ${store.name}'s relay.`, variant: "destructive" });
+      toast({ title: "Relay Unreachable", description: `Could not reach ${store.name}'s relay at ${store.relay_url || "(no relay URL set)"}. This browser must be on the store LAN, the relay service must be running, and it must send CORS headers.`, variant: "destructive" });
     }
   };
 
