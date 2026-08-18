@@ -65,6 +65,11 @@ const API_KEY   = process.env.CLOUD_API_KEY;    // per-store key from the Comman
 let online = false;
 let lastSyncAt = null;
 let consecutiveFailures = 0;
+let lastError = null;
+
+// A missing env var used to fail silently every tick and look like "sync never runs",
+// so the config is validated once at startup and reported through /connectivity.
+const missingConfig = ["CLOUD_SYNC_URL", "STORE_ID", "CLOUD_API_KEY"].filter((k) => !process.env[k]);
 
 async function callCloud(payload) {
   const res = await fetch(CLOUD_URL, {
@@ -96,17 +101,24 @@ async function pushSales() {
   return done.length;
 }
 
-async function syncOnce() {
+async function syncOnce(opts) {
+  if (missingConfig.length) {
+    lastError = "Relay .env is missing: " + missingConfig.join(", ");
+    online = false;
+    return { ok: false, error: lastError };
+  }
   try {
-    await pullCatalog();
+    if (!(opts && opts.pushOnly)) await pullCatalog();
     await pushSales();
     online = true;
     consecutiveFailures = 0;
+    lastError = null;
     lastSyncAt = new Date().toISOString();
     return { ok: true, last_sync_at: lastSyncAt };
   } catch (e) {
     consecutiveFailures++;
     if (consecutiveFailures >= 2) online = false;  // two strikes = offline mode
+    lastError = e.message;
     console.error("[sync] failed:", e.message);
     return { ok: false, error: e.message };
   }
@@ -118,6 +130,9 @@ function connectivity() {
   return {
     online,
     last_sync_at: lastSyncAt,
+    last_error: lastError,
+    config_ok: missingConfig.length === 0,
+    missing_config: missingConfig,
     pending_count: store.pendingCount(),
     catalog_cached_at: cat ? cat.cached_at : null,
     catalog_stale: ageMs === null ? true : ageMs > 24 * 60 * 60 * 1000, // 24h stale limit
@@ -125,10 +140,17 @@ function connectivity() {
 }
 
 // Catalog pull every 5 minutes, outbox push attempt every 30 seconds.
+// The 30s tick is push-only: pulling the whole catalog twice a minute hammered the
+// cloud endpoint and a pull failure kept queued sales from ever being pushed.
 function start() {
+  if (missingConfig.length) {
+    console.error("[sync] NOT STARTED — missing .env values: " + missingConfig.join(", "));
+    return;
+  }
+  console.log("[sync] worker started for store " + STORE_ID + " -> " + CLOUD_URL);
   syncOnce();
-  setInterval(() => pullCatalog().catch(() => {}), 5 * 60 * 1000);
-  setInterval(() => syncOnce(), 30 * 1000);
+  setInterval(() => syncOnce(), 5 * 60 * 1000);
+  setInterval(() => syncOnce({ pushOnly: true }), 30 * 1000);
 }
 
 module.exports = { start, syncOnce, connectivity };

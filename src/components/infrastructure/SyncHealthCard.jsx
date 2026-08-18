@@ -54,6 +54,16 @@ export default function SyncHealthCard({ store, relay, lastSync, credential, new
               : "—"}
           </span>
         </div>
+        {relaySync?.config_ok === false && (
+          <p className="text-[11px] text-red-600 bg-red-50 rounded-lg px-2 py-1.5 break-all">
+            Sync worker not running — relay .env is missing: {(relaySync.missing_config || []).join(", ")}
+          </p>
+        )}
+        {relaySync?.last_error && (
+          <p className="text-[11px] text-red-600 bg-red-50 rounded-lg px-2 py-1.5 break-all">
+            Relay sync error: {relaySync.last_error}
+          </p>
+        )}
         {lastSync?.status && lastSync.status !== "success" && (
           <p className="text-[11px] text-red-600 bg-red-50 rounded-lg px-2 py-1.5 break-all">
             Last {lastSync.direction}: {lastSync.error || lastSync.status}
