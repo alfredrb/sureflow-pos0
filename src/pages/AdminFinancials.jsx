@@ -7,11 +7,12 @@ import moment from "moment";
 import { payrollFromTimeClock, entryNetHours, getRateForRole } from "@/lib/payrollUtils";
 import BudgetSetupCard from "@/components/financials/BudgetSetupCard";
 import FinancialCharts from "@/components/financials/FinancialCharts";
+import Sparkline from "@/components/Sparkline";
 
 const cur = (n) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const cur0 = (n) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-function MetricCard({ icon: Icon, color, label, actual, budget, higherIsGood }) {
+function MetricCard({ icon: Icon, color, label, actual, budget, higherIsGood, series, sparkColor }) {
   const pct = budget > 0 ? (actual / budget) * 100 : 0;
   const over = actual > budget;
   // For "lower is good" metrics (costs), being over budget is bad.
@@ -39,6 +40,11 @@ function MetricCard({ icon: Icon, color, label, actual, budget, higherIsGood }) 
           <div className={`h-full rounded-full ${tone === "emerald" ? "bg-emerald-500" : tone === "red" ? "bg-red-500" : "bg-gray-300"}`} style={{ width: `${Math.min(100, pct)}%` }} />
         </div>
       </div>
+      {Array.isArray(series) && series.length > 1 && (
+        <div className="mt-2 -mx-1">
+          <Sparkline data={series} color={sparkColor || "#3b82f6"} width={150} height={26} />
+        </div>
+      )}
     </div>
   );
 }
@@ -143,6 +149,13 @@ export default function AdminFinancials() {
   });
   const dailyData = Object.values(dailyMap);
   const dailyLabor = dailyData.map(d => ({ label: d.label, amount: Math.round(d.labor * 100) / 100 }));
+
+  const seriesRevenue = dailyData.map(d => Math.round((d.revenue || 0) * 100) / 100);
+  const seriesProfit = dailyData.map(d => Math.round((d.profit || 0) * 100) / 100);
+  const seriesCogs = dailyData.map(d => Math.round(((d.revenue || 0) - (d.profit || 0)) * 100) / 100);
+  const seriesLabor = dailyLabor.map(d => d.amount);
+  const seriesLoss = dailyData.map(d => Math.round((d.loss || 0) * 100) / 100);
+  const seriesNet = dailyData.map(d => Math.round(((d.profit || 0) - (d.labor || 0) - (d.loss || 0)) * 100) / 100);
 
   // Loss by disposal method
   const lossByMethodMap = {};
@@ -252,12 +265,12 @@ Return a short notes field explaining the recommendation in one or two sentences
 
       {/* Summary metric cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <MetricCard icon={TrendingUp} color="blue" label="Revenue" actual={revenue} budget={budgets.revenue} higherIsGood />
-        <MetricCard icon={DollarSign} color="amber" label="COGS" actual={cogs} budget={budgets.cogs} higherIsGood={false} />
-        <MetricCard icon={Wallet} color="emerald" label="Gross Profit" actual={grossProfit} budget={budgets.revenue - budgets.cogs} higherIsGood />
-        <MetricCard icon={Briefcase} color="orange" label="Labor Cost" actual={labor} budget={budgets.labor} higherIsGood={false} />
-        <MetricCard icon={TrendingDown} color="red" label="Profit Loss" actual={monthLosses} budget={budgets.losses} higherIsGood={false} />
-        <MetricCard icon={PiggyBank} color="emerald" label="Net Profit" actual={netProfit} budget={netBudget} higherIsGood />
+        <MetricCard icon={TrendingUp} color="blue" label="Revenue" actual={revenue} budget={budgets.revenue} higherIsGood series={seriesRevenue} sparkColor="#3b82f6" />
+        <MetricCard icon={DollarSign} color="amber" label="COGS" actual={cogs} budget={budgets.cogs} higherIsGood={false} series={seriesCogs} sparkColor="#f59e0b" />
+        <MetricCard icon={Wallet} color="emerald" label="Gross Profit" actual={grossProfit} budget={budgets.revenue - budgets.cogs} higherIsGood series={seriesProfit} sparkColor="#10b981" />
+        <MetricCard icon={Briefcase} color="orange" label="Labor Cost" actual={labor} budget={budgets.labor} higherIsGood={false} series={seriesLabor} sparkColor="#f97316" />
+        <MetricCard icon={TrendingDown} color="red" label="Profit Loss" actual={monthLosses} budget={budgets.losses} higherIsGood={false} series={seriesLoss} sparkColor="#ef4444" />
+        <MetricCard icon={PiggyBank} color="emerald" label="Net Profit" actual={netProfit} budget={netBudget} higherIsGood series={seriesNet} sparkColor="#10b981" />
       </div>
 
       {/* KPI strip */}
