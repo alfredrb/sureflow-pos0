@@ -1156,6 +1156,7 @@ export default function POSRegister() {
             onReportRobbery={calculateStolenAmount}
             robberyLoading={robberyLoading}
             robberyLocked={operator?.role === "technician"}
+            operator={operator}
           />
           <button onClick={logout} className="text-red-400/60 hover:text-red-400 transition-colors">
             <LogOut className="w-3.5 h-3.5" />

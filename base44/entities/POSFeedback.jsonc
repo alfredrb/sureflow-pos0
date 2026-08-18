@@ -1,0 +1,111 @@
+{
+  "name": "POSFeedback",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string",
+      "description": "Operator ID of the submitter."
+    },
+    "operator_name": {
+      "type": "string",
+      "description": "Operator display name at time of submission."
+    },
+    "operator_role": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register the feedback was submitted from."
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "bug",
+        "hardware",
+        "general",
+        "feature_request",
+        "other"
+      ],
+      "default": "general",
+      "description": "Kind of feedback. bug = software defect, hardware = device/hardware failure, general = general usage feedback, feature_request = suggested improvement, other = anything else."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Short summary of the feedback."
+    },
+    "message": {
+      "type": "string",
+      "description": "Full description of the issue or feedback."
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "default": "medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "reviewed",
+        "resolved"
+      ],
+      "default": "new",
+      "description": "Review status tracked by admins."
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "Admin who last reviewed the feedback."
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "review_note": {
+      "type": "string",
+      "description": "Admin note added during review."
+    },
+    "converted_to_maintenance": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once this feedback was converted into a MaintenanceLog entry from the admin viewer."
+    },
+    "maintenance_log_id": {
+      "type": "string",
+      "description": "ID of the MaintenanceLog record created from this feedback, if any."
+    },
+    "store_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "category",
+    "subject",
+    "message"
+  ],
+  "rls": {
+    "create": null,
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

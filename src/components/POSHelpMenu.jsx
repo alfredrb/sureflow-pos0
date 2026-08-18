@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
 import VersionLogDialog from "@/components/VersionLogDialog";
+import POSFeedbackDialog from "@/components/pos/POSFeedbackDialog";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
-export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics }) {
+export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics, operator }) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [version, setVersion] = useState(VERSION_FALLBACK);
   const holdTimer = useRef(null);
   const holdTriggered = useRef(false);
@@ -40,6 +42,9 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           </button>
           <button onClick={() => { setGuideOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             <BookOpen className="w-4 h-4" /> Training Guide
+          </button>
+          <button onClick={() => { setFeedbackOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
+            <MessageSquare className="w-4 h-4" /> Feedback
           </button>
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM
@@ -76,6 +81,7 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
       </Dialog>
 
       <VersionLogDialog open={versionOpen} onOpenChange={setVersionOpen} />
+      <POSFeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} operator={operator} />
     </div>
   );
 }
