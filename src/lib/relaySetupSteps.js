@@ -301,6 +301,7 @@ SETUP_STEP_DETAILS.push(
       "WHERE THE BUILD COMES FROM: pos-dist does not exist on the VM yet and there is nothing to download from the portal. It is the compiled output of THIS app's front end, so you must first get the source code out of Base44 with the 2-way GitHub sync (app Settings → GitHub), clone that repo onto any machine with Node installed, then run 'npm install' and 'npm run build'. Vite writes the result to a 'dist' folder — the contents of dist ARE the POS build.",
       "Copy the contents of dist into /opt/sureflow-relay/pos-dist (create the folder), then restart the relay. server.js serves it statically, so terminals load the app even with no internet.",
       "Rebuild and re-copy after any change you make in Base44 — the local copy is a frozen snapshot and does not update itself.",
+      "BUILD ERROR 'EACCES: permission denied, open .../vite.config.js.timestamp-....mjs': the repo folder is not writable by your user. This happens when the folder was created at the filesystem root (e.g. /sureflow-pos0) and/or 'sudo npm install' was used — the install left root-owned files, then the build, which runs as your user, cannot write its temporary config file next to vite.config.js. Fix it with: sudo chown -R $USER:$USER <repo-folder> then re-run 'npm run build' WITHOUT sudo. Cleanest path: clone the repo inside your home directory instead of /.",
       "If you do not want to manage builds yet, skip this step: terminals can keep loading the POS from the published cloud URL. Phase 1 offline sale capture still works as long as the POS can reach the relay, you just lose the ability to load the app itself while the internet is down.",
       "On each IBM SurePOS 700, set the browser's home page / kiosk URL to http://<relay-ip>:3000 instead of the cloud URL. The POS auto-detects the relay at whatever origin served it — no extra configuration needed.",
       "Terminal still loading from the cloud URL? Point it at its relay by running this once in the browser console: localStorage.setItem('relay_base_url','http://<relay-ip>:3000') then reload.",
@@ -309,7 +310,9 @@ SETUP_STEP_DETAILS.push(
     ],
     commands: [
       "# on your build machine, after cloning the GitHub-synced repo",
-      "npm install && npm run build   # output lands in ./dist",
+      "# clone into your HOME directory, never into / — and never build with sudo",
+      "cd ~ && sudo chown -R $USER:$USER <repo-folder> && cd <repo-folder>",
+      "npm install && npm run build   # NO sudo — output lands in ./dist",
       "scp -r dist/* sureflow@<relay-ip>:/tmp/pos-dist/",
       "# then on the relay VM",
       "sudo mkdir -p /opt/sureflow-relay/pos-dist && sudo cp -r /tmp/pos-dist/* /opt/sureflow-relay/pos-dist/",
