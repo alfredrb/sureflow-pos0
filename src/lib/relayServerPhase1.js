@@ -248,6 +248,13 @@ app.use("/api", api);
 // Serve the POS build so terminals load locally: put the built files in ./pos-dist
 app.use("/", express.static(__dirname + "/pos-dist"));
 
+// SPA fallback — the POS is a single-page app, so client routes like /login and /pos
+// must return index.html instead of 404. Must come AFTER /api and /status.
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path === "/status") return next();
+  res.sendFile(__dirname + "/pos-dist/index.html", (err) => err && next());
+});
+
 sync.start();
 app.listen(process.env.PORT || 3000, () =>
   console.log("SureFlow relay (phase 1) for store " + process.env.STORE_ID + " listening"));
