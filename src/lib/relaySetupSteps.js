@@ -327,6 +327,30 @@ SETUP_STEP_DETAILS.push(
     ],
   },
   {
+    step_id: "provision_terminal_token",
+    label: "Phase 2 — Auto-provision terminal sessions (no per-register token pasting)",
+    instructions: [
+      "WHY THIS IS NEEDED: OAuth and the platform login flow are bound to the published app domain, so signing in directly at http://<relay-ip>:3000 always fails with 'Domain is not valid'. The working method is to sign in once on the published cloud URL and carry that session token to the relay-served copy.",
+      "Doing that by hand on every register does not scale, so store the token ONCE on the relay and let it hand the session to each terminal automatically.",
+      "STEP 1 — On any machine, open the published app (e.g. https://sure-flow-pos.base44.app), sign in as the account the registers should run as, then in the browser console run: localStorage.getItem('base44_access_token') and copy the value (without the quotes).",
+      "STEP 2 — Add it to the relay's .env as KIOSK_ACCESS_TOKEN (see commands), restart the relay, and lock the file down — this token IS a logged-in session for that account.",
+      "STEP 3 — Set every terminal's kiosk / home URL to http://<relay-ip>:3000/kiosk. The relay redirects to the POS with the token attached, the browser stores it, and the register is signed in. Nothing to paste per register, and it re-provisions itself if the browser cache is ever cleared.",
+      "SECURITY: use a dedicated register account (not a personal admin login) for this token, keep .env at chmod 600, and rotate the token by signing that account out in the cloud and repeating steps 1-2.",
+      "The token expires (roughly a year). When registers start landing on /login again, repeat steps 1-2 with a fresh token.",
+    ],
+    commands: [
+      "sudo tee -a /opt/sureflow-relay/.env > /dev/null <<'EOF'\nKIOSK_ACCESS_TOKEN=<paste the base44_access_token value>\nEOF",
+      "sudo chmod 600 /opt/sureflow-relay/.env",
+      "sudo systemctl restart sureflow-relay",
+      "curl -s -o /dev/null -w '%{http_code} %{redirect_url}\\n' http://localhost:3000/kiosk   # 302 with /?access_token=... = working",
+    ],
+    postInstructions: [
+      "503 'KIOSK_ACCESS_TOKEN is not set' = the variable did not reach the process. Confirm the systemd unit has EnvironmentFile=/opt/sureflow-relay/.env and that the value is on its own line with no quotes.",
+      "404 on /kiosk = the relay is running an older server.js — re-paste the Phase 1 server.js (it now includes the /kiosk route) and restart.",
+      "Terminal still shows the login page after /kiosk = the token has expired or belongs to an account with no access to this app. Get a fresh one from a signed-in cloud session.",
+    ],
+  },
+  {
     step_id: "verify_offline_failover",
     label: "Phase 1 — Verify offline failover end to end",
     instructions: [

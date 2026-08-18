@@ -245,6 +245,15 @@ app.post("/proxmox/reboot", (req, res) => {
 
 app.use("/api", api);
 
+// One-time terminal provisioning. Set KIOSK_ACCESS_TOKEN in .env once, then point
+// every terminal's kiosk URL at /kiosk — the relay hands the cloud session token to
+// the browser so no one has to paste it per register. Keep .env root-only (chmod 600).
+app.get("/kiosk", (req, res) => {
+  const t = process.env.KIOSK_ACCESS_TOKEN;
+  if (!t) return res.status(503).send("KIOSK_ACCESS_TOKEN is not set in the relay .env");
+  res.redirect("/?access_token=" + encodeURIComponent(t));
+});
+
 // Serve the POS build so terminals load locally: put the built files in ./pos-dist
 app.use("/", express.static(__dirname + "/pos-dist"));
 
