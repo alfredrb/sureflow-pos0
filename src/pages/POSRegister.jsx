@@ -37,6 +37,7 @@ import POSGiftCardResultDialog from "@/components/pos/POSGiftCardResultDialog";
 import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
+import { printRecallSlip, printRobberySlip } from "@/lib/incidentSlips";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -408,6 +409,7 @@ export default function POSRegister() {
   const addToCart = (product) => {
     if (product.recalled) {
       toast({ title: "Item Recalled", description: `${product.name} has been recalled and cannot be sold. Please give the item to a manager.`, variant: "destructive" });
+      printRecallSlip(product, operator).catch(() => {});
       return false;
     }
     if (product.loss_blocked) {
@@ -1243,6 +1245,7 @@ export default function POSRegister() {
       }
       
       writeLog("robbery", `Robbery reported — $${calculatedRobberyAmount.toFixed(2)} stolen (calculated) — Register paused`);
+      printRobberySlip({ amount: calculatedRobberyAmount, registerId, operator }).catch(() => {});
       toast({ title: "Robbery Reported", description: "Register paused for security", variant: "default" });
       setCalculatedRobberyAmount(0);
       setRobberyDialog(false);

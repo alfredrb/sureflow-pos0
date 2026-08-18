@@ -1,0 +1,52 @@
+{
+  "name": "OperatorNoticePrint",
+  "type": "object",
+  "properties": {
+    "notice_kind": {
+      "type": "string",
+      "enum": [
+        "announcement"
+      ],
+      "default": "announcement",
+      "description": "Kind of operator notice slip that was printed."
+    },
+    "ref_id": {
+      "type": "string",
+      "description": "ID of the source record (e.g. the Announcement) this slip was printed for."
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator the slip was printed for. One slip per operator per ref_id."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register / time clock station where the slip printed."
+    },
+    "printed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "notice_kind",
+    "ref_id",
+    "operator_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
