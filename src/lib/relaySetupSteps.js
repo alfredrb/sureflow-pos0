@@ -1,5 +1,6 @@
 import { RELAY_PRINTER_CODE } from "@/lib/relayPrinter";
 import { RELAY_REFRESH_SCRIPT } from "@/lib/relayRefreshScript";
+import { SETUP_STEP_DETAILS_PHASE3 } from "@/lib/relaySetupStepsPhase3";
 import {
   RELAY_DB_CODE,
   RELAY_SYNC_CODE,
@@ -431,7 +432,8 @@ SETUP_STEP_DETAILS.push(
       "Push the same batch twice (POST /api/sync repeatedly) and confirm no duplicate transaction is created — the cloud endpoint is idempotent on transaction ID.",
     ],
     commands: [],
-  }
+  },
+  ...SETUP_STEP_DETAILS_PHASE3
 );
 
 export const DEFAULT_SETUP_STEPS = SETUP_STEP_DETAILS.map(({ step_id, label }) => ({ step_id, label }));

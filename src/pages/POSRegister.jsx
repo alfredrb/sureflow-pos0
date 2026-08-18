@@ -24,6 +24,7 @@ import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { recordSerializedSales, verifySerialInStock } from "@/lib/serialUtils";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
+import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { submitOfflineSale } from "@/lib/offlineSale";
@@ -131,6 +132,13 @@ export default function POSRegister() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isOffline, pendingCount, catalogStale, refresh: refreshConnectivity } = useOfflineMode();
+
+  // Phase 3 — report this lane's health to the store relay for live telemetry.
+  useRegisterHeartbeat({
+    operator,
+    registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
+    offline: isOffline,
+  });
 
   // While offline only cash/check tender is permitted — snap off a blocked method.
   useEffect(() => {

@@ -1,0 +1,167 @@
+import { RELAY_TELEMETRY_CODE } from "@/lib/relayTelemetry";
+import { RELAY_AUTH_CODE, RELAY_SELF_UPDATE_SCRIPT, RELAY_BACKUP_SCRIPT } from "@/lib/relayOps";
+import { RELAY_SERVER_PHASE3_CODE } from "@/lib/relayServerPhase3";
+
+// Phase 3 — multi-store rollout & secure remote access, deep hardware telemetry,
+// and relay resilience + ops alerting. step_ids must stay stable.
+export const SETUP_STEP_DETAILS_PHASE3 = [
+  {
+    step_id: "secure_relay_token",
+    label: "Phase 3 — Lock the relay's privileged routes with a relay token",
+    instructions: [
+      "Until now anything on the store LAN could reboot the VM, force a sync, or fire a test print. Phase 3 puts a token in front of those routes while leaving the POS routes (catalog, offline sales, printing) open so registers never need a secret to ring a sale.",
+      "FILE — auth.js: add it to /opt/sureflow-relay next to db.js / sync.js / api.js / printer.js. It accepts the token as an X-Relay-Token header, a Bearer token, or a relay_token query parameter.",
+      "Generate one token PER STORE (never reuse across stores) and put it in that relay's .env as RELAY_ACCESS_TOKEN. If the variable is missing the relay logs a warning and stays open — so an existing relay keeps working while you roll this out.",
+      "Then paste the same token into the browser you administer from, once per machine, so the portal's Reboot / Force Sync / Test Print buttons authenticate: open the console on the cloud app and run localStorage.setItem('relay_access_token','<token>').",
+      "Protected: POST /proxmox/reboot, POST /ops/backup, POST /ops/self-update. Open on the LAN: everything under /api.",
+    ],
+    commands: [
+      "openssl rand -hex 24   # generate this store's token",
+      "cd /opt/sureflow-relay && nano auth.js   # paste the file below",
+      "sudo tee -a /opt/sureflow-relay/.env > /dev/null <<'EOF'\nRELAY_ACCESS_TOKEN=<paste the generated token>\nEOF",
+      "sudo chmod 600 /opt/sureflow-relay/.env",
+      "sudo systemctl restart sureflow-relay",
+      "curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:3000/ops/backup   # 401 without the token",
+      "curl -s -X POST http://localhost:3000/ops/backup -H 'X-Relay-Token: <token>'          # 200 with it",
+    ],
+    postInstructions: [
+      "Startup log says 'privileged routes OPEN' — RELAY_ACCESS_TOKEN did not reach the process. Confirm EnvironmentFile=/opt/sureflow-relay/.env in the systemd unit.",
+      "Portal buttons suddenly return 401 — that browser has no token stored, or it holds another store's token. Re-run the localStorage line with the right store's token.",
+      "Rotate a token by generating a new one, updating .env, restarting, and updating the admin browsers. Queued sales are unaffected.",
+    ],
+    codeFiles: [{ name: "auth.js", code: RELAY_AUTH_CODE }],
+  },
+  {
+    step_id: "secure_remote_access",
+    label: "Phase 3 — Reach the relay securely from outside the store (HTTPS / VPN)",
+    instructions: [
+      "The relay speaks plain HTTP on the store LAN, so the Command Center can only poll it from inside the store. Do NOT port-forward 3000 to the internet — that exposes the POS routes to anyone.",
+      "OPTION A (recommended) — WireGuard VPN from your admin machine into each store. Fast, no certificates, and the relay keeps its LAN address. After connecting, register the store's Relay URL exactly as it is on the LAN (http://192.168.1.50:3000) and polling works from anywhere.",
+      "OPTION B — Caddy on the relay VM terminating HTTPS on a per-store hostname (e.g. store001.relay.yourdomain.com) with a certificate from Let's Encrypt. Register the Relay URL as https://store001.relay.yourdomain.com. Required if your admin browser cannot join a VPN — a cloud-hosted (https) portal is blocked from calling a plain http relay by mixed-content rules.",
+      "Whichever option you pick, the relay token from the previous step is what actually protects the privileged routes — the tunnel only protects the transport.",
+      "Keep the store's firewall closed to 3000 from the WAN in both options; traffic arrives through WireGuard or through Caddy on 443.",
+    ],
+    commands: [
+      "# OPTION A — WireGuard on the relay VM",
+      "sudo apt install -y wireguard && sudo wg genkey | sudo tee /etc/wireguard/private.key | wg pubkey",
+      "# add the store as a peer on your WireGuard server, then bring the tunnel up:",
+      "sudo systemctl enable --now wg-quick@wg0",
+      "# OPTION B — HTTPS with Caddy on the relay VM",
+      "sudo apt install -y caddy",
+      "sudo tee /etc/caddy/Caddyfile > /dev/null <<'EOF'\nstore001.relay.yourdomain.com {\n  reverse_proxy localhost:3000\n}\nEOF",
+      "sudo systemctl restart caddy",
+      "curl -s -o /dev/null -w '%{http_code}\\n' https://store001.relay.yourdomain.com/status",
+    ],
+    postInstructions: [
+      "'Relay Unreachable' from a cloud (https) portal while the Relay URL is http://... — that is the mixed-content block, not a dead relay. Use Option A (VPN + LAN address opened over http) or Option B (https hostname).",
+      "Caddy cannot issue a certificate — the hostname's DNS must resolve to the store's public IP and 80/443 must reach the VM.",
+    ],
+  },
+  {
+    step_id: "onboard_new_store",
+    label: "Phase 3 — Repeatable onboarding for store 002 and beyond",
+    instructions: [
+      "Do not rebuild a relay from scratch per store. Finish one store, shut the VM down, and turn it into a Proxmox TEMPLATE — then every new store is a clone plus five per-store values.",
+      "The only per-store values are: the VM's static LAN IP, STORE_ID, PRINTER_IPS, CLOUD_API_KEY (generated per store in the Command Center), and RELAY_ACCESS_TOKEN. Everything else is identical.",
+      "Before cloning, clear the source VM's store identity so a clone can never sync as the wrong store: blank STORE_ID / CLOUD_API_KEY / RELAY_ACCESS_TOKEN in .env and delete relay.db.",
+      "IN THE PORTAL, per new store: create the Store record with its store number, set its Relay URL, generate its Cloud Sync key, set its Admin Printer IP, and create its Registers with each lane's Printer IP and store_id.",
+      "Then work this store's checklist from the top — the guide tracks completion per store, so store 002 gets its own progress.",
+      "FINAL CHECK for every new store: /api/connectivity reports online, an offline cash sale queues and uploads once, and a test print lands on each lane.",
+    ],
+    commands: [
+      "# on the SOURCE vm, before converting it to a template",
+      "sudo sed -i 's/^STORE_ID=.*/STORE_ID=/;s/^CLOUD_API_KEY=.*/CLOUD_API_KEY=/;s/^RELAY_ACCESS_TOKEN=.*/RELAY_ACCESS_TOKEN=/;s/^PRINTER_IPS=.*/PRINTER_IPS=/' /opt/sureflow-relay/.env",
+      "sudo rm -f /opt/sureflow-relay/relay.db && sudo shutdown -h now",
+      "# in Proxmox: right-click the VM → Convert to template → Clone for each new store",
+      "# on the CLONE: set the static IP, then the five per-store values",
+      "sudo nano /opt/sureflow-relay/.env   # STORE_ID, PRINTER_IPS, CLOUD_API_KEY, RELAY_ACCESS_TOKEN",
+      "sudo systemctl restart sureflow-relay && curl -s http://localhost:3000/api/connectivity",
+    ],
+    postInstructions: [
+      "A clone that still carries another store's STORE_ID and key will push that store's sales into the wrong store — always clear identity before templating, and verify STORE_ID on every clone.",
+      "401 from the sync endpoint on a new store means the key was generated for a different store number.",
+      "Two relays sharing one static IP is the other common clone mistake — set the IP before first boot on the store LAN.",
+    ],
+  },
+  {
+    step_id: "deploy_telemetry",
+    label: "Phase 3 — Real paper levels (SNMP) and live register heartbeats",
+    instructions: [
+      "Until now the Command Center's paper status was hardcoded 'ok' and the register list was always empty. This step makes both real.",
+      "FILE — telemetry.js: polls each printer over SNMP for the standard Printer MIB supply level and reports an actual percentage (ok above 20%, low at or below 20%, out at 0), plus keeps the register heartbeat registry in memory.",
+      "FILE — server.js (Phase 3): replaces the Phase 1 file. Its /status now returns SNMP-backed printer telemetry and live registers, and it adds POST /api/heartbeat plus the token-protected ops routes. It keeps /kiosk and the pos-dist static serving from Phase 2.",
+      "Install net-snmp on the relay. If it is missing the relay still runs — printers just report reachability with paper_status 'unknown'.",
+      "Enable SNMP on each Epson TMNet NIC in WebConfig (read community 'public', or set SNMP_COMMUNITY in .env to match yours). Printers without SNMP support report reachability only.",
+      "Register heartbeats come from the POS itself: each signed-in terminal posts its register, operator, and offline state every 60 seconds, and the relay marks a register offline if no beat arrives for 2 minutes — so the portal shows which lanes are actually live.",
+    ],
+    commands: [
+      "cd /opt/sureflow-relay && sudo npm install net-snmp",
+      "nano telemetry.js   # paste FILE 1 below",
+      "nano server.js      # replace the WHOLE file with FILE 2 below",
+      "sudo systemctl restart sureflow-relay",
+      "curl -s http://localhost:3000/status   # printers[].paper_pct populated, phase:3, secured:true",
+      "curl -s -X POST http://localhost:3000/api/heartbeat -H 'Content-Type: application/json' -d '{\"register_id\":\"REG-001\"}'",
+    ],
+    postInstructions: [
+      "paper_pct is null and snmp:false — net-snmp is not installed in /opt/sureflow-relay.",
+      "paper_pct is null but snmp:true — the printer answered TCP 9100 but not SNMP. Enable SNMP in WebConfig and confirm the community string.",
+      "registers stays empty — no terminal has beaten yet. Sign a cashier into a register served by this relay and re-check within a minute.",
+      "A lane shows offline while a cashier is working on it — that terminal is loading the POS from the cloud, not this relay. Point it at the relay (localStorage relay_base_url) so its beats arrive.",
+    ],
+    codeFiles: [
+      { name: "telemetry.js", code: RELAY_TELEMETRY_CODE },
+      { name: "server.js (Phase 3)", code: RELAY_SERVER_PHASE3_CODE },
+    ],
+  },
+  {
+    step_id: "relay_resilience",
+    label: "Phase 3 — Self-updating relays and local backup / restore",
+    instructions: [
+      "A store relay must survive a bad update and a dead VM. These two scripts live ON the relay and run on systemd timers.",
+      "FILE — sureflow-selfupdate.sh: snapshots the install, rsyncs the new relay files and POS build from your update source, reinstalls dependencies, restarts, then health-checks /api/connectivity and ROLLS BACK automatically if the relay stops answering. It never touches .env or relay.db.",
+      "FILE — sureflow-backup.sh: takes a safe sqlite3 .backup of relay.db plus a copy of .env every hour, keeping 48 versions, and restores the newest (or a named) backup on demand. Queued offline sales survive a VM rebuild.",
+      "Set UPDATE_SOURCE in .env to the rsync/ssh path holding your current relay files + pos-dist (the build machine's refresh script from Phase 2 can publish there).",
+      "Both are also reachable from the portal on the token-protected routes POST /ops/backup and POST /ops/self-update, so you can trigger either without SSH.",
+      "Test the restore path once per store BEFORE you need it — an untested backup is not a backup.",
+    ],
+    commands: [
+      "cd /opt/sureflow-relay",
+      "sudo apt install -y sqlite3 rsync",
+      "nano sureflow-selfupdate.sh && nano sureflow-backup.sh   # paste both files below",
+      "sudo chmod +x sureflow-selfupdate.sh sureflow-backup.sh",
+      "sudo tee -a .env > /dev/null <<'EOF'\nUPDATE_SOURCE=build@buildhost:/srv/sureflow/current\nBACKUP_DIR=/var/backups/sureflow\nEOF",
+      "sudo tee /etc/systemd/system/sureflow-backup.service > /dev/null <<'EOF'\n[Unit]\nDescription=SureFlow relay backup\n[Service]\nType=oneshot\nEnvironmentFile=/opt/sureflow-relay/.env\nExecStart=/opt/sureflow-relay/sureflow-backup.sh backup\nEOF",
+      "sudo tee /etc/systemd/system/sureflow-backup.timer > /dev/null <<'EOF'\n[Unit]\nDescription=Hourly SureFlow relay backup\n[Timer]\nOnCalendar=hourly\nPersistent=true\n[Install]\nWantedBy=timers.target\nEOF",
+      "sudo systemctl daemon-reload && sudo systemctl enable --now sureflow-backup.timer",
+      "sudo ./sureflow-backup.sh backup   # verify a .db.gz lands in /var/backups/sureflow",
+      "sudo ./sureflow-selfupdate.sh      # verify it updates and health-checks (or rolls back)",
+    ],
+    postInstructions: [
+      "'UPDATE_SOURCE is not set' — add it to .env; the update script refuses to run blind.",
+      "The update rolled itself back — the new code failed to serve /api/connectivity. Read the log (journalctl -u sureflow-relay -n 40) before retrying; the store kept running on the previous version.",
+      "Restore a dead store onto a fresh clone: set the per-store .env values, copy the newest relay-*.db.gz across, then ./sureflow-backup.sh restore <file> — queued sales upload on the next sync.",
+      "Backups hold a copy of .env (which contains the store's keys) — keep /var/backups/sureflow root-only.",
+    ],
+    codeFiles: [
+      { name: "sureflow-selfupdate.sh", code: RELAY_SELF_UPDATE_SCRIPT },
+      { name: "sureflow-backup.sh", code: RELAY_BACKUP_SCRIPT },
+    ],
+  },
+  {
+    step_id: "sync_alerting",
+    label: "Phase 3 — Cloud alerts when a store stops syncing",
+    instructions: [
+      "The cloud now watches the sync itself: every 15 minutes it checks each active store's newest successful sync and raises a critical System Alert for any store quiet for more than 20 minutes — including a store that has never synced.",
+      "The alert names the store, how long it has been quiet, and the relay's own last error, and warns that offline sales may still be sitting in that store's outbox.",
+      "It clears itself: once the store syncs successfully again the alert is resolved automatically with the recovery time noted, so the alert list reflects live state instead of history.",
+      "Stores with no Relay URL are skipped — set a store's Relay URL to bring it under monitoring.",
+      "Nothing to install on the VM for this step. Watch the alerts in System Alerts, and the per-store detail in the Command Center's Cloud Sync panel.",
+    ],
+    commands: [],
+    postInstructions: [
+      "A store you expect to be watched never alerts — confirm its Store record is active and has a Relay URL.",
+      "A store alerts while its registers are selling fine — that is the point: the lanes are running offline through the relay and the sales have not reached the cloud yet. Fix the store's internet or its sync key.",
+      "Repeated alert/resolve cycling means an intermittent WAN link at that store, not a relay fault.",
+    ],
+  },
+];

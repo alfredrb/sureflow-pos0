@@ -15,10 +15,21 @@ export function getRelayBase(base) {
   return window.location.origin.replace(/\/$/, "");
 }
 
+// Phase 3 — the relay's privileged routes (reboot, sync, ops) require its token.
+// Stored per browser so the cloud portal can act on a secured relay.
+function relayToken() {
+  try { return localStorage.getItem("relay_access_token") || ""; } catch { return ""; }
+}
+
 async function relayFetch(path, options = {}, timeoutMs = 5000, base = "") {
+  const token = relayToken();
   const res = await fetch(`${getRelayBase(base)}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-Relay-Token": token } : {}),
+      ...(options.headers || {}),
+    },
     signal: AbortSignal.timeout(timeoutMs),
   });
   const data = await res.json().catch(() => ({}));
@@ -50,3 +61,14 @@ export const relayTestPrint = (printer_ip, base = "") =>
 
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
+
+// Phase 3 — terminal health beat (register/printer/scanner/drawer) for live telemetry.
+export const sendRegisterHeartbeat = (beat) =>
+  relayFetch("/api/heartbeat", { method: "POST", body: JSON.stringify(beat) }, 5000);
+
+// Phase 3 — operations: on-demand local backup and relay self-update.
+export const relayBackupNow = (base = "") =>
+  relayFetch("/ops/backup", { method: "POST" }, 30000, base);
+
+export const relaySelfUpdate = (base = "") =>
+  relayFetch("/ops/self-update", { method: "POST" }, 20000, base);
