@@ -11,6 +11,7 @@ import StoreSection from "@/components/infrastructure/StoreSection";
 import RebootConfirmDialog from "@/components/infrastructure/RebootConfirmDialog";
 import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCard";
 import { DEFAULT_SETUP_STEPS } from "@/components/infrastructure/RelaySetupGuide";
+import PXEControllerGuide from "@/components/infrastructure/PXEControllerGuide";
 
 export default function AdminHardwareStatus() {
   const [stores, setStores] = useState([]);
@@ -236,6 +237,8 @@ export default function AdminHardwareStatus() {
           </SelectContent>
         </Select>
       </div>
+
+      <PXEControllerGuide />
 
       {sortedStores.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-400">
