@@ -2,10 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" />
+    <!-- Inline SVG favicon (data URI) so the header renders identically on the published
+         cloud app and on the offline relay-served POS, which has no internet access. -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0e27'/%3E%3Cpath d='M20 22h24M20 32h24M20 42h16' stroke='%233b82f6' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0e27" />
+    <meta name="description" content="SureFlow POS — retail point of sale and store management" />
     <link rel="manifest" href="/manifest.json" />
-    <title>Base44 APP</title>
+    <title>SureFlow POS</title>
   </head>
   <body>
     <div id="root"></div>
