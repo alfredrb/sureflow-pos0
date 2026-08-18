@@ -5,6 +5,11 @@
     "transaction_id": {
       "type": "string"
     },
+    "sale_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp the sale occurred. Set by the POS at sale time; for historical/mock data this carries the real sale time (the built-in created_date reflects record insertion and cannot be backdated). Peak-time forecasting and historical analytics use this field, falling back to created_date."
+    },
     "operator_id": {
       "type": "string"
     },

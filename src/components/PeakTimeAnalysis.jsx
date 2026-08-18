@@ -37,8 +37,9 @@ export default function PeakTimeAnalysis() {
       const hist = {};
       for (let d = 0; d < 7; d++) { hist[d] = {}; for (let h = 0; h < 24; h++) hist[d][h] = { count: 0, volume: 0 }; }
       transactions.forEach((tx) => {
-        if (!tx.created_date || tx.status !== "completed" || tx.training_mode) return;
-        const date = new Date(tx.created_date);
+        if (tx.status !== "completed" || tx.training_mode) return;
+        const date = new Date(tx.sale_date || tx.created_date);
+        if (!date || isNaN(date.getTime())) return;
         hist[date.getDay()][date.getHours()].count += 1;
         hist[date.getDay()][date.getHours()].volume += tx.total || 0;
       });
