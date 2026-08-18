@@ -19,8 +19,12 @@ export async function getAdminPrintContext(force = false) {
   if (settings?.store_id) {
     store = (await base44.entities.Store.filter({ store_number: settings.store_id }))[0] || null;
   }
+  if (!store) store = (await base44.entities.Store.filter({ status: "active" }))[0] || null;
   cached = {
     printerIp: settings?.admin_printer_ip || "",
+    // The admin panel runs on the cloud origin, so print jobs must be addressed to the
+    // store's Local Relay VM explicitly (Store > Relay URL in the Command Center).
+    relayBase: store?.relay_url || "",
     storeConfig: settings,
     storeInfo: {
       store_number: store?.store_number || settings?.store_id || "",

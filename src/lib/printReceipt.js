@@ -53,7 +53,7 @@ export function buildReceiptPayload(p) {
 export async function printReceipt(props) {
   const payload = buildReceiptPayload(props);
   try {
-    await printReceiptViaRelay(payload);
+    await printReceiptViaRelay(payload, props.relayBase || "");
     return;
   } catch (e) {
     console.warn("Relay print unavailable, falling back to browser print:", e.message);

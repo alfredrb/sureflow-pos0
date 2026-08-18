@@ -4,15 +4,19 @@
 // same origin by default. A terminal loading the cloud build can point at its relay
 // by setting `relay_base_url` in localStorage (e.g. http://192.168.1.50:3000).
 
-export function getRelayBase() {
+// `base` lets a caller target a specific store's relay explicitly — the admin panel
+// runs on the cloud origin, so it must pass the store's relay_url instead of relying
+// on window.location.
+export function getRelayBase(base) {
+  if (base) return base.replace(/\/$/, "");
   const override = localStorage.getItem("relay_base_url");
   if (override) return override.replace(/\/$/, "");
   if (typeof window === "undefined") return "";
   return window.location.origin.replace(/\/$/, "");
 }
 
-async function relayFetch(path, options = {}, timeoutMs = 5000) {
-  const res = await fetch(`${getRelayBase()}${path}`, {
+async function relayFetch(path, options = {}, timeoutMs = 5000, base = "") {
+  const res = await fetch(`${getRelayBase(base)}${path}`, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     signal: AbortSignal.timeout(timeoutMs),
@@ -33,16 +37,16 @@ export const queueOfflineSale = (sale) =>
   relayFetch("/api/sales", { method: "POST", body: JSON.stringify(sale) }, 10000);
 
 // Raw ESC/POS receipt print on the register's printer. Set open_drawer for cash sales.
-export const printReceiptViaRelay = (receipt) =>
-  relayFetch("/api/print", { method: "POST", body: JSON.stringify(receipt) }, 10000);
+export const printReceiptViaRelay = (receipt, base = "") =>
+  relayFetch("/api/print", { method: "POST", body: JSON.stringify(receipt) }, 10000, base);
 
 // Pop the cash drawer without printing (cash pickup, no-sale, till checkout).
 export const openCashDrawer = (printer_ip) =>
   relayFetch("/api/drawer", { method: "POST", body: JSON.stringify({ printer_ip }) }, 8000);
 
 // Diagnostic test print from the Infrastructure Command Center.
-export const relayTestPrint = (printer_ip) =>
-  relayFetch("/api/print-test", { method: "POST", body: JSON.stringify({ printer_ip }) }, 10000);
+export const relayTestPrint = (printer_ip, base = "") =>
+  relayFetch("/api/print-test", { method: "POST", body: JSON.stringify({ printer_ip }) }, 10000, base);
 
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);

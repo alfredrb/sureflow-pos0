@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { relayTestPrint } from "@/lib/relayClient";
+import { getAdminPrintContext } from "@/lib/adminPrint";
 import { useToast } from "@/components/ui/use-toast";
 
 // Assigns the printer the Admin site prints to (till slips, cash slips, transaction reprints).
@@ -14,10 +15,16 @@ export default function AdminPrinterCard({ value, onChange }) {
   const handleTest = async () => {
     setTesting(true);
     try {
-      await relayTestPrint(value || "");
-      toast({ title: "Test Print Sent", description: value ? `Sent to ${value}` : "Sent to the relay's default printer" });
+      const { relayBase } = await getAdminPrintContext(true);
+      if (!relayBase) {
+        toast({ title: "No Relay URL", description: "Set the store's Relay URL in the Infrastructure Command Center so the admin panel knows where to send print jobs.", variant: "destructive" });
+        setTesting(false);
+        return;
+      }
+      await relayTestPrint(value || "", relayBase);
+      toast({ title: "Test Print Sent", description: value ? `Sent to ${value} via ${relayBase}` : "Sent to the relay's default printer" });
     } catch (e) {
-      toast({ title: "Test Print Failed", description: "The store relay could not reach that printer.", variant: "destructive" });
+      toast({ title: "Test Print Failed", description: e.message, variant: "destructive" });
     }
     setTesting(false);
   };
