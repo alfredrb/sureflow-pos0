@@ -195,12 +195,12 @@ SETUP_STEP_DETAILS.push(
     label: "Phase 1 — Configure the cloud sync API key (connect an existing relay)",
     instructions: [
       "STEP 1 — Generate the key: in the Infrastructure Command Center, expand this store's card and click 'Generate Key' in the Cloud Sync panel. The key looks like sfr_001_a1b2c3... and is displayed ONLY once — copy it before leaving the page. Regenerating instantly revokes the old key, so the relay stops syncing until you paste the new one.",
-      "STEP 2 — Get the sync endpoint: open the Base44 dashboard → Code → Functions → relaySync and copy its URL. It has the form https://<your-app-domain>/api/apps/<app-id>/functions/relaySync.",
+      "STEP 2 — Build the sync endpoint URL yourself — there is nothing to copy in the dashboard. Take your app's default Base44 address (the one in the browser address bar when you open the published app, e.g. https://app--sureflow-pos.base44.app) and append /functions/relaySync. Do NOT use a custom domain — only the default *.base44.app address works.",
       "STEP 3 — Add three variables to the relay's .env (append them to the file you already created; do not remove STORE_ID, PORT, or PRINTER_IPS). STORE_ID must exactly match the store number the key was generated for — the endpoint rejects a key used with the wrong store.",
       "STEP 4 — Restart the relay so it picks up the new environment, then confirm the first pull landed.",
     ],
     commands: [
-      "sudo tee -a /opt/sureflow-relay/.env > /dev/null <<'EOF'\nCLOUD_SYNC_URL=https://<your-app-domain>/api/apps/<app-id>/functions/relaySync\nCLOUD_API_KEY=sfr_001_<paste the generated per-store key>\nDB_PATH=/opt/sureflow-relay/relay.db\nEOF",
+      "sudo tee -a /opt/sureflow-relay/.env > /dev/null <<'EOF'\nCLOUD_SYNC_URL=https://app--your-app-name.base44.app/functions/relaySync\nCLOUD_API_KEY=sfr_001_<paste the generated per-store key>\nDB_PATH=/opt/sureflow-relay/relay.db\nEOF",
       "sudo systemctl restart sureflow-relay",
       "curl -s http://localhost:3000/api/connectivity   # expect online:true + catalog_cached_at",
       "curl -s -X POST http://localhost:3000/api/sync    # force an immediate sync",
@@ -209,6 +209,7 @@ SETUP_STEP_DETAILS.push(
       "How the key is used: the relay sends { store_id, api_key, action } in the JSON body of every call — 'pull' every 5 minutes to refresh the local catalog cache, 'push' every 30 seconds to upload queued offline sales. There is no header auth; the key IS the identity, so keep .env readable only by root (sudo chmod 600 /opt/sureflow-relay/.env).",
       "Test the key by hand from the relay VM (a valid key returns ok:true with the product list; a bad key returns 401):",
       "curl -s -X POST \"$CLOUD_SYNC_URL\" -H 'Content-Type: application/json' -d '{\"store_id\":\"001\",\"api_key\":\"sfr_001_...\",\"action\":\"pull\"}'",
+      "Opening the endpoint in a browser returns an error — that is normal, it only accepts POST. A 500 usually means the base URL is wrong (use the default *.base44.app address, not a custom domain); a 403 means backend functions are not enabled on the plan.",
       "Confirm it in the portal: the store's Cloud Sync card turns green and shows the last pull/push time, and every sync is recorded in the sync log. If it stays red — check that STORE_ID matches the store number, that the key was not regenerated after you pasted it, and that the VM can reach the internet (curl -I https://google.com).",
       "Rotating the key: generate a new one, paste it into .env, restart the relay. Queued sales are never lost — they stay in the local outbox and upload once the new key authenticates.",
     ],
