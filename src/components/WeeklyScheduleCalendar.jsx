@@ -299,7 +299,7 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                       onDragOver={(e) => { allowDrop(e); setDragOver(cellKey); }}
                       onDragLeave={() => setDragOver(null)}
                       onDrop={(e) => handleDrop(e, row.key, dateStr, row.key)}
-                      className={`relative min-h-[88px] px-1.5 py-1.5 border-l border-gray-100 transition ${dayPast ? "bg-gray-100/60" : dragBlocked ? "bg-gray-200/70" : isOver ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-gray-50/40"}`}
+                      className={`relative h-[140px] px-1.5 py-1.5 border-l border-gray-100 overflow-hidden transition ${dayPast ? "bg-gray-100/60" : dragBlocked ? "bg-gray-200/70" : isOver ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-gray-50/40"}`}
                     >
                       {(dragBlocked || dayPast) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -307,7 +307,7 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                         </div>
                       )}
                       <div className="space-y-1">
-                        {cellShifts.map(shift => {
+                        {cellShifts.slice(0, 2).map(shift => {
                           const role = opById[shift.operator_id]?.role;
                           const conflict = conflictMode ? shiftAvailabilityConflict(shift, availByOp[shift.operator_id], weekShifts) : null;
                           const ftpt = employmentBadge(availByOp[shift.operator_id]);
@@ -354,6 +354,9 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
           );
         })}
                       </div>
+                      {cellShifts.length > 2 && (
+                        <div className="absolute bottom-1 right-1 bg-gray-200/90 text-gray-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full pointer-events-none">+{cellShifts.length - 2} more</div>
+                      )}
                     </div>
                   );
                 })}
