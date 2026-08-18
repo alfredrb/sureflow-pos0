@@ -1,71 +1,150 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
-import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { HardDrive, RefreshCw, Printer, ScanLine, Wifi, WifiOff, Wrench, CheckCircle, AlertTriangle, HelpCircle, Wallet, Loader2 } from "lucide-react";
+import { useRelayPolling } from "@/hooks/useRelayPolling";
+import { logAuditEvent } from "@/lib/auditLogger";
+import { HardDrive, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-
-const STATUS_META = {
-  online: { label: "Online", icon: Wifi, color: "text-emerald-600", bg: "bg-emerald-50", dot: "bg-emerald-500" },
-  offline: { label: "Offline", icon: WifiOff, color: "text-gray-500", bg: "bg-gray-100", dot: "bg-gray-400" },
-  maintenance: { label: "Maintenance", icon: Wrench, color: "text-amber-600", bg: "bg-amber-50", dot: "bg-amber-500" },
-};
-
-const HW_META = {
-  connected: { label: "Connected", icon: CheckCircle, color: "text-emerald-600", dot: "bg-emerald-500" },
-  disconnected: { label: "Disconnected", icon: AlertTriangle, color: "text-red-600", dot: "bg-red-500" },
-  unknown: { label: "Unknown", icon: HelpCircle, color: "text-gray-400", dot: "bg-gray-300" },
-};
+import StoreSection from "@/components/infrastructure/StoreSection";
+import RebootConfirmDialog from "@/components/infrastructure/RebootConfirmDialog";
+import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCard";
+import { DEFAULT_SETUP_STEPS } from "@/components/infrastructure/RelaySetupGuide";
 
 export default function AdminHardwareStatus() {
+  const [stores, setStores] = useState([]);
   const [registers, setRegisters] = useState([]);
+  const [setups, setSetups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+  const [rebootStore, setRebootStore] = useState(null);
+  const [rebooting, setRebooting] = useState(false);
   const { toast } = useToast();
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      setRegisters(await base44.entities.Register.list());
+      const [st, regs, sus] = await Promise.all([
+        base44.entities.Store.list(),
+        base44.entities.Register.list(),
+        base44.entities.StoreRelaySetup.list(),
+      ]);
+      setStores(st.filter((s) => s.status !== "inactive"));
+      setRegisters(regs);
+      setSetups(sus);
     } catch (e) {
-      if (!silent) toast({ title: "Error", description: "Failed to load registers", variant: "destructive" });
+      if (!silent) toast({ title: "Error", description: "Failed to load infrastructure data", variant: "destructive" });
     }
     if (!silent) setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
-  useRealtimeSync("Register", load, { intervalMs: 30000 });
 
-  const [refreshing, setRefreshing] = useState({});
-  const updateHW = async (reg, field, value) => {
+  const { relayData, pollNow } = useRelayPolling(stores);
+
+  const sortedStores = useMemo(() => {
+    let list = stores.filter((s) =>
+      !search || s.name?.toLowerCase().includes(search.toLowerCase()) || s.store_number?.includes(search)
+    );
+    const reachRank = (s) => (relayData[s.store_number]?.status === "ok" ? 0 : relayData[s.store_number]?.status === "unreachable" ? 1 : 2);
+    if (sortBy === "name") list = [...list].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    else if (sortBy === "number") list = [...list].sort((a, b) => (a.store_number || "").localeCompare(b.store_number || ""));
+    else if (sortBy === "reachability") list = [...list].sort((a, b) => reachRank(a) - reachRank(b));
+    return list;
+  }, [stores, search, sortBy, relayData]);
+
+  const unassignedRegisters = useMemo(
+    () => registers.filter((r) => !r.store_id || !stores.some((s) => s.store_number === r.store_id)),
+    [registers, stores]
+  );
+
+  // ---- Manual hardware override (fallback when relay is offline) ----
+  const handleOverride = async (reg, field, value) => {
     try {
       await base44.entities.Register.update(reg.id, { [field]: value });
-      setRegisters(rs => rs.map(r => r.id === reg.id ? { ...r, [field]: value } : r));
-    } catch (e) { toast({ title: "Error", description: "Failed to update status", variant: "destructive" }); }
-  };
-
-  const refreshDevice = async (reg) => {
-    setRefreshing(prev => ({ ...prev, [reg.id]: true }));
-    try {
-      const fresh = await base44.entities.Register.get(reg.id);
-      setRegisters(rs => rs.map(r => r.id === reg.id ? fresh : r));
-      toast({ title: "Synced", description: `${reg.name} hardware status refreshed` });
+      setRegisters((rs) => rs.map((r) => (r.id === reg.id ? { ...r, [field]: value } : r)));
+      logAuditEvent({
+        action: "Hardware Status Manually Overridden",
+        category: "register",
+        description: `${reg.name || reg.register_id}: ${field.replace(/_/g, " ")} set to '${value}' (manual override — relay offline).`,
+        page: "/admin/hardware",
+        changes: [{ field, from: String(reg[field] || "unknown"), to: value }],
+      });
     } catch (e) {
-      toast({ title: "Sync Failed", description: "Could not reach register", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
     }
-    setRefreshing(prev => ({ ...prev, [reg.id]: false }));
   };
 
-  const counts = {
-    online: registers.filter(r => r.status === "online").length,
-    offline: registers.filter(r => r.status === "offline").length,
-    maintenance: registers.filter(r => r.status === "maintenance").length,
-    printersConnected: registers.filter(r => r.printer_status === "connected").length,
-    printersIssues: registers.filter(r => r.printer_status === "disconnected").length,
-    scannersConnected: registers.filter(r => r.scanner_status === "connected").length,
-    scannersIssues: registers.filter(r => r.scanner_status === "disconnected").length,
-    drawersConnected: registers.filter(r => r.cash_drawer_status === "connected").length,
-    drawersIssues: registers.filter(r => r.cash_drawer_status === "disconnected").length,
+  // ---- Relay URL configuration ----
+  const handleSaveRelayUrl = async (store, url) => {
+    try {
+      await base44.entities.Store.update(store.id, { relay_url: url });
+      setStores((ss) => ss.map((s) => (s.id === store.id ? { ...s, relay_url: url } : s)));
+      logAuditEvent({
+        action: "Updated Store Relay URL",
+        category: "configuration",
+        description: `Relay URL for ${store.name} (#${store.store_number}) set to '${url || "(cleared)"}'.`,
+        page: "/admin/hardware",
+        changes: [{ field: "relay_url", from: store.relay_url || "", to: url }],
+      });
+      toast({ title: "Saved", description: `Relay URL updated for ${store.name}` });
+      setTimeout(pollNow, 500);
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save relay URL", variant: "destructive" });
+    }
+  };
+
+  // ---- Setup guide checklist ----
+  const handleToggleStep = async (store, stepId) => {
+    const actor = JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
+    const existing = setups.find((s) => s.store_id === store.store_number);
+    const baseSteps = existing?.steps?.length
+      ? existing.steps
+      : DEFAULT_SETUP_STEPS.map((s) => ({ ...s, completed: false, completed_by: "", completed_at: "" }));
+    const steps = baseSteps.map((s) =>
+      s.step_id === stepId
+        ? { ...s, completed: !s.completed, completed_by: !s.completed ? actor.full_name || "Admin" : "", completed_at: !s.completed ? new Date().toISOString() : "" }
+        : s
+    );
+    const now = new Date().toISOString();
+    try {
+      if (existing) {
+        await base44.entities.StoreRelaySetup.update(existing.id, { steps, last_updated: now });
+        setSetups((ss) => ss.map((s) => (s.id === existing.id ? { ...s, steps, last_updated: now } : s)));
+      } else {
+        const created = await base44.entities.StoreRelaySetup.create({ store_id: store.store_number, steps, last_updated: now });
+        setSetups((ss) => [...ss, created]);
+      }
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save setup progress", variant: "destructive" });
+    }
+  };
+
+  // ---- Remote VM reboot ----
+  const handleRebootConfirm = async () => {
+    const store = rebootStore;
+    if (!store) return;
+    setRebooting(true);
+    let ok = false;
+    try {
+      const res = await fetch(`${(store.relay_url || "").replace(/\/$/, "")}/proxmox/reboot`, { method: "POST" });
+      ok = res.ok;
+    } catch (e) {
+      ok = false;
+    }
+    logAuditEvent({
+      action: "Remote VM Reboot Issued",
+      category: "system",
+      description: `Remote reboot of the Local Relay VM issued for ${store.name} (#${store.store_number}). Relay ${ok ? "accepted the command" : "did not confirm receipt"}.`,
+      page: "/admin/hardware",
+    });
+    toast(ok
+      ? { title: "Reboot Issued", description: `${store.name}'s Relay VM is rebooting.` }
+      : { title: "Reboot Sent", description: `Command sent, but ${store.name}'s relay did not confirm. Check the VM directly.`, variant: "destructive" });
+    setRebooting(false);
+    setRebootStore(null);
   };
 
   if (loading) return (
@@ -78,113 +157,70 @@ export default function AdminHardwareStatus() {
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2"><HardDrive className="w-7 h-7 text-blue-600" /> Hardware Status</h1>
-          <p className="text-gray-500 text-sm mt-1">Register, printer, and scanner health for troubleshooting.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <HardDrive className="w-7 h-7 text-blue-600" /> Infrastructure Command Center
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">Per-store Relay VM health, network printers, and register hardware. Relays are polled every 30 seconds.</p>
         </div>
-        <Button variant="outline" onClick={() => load(true)}><RefreshCw className="w-4 h-4 mr-2" /> Refresh</Button>
+        <Button variant="outline" onClick={() => { load(true); pollNow(); }}><RefreshCw className="w-4 h-4 mr-2" /> Poll Now</Button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: "Online", value: counts.online, color: "text-emerald-600", bg: "bg-emerald-50", icon: Wifi },
-          { label: "Offline", value: counts.offline, color: "text-gray-600", bg: "bg-gray-100", icon: WifiOff },
-          { label: "Maintenance", value: counts.maintenance, color: "text-amber-600", bg: "bg-amber-50", icon: Wrench },
-          { label: "Printers OK", value: counts.printersConnected, color: "text-emerald-600", bg: "bg-emerald-50", icon: Printer },
-          { label: "Printers Issues", value: counts.printersIssues, color: "text-red-600", bg: "bg-red-50", icon: AlertTriangle },
-          { label: "Scanners OK", value: counts.scannersConnected, color: "text-emerald-600", bg: "bg-emerald-50", icon: ScanLine },
-          { label: "Drawers OK", value: counts.drawersConnected, color: "text-emerald-600", bg: "bg-emerald-50", icon: Wallet },
-        ].map(s => (
-          <div key={s.label} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center`}><s.icon className={`w-4 h-4 ${s.color}`} /></div>
-            <div><p className="text-xl font-bold text-gray-900">{s.value}</p><p className="text-xs text-gray-500">{s.label}</p></div>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search stores..." className="pl-9" />
+        </div>
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="w-full sm:w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">Sort by name</SelectItem>
+            <SelectItem value="number">Sort by store #</SelectItem>
+            <SelectItem value="reachability">Sort by reachability</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {sortedStores.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-400">
+          No stores configured. Add stores to begin monitoring their infrastructure.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {sortedStores.map((store) => (
+            <StoreSection
+              key={store.id}
+              store={store}
+              relay={relayData[store.store_number]}
+              registers={registers.filter((r) => r.store_id === store.store_number)}
+              setupSteps={setups.find((s) => s.store_id === store.store_number)?.steps}
+              onToggleStep={handleToggleStep}
+              onRebootClick={setRebootStore}
+              onOverride={handleOverride}
+              onSaveRelayUrl={handleSaveRelayUrl}
+            />
+          ))}
+        </div>
+      )}
+
+      {unassignedRegisters.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-gray-900 mb-1">Unassigned Registers</p>
+          <p className="text-xs text-gray-400 mb-3">These registers have no store number and are managed with manual status only.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {unassignedRegisters.map((r) => (
+              <RegisterHardwareCard key={r.id} register={r} relayRegister={null} relayLive={false} onOverride={handleOverride} />
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {registers.length === 0 ? (
-          <div className="col-span-full bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-400">No registers configured</div>
-        ) : registers.map(r => {
-          const sm = STATUS_META[r.status] || STATUS_META.offline;
-          const pm = HW_META[r.printer_status] || HW_META.unknown;
-          const scm = HW_META[r.scanner_status] || HW_META.unknown;
-          const cdm = HW_META[r.cash_drawer_status] || HW_META.unknown;
-          const hasIssue = r.status !== "online" || r.printer_status === "disconnected" || r.scanner_status === "disconnected" || r.cash_drawer_status === "disconnected";
-          return (
-            <div key={r.id} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${hasIssue ? "border-amber-200" : "border-gray-100"}`}>
-              <div className="px-5 py-4 flex items-center justify-between gap-3 border-b border-gray-50">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-lg ${sm.bg} flex items-center justify-center flex-shrink-0`}><sm.icon className={`w-5 h-5 ${sm.color}`} /></div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">{r.name || r.register_id}</p>
-                    <p className="text-xs text-gray-400 font-mono truncate">{r.register_id}{r.location ? ` · ${r.location}` : ""}</p>
-                  </div>
-                </div>
-                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sm.bg} ${sm.color} flex-shrink-0`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />{sm.label}
-                </span>
-              </div>
-              <div className="px-5 py-3 space-y-2 text-xs text-gray-500 border-b border-gray-50">
-                <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono">
-                  {r.ip_address && <span>IP: {r.ip_address}</span>}
-                  {r.subnet_mask && <span>Subnet: {r.subnet_mask}</span>}
-                  {r.gateway && <span>Gateway: {r.gateway}</span>}
-                </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-1">
-                  {r.assigned_operator && <span>Operator: <span className="text-gray-700">{r.assigned_operator}</span></span>}
-                  {r.paused && <span className="text-red-600 font-medium">Paused</span>}
-                </div>
-              </div>
-              <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-2"><Printer className={`w-4 h-4 ${pm.color}`} /><span className="text-xs font-medium text-gray-700">Receipt Printer</span><span className={`w-1.5 h-1.5 rounded-full ${pm.dot}`} /><button onClick={() => refreshDevice(r)} disabled={refreshing[r.id]} title="Refresh device sync" className="ml-auto p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50">{refreshing[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}</button></div>
-                  <Select value={r.printer_status || "unknown"} onValueChange={v => updateHW(r, "printer_status", v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="connected">Connected</SelectItem>
-                      <SelectItem value="disconnected">Disconnected</SelectItem>
-                      <SelectItem value="unknown">Unknown</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-2"><ScanLine className={`w-4 h-4 ${scm.color}`} /><span className="text-xs font-medium text-gray-700">Barcode Scanner</span><span className={`w-1.5 h-1.5 rounded-full ${scm.dot}`} /><button onClick={() => refreshDevice(r)} disabled={refreshing[r.id]} title="Refresh device sync" className="ml-auto p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50">{refreshing[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}</button></div>
-                  <Select value={r.scanner_status || "unknown"} onValueChange={v => updateHW(r, "scanner_status", v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="connected">Connected</SelectItem>
-                      <SelectItem value="disconnected">Disconnected</SelectItem>
-                      <SelectItem value="unknown">Unknown</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-2"><Wallet className={`w-4 h-4 ${cdm.color}`} /><span className="text-xs font-medium text-gray-700">Cash Drawer</span><span className={`w-1.5 h-1.5 rounded-full ${cdm.dot}`} /><button onClick={() => refreshDevice(r)} disabled={refreshing[r.id]} title="Refresh device sync" className="ml-auto p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50">{refreshing[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}</button></div>
-                  <Select value={r.cash_drawer_status || "unknown"} onValueChange={v => updateHW(r, "cash_drawer_status", v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="connected">Connected</SelectItem>
-                      <SelectItem value="disconnected">Disconnected</SelectItem>
-                      <SelectItem value="unknown">Unknown</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {hasIssue && (
-                <div className="px-5 py-3 bg-amber-50 border-t border-amber-100">
-                  <p className="text-xs text-amber-700 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />
-                    {r.status !== "online" && r.status !== "offline" ? `Register in ${sm.label.toLowerCase()}. ` : ""}
-                    {r.printer_status === "disconnected" && "Printer not responding. "}
-                    {r.scanner_status === "disconnected" && "Scanner not responding. "}
-                    {r.cash_drawer_status === "disconnected" && "Cash drawer not responding. "}
-                    Check cables, power, and network; update status once resolved.
-                  </p>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <RebootConfirmDialog
+        open={!!rebootStore}
+        onOpenChange={(v) => { if (!v) setRebootStore(null); }}
+        storeName={rebootStore?.name || ""}
+        onConfirm={handleRebootConfirm}
+        submitting={rebooting}
+      />
     </div>
   );
 }
