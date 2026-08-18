@@ -26,7 +26,9 @@ export const AuthProvider = ({ children }) => {
       // First, check app public settings (with token if available)
       // This will tell us if auth is required, user not registered, etc.
       const appClient = createAxiosClient({
-        baseURL: `/api/apps/public`,
+        // Relay-served builds set VITE_BASE44_SERVER_URL so this reaches the cloud,
+        // not the relay origin (which has no API and would 404).
+        baseURL: `${import.meta.env.VITE_BASE44_SERVER_URL || ''}/api/apps/public`,
         headers: {
           'X-App-Id': appParams.appId
         },
