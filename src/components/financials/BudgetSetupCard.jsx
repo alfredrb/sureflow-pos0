@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, Target, Sparkles } from "lucide-react";
+import { Save, Target, Sparkles, Clock } from "lucide-react";
 
 const FIELDS = [
   { key: "revenue_budget", label: "Revenue Target", hint: "Gross sales subtotal (min $10,000)" },
@@ -15,7 +15,7 @@ const FIELDS = [
 
 export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
   const [form, setForm] = useState({
-    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, loss_budget: 0, expenses_budget: 0, notes: ""
+    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, loss_budget: 0, expenses_budget: 0, weekly_hours_budget: 0, notes: ""
   });
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -27,6 +27,7 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
       labor_budget: budget?.labor_budget || 0,
       loss_budget: budget?.loss_budget || 0,
       expenses_budget: budget?.expenses_budget || 0,
+      weekly_hours_budget: budget?.weekly_hours_budget || 0,
       notes: budget?.notes || ""
     });
   }, [budget?.id, month]);
@@ -58,6 +59,7 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
       labor_budget: Number(form.labor_budget) || 0,
       loss_budget: Number(form.loss_budget) || 0,
       expenses_budget: Number(form.expenses_budget) || 0,
+      weekly_hours_budget: Number(form.weekly_hours_budget) || 0,
     }, () => setSaving(false));
   };
 
@@ -81,6 +83,14 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
             <p className="text-[10px] text-gray-400 mt-0.5">{f.hint}</p>
           </div>
         ))}
+      </div>
+      <div className="mt-3 border-t border-gray-100 pt-3">
+        <Label className="text-xs text-gray-600 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Weekly Hours Target (hrs/wk)</Label>
+        <div className="relative mt-1">
+          <Input type="number" min="0" step="1" value={form.weekly_hours_budget} onChange={e => set("weekly_hours_budget", e.target.value)} className="w-40" />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">hrs</span>
+        </div>
+        <p className="text-[10px] text-gray-400 mt-0.5">Drives the Weekly Hours Budget target on the Shift Scheduling page.</p>
       </div>
       <div className="mt-3">
         <Label className="text-xs text-gray-600">Notes</Label>

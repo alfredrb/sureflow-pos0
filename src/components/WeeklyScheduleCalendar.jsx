@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus, ShieldAlert, Ban, Utensils } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, CheckCircle2, MinusCircle, Clock, Trash2, UserPlus, ShieldAlert, Ban, Utensils, Lock } from "lucide-react";
 import DayUtilizationChart from "@/components/scheduling/DayUtilizationChart";
 import AvailabilitySidePanel from "@/components/scheduling/AvailabilitySidePanel";
 import AvailabilityOverrideDialog from "@/components/scheduling/AvailabilityOverrideDialog";
@@ -21,6 +21,8 @@ const getWeekStart = (date) => {
   return d;
 };
 const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayStr = toISO(new Date());
+const isPast = (dateStr) => dateStr < todayStr;
 
 // Staff-hour coverage for a day vs peak-time requirements (operating 6:00–22:00).
 const coverageFor = (dayDate, dayShifts, peakTimes) => {
@@ -101,6 +103,7 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
 
   const handleDrop = (e, rowKey, dateStr, registerId) => {
     e.preventDefault();
+    if (isPast(dateStr)) { setDragOver(null); setDraggingOp(null); return; }
     setDragOver(null);
     setDraggingOp(null);
     const opId = e.dataTransfer.getData("operator_id");
@@ -237,7 +240,10 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
               const Icon = cov.required === 0 ? MinusCircle : isUnder ? AlertTriangle : isOver ? AlertTriangle : CheckCircle2;
               return (
                 <div key={idx} className="px-2 py-2 text-center border-l border-gray-100">
-                  <p className="text-xs font-semibold text-gray-900">{dayNames[idx]}</p>
+                  <div className="flex items-center justify-center gap-1">
+                    <p className="text-xs font-semibold text-gray-900">{dayNames[idx]}</p>
+                    {isPast(dateStr) && <Lock className="w-2.5 h-2.5 text-gray-400" />}
+                  </div>
                   <p className="text-[11px] text-gray-500">{day.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
                   <div className={`mt-1 inline-flex items-center gap-1 text-[10px] font-medium ${tone}`}>
                     <Icon className="w-3 h-3" />
@@ -285,18 +291,19 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                   const cellShifts = weekShifts.filter(s => s.date === dateStr && matchRow(s, row.key));
                   const cellKey = `${row.key}|${dateStr}`;
                   const isOver = dragOver === cellKey;
-                  const dragBlocked = draggingOp && !dayAvailability(availByOp[draggingOp], dateStr).available;
+                  const dayPast = isPast(dateStr);
+                  const dragBlocked = (draggingOp && !dayAvailability(availByOp[draggingOp], dateStr).available) || dayPast;
                   return (
                     <div
                       key={dayIdx}
                       onDragOver={(e) => { allowDrop(e); setDragOver(cellKey); }}
                       onDragLeave={() => setDragOver(null)}
                       onDrop={(e) => handleDrop(e, row.key, dateStr, row.key)}
-                      className={`relative min-h-[88px] px-1.5 py-1.5 border-l border-gray-100 transition ${dragBlocked ? "bg-gray-200/70" : isOver ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-gray-50/40"}`}
+                      className={`relative min-h-[88px] px-1.5 py-1.5 border-l border-gray-100 transition ${dayPast ? "bg-gray-100/60" : dragBlocked ? "bg-gray-200/70" : isOver ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "hover:bg-gray-50/40"}`}
                     >
-                      {dragBlocked && (
+                      {(dragBlocked || dayPast) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <Ban className="w-5 h-5 text-gray-400/70" />
+                          {dayPast ? <Lock className="w-4 h-4 text-gray-300" /> : <Ban className="w-5 h-5 text-gray-400/70" />}
                         </div>
                       )}
                       <div className="space-y-1">
@@ -304,30 +311,34 @@ export default function WeeklyScheduleCalendar({ shifts, operators, registers, p
                           const role = opById[shift.operator_id]?.role;
                           const conflict = conflictMode ? shiftAvailabilityConflict(shift, availByOp[shift.operator_id], weekShifts) : null;
                           const ftpt = employmentBadge(availByOp[shift.operator_id]);
+          const shiftPast = isPast(shift.date);
           return (
             <div
               key={shift.id}
-              draggable
-              onDragStart={(e) => { e.dataTransfer.setData("shift_id", shift.id); e.dataTransfer.effectAllowed = "move"; setDraggingOp(shift.operator_id); }}
+              draggable={!shiftPast}
+              onDragStart={(e) => { if (shiftPast) { e.preventDefault(); return; } e.dataTransfer.setData("shift_id", shift.id); e.dataTransfer.effectAllowed = "move"; setDraggingOp(shift.operator_id); }}
               onDragEnd={() => setDraggingOp(null)}
-              onClick={() => onEdit(shift)}
-              className={`group bg-white border rounded-lg px-2 py-1.5 text-xs cursor-pointer hover:shadow-sm transition h-[58px] flex flex-col justify-center ${conflict?.conflict ? "ring-1 ring-red-400 border-red-300 bg-red-50/40" : ""}`}
+              onClick={() => { if (!shiftPast) onEdit(shift); }}
+              className={`group bg-white border rounded-lg px-2 py-1.5 text-xs ${shiftPast ? "cursor-default opacity-70" : "cursor-pointer hover:shadow-sm"} transition h-[58px] flex flex-col justify-center ${conflict?.conflict ? "ring-1 ring-red-400 border-red-300 bg-red-50/40" : ""}`}
               style={{ borderLeftColor: conflict?.conflict ? "#ef4444" : (ROLE_DOT[role] || "#6b7280"), borderLeftWidth: 3 }}
-              title={[conflict?.conflict ? conflict.reasons.join(" · ") : "", shift.notes, groupBy !== "register" && shift.register_name].filter(Boolean).join(" · ")}
+              title={[shiftPast ? "Past day — locked" : "", conflict?.conflict ? conflict.reasons.join(" · ") : "", shift.notes, groupBy !== "register" && shift.register_name].filter(Boolean).join(" · ")}
             >
               <div className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-1 min-w-0">
+                  {shiftPast && <Lock className="w-2.5 h-2.5 text-gray-400 flex-shrink-0" />}
                   <p className="font-semibold text-gray-900 truncate">{shift.operator_name}</p>
                   {ftpt && <span className={`text-[8px] font-bold px-0.5 py-0.5 rounded ${ftpt === "PT" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>{ftpt}</span>}
                   {conflict?.conflict && <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" />}
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition flex-shrink-0"
-                  title="Delete shift"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
+                {!shiftPast && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(shift); }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition flex-shrink-0"
+                    title="Delete shift"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
               </div>
               <p className="flex items-center gap-1 text-gray-600 truncate">
                 <Clock className="w-3 h-3 flex-shrink-0" />

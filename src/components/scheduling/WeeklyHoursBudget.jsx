@@ -20,6 +20,7 @@ export default function WeeklyHoursBudget({ shifts, peakTimes }) {
   const weekStart = getWeekStart(new Date());
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
   const startStr = toISO(weekStart), endStr = toISO(weekEnd);
+  const currentMonth = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}`;
 
   const weekShifts = useMemo(() => shifts.filter(s => s.date >= startStr && s.date <= endStr), [shifts, startStr, endStr]);
 
@@ -45,29 +46,17 @@ export default function WeeklyHoursBudget({ shifts, peakTimes }) {
   const totalScheduled = Object.values(scheduledPerDay).reduce((a, b) => a + b, 0);
   const totalRequired = Object.values(requiredPerDay).reduce((a, b) => a + b, 0);
 
+  // Weekly hours target now lives on the Store Budget record (current month)
+  // in the Financials & Budget page and reflects back here as read-only.
   useEffect(() => {
     (async () => {
       try {
-        const list = await base44.entities.StoreSettings.list("-created_date", 50);
-        const s = list[0];
-        if (s) { setBudget(s.weekly_hours_budget || 0); setSettingsId(s.id); }
+        const list = await base44.entities.StoreBudget.list("-month", 100);
+        const b = list.find(x => x.month === currentMonth);
+        setBudget(b?.weekly_hours_budget || 0);
       } catch (e) { console.error(e); }
     })();
-  }, []);
-
-  const saveBudget = async (val) => {
-    const num = Number(val);
-    try {
-      if (settingsId) {
-        await base44.entities.StoreSettings.update(settingsId, { weekly_hours_budget: num });
-      } else {
-        const s = await base44.entities.StoreSettings.create({ store_name: "Store", weekly_hours_budget: num });
-        setSettingsId(s.id);
-      }
-      setBudget(num);
-      toast({ title: "Weekly hour budget saved" });
-    } catch (e) { console.error(e); toast({ title: "Error saving budget", variant: "destructive" }); }
-  };
+  }, [currentMonth]);
 
   const recommend = async () => {
     setRecommending(true);
@@ -137,7 +126,10 @@ Return JSON: { "total_recommended": number, "per_day": [ {day_of_week:0-6, day_n
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-gray-600">Store budget (hrs/wk)</label>
-            <Input type="number" min={0} value={budget} onChange={e => setBudget(Number(e.target.value))} onBlur={e => saveBudget(e.target.value)} className="w-24 h-8" />
+            <div className="flex items-center gap-1.5" title="Set this target in Financials & Budget → Store Budget">
+              <Input type="number" min={0} value={budget} disabled className="w-24 h-8 opacity-70" />
+              <span className="text-[10px] text-gray-400 italic">set in Financials</span>
+            </div>
           </div>
           <Button onClick={recommend} disabled={recommending} className="bg-indigo-600 hover:bg-indigo-700">
             {recommending ? <><Sparkles className="w-4 h-4 mr-2 animate-pulse" /> Analyzing…</> : <><Sparkles className="w-4 h-4 mr-2" /> AI Recommend</>}
