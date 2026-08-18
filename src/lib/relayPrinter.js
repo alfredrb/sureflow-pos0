@@ -118,7 +118,7 @@ function buildReceipt(r) {
 
   for (const l of [r.footer_line_1, r.footer_line_2]) if (l) o += center(l);
   o += center(r.date || new Date().toLocaleString());
-  o += "\\n" + center("***CUSTOMER COPY***");
+  o += "\\n" + center(r.reprint ? "***REPRINTED***" : "***CUSTOMER COPY***");
 
   o += "\\n";                     // GS V 66 feeds to the cutter, so no extra padding needed
   if (r.open_drawer) o += KICK;   // pop the drawer on cash sales

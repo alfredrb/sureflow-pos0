@@ -162,6 +162,7 @@ export default function AdminTransactions() {
     const docType = tx.status === "refunded" ? "return" : tx.status === "exchanged" ? "exchange" : "sale";
     await adminPrintReceipt({
       docType,
+      reprint: true,
       openDrawer: false,
       transactionId: tx.transaction_id,
       date: tx.sale_date || tx.created_date,

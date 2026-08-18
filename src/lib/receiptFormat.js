@@ -142,7 +142,7 @@ export function buildReceiptTokens(r) {
   for (const l of [r.footer_line_1, r.footer_line_2]) if (l) push("center", l);
   push("center", r.date || new Date().toLocaleString());
   push("blank");
-  push("center", "***CUSTOMER COPY***");
+  push("center", r.reprint ? "***REPRINTED***" : "***CUSTOMER COPY***");
 
   return t;
 }

@@ -8,6 +8,8 @@ export function buildReceiptPayload(p) {
     printer_ip: p.printerIp,
     // sale | return | exchange | cash — drives the slip title and the totals labels.
     doc_type: p.docType || "sale",
+    // Admin transaction-log reprints footer as ***REPRINTED*** instead of ***CUSTOMER COPY***.
+    reprint: !!p.reprint,
     // Cash slips (advance, pickup, till check-in/out) carry no line items.
     cash_slip: p.cashSlip || null,
     open_drawer: p.openDrawer ?? p.paymentMethod === "cash",
