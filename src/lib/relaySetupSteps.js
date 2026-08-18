@@ -172,8 +172,19 @@ SETUP_STEP_DETAILS.push(
     label: "Phase 1 — Install the local database for offline operation",
     instructions: [
       "The relay keeps a local SQLite copy of this store's catalog plus a queue of sales made while the internet is down.",
+      "better-sqlite3 is a native module. On a fresh Debian VM there is no prebuilt binary for the installed Node version, so npm falls back to compiling it — which fails with 'not found: make' unless the build tools are installed FIRST.",
+      "Install the compiler toolchain, then the module. Do not skip the first command.",
     ],
-    commands: ["cd /opt/sureflow-relay && npm install better-sqlite3"],
+    commands: [
+      "sudo apt update && sudo apt install -y build-essential python3",
+      "cd /opt/sureflow-relay && sudo npm install better-sqlite3",
+      "node -e \"require('better-sqlite3'); console.log('sqlite ok')\"   # must print: sqlite ok",
+    ],
+    postInstructions: [
+      "'gyp ERR! stack Error: not found: make' means build-essential is missing — run the first command above and reinstall.",
+      "If the compile still fails, clear the half-built module and retry: sudo rm -rf node_modules/better-sqlite3 && sudo npm install better-sqlite3",
+      "Compiling takes 1-3 minutes on a small VM — that is normal, let it finish.",
+    ],
   },
   {
     step_id: "deploy_sync_engine",
