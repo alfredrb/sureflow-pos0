@@ -120,12 +120,17 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   });
   const returnValue = returnedItems.reduce((s, i) => s + i.total, 0);
   const replaceValue = replaceCart.reduce((s, i) => s + i.total, 0);
-  const diff = +(replaceValue - returnValue).toFixed(2);
+  // Tax follows the goods both ways: tax charged on the replacements, less the tax
+  // originally charged on the items coming back (rate persisted on the sale line).
+  const returnTax = +returnedItems.reduce((s, i) => s + i.total * ((i.tax_rate || 0) / 100), 0).toFixed(2);
+  const replaceTax = +replaceCart.reduce((s, i) => s + i.total * ((i.tax_rate || 0) / 100), 0).toFixed(2);
+  const netTax = +(replaceTax - returnTax).toFixed(2);
+  const diff = +((replaceValue + replaceTax) - (returnValue + returnTax)).toFixed(2);
 
   // Notify parent of exchange preview
   useEffect(() => {
     if (returnedItems.length > 0 || replaceCart.length > 0) {
-      onPreviewChange({ returnedItems, replaceCart, returnValue, replaceValue, diff, type: "exchange" });
+      onPreviewChange({ returnedItems, replaceCart, returnValue, replaceValue, returnTax, replaceTax, netTax, diff, type: "exchange" });
     } else {
       onPreviewChange(null);
     }
@@ -147,7 +152,7 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
       register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
       items: replaceCart,
       subtotal: replaceValue,
-      tax: 0,
+      tax: netTax,
       total: diff,
       payment_method: origTx.payment_method,
       status: "completed",
@@ -177,7 +182,7 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
       transactionId: exTxId,
       items: replaceCart,
       subtotal: replaceValue,
-      tax: 0,
+      tax: netTax,
       total: diff,
       paymentMethod: origTx.payment_method,
       amountTendered: Math.max(0, diff),

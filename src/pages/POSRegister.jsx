@@ -1432,6 +1432,9 @@ export default function POSRegister() {
                 <div className="flex justify-between text-blue-300/50 text-xs">
                   <span>Replace Value</span><span>+${(sidePreview?.replaceValue || 0).toFixed(2)}</span>
                 </div>
+                <div className="flex justify-between text-blue-300/50 text-xs">
+                  <span>Net Tax</span><span>{(sidePreview?.netTax || 0) < 0 ? "−" : "+"}${Math.abs(sidePreview?.netTax || 0).toFixed(2)}</span>
+                </div>
                 <div className={`flex justify-between text-xl font-bold pt-1.5 border-t border-teal-500/10 ${(sidePreview?.diff || 0) > 0 ? "text-green-400" : (sidePreview?.diff || 0) < 0 ? "text-red-400" : "text-teal-300"}`}>
                   <span>{(sidePreview?.diff || 0) > 0 ? "OWES" : (sidePreview?.diff || 0) < 0 ? "REFUND" : "EVEN"}</span>
                   <span>${Math.abs(sidePreview?.diff || 0).toFixed(2)}</span>
