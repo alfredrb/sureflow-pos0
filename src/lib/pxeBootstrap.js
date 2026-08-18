@@ -23,6 +23,28 @@ export const isPxeRegister = (reg) => !!BOOT_IMAGES[reg?.boot_profile];
 export const bootImageLabel = (reg) =>
   BOOT_IMAGES[reg?.boot_profile]?.label || "Local Disk (no PXE)";
 
+const norm = (s) => (s || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+// Which HardwareLibrary driver profiles apply to this terminal. Matched on the
+// model strings entered on the register's hardware profile. Touchscreen profiles
+// are included for any PXE terminal — the panel is part of the lane, not a
+// separately-recorded model field.
+export function matchedProfiles(reg, profiles = []) {
+  const models = [
+    reg?.terminal_model,
+    reg?.keyboard_model,
+    reg?.scanner_model,
+    reg?.printer_model,
+    reg?.cash_drawer_model,
+  ].filter(Boolean).map(norm);
+
+  return profiles.filter(p => {
+    if (p.active === false) return false;
+    if (models.includes(norm(p.model))) return true;
+    return p.device_type === "touchscreen" && isPxeRegister(reg);
+  });
+}
+
 // MAC formatted the way pxelinux.cfg expects: 01-aa-bb-cc-dd-ee-ff
 export function pxeConfigFileName(reg) {
   const mac = (reg.mac_address || "").replace(/[^0-9a-fA-F]/g, "").toLowerCase();
@@ -31,14 +53,23 @@ export function pxeConfigFileName(reg) {
 }
 
 // The per-terminal pxelinux entry, keyed by MAC so hardware identity drives the boot.
-export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10") {
+export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles = []) {
   const img = BOOT_IMAGES[reg.boot_profile];
   if (!img) {
     return `# ${reg.name} (${reg.register_id}) boots from local disk — no PXE entry required.`;
   }
+  const matched = matchedProfiles(reg, profiles);
+  const driverArgs = matched.map(p => (p.boot_args || "").trim()).filter(Boolean).join(" ");
+  const modules = matched.flatMap(p => p.kernel_modules || []).filter(Boolean);
+  const uniqueModules = [...new Set(modules)];
+
   return [
     `# SureFlow POS — ${reg.name} (${reg.register_id})`,
     `# Store ${reg.store_id || "—"} | MAC ${reg.mac_address || "UNSET"} | ${img.label}`,
+    matched.length
+      ? `# Driver profiles: ${matched.map(p => p.model).join(", ")}`
+      : `# No hardware driver profiles matched — using image defaults.`,
+    uniqueModules.length ? `# Kernel modules: ${uniqueModules.join(" ")}` : `# Kernel modules: image defaults`,
     `DEFAULT sureflow`,
     `PROMPT 0`,
     `TIMEOUT 30`,
@@ -46,7 +77,8 @@ export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10") {
     `LABEL sureflow`,
     `  KERNEL ${img.kernel}`,
     `  INITRD ${img.initrd}`,
-    `  APPEND root=/dev/nfs nfsroot=${controllerIp}:${img.nfsroot},vers=3,tcp rw ip=dhcp ${img.extra} \\`,
+    `  APPEND root=/dev/nfs nfsroot=${controllerIp}:${img.nfsroot},vers=3,tcp rw ip=dhcp ${img.extra}${driverArgs ? " " + driverArgs : ""} \\`,
+    ...(uniqueModules.length ? [`    modules-load=${uniqueModules.join(",")} \\`] : []),
     `    sureflow.register_id=${reg.register_id} sureflow.store_id=${reg.store_id || ""} \\`,
     `    sureflow.printer_ip=${reg.printer_ip || ""} sureflow.scanner_if=${reg.scanner_interface || "usb_hid"} \\`,
     `    sureflow.relay=http://${controllerIp}:3000`,
@@ -64,10 +96,19 @@ export function buildDnsmasqEntry(reg) {
 
 // Peripheral setup applied inside the image on first boot: IBM keyboard scancode
 // mapping via hwdb, and the scanner's interface rules.
-export function buildPeripheralRules(reg) {
+export function buildPeripheralRules(reg, profiles = []) {
   const lines = [`# Peripheral rules — ${reg.name} (${reg.register_id})`];
 
-  if ((reg.keyboard_model || "").replace(/\s/g, "").includes("3AA01194300")) {
+  // Rules maintained in the Hardware Driver Library win — edit them there once and
+  // every register on that model picks the change up.
+  const matched = matchedProfiles(reg, profiles).filter(p => (p.udev_rules || "").trim());
+  matched.forEach(p => {
+    lines.push(``, `# --- ${p.model} (${p.device_type}) — Hardware Driver Library ---`, p.udev_rules.trim());
+  });
+  const libKeyboard = matched.some(p => p.device_type === "keyboard");
+  const libScanner = matched.some(p => p.device_type === "scanner");
+
+  if (!libKeyboard && (reg.keyboard_model || "").replace(/\s/g, "").includes("3AA01194300")) {
     lines.push(
       ``,
       `# /etc/udev/hwdb.d/70-sureflow-ibm-pos-keyboard.hwdb`,
@@ -76,11 +117,13 @@ export function buildPeripheralRules(reg) {
       ` KEYBOARD_KEY_7002b=tab`,
       `# apply with: systemd-hwdb update && udevadm trigger`,
     );
-  } else if (reg.keyboard_model) {
+  } else if (!libKeyboard && reg.keyboard_model) {
     lines.push(``, `# ${reg.keyboard_model} uses stock USB HID mapping — no override needed.`);
   }
 
-  if (reg.scanner_interface === "usb_hid") {
+  if (libScanner) {
+    // covered by the library profile above
+  } else if (reg.scanner_interface === "usb_hid") {
     lines.push(``, `# ${reg.scanner_model || "Scanner"} — USB HID keyboard wedge, plug and play.`);
   } else if (reg.scanner_interface === "rs232_serial") {
     lines.push(
@@ -101,4 +144,23 @@ export function buildPeripheralRules(reg) {
   }
 
   return lines.join("\n");
+}
+
+// Xorg input/output snippets (touch calibration matrices, evdev sections) pulled
+// straight from the matched driver profiles — baked into the read-only image.
+export function buildXorgConfig(reg, profiles = []) {
+  const matched = matchedProfiles(reg, profiles).filter(p => (p.xorg_config || "").trim());
+  if (!matched.length) {
+    return `# No Xorg snippets on the matched driver profiles for ${reg.register_id}.`;
+  }
+  return matched
+    .map(p => [`# --- ${p.model} (${p.device_type}) ---`, p.xorg_config.trim()].join("\n"))
+    .join("\n\n");
+}
+
+// Debian packages the image build needs for this terminal's peripherals.
+export function buildImagePackages(reg, profiles = []) {
+  const pkgs = [...new Set(matchedProfiles(reg, profiles).flatMap(p => p.packages || []).filter(Boolean))];
+  if (!pkgs.length) return `# No extra packages required beyond the base image for ${reg.register_id}.`;
+  return [`# Inside the chroot for ${reg.register_id}:`, `apt-get install -y \\`, ...pkgs.map((p, i) => `  ${p}${i === pkgs.length - 1 ? "" : " \\"}`)].join("\n");
 }

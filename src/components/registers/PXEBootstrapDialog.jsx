@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/data";
+import { logAuditEvent } from "@/lib/auditLogger";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, AlertTriangle } from "lucide-react";
-import { buildPxelinuxConfig, buildDnsmasqEntry, buildPeripheralRules, pxeConfigFileName, bootImageLabel, isPxeRegister } from "@/lib/pxeBootstrap";
+import { buildPxelinuxConfig, buildDnsmasqEntry, buildPeripheralRules, buildXorgConfig, buildImagePackages, matchedProfiles, pxeConfigFileName, bootImageLabel, isPxeRegister } from "@/lib/pxeBootstrap";
 
 function CodeBlock({ title, path, code }) {
   const [copied, setCopied] = useState(false);
@@ -31,7 +33,29 @@ function CodeBlock({ title, path, code }) {
 
 export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
   const [controllerIp, setControllerIp] = useState("10.0.30.10");
+  const [profiles, setProfiles] = useState([]);
+
+  useEffect(() => {
+    if (!open || !register) return;
+    let cancelled = false;
+    (async () => {
+      const all = await base44.entities.HardwareLibrary.list();
+      if (cancelled) return;
+      const active = all.filter(p => p.active !== false);
+      setProfiles(active);
+      const matched = matchedProfiles(register, active);
+      logAuditEvent({
+        action: "Generated PXE Bootstrap Artifacts",
+        category: "register",
+        description: `Generated PXE boot entry, DHCP reservation and peripheral rules for ${register.name} (${register.register_id}) using driver profiles: ${matched.map(p => p.model).join(", ") || "none matched"}.`,
+        page: "/admin/registers",
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [open, register?.id]);
+
   if (!register) return null;
+  const matched = matchedProfiles(register, profiles);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,9 +90,26 @@ export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
             <Input value={controllerIp} onChange={e => setControllerIp(e.target.value)} className="font-mono text-sm" />
           </div>
 
-          <CodeBlock title="PXE boot entry" path={`/srv/tftp/${pxeConfigFileName(register)}`} code={buildPxelinuxConfig(register, controllerIp)} />
+          <div className="border border-gray-100 bg-gray-50 rounded-xl p-3">
+            <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Driver profiles applied</p>
+            {matched.length ? (
+              <div className="flex flex-wrap gap-2">
+                {matched.map(p => (
+                  <span key={p.id} className="text-xs px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-700">
+                    {p.model} <span className="text-gray-400">· {p.device_type}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No profiles in the Hardware Driver Library match this register's models — the boot entry falls back to image defaults.</p>
+            )}
+          </div>
+
+          <CodeBlock title="PXE boot entry" path={`/srv/tftp/${pxeConfigFileName(register)}`} code={buildPxelinuxConfig(register, controllerIp, profiles)} />
           <CodeBlock title="DHCP reservation (PXE VLAN)" path="/etc/dnsmasq.d/sureflow-pxe.conf" code={buildDnsmasqEntry(register)} />
-          <CodeBlock title="Peripheral rules" path="/etc/udev/rules.d/70-sureflow.rules" code={buildPeripheralRules(register)} />
+          <CodeBlock title="Peripheral rules" path="/etc/udev/rules.d/70-sureflow.rules" code={buildPeripheralRules(register, profiles)} />
+          <CodeBlock title="Xorg input config" path="/etc/X11/xorg.conf.d/90-sureflow-input.conf" code={buildXorgConfig(register, profiles)} />
+          <CodeBlock title="Image packages" path="build-image.sh (peripheral packages)" code={buildImagePackages(register, profiles)} />
         </div>
       </DialogContent>
     </Dialog>
