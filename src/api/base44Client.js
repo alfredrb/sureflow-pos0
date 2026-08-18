@@ -1,5 +1,6 @@
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
+import { CLOUD_API_URL } from '@/lib/serverUrl';
 
 const { appId, token, functionsVersion, appBaseUrl } = appParams;
 
@@ -8,9 +9,9 @@ export const base44 = createClient({
   appId,
   token,
   functionsVersion,
-  // Empty = same-origin (normal cloud hosting). Locally-served relay builds set
-  // VITE_BASE44_SERVER_URL at build time so API calls still reach the cloud.
-  serverUrl: import.meta.env.VITE_BASE44_SERVER_URL || '',
+  // Empty = same-origin (normal cloud hosting). Relay-served builds resolve the
+  // cloud host at runtime so API calls never hit the relay origin (which has no API).
+  serverUrl: CLOUD_API_URL,
   requiresAuth: false,
-  appBaseUrl
+  appBaseUrl: appBaseUrl || CLOUD_API_URL || undefined
 });
