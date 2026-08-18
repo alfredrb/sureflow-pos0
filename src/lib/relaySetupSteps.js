@@ -1,4 +1,5 @@
 import { RELAY_PRINTER_CODE } from "@/lib/relayPrinter";
+import { RELAY_REFRESH_SCRIPT } from "@/lib/relayRefreshScript";
 import {
   RELAY_DB_CODE,
   RELAY_SYNC_CODE,
@@ -386,6 +387,38 @@ SETUP_STEP_DETAILS.push(
     codeFiles: [
       { name: "printer.js", code: RELAY_PRINTER_CODE },
       { name: "api.js (with printing routes)", code: RELAY_API_CODE },
+    ],
+  },
+  {
+    step_id: "relay_refresh_script",
+    label: "Phase 2 — One-command relay refresh (rebuild + deploy + restart)",
+    instructions: [
+      "The relay's pos-dist is a frozen snapshot, so every Base44 change needs a rebuild and re-copy. This step replaces that six-step manual routine with a single script you run from the build machine.",
+      "FILE — sureflow-refresh.sh: save it in the ROOT of your GitHub-synced repo clone (next to package.json) on the build machine, not on the relay VM.",
+      "It pulls the repo, installs dependencies, builds, wipes and replaces /opt/sureflow-relay/pos-dist, restarts the relay service, verifies the relay answers HTTP 200, and prints the live asset hashes so you can confirm the terminals are on the new build.",
+      "Run it once per store, passing that store's relay IP. Add a passwordless SSH key to the relay first (ssh-copy-id) so it does not stop for a password mid-deploy.",
+      "The script exits non-zero if the build produces no dist or the relay stops serving, so a failed deploy is obvious instead of silently leaving the old build in place.",
+      "After it finishes, hard-reload each terminal (Ctrl+Shift+R) — a cached index.html is the usual reason a register still shows the old UI.",
+      "Still required before the FIRST run: .env.production in the repo (see the previous POS-serving step) so the build points at the cloud API.",
+    ],
+    commands: [
+      "# on the BUILD MACHINE, inside your repo clone",
+      "nano sureflow-refresh.sh   # paste the file below, then Ctrl+O Enter Ctrl+X",
+      "chmod +x sureflow-refresh.sh",
+      "ssh-copy-id sureflow@<relay-ip>   # one time, so the deploy does not prompt for a password",
+      "./sureflow-refresh.sh <relay-ip>",
+      "./sureflow-refresh.sh <relay-ip> myuser   # if the relay's SSH user is not 'sureflow'",
+    ],
+    postInstructions: [
+      "'usage: ./sureflow-refresh.sh <relay-ip>' — you ran it without the relay IP.",
+      "'build produced no dist/index.html' — the Vite build failed above that line; scroll up for the real error (usually the EACCES permission issue from the previous step: sudo chown -R $USER:$USER . then retry WITHOUT sudo).",
+      "Prompted for a password at the ship step — the SSH key was not installed; run ssh-copy-id again.",
+      "'sudo: no tty present' — the relay user needs passwordless sudo for the copy/restart, or run the last two steps by hand on the VM.",
+      "'relay is not serving the POS' — the copy landed but the service failed to start: sudo journalctl -u sureflow-relay -n 40 on the VM.",
+      "Terminal still shows the old UI even though the hashes changed — it is browser cache, not the deploy. Hard-reload with Ctrl+Shift+R.",
+    ],
+    codeFiles: [
+      { name: "sureflow-refresh.sh", code: RELAY_REFRESH_SCRIPT },
     ],
   },
   {
