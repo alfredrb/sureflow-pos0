@@ -3,17 +3,18 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Settings, ChevronLeft, ChevronDown, Menu, LogOut, Monitor, AlertCircle, Volume2, VolumeX, Trash2, Download, BarChart3, Palette } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { adminNavGroups } from "@/lib/adminNav";
-import { playChime, getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
+import { getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
 import { getTheme, setTheme } from "@/lib/theme";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import VersionButton from "@/components/VersionButton";
+import useAdminAlertCount from "@/hooks/useAdminAlertCount";
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+
   const [soundEnabled, setSoundEnabledState] = useState(getSoundEnabled());
   const [theme, setThemeState] = useState(getTheme());
   const [adminOperator, setAdminOperator] = useState(null);
@@ -25,6 +26,7 @@ export default function AdminLayout() {
   const [resetting, setResetting] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const pendingCount = useAdminAlertCount(soundEnabled);
 
   const isManager = adminOperator?.role === "manager";
   const isTechnician = adminOperator?.role === "technician";
@@ -77,32 +79,7 @@ export default function AdminLayout() {
     if (g) setOpenGroups(prev => new Set(prev).add(g.label));
   }, [location.pathname]);
 
-  useEffect(() => {
-    let previousCount = 0;
-    const checkAlerts = async () => {
-      try {
-        const [requests, deposits, eodReports] = await Promise.all([
-          base44.entities.OverrideRequest.filter({ status: "pending" }),
-          base44.entities.EODCashDeposit.list("-created_date", 100),
-          base44.entities.EODReport.list("-report_date", 30)
-        ]);
-        let count = requests.length;
-        const today = new Date().toISOString().split('T')[0];
-        const todayDeposits = deposits.filter(d => d.report_date === today);
-        const unresolvedCount = todayDeposits.filter(d => Math.abs(d.difference || 0) > 0.01).length;
-        const lastEOD = eodReports[0];
-        const lastEODDate = lastEOD ? lastEOD.report_date : null;
-        const pendingEODCount = lastEODDate !== today ? 1 : 0;
-        const newCount = count + unresolvedCount + pendingEODCount;
-        if (newCount > previousCount && soundEnabled) { playChime(); }
-        previousCount = newCount;
-        setPendingCount(newCount);
-      } catch (e) {}
-    };
-    checkAlerts();
-    const interval = setInterval(checkAlerts, 30000);
-    return () => clearInterval(interval);
-  }, [soundEnabled]);
+
 
   const handleExportBeforeReset = async () => {
     try {
