@@ -82,15 +82,17 @@ export function buildReceiptTokens(r) {
     )
   );
 
+  // On a refund the money moves back to the customer, so tender prints negative.
+  const signed = (n) => (r.doc_type === "return" ? `-${money(n)}` : money(n));
   if (r.rewards_applied > 0) {
-    push("line", amountRow("REWARDS TEND", money(r.rewards_applied)));
+    push("line", amountRow("REWARDS TEND", signed(r.rewards_applied)));
   }
   const tender = String(r.payment_method || "cash").toUpperCase().replace("_", " ");
   push(
     "line",
     amountRow(
       `${tender} TEND`,
-      money(r.payment_method === "cash" ? r.amount_tendered : r.total - (r.rewards_applied || 0))
+      signed(r.payment_method === "cash" ? r.amount_tendered : r.total - (r.rewards_applied || 0))
     )
   );
   push("line", amountRow("CHANGE DUE", money(r.change_due)));

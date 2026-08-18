@@ -66,9 +66,11 @@ function buildReceipt(r) {
   else o += amountRow("TAX  " + Number(r.tax_rate || 0).toFixed(3) + " %", money(r.tax));
   o += amountRow(r.doc_type === "return" ? "REFUND TOTAL"
     : r.doc_type === "exchange" ? "BALANCE DUE" : "TOTAL", money(r.total));
-  if (r.rewards_applied > 0) o += amountRow("REWARDS TEND", money(r.rewards_applied));
+  // On a refund the money moves back to the customer, so tender prints negative.
+  const signed = (n) => (r.doc_type === "return" ? "-" + money(n) : money(n));
+  if (r.rewards_applied > 0) o += amountRow("REWARDS TEND", signed(r.rewards_applied));
   const tender = String(r.payment_method || "cash").toUpperCase().replace("_", " ");
-  o += amountRow(tender + " TEND", money(r.payment_method === "cash"
+  o += amountRow(tender + " TEND", signed(r.payment_method === "cash"
     ? r.amount_tendered : (r.total || 0) - (r.rewards_applied || 0)));
   o += amountRow("CHANGE DUE", money(r.change_due));
 
