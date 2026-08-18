@@ -9,13 +9,14 @@ const FIELDS = [
   { key: "revenue_budget", label: "Revenue Target", hint: "Gross sales subtotal (min $10,000)" },
   { key: "cogs_budget", label: "COGS Target", hint: "Cost of goods sold" },
   { key: "labor_budget", label: "Labor Target", hint: "Payroll cost" },
+  { key: "overtime_budget", label: "Overtime Budget", hint: "Monthly overtime pay allowance" },
   { key: "loss_budget", label: "Loss Allowance", hint: "Expected profit loss" },
   { key: "expenses_budget", label: "Other Expenses", hint: "Rent, utilities, supplies" }
 ];
 
 export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
   const [form, setForm] = useState({
-    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, loss_budget: 0, expenses_budget: 0, weekly_hours_budget: 0, notes: ""
+    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, overtime_budget: 0, loss_budget: 0, expenses_budget: 0, weekly_hours_budget: 0, notes: ""
   });
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -25,6 +26,7 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
       revenue_budget: budget?.revenue_budget != null ? budget.revenue_budget : 10000,
       cogs_budget: budget?.cogs_budget || 0,
       labor_budget: budget?.labor_budget || 0,
+      overtime_budget: budget?.overtime_budget || 0,
       loss_budget: budget?.loss_budget || 0,
       expenses_budget: budget?.expenses_budget || 0,
       weekly_hours_budget: budget?.weekly_hours_budget || 0,
@@ -41,6 +43,7 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
         revenue_budget: Math.max(10000, Math.round(s.revenue_budget) || 10000),
         cogs_budget: Math.max(0, Math.round(s.cogs_budget) || 0),
         labor_budget: Math.max(0, Math.round(s.labor_budget) || 0),
+        overtime_budget: Math.max(0, Math.round(s.overtime_budget) || 0),
         loss_budget: Math.max(0, Math.round(s.loss_budget) || 0),
         expenses_budget: Math.max(0, Math.round(s.expenses_budget) || 0),
         weekly_hours_budget: Math.max(0, Math.round(s.weekly_hours_budget) || 0),
@@ -58,6 +61,7 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
       revenue_budget: Number(form.revenue_budget) || 0,
       cogs_budget: Number(form.cogs_budget) || 0,
       labor_budget: Number(form.labor_budget) || 0,
+      overtime_budget: Number(form.overtime_budget) || 0,
       loss_budget: Number(form.loss_budget) || 0,
       expenses_budget: Number(form.expenses_budget) || 0,
       weekly_hours_budget: Number(form.weekly_hours_budget) || 0,

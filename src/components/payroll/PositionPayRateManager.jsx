@@ -14,6 +14,8 @@ export default function PositionPayRateManager({ settings, onSettingsSave }) {
   const [saving, setSaving] = useState(false);
   const [budget, setBudget] = useState(0);
   const [threshold, setThreshold] = useState(40);
+  const [monthlyLaborBudget, setMonthlyLaborBudget] = useState(0);
+  const [monthlyOvertimeBudget, setMonthlyOvertimeBudget] = useState(0);
   const { toast } = useToast();
 
   const load = async () => {
@@ -31,6 +33,12 @@ export default function PositionPayRateManager({ settings, onSettingsSave }) {
         _new: true
       });
       setRates(rows);
+      const budgets = await base44.entities.StoreBudget.list("-month", 100);
+      const now = new Date();
+      const cm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const b = budgets.find(x => x.month === cm) || {};
+      setMonthlyLaborBudget(b.labor_budget || 0);
+      setMonthlyOvertimeBudget(b.overtime_budget || 0);
     } catch (e) {
       toast({ title: "Error loading pay rates", variant: "destructive" });
     }
@@ -109,13 +117,24 @@ export default function PositionPayRateManager({ settings, onSettingsSave }) {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-1">
           <AlertCircle className="w-5 h-5 text-blue-600" />
           <h2 className="text-lg font-semibold text-gray-900">Labor Budget & Overtime</h2>
         </div>
+        <p className="text-xs text-gray-500 mb-4">Monthly labor and overtime targets come from the Financials &amp; Budget page and are shown read-only. The weekly labor cap and overtime threshold remain editable here.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Weekly Labor Budget ($)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Labor Budget ($)</label>
+            <Input type="number" value={monthlyLaborBudget} disabled className="opacity-70 bg-gray-50" />
+            <p className="text-xs text-gray-400 mt-1">From Financials &amp; Budget → Store Budget. Not editable here.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Overtime Budget ($)</label>
+            <Input type="number" value={monthlyOvertimeBudget} disabled className="opacity-70 bg-gray-50" />
+            <p className="text-xs text-gray-400 mt-1">From Financials &amp; Budget → Store Budget. Not editable here.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Weekly Labor Cost Cap ($)</label>
             <Input type="number" min="0" step="50" value={budget} onChange={e => setBudget(e.target.value)} />
             <p className="text-xs text-gray-500 mt-1">The calendar labor-cost indicator turns red when the week exceeds this. 0 = no cap.</p>
           </div>

@@ -184,9 +184,12 @@ export default function AdminFinancials() {
       const ct = txns.filter(t => inM(t.sale_date || t.created_date) && t.status === "completed" && !t.training_mode);
       const rev = ct.reduce((s, t) => s + (t.subtotal || 0), 0);
       const c = ct.reduce((s, t) => s + (t.items || []).reduce((a, it) => a + (costBySku[it.sku] || 0) * (it.qty || 0), 0), 0);
-      const lb = payrollFromTimeClock(entries.filter(e => inM(e.clock_in)), operators, payRates, overtimeThreshold).reduce((s, p) => s + p.total_pay, 0);
+      const payRows = payrollFromTimeClock(entries.filter(e => inM(e.clock_in)), operators, payRates, overtimeThreshold);
+      const lb = payRows.reduce((s, p) => s + p.total_pay, 0);
+      const otPay = payRows.reduce((s, p) => s + p.overtime_pay, 0);
+      const otHrs = payRows.reduce((s, p) => s + p.overtime_hours, 0);
       const ls = losses.filter(l => inM(l.date)).reduce((s, l) => s + (l.amount || 0), 0);
-      history.push({ month: m.format("YYYY-MM"), revenue: Math.round(rev), cogs: Math.round(c), gross_profit: Math.round(rev - c), labor: Math.round(lb), losses: Math.round(ls), sales_count: ct.length });
+      history.push({ month: m.format("YYYY-MM"), revenue: Math.round(rev), cogs: Math.round(c), gross_profit: Math.round(rev - c), labor: Math.round(lb), overtime_pay: Math.round(otPay), overtime_hours: Math.round(otHrs), losses: Math.round(ls), sales_count: ct.length });
     }
     // Peak-time demand drives the weekly hours target: sum recommended staff
     // across every operating hour of the week = total staff-hours/week needed.
@@ -212,6 +215,7 @@ Guidelines:
 - labor_budget should track historical labor cost, keeping labor under ~30% of revenue where possible.
 - loss_budget should be a small acceptable allowance for disposed/claimed returns.
 - expenses_budget should be a modest estimate for rent/utilities/supplies if not evident in history.
+- overtime_budget is the monthly OVERTIME PAY allowance. Base it on the historical overtime_pay (average of recent months) relative to sales demand, keeping it a modest fraction of labor_budget.
 - weekly_hours_budget is the target labor HOURS per week. Base it on the peak-time demand (total weekly staff-hours required to cover demand), rounded to a sensible whole number.${laborBudgetCap > 0 ? ` Make sure the hours implied stay affordable under the $${laborBudgetCap}/week labor cost cap given the average pay rate.` : " Aim for efficient coverage without excessive overtime."}
 Return a short notes field explaining the recommendation in one or two sentences.`;
     try {
@@ -225,10 +229,11 @@ Return a short notes field explaining the recommendation in one or two sentences
             labor_budget: { type: "number" },
             loss_budget: { type: "number" },
             expenses_budget: { type: "number" },
+            overtime_budget: { type: "number" },
             weekly_hours_budget: { type: "number" },
             notes: { type: "string" }
           },
-          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget", "weekly_hours_budget"]
+          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget", "overtime_budget", "weekly_hours_budget"]
         }
       });
       return res;

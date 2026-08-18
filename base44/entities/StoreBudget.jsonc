@@ -21,6 +21,11 @@
       "default": 0,
       "description": "Target labor / payroll cost for the month."
     },
+    "overtime_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Target monthly overtime PAY allowance. Reflected read-only on the Payroll Labor Budget & Overtime section and compared against actual overtime pay."
+    },
     "loss_budget": {
       "type": "number",
       "default": 0,
