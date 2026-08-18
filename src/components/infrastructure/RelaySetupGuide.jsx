@@ -1,19 +1,14 @@
 import React, { useState } from "react";
-import { CheckCircle2, Circle, ChevronDown, ListChecks } from "lucide-react";
+import { CheckCircle2, Circle, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
 import { format } from "date-fns";
+import { SETUP_STEP_DETAILS, DEFAULT_SETUP_STEPS } from "@/lib/relaySetupSteps";
+import SetupStepDetail from "@/components/infrastructure/SetupStepDetail";
 
-export const DEFAULT_SETUP_STEPS = [
-  { step_id: "provision_vm", label: "Provision a lightweight Linux VM on the store's Proxmox host" },
-  { step_id: "install_node", label: "Install Node.js LTS on the relay VM" },
-  { step_id: "deploy_relay", label: "Clone / deploy the SureFlow relay service" },
-  { step_id: "configure_store", label: "Configure store ID and relay URL" },
-  { step_id: "configure_printers", label: "Configure Epson printer IP addresses" },
-  { step_id: "enable_service", label: "Enable the relay as a system service (auto-start on boot)" },
-  { step_id: "test_connectivity", label: "Test connectivity from the cloud portal" },
-];
+export { DEFAULT_SETUP_STEPS };
 
 export default function RelaySetupGuide({ steps, onToggleStep }) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(null);
   const list = steps && steps.length > 0 ? steps : DEFAULT_SETUP_STEPS.map((s) => ({ ...s, completed: false }));
   const done = list.filter((s) => s.completed).length;
   const pct = Math.round((done / list.length) * 100);
@@ -36,27 +31,35 @@ export default function RelaySetupGuide({ steps, onToggleStep }) {
             <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
           <div className="space-y-1">
-            {list.map((step, idx) => (
-              <button
-                key={step.step_id}
-                onClick={() => onToggleStep(step.step_id)}
-                className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-white text-left transition-colors"
-              >
-                {step.completed
-                  ? <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                  : <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />}
-                <div className="min-w-0">
-                  <p className={`text-xs ${step.completed ? "text-gray-400 line-through" : "text-gray-700"}`}>
-                    <span className="font-mono text-gray-400 mr-1.5">{idx + 1}.</span>{step.label}
-                  </p>
-                  {step.completed && step.completed_by && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      Completed by {step.completed_by}{step.completed_at ? ` · ${format(new Date(step.completed_at), "MMM d, yyyy h:mm a")}` : ""}
-                    </p>
-                  )}
+            {list.map((step, idx) => {
+              const detail = SETUP_STEP_DETAILS.find((d) => d.step_id === step.step_id);
+              const isExpanded = expanded === step.step_id;
+              return (
+                <div key={step.step_id} className="rounded-xl hover:bg-white transition-colors">
+                  <div className="w-full flex items-start gap-3 px-3 py-2.5">
+                    <button onClick={() => onToggleStep(step.step_id)} title={step.completed ? "Mark incomplete" : "Mark complete"} className="flex-shrink-0">
+                      {step.completed
+                        ? <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        : <Circle className="w-5 h-5 text-gray-300 hover:text-gray-400" />}
+                    </button>
+                    <button onClick={() => setExpanded(isExpanded ? null : step.step_id)} className="min-w-0 flex-1 text-left flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className={`text-xs ${step.completed ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                          <span className="font-mono text-gray-400 mr-1.5">{idx + 1}.</span>{step.label}
+                        </p>
+                        {step.completed && step.completed_by && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            Completed by {step.completed_by}{step.completed_at ? ` · ${format(new Date(step.completed_at), "MMM d, yyyy h:mm a")}` : ""}
+                          </p>
+                        )}
+                      </div>
+                      {detail && <ChevronRight className={`w-3.5 h-3.5 text-gray-300 flex-shrink-0 mt-0.5 transition-transform ${isExpanded ? "rotate-90" : ""}`} />}
+                    </button>
+                  </div>
+                  {isExpanded && <SetupStepDetail detail={detail} />}
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
