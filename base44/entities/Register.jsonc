@@ -111,7 +111,7 @@
     },
     "scanner_model": {
       "type": "string",
-      "description": "Barcode scanner make/model connected to this register"
+      "description": "Barcode scanner make/model connected to this register (e.g. Zebra DS4308)"
     },
     "cash_drawer_model": {
       "type": "string",
@@ -131,11 +131,48 @@
     },
     "terminal_model": {
       "type": "string",
-      "description": "POS terminal / computer make and model"
+      "description": "POS terminal / computer make and model (e.g. IBM SurePOS 700, Elo EPS00E2)"
     },
     "terminal_serial": {
       "type": "string",
       "description": "POS terminal / computer serial number"
+    },
+    "mac_address": {
+      "type": "string",
+      "description": "Primary NIC MAC address of the terminal. Used as the hardware identity for PXE/diskless boot instead of a static IP."
+    },
+    "boot_profile": {
+      "type": "string",
+      "enum": [
+        "pxe_debian_legacy",
+        "pxe_debian_modern",
+        "local_disk"
+      ],
+      "default": "local_disk",
+      "description": "Which boot image the store's PXE controller serves this terminal. pxe_debian_legacy = IBM SurePOS 700 class hardware; pxe_debian_modern = Elo EPS00E2 class hardware; local_disk = terminal boots from its own disk."
+    },
+    "keyboard_model": {
+      "type": "string",
+      "description": "POS keyboard make/model (e.g. IBM 3AA01194300). Determines the udev/hwdb scancode mapping applied at boot."
+    },
+    "scanner_interface": {
+      "type": "string",
+      "enum": [
+        "usb_hid",
+        "rs232_serial",
+        "usb_ocia",
+        "unknown"
+      ],
+      "default": "usb_hid",
+      "description": "How the barcode scanner attaches to the terminal. usb_hid = keyboard-wedge (Zebra DS4308 default); rs232_serial / usb_ocia = legacy IBM interfaces requiring extra driver setup."
+    },
+    "pxe_vlan": {
+      "type": "string",
+      "description": "VLAN ID carrying PXE/diskless boot traffic for this terminal (isolated from general store traffic)."
+    },
+    "backend_vlan": {
+      "type": "string",
+      "description": "VLAN ID carrying backend traffic (relay DB, sync, printing) for this terminal."
     },
     "store_id": {
       "type": "string",

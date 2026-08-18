@@ -7,8 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import HardwareProfileSection from "@/components/registers/HardwareProfileSection";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 
-const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", store_id: "" };
+const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", mac_address: "", boot_profile: "local_disk", keyboard_model: "", scanner_interface: "usb_hid", pxe_vlan: "", backend_vlan: "", store_id: "" };
+
+const AUDIT_FIELDS = ["register_id", "name", "location", "status", "ip_address", "subnet_mask", "gateway", "assigned_operator", "cash_limit", "feature_returns", "feature_customer_service", "feature_exchange", "printer_model", "printer_ip", "printer_serial", "printer_status", "scanner_model", "scanner_serial", "scanner_status", "cash_drawer_model", "cash_drawer_serial", "cash_drawer_status", "terminal_model", "terminal_serial", "mac_address", "boot_profile", "keyboard_model", "scanner_interface", "pxe_vlan", "backend_vlan", "store_id"];
 
 const FEATURES = [
   { key: "feature_returns", label: "Returns / Refunds", description: "Allow cashiers to process item returns" },
@@ -35,7 +39,7 @@ export default function AdminRegisters() {
   const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
-    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", printer_ip: r.printer_ip || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "", store_id: r.store_id || "" });
+    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", printer_ip: r.printer_ip || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "", mac_address: r.mac_address || "", boot_profile: r.boot_profile || "local_disk", keyboard_model: r.keyboard_model || "", scanner_interface: r.scanner_interface || "usb_hid", pxe_vlan: r.pxe_vlan || "", backend_vlan: r.backend_vlan || "", store_id: r.store_id || "" });
     setDialogOpen(true);
   };
 
@@ -56,10 +60,24 @@ export default function AdminRegisters() {
       if (editing) {
         await base44.entities.Register.update(editing.id, form);
         logRegisterChange(`Register edited: ${form.name} (${form.register_id}) — status: ${form.status}`, form);
+        logAuditEvent({
+          action: "Provisioned Terminal Hardware",
+          category: "register",
+          description: `Updated register ${form.name} (${form.register_id}) — terminal: ${form.terminal_model || "—"}, scanner: ${form.scanner_model || "—"} (${form.scanner_interface}), keyboard: ${form.keyboard_model || "—"}, boot profile: ${form.boot_profile}.`,
+          page: "/admin/registers",
+          changes: diffChanges(editing, form, AUDIT_FIELDS),
+        });
         toast({ title: "Register updated" });
       } else {
         await base44.entities.Register.create(form);
         logRegisterChange(`Register created: ${form.name} (${form.register_id})`, form);
+        logAuditEvent({
+          action: "Created Register",
+          category: "register",
+          description: `Created register ${form.name} (${form.register_id}) with boot profile ${form.boot_profile}, terminal ${form.terminal_model || "—"}, scanner ${form.scanner_model || "—"}.`,
+          page: "/admin/registers",
+          changes: diffChanges({}, form, AUDIT_FIELDS),
+        });
         toast({ title: "Register added" });
       }
       setDialogOpen(false); load();
@@ -70,6 +88,12 @@ export default function AdminRegisters() {
     if (!confirm(`Delete ${r.name}?`)) return;
     await base44.entities.Register.delete(r.id);
     logRegisterChange(`Register deleted: ${r.name} (${r.register_id})`, r);
+    logAuditEvent({
+      action: "Deleted Register",
+      category: "register",
+      description: `Deleted register ${r.name} (${r.register_id}) — MAC ${r.mac_address || "—"}, boot profile ${r.boot_profile || "—"}.`,
+      page: "/admin/registers",
+    });
     toast({ title: "Register deleted" }); load();
   };
 
@@ -113,6 +137,8 @@ export default function AdminRegisters() {
               <div className="flex justify-between"><span className="text-gray-400">Printer</span><span className="text-gray-700 text-xs">{r.printer_model || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Printer IP</span><span className="text-gray-700 font-mono text-xs">{r.printer_ip || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Scanner</span><span className="text-gray-700 text-xs">{r.scanner_model || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">MAC</span><span className="text-gray-700 font-mono text-xs">{r.mac_address || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Boot Profile</span><span className="text-gray-700 text-xs">{r.boot_profile || "local_disk"}</span></div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => openEdit(r)} className="flex-1"><Edit2 className="w-3 h-3 mr-1" /> Edit</Button>
@@ -248,6 +274,7 @@ export default function AdminRegisters() {
                 </div>
               </div>
             </div>
+            <HardwareProfileSection form={form} setForm={setForm} />
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Add"} Register</Button>
           </div>
         </DialogContent>
