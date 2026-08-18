@@ -250,7 +250,9 @@ app.use("/", express.static(__dirname + "/pos-dist"));
 
 // SPA fallback — the POS is a single-page app, so client routes like /login and /pos
 // must return index.html instead of 404. Must come AFTER /api and /status.
-app.get("*", (req, res, next) => {
+// Express 5 rejects "*" as a route path — use app.use, which matches every path.
+app.use((req, res, next) => {
+  if (req.method !== "GET") return next();
   if (req.path.startsWith("/api") || req.path === "/status") return next();
   res.sendFile(__dirname + "/pos-dist/index.html", (err) => err && next());
 });
