@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import ReceiptPreview4690 from "@/components/receipt/ReceiptPreview4690";
 
 export default function AdminReceipt() {
   const [config, setConfig] = useState(null);
@@ -67,13 +68,9 @@ export default function AdminReceipt() {
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <h2 className="font-semibold text-gray-900">Display Options</h2>
+            <p className="text-xs text-gray-500 -mt-2">The 4690 layout always prints the ST# / OP# / REG# identity line, the tax line, and the date, so only the transaction barcode is optional.</p>
             {[
-              { key: "show_operator_name", label: "Show Operator Name" },
-              { key: "show_date_time", label: "Show Date & Time" },
-              { key: "show_register_id", label: "Show Register ID" },
-              { key: "show_tax_breakdown", label: "Show Tax Breakdown" },
-              { key: "show_barcode", label: "Show Barcode" },
-              { key: "show_discounts", label: "Show Discount Details" },
+              { key: "show_barcode", label: "Show Transaction Barcode" },
             ].map(opt => (
               <div key={opt.key} className="flex items-center justify-between">
                 <label className="text-sm text-gray-700">{opt.label}</label>
@@ -86,46 +83,9 @@ export default function AdminReceipt() {
         {/* Preview */}
         <div className="lg:sticky lg:top-8 self-start">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h2 className="font-semibold text-gray-900 mb-4">Receipt Preview</h2>
-            <div className="bg-gray-50 rounded-xl p-6 font-mono text-xs leading-relaxed max-w-[300px] mx-auto border border-gray-200">
-              <div className="text-center space-y-0.5 mb-3">
-                <p className="font-bold text-sm">{config.store_name || "Store Name"}</p>
-                {config.store_address && <p>{config.store_address}</p>}
-                {config.store_phone && <p>{config.store_phone}</p>}
-                {config.header_line_1 && <p className="mt-1">{config.header_line_1}</p>}
-                {config.header_line_2 && <p>{config.header_line_2}</p>}
-              </div>
-              <div className="border-t border-dashed border-gray-300 my-2" />
-              {config.show_date_time && <p>Date: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>}
-              {config.show_register_id && <p>Register: REG-001</p>}
-              {config.show_operator_name && <p>Cashier: John Smith</p>}
-              <div className="border-t border-dashed border-gray-300 my-2" />
-              <div className="space-y-0.5">
-                <div className="flex justify-between"><span>Milk 1 Gal x1</span><span>$4.99</span></div>
-                {config.show_discounts && <div className="text-green-700 text-[11px] ml-2">Clearance -10%: Saved $0.56</div>}
-                <div className="flex justify-between"><span>White Bread x2</span><span>$6.98</span></div>
-                <div className="flex justify-between"><span>Cola 2L x1</span><span>$2.99</span></div>
-              </div>
-              <div className="border-t border-dashed border-gray-300 my-2" />
-              <div className="flex justify-between"><span>Subtotal</span><span>$14.96</span></div>
-              {config.show_tax_breakdown && <div className="flex justify-between"><span>Tax</span><span>$0.25</span></div>}
-              <div className="flex justify-between font-bold"><span>TOTAL</span><span>$15.21</span></div>
-              <div className="border-t border-dashed border-gray-300 my-2" />
-              <div className="flex justify-between"><span>Cash Tendered</span><span>$20.00</span></div>
-              <div className="flex justify-between font-bold"><span>Change</span><span>$4.79</span></div>
-              {(config.footer_line_1 || config.footer_line_2) && (
-                <>
-                  <div className="border-t border-dashed border-gray-300 my-2" />
-                  <div className="text-center">
-                    {config.footer_line_1 && <p>{config.footer_line_1}</p>}
-                    {config.footer_line_2 && <p>{config.footer_line_2}</p>}
-                  </div>
-                </>
-              )}
-              {config.show_barcode && (
-                <div className="text-center mt-3"><div className="inline-block bg-gray-300 h-8 w-32 rounded" /><p className="mt-1 text-[10px]">||||| ||||| |||||</p></div>
-              )}
-            </div>
+            <h2 className="font-semibold text-gray-900 mb-1">Receipt Preview</h2>
+            <p className="text-xs text-gray-500 mb-4">IBM 4690 fixed-column layout (42 chars, 80mm paper) — matches the printed receipt exactly.</p>
+            <ReceiptPreview4690 config={config} />
           </div>
         </div>
       </div>
