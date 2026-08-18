@@ -284,8 +284,12 @@ export default function POSRegister() {
         setDiscounts(discs);
         if (config.length > 0) setStoreConfig(config[0]);
         // Resolve the store record + settings so the receipt can print ST#, manager and tax rate.
+        // The store number comes straight off the register so it always prints, even if the
+        // Store / StoreSettings lookups below fail.
+        const storeId = regs[0]?.store_id || sessionStorage.getItem("pos_store_id") || "";
+        if (storeId) sessionStorage.setItem("pos_store_id", storeId);
+        setStoreInfo({ store_number: storeId });
         try {
-          const storeId = regs[0]?.store_id || sessionStorage.getItem("pos_store_id") || "";
           const [stores, settings] = await Promise.all([
             storeId ? base44.entities.Store.filter({ store_number: storeId }) : Promise.resolve([]),
             base44.entities.StoreSettings.list(),
@@ -1836,6 +1840,7 @@ export default function POSRegister() {
                   managerName={storeInfo?.manager_name}
                   taxRate={storeInfo?.default_tax_rate}
                   storeInfo={storeInfo}
+                  autoPrint
                 />
               </div>
             </div>
