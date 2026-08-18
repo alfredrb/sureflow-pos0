@@ -53,6 +53,9 @@ export function buildReceiptTokens(r) {
   }
   push("blank");
 
+  if (r.doc_type === "return") push("center", "*** RETURN / REFUND ***");
+  if (r.doc_type === "exchange") push("center", "*** EXCHANGE ***");
+
   if (r.manager_name) push("center", `MANAGER ${String(r.manager_name).toUpperCase()}`);
 
   push(
@@ -71,7 +74,13 @@ export function buildReceiptTokens(r) {
   } else {
     push("line", amountRow(`TAX  ${Number(r.tax_rate || 0).toFixed(3)} %`, money(r.tax)));
   }
-  push("line", amountRow("TOTAL", money(r.total)));
+  push(
+    "line",
+    amountRow(
+      r.doc_type === "return" ? "REFUND TOTAL" : r.doc_type === "exchange" ? "BALANCE DUE" : "TOTAL",
+      money(r.total)
+    )
+  );
 
   if (r.rewards_applied > 0) {
     push("line", amountRow("REWARDS TEND", money(r.rewards_applied)));
@@ -88,7 +97,7 @@ export function buildReceiptTokens(r) {
   push("blank");
 
   const count = (r.items || []).reduce((s, i) => s + Number(i.qty || 0), 0);
-  push("center", `# ITEMS SOLD ${count}`);
+  push("center", `# ITEMS ${r.doc_type === "return" ? "RETURNED" : "SOLD"} ${count}`);
   push("barcode", r.transaction_id || "");
 
   if (r.giftcard_notice) {

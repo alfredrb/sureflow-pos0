@@ -49,6 +49,8 @@ function buildReceipt(r) {
     if (l) o += l + "\\n";
   }
   o += "\\n";
+  if (r.doc_type === "return") o += BOLD_ON + "*** RETURN / REFUND ***" + BOLD_OFF + "\\n";
+  if (r.doc_type === "exchange") o += BOLD_ON + "*** EXCHANGE ***" + BOLD_OFF + "\\n";
   if (r.manager_name) o += "MANAGER " + String(r.manager_name).toUpperCase() + "\\n";
   o += "ST# " + (r.store_number || "0000") + "  OP# " + (r.operator_pin || "") +
     "  REG# " + (r.register_id || "00") + "\\n";
@@ -62,7 +64,8 @@ function buildReceipt(r) {
   o += amountRow("SUBTOTAL", money(r.subtotal));
   if (r.tax_exempt) o += amountRow("TAX EXEMPT", "0.00");
   else o += amountRow("TAX  " + Number(r.tax_rate || 0).toFixed(3) + " %", money(r.tax));
-  o += amountRow("TOTAL", money(r.total));
+  o += amountRow(r.doc_type === "return" ? "REFUND TOTAL"
+    : r.doc_type === "exchange" ? "BALANCE DUE" : "TOTAL", money(r.total));
   if (r.rewards_applied > 0) o += amountRow("REWARDS TEND", money(r.rewards_applied));
   const tender = String(r.payment_method || "cash").toUpperCase().replace("_", " ");
   o += amountRow(tender + " TEND", money(r.payment_method === "cash"
@@ -70,7 +73,8 @@ function buildReceipt(r) {
   o += amountRow("CHANGE DUE", money(r.change_due));
 
   const count = (r.items || []).reduce(function (s, i) { return s + Number(i.qty || 0); }, 0);
-  o += "\\n" + ALIGN_C + "# ITEMS SOLD " + count + "\\n" + ALIGN_L;
+  o += "\\n" + ALIGN_C + "# ITEMS " + (r.doc_type === "return" ? "RETURNED " : "SOLD ") +
+    count + "\\n" + ALIGN_L;
 
   // Transaction ID as a CODE128 barcode (with the TX printed under it) so
   // returns can be scanned straight from the receipt.

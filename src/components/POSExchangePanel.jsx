@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
+import { printReceipt } from "@/lib/printReceipt";
+import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
 import { ArrowLeftRight, Search, X, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,6 +170,21 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
       const serial = verifiedReturnSerials[idx];
       if (serial) { try { await markSerialReturned(ri.sku, serial, { returnTransactionId: exTxId, exchanged: true }); } catch {} }
     }
+    // Print the exchange slip on the same 42-column formatter used for sales.
+    printReceipt(buildPanelReceiptProps({
+      operator,
+      docType: "exchange",
+      transactionId: exTxId,
+      items: replaceCart,
+      subtotal: replaceValue,
+      tax: 0,
+      total: diff,
+      paymentMethod: origTx.payment_method,
+      amountTendered: Math.max(0, diff),
+      changeDue: diff < 0 ? Math.abs(diff) : 0,
+      openDrawer: diff !== 0 && origTx.payment_method === "cash",
+    }));
+
     const msg = diff > 0 ? `Customer owes $${diff.toFixed(2)}` : diff < 0 ? `Refund $${Math.abs(diff).toFixed(2)} to customer` : "Even exchange";
     toast({ title: "Exchange Processed", description: `${exTxId} — ${msg}` });
     setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setVerifiedReturnSerials({}); setStep("lookup");

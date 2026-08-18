@@ -6,6 +6,8 @@ import { buildReceiptHtml } from "@/lib/receiptHtml";
 export function buildReceiptPayload(p) {
   return {
     printer_ip: p.printerIp,
+    // sale | return | exchange — drives the slip title and the totals labels.
+    doc_type: p.docType || "sale",
     open_drawer: p.openDrawer ?? p.paymentMethod === "cash",
     transaction_id: p.transactionId,
     date: new Date().toLocaleString(),

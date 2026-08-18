@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
+import { printReceipt } from "@/lib/printReceipt";
+import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
 import { RotateCcw, FileX, ShieldCheck } from "lucide-react";
 import POSNoReceiptReturn from "@/components/pos/POSNoReceiptReturn";
 import ReturnReasonDialog from "@/components/pos/ReturnReasonDialog";
@@ -242,6 +244,21 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
     for (const d of decisions) {
       if (d.serial) { try { await markSerialReturned(d.sku, d.serial, { returnTransactionId: txId }); } catch {} }
     }
+
+    // Print the refund slip on the same 42-column formatter used for sales.
+    printReceipt(buildPanelReceiptProps({
+      operator,
+      docType: "return",
+      transactionId: txId,
+      items: returnItems,
+      subtotal: returnSubtotal,
+      tax: returnTax,
+      total: returnTotal,
+      paymentMethod: returnTransaction.payment_method,
+      amountTendered: returnTotal,
+      changeDue: 0,
+      openDrawer: returnTransaction.payment_method === "cash",
+    }));
 
     toast({ title: `${isPartial ? "Partial" : "Total"} Return Processed`, description: `${txId} — $${returnTotal.toFixed(2)} returned · ${restocked} restocked · ${claimed} to Claims` });
     setReturnTxId(""); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); setVerifiedSerials({}); setItemDecisions({});

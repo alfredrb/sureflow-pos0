@@ -30,6 +30,7 @@ import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClien
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { submitOfflineSale } from "@/lib/offlineSale";
 import { kickDrawer } from "@/lib/drawerKick";
+import { savePosReceiptContext } from "@/lib/posReceiptContext";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -289,6 +290,7 @@ export default function POSRegister() {
         const storeId = regs[0]?.store_id || sessionStorage.getItem("pos_store_id") || "";
         if (storeId) sessionStorage.setItem("pos_store_id", storeId);
         setStoreInfo({ store_number: storeId });
+        savePosReceiptContext({ storeInfo: { store_number: storeId }, storeConfig: config[0] || null });
         try {
           const [stores, settings] = await Promise.all([
             storeId ? base44.entities.Store.filter({ store_number: storeId }) : Promise.resolve([]),
@@ -296,14 +298,16 @@ export default function POSRegister() {
           ]);
           const st = stores[0] || null;
           const sett = settings.find(s => s.store_id === storeId) || settings[0] || null;
-          setStoreInfo({
+          const resolved = {
             store_number: st?.store_number || storeId,
             manager_name: st?.manager_name || "",
             default_tax_rate: sett?.default_tax_rate ?? 0,
             store_name: st?.name || sett?.store_name || "",
             store_address: st ? [st.address_street, st.address_city, st.address_state, st.address_zip].filter(Boolean).join(", ") : sett?.store_address || "",
             store_phone: st?.phone || sett?.store_phone || "",
-          });
+          };
+          setStoreInfo(resolved);
+          savePosReceiptContext({ storeInfo: resolved, storeConfig: config[0] || null });
         } catch (storeErr) { console.error("Store info unavailable:", storeErr); }
         if (regs.length > 0) {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
