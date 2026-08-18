@@ -68,7 +68,7 @@ export default function AdminReceipt() {
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <h2 className="font-semibold text-gray-900">Display Options</h2>
-            <p className="text-xs text-gray-500 -mt-2">The 4690 layout always prints the ST# / OP# / REG# identity line, the tax line, and the date, so only the transaction barcode is optional.</p>
+            <p className="text-xs text-gray-500 -mt-2">The receipt layout always prints the ST# / OP# / REG# identity line, the tax line, and the date, so only the transaction barcode is optional.</p>
             {[
               { key: "show_barcode", label: "Show Transaction Barcode" },
             ].map(opt => (
@@ -84,7 +84,7 @@ export default function AdminReceipt() {
         <div className="lg:sticky lg:top-8 self-start">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h2 className="font-semibold text-gray-900 mb-1">Receipt Preview</h2>
-            <p className="text-xs text-gray-500 mb-4">IBM 4690 fixed-column layout (42 chars, 80mm paper) — matches the printed receipt exactly.</p>
+            <p className="text-xs text-gray-500 mb-4">Fixed-column layout (42 chars, 80mm paper) — matches the printed receipt exactly. Toggle a scenario to preview it.</p>
             <ReceiptPreview4690 config={config} />
           </div>
         </div>
