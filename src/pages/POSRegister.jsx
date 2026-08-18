@@ -25,6 +25,12 @@ import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { recordSerializedSales, verifySerialInStock } from "@/lib/serialUtils";
+import { useOfflineMode } from "@/hooks/useOfflineMode";
+import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
+import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
+import { submitOfflineSale } from "@/lib/offlineSale";
+
+const OFFLINE_TENDERS = ["cash", "check"];
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function POSRegister() {
@@ -113,8 +119,27 @@ export default function POSRegister() {
   const [diagOverridePin, setDiagOverridePin] = useState("");
   const [diagOverrideError, setDiagOverrideError] = useState("");
   const loadDataDebounceRef = React.useRef(null);
+  const [relaySyncing, setRelaySyncing] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isOffline, pendingCount, catalogStale, refresh: refreshConnectivity } = useOfflineMode();
+
+  // While offline only cash/check tender is permitted — snap off a blocked method.
+  useEffect(() => {
+    if (isOffline && !OFFLINE_TENDERS.includes(paymentMethod)) setPaymentMethod("cash");
+  }, [isOffline, paymentMethod]);
+
+  const retryRelaySync = async () => {
+    setRelaySyncing(true);
+    try {
+      await forceRelaySync();
+      await refreshConnectivity();
+      loadData();
+    } catch (e) {
+      toast({ title: "Still Offline", description: "The relay could not reach the cloud.", variant: "destructive" });
+    }
+    setRelaySyncing(false);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -274,6 +299,17 @@ export default function POSRegister() {
         setLoading(false);
       } catch (e) {
         console.error("Error loading data:", e);
+        // Cloud unreachable — fall back to the relay's locally cached catalog.
+        try {
+          const cat = await fetchCatalog();
+          const prods = (cat.products || []).filter(p => p.status === "active");
+          setProducts(prods);
+          setFunctionKeys(cat.function_keys || []);
+          setDiscounts(cat.discounts || []);
+          setCategories(["All", ...new Set(prods.map(p => p.category).filter(Boolean))]);
+        } catch (relayErr) {
+          console.error("Relay catalog unavailable:", relayErr);
+        }
         setLoading(false);
       }
     }, 500);
@@ -715,6 +751,34 @@ export default function POSRegister() {
         changeDue
       });
       setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+      return;
+    }
+
+    // Offline: queue the sale on the relay instead of writing to the cloud.
+    if (isOffline) {
+      if (!OFFLINE_TENDERS.includes(paymentMethod)) {
+        toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
+        return;
+      }
+      const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+      const tendered = parseFloat(amountTendered || total);
+      try {
+        await submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod, amountTendered: tendered, changeDue, taxExemptId: taxExemptAppliedId });
+      } catch (e) {
+        toast({ title: "Sale Not Saved", description: "The local relay rejected the sale. Get a manager.", variant: "destructive" });
+        return;
+      }
+      const offlineReceipt = {
+        transactionId: txId, operatorName: operator.full_name, registerName: registerId,
+        items: cart, subtotal, tax, total, paymentMethod,
+        amountTendered: tendered, changeDue, rewardsApplied: 0, rewardsEarned: 0,
+        loyaltyMember: null, newBalance: null, taxExempt: taxExemptProfile,
+      };
+      toast({ title: "Sale Saved Offline", description: `${txId} — will upload when the connection returns.` });
+      setReceiptData(offlineReceipt);
+      setLastReceipt(offlineReceipt);
+      setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+      refreshConnectivity();
       return;
     }
 
@@ -1164,6 +1228,11 @@ export default function POSRegister() {
         </div>
       </div>
 
+      {/* Offline Mode Banner */}
+      {isOffline && (
+        <POSOfflineBanner pendingCount={pendingCount} catalogStale={catalogStale} onSyncNow={retryRelaySync} syncing={relaySyncing} />
+      )}
+
       {/* Training Mode Banner */}
       {trainingMode && (
         <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
@@ -1388,7 +1457,7 @@ export default function POSRegister() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              {[{ m: "cash", icon: Banknote, label: "Cash" }, { m: "credit", icon: CreditCard, label: "Credit" }, { m: "debit", icon: CreditCard, label: "Debit" }, { m: "check", icon: CreditCard, label: "Check" }, { m: "store_credit", icon: CreditCard, label: "Store Credit" }, { m: "giftcard", icon: CreditCard, label: "Gift Card" }].map(({ m, icon: Icon, label }) => (
+              {[{ m: "cash", icon: Banknote, label: "Cash" }, { m: "credit", icon: CreditCard, label: "Credit" }, { m: "debit", icon: CreditCard, label: "Debit" }, { m: "check", icon: CreditCard, label: "Check" }, { m: "store_credit", icon: CreditCard, label: "Store Credit" }, { m: "giftcard", icon: CreditCard, label: "Gift Card" }].filter(({ m }) => !isOffline || OFFLINE_TENDERS.includes(m)).map(({ m, icon: Icon, label }) => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
                   className={`py-2.5 rounded-xl border flex flex-col items-center gap-1 transition-colors ${paymentMethod === m ? "bg-blue-600 border-blue-500 text-white" : "bg-[#0a0e27] border-blue-500/10 text-blue-300/50 hover:border-blue-500/30"}`}
                 >
