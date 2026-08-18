@@ -127,6 +127,33 @@ vrrp_instance SUREFLOW_BOOT {
 }
 `;
 
+const IBM_PERIPHERALS = `# /etc/X11/xorg.conf.d/10-ibm-surepoint.conf (inside the image)
+# IBM SurePoint 4820 touch panel. Replace the matrix with the values
+# xinput_calibrator prints for the panel revision in your fleet.
+Section "InputClass"
+    Identifier   "IBM SurePoint Touch"
+    MatchProduct "SurePoint"
+    MatchIsTouchscreen "on"
+    Driver       "evdev"
+    Option       "Calibration"       "108 3963 288 3846"
+    Option       "SwapAxes"          "0"
+    Option       "EmulateThirdButton" "1"
+    Option       "EmulateThirdButtonTimeout" "750"
+EndSection
+
+# --- /etc/udev/rules.d/71-sureflow-ibm.rules ---
+# Stable symlinks for the SurePOS 700 internal serial peripherals so the POS
+# never has to guess a ttyS number.
+SUBSYSTEM=="tty", KERNEL=="ttyS0", SYMLINK+="sureflow-linedisplay", MODE="0660", GROUP="dialout"
+SUBSYSTEM=="tty", KERNEL=="ttyS1", SYMLINK+="sureflow-msr",         MODE="0660", GROUP="dialout"
+# Touch panel: keep raw coords, let Xorg apply the calibration above.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="04b3", ENV{SUREFLOW_TOUCH}="1"
+
+# --- 2x20 line display init (9600 8N1) ---
+# /usr/local/bin/sureflow-linedisplay-init
+#   stty -F /dev/sureflow-linedisplay 9600 cs8 -cstopb -parenb raw
+`;
+
 export const PXE_CONTROLLER_STEPS = [
   {
     step_id: "pxe_network_design",
@@ -205,6 +232,24 @@ export const PXE_CONTROLLER_STEPS = [
       { name: "sureflow-boot-env", code: BOOT_ENV_SH },
       { name: "sureflow-kiosk.service", code: KIOSK_SERVICE },
     ],
+  },
+  {
+    step_id: "pxe_ibm_peripherals",
+    label: "Add IBM touchscreen, MSR and line display support",
+    instructions: [
+      "The displays stay IBM SurePoint (4820 class) on both terminal generations — the Elo EPS00E2 is only the compute unit, so no Elo touch driver is installed anywhere in the fleet.",
+      "SurePoint panels attach as USB touch. Newer revisions come up on hid_multitouch; older resistive revisions need usbtouchscreen with hardware calibration disabled so the calibration matrix below applies instead.",
+      "Calibrate once per panel model with xinput_calibrator, then bake the resulting matrix into the Xorg snippet in that model's driver-library profile — the read-only image means the terminal cannot save its own calibration.",
+      "SurePOS 700 integrated peripherals hang off the internal serial ports: the MSR keyboard wedge needs i8042.nomux=1 and atkbd, and the 2x20 line display is a plain 9600-baud serial device reached through a stable /dev/sureflow-linedisplay symlink.",
+      "Keep every module, boot arg and rule in the Hardware Driver Library rather than hand-editing the image — the builder reads those profiles so a rebuild never loses a quirk.",
+    ],
+    commands: [
+      "sudo chroot /srv/nfs/sureflow-modern apt-get install -y --no-install-recommends xserver-xorg-input-evdev xinput-calibrator xinput inputattach",
+      "# One-time calibration on a lane, then copy the matrix into the driver profile\nDISPLAY=:0 xinput_calibrator --output-type xorg.conf.d",
+      "sudo chroot /srv/nfs/sureflow-legacy /bin/bash -c 'echo -e \"usbtouchscreen\\natkbd\\n8250\" > /etc/modules-load.d/sureflow-ibm.conf'",
+      "sudo sureflow-build-image legacy && sudo sureflow-build-image modern   # rebuild so the profiles land in the image",
+    ],
+    codeFiles: [{ name: "10-ibm-surepoint.conf", code: IBM_PERIPHERALS }],
   },
   {
     step_id: "pxe_ha_failover",

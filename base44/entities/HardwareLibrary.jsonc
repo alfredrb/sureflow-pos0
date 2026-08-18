@@ -1,0 +1,93 @@
+{
+  "name": "HardwareLibrary",
+  "type": "object",
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "Exact hardware model string as entered on the Register hardware profile (e.g. 'IBM SurePOS 700', 'IBM SurePoint 4820', 'IBM 3AA01194300', 'Zebra DS4308'). Matching is done on this value."
+    },
+    "device_type": {
+      "type": "string",
+      "enum": [
+        "terminal",
+        "touchscreen",
+        "keyboard",
+        "scanner",
+        "printer",
+        "msr",
+        "line_display",
+        "cash_drawer",
+        "other"
+      ],
+      "default": "other",
+      "description": "Class of peripheral this driver profile applies to."
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Manufacturer (e.g. IBM, Toshiba, Zebra, Epson)."
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Debian packages installed into the diskless image for this device (e.g. xserver-xorg-input-evdev, xinput-calibrator)."
+    },
+    "kernel_modules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Kernel modules to load for this device (e.g. usbtouchscreen, hid_multitouch, atkbd, 8250)."
+    },
+    "boot_args": {
+      "type": "string",
+      "description": "Extra kernel command-line arguments this device requires (e.g. 'nomodeset i8042.nomux=1 usbtouchscreen.hwcalib=1'). Appended to the terminal's PXE boot entry."
+    },
+    "udev_rules": {
+      "type": "string",
+      "description": "udev / hwdb rules applied inside the image for this device (scancode maps, stable /dev symlinks, serial port permissions)."
+    },
+    "xorg_config": {
+      "type": "string",
+      "description": "Xorg input/output configuration snippet for this device (touchscreen calibration matrix, evdev section)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Provisioning notes, quirks, and calibration steps for technicians."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive profiles are kept for history but not applied to new image builds."
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Admin who last saved this driver profile."
+    }
+  },
+  "required": [
+    "model",
+    "device_type"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
