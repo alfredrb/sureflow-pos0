@@ -83,9 +83,15 @@ export default function PositionPayRateManager() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <DollarSign className="w-5 h-5 text-emerald-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Position Pay Rates</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Position Pay Rates</h2>
+          </div>
+          <Button onClick={saveAll} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+            <Save className="w-4 h-4" />
+            {saving ? "Saving…" : "Save Rates"}
+          </Button>
         </div>
         <p className="text-xs text-gray-500 mb-4">Base hourly pay by position. The labor-cost indicator and payroll report calculate regular vs overtime pay from these rates.</p>
         <div className="overflow-x-auto">
@@ -139,12 +145,6 @@ export default function PositionPayRateManager() {
             <Input type="number" value={overtimeThreshold} disabled className="opacity-70 bg-gray-50" />
             <p className="text-xs text-gray-400 mt-1">From Financials &amp; Budget → Store Budget.</p>
           </div>
-        </div>
-        <div className="mt-5 flex justify-end">
-          <Button onClick={saveAll} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-            <Save className="w-4 h-4" />
-            {saving ? "Saving…" : "Save Rates"}
-          </Button>
         </div>
       </div>
     </div>
