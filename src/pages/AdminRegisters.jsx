@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import HardwareProfileSection from "@/components/registers/HardwareProfileSection";
 import PXEBootstrapDialog from "@/components/registers/PXEBootstrapDialog";
+import HardwareAuditChecklist from "@/components/registers/HardwareAuditChecklist";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 
 const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", mac_address: "", boot_profile: "local_disk", keyboard_model: "", scanner_interface: "usb_hid", pxe_vlan: "", backend_vlan: "", store_id: "" };
@@ -113,6 +114,8 @@ export default function AdminRegisters() {
         </div>
         <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Register</Button>
       </div>
+
+      <HardwareAuditChecklist registers={registers} />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {registers.map(r => (
