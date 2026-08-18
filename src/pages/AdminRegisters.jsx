@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 
-const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", store_id: "" };
+const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", terminal_model: "", terminal_serial: "", store_id: "" };
 
 const FEATURES = [
   { key: "feature_returns", label: "Returns / Refunds", description: "Allow cashiers to process item returns" },
@@ -35,7 +35,7 @@ export default function AdminRegisters() {
   const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
-    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "", store_id: r.store_id || "" });
+    setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", printer_ip: r.printer_ip || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "", store_id: r.store_id || "" });
     setDialogOpen(true);
   };
 
@@ -111,6 +111,7 @@ export default function AdminRegisters() {
               <div className="flex justify-between"><span className="text-gray-400">Operator</span><span className="text-gray-700">{r.assigned_operator || "Unassigned"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Terminal</span><span className="text-gray-700 text-xs">{r.terminal_model || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Printer</span><span className="text-gray-700 text-xs">{r.printer_model || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Printer IP</span><span className="text-gray-700 font-mono text-xs">{r.printer_ip || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Scanner</span><span className="text-gray-700 text-xs">{r.scanner_model || "—"}</span></div>
             </div>
             <div className="flex gap-2">
@@ -209,6 +210,11 @@ export default function AdminRegisters() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Printer IP Address</label>
+                  <Input value={form.printer_ip} onChange={e => setForm({ ...form, printer_ip: e.target.value })} placeholder="192.168.1.60" className="font-mono text-sm" />
+                  <p className="text-xs text-gray-400 mt-1">Assigns this lane's receipt printer. Receipts and the cash-drawer kick are sent here through the store's relay on port 9100. Blank = the relay uses the first printer in its list.</p>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div><label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Model</label><Input value={form.scanner_model} onChange={e => setForm({ ...form, scanner_model: e.target.value })} placeholder="Honeywell 1450g" /></div>

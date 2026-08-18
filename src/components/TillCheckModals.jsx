@@ -2,6 +2,11 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
+import { openCashDrawer } from "@/lib/relayClient";
+
+// Pop the selected register's drawer so the till can be loaded / pulled. Silent on failure.
+const popRegisterDrawer = (register) =>
+  openCashDrawer(register?.printer_ip || "").catch(() => {});
 
 export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
   const { toast } = useToast();
@@ -87,6 +92,8 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
                   register_name: register?.name,
                   detail: `Till checked out: $250 initial float`
                 });
+
+                popRegisterDrawer(register);
 
                 toast({ title: "Till checked out successfully" });
                 onClose();
@@ -286,6 +293,8 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
                   register_name: register?.name,
                   detail: `Till checked in: $${checkinTotal.toFixed(2)} (Discrepancy: ${discrepancy >= 0 ? '+' : ''}$${discrepancy.toFixed(2)})`
                 });
+
+                popRegisterDrawer(register);
 
                 toast({ title: "Till checked in successfully" });
                 onClose();

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DollarSign, Printer } from "lucide-react";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
+import { kickDrawer } from "@/lib/drawerKick";
 import QuickReconcileModal from "@/components/QuickReconcileModal";
 
 export default function POSCashManagement({ operator, isOpen, onClose }) {
@@ -66,6 +67,9 @@ export default function POSCashManagement({ operator, isOpen, onClose }) {
         register_id: registerId,
         detail: `Cash ${type === "advance" ? "Advance" : "Pickup"}: $${parseFloat(amount).toFixed(2)} — ${reason || "N/A"}`
       });
+
+      // Cash is physically moving in or out of the till — pop the drawer.
+      kickDrawer();
 
       // Set print data
       setPrintData({

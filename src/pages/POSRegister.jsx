@@ -29,6 +29,7 @@ import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { submitOfflineSale } from "@/lib/offlineSale";
+import { kickDrawer } from "@/lib/drawerKick";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -465,7 +466,7 @@ export default function POSRegister() {
         break;
       case "subtotal": break;
       case "quantity": setQtyDialog(true); break;
-      case "no_sale": writeLog("no_sale", "No Sale — cash drawer opened"); break;
+      case "no_sale": kickDrawer(); writeLog("no_sale", "No Sale — cash drawer opened"); break;
       case "cash_management": setCashMgmtDialog(true); break;
       case "reprint_receipt":
         if (lastReceipt) {
