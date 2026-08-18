@@ -6,8 +6,9 @@ import VMHealthCard from "@/components/infrastructure/VMHealthCard";
 import PrinterStatusCard from "@/components/infrastructure/PrinterStatusCard";
 import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCard";
 import RelaySetupGuide from "@/components/infrastructure/RelaySetupGuide";
+import SyncHealthCard from "@/components/infrastructure/SyncHealthCard";
 
-export default function StoreSection({ store, relay, registers, setupSteps, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl }) {
+export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync }) {
   const [open, setOpen] = useState(true);
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(store.relay_url || "");
@@ -71,6 +72,15 @@ export default function StoreSection({ store, relay, registers, setupSteps, onTo
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <VMHealthCard vmStats={relay?.data?.vm_stats} unreachable={unreachable} onRebootClick={() => onRebootClick(store)} />
             <PrinterStatusCard printers={relay?.data?.printers} unreachable={unreachable} />
+            <SyncHealthCard
+              store={store}
+              relay={relay}
+              lastSync={lastSync}
+              credential={credential}
+              newKey={newKey}
+              onGenerateKey={onGenerateKey}
+              onForceSync={onForceSync}
+            />
             <div className="bg-white border border-gray-100 rounded-2xl p-5 md:col-span-2 xl:col-span-1">
               <p className="text-sm font-semibold text-gray-900 mb-3">Register Hardware</p>
               {registers.length === 0 ? (

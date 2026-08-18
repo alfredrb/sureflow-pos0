@@ -22,8 +22,9 @@ function CopyBlock({ text, mono = true }) {
 // Expanded instructions for one relay setup step: bullet guidance,
 // copyable shell commands, and an optional full code file.
 export default function SetupStepDetail({ detail }) {
-  const [showCode, setShowCode] = useState(false);
+  const [openFile, setOpenFile] = useState(null);
   if (!detail) return null;
+  const files = detail.codeFiles || (detail.code ? [{ name: "server.js", code: detail.code }] : []);
   return (
     <div className="ml-8 mr-2 mb-2 mt-1 space-y-2" onClick={(e) => e.stopPropagation()}>
       {(detail.instructions || []).map((line, i) => (
@@ -37,12 +38,18 @@ export default function SetupStepDetail({ detail }) {
       {(detail.postInstructions || []).map((line, i) => (
         <p key={i} className="text-[11px] text-gray-600 leading-relaxed">• {line}</p>
       ))}
-      {detail.code && (
-        <div>
-          <button onClick={() => setShowCode(!showCode)} className="text-[11px] font-medium text-blue-600 hover:underline">
-            {showCode ? "Hide" : "Show"} server.js starter code
-          </button>
-          {showCode && <div className="mt-1.5 max-h-72 overflow-y-auto rounded-lg"><CopyBlock text={detail.code} /></div>}
+{files.length > 0 && (
+        <div className="space-y-1.5">
+          {files.map((f) => (
+            <div key={f.name}>
+              <button onClick={() => setOpenFile(openFile === f.name ? null : f.name)} className="text-[11px] font-medium text-blue-600 hover:underline">
+                {openFile === f.name ? "Hide" : "Show"} <span className="font-mono">{f.name}</span>
+              </button>
+              {openFile === f.name && (
+                <div className="mt-1.5 max-h-72 overflow-y-auto rounded-lg"><CopyBlock text={f.code} /></div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

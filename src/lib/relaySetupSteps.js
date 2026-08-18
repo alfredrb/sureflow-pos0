@@ -1,3 +1,10 @@
+import {
+  RELAY_DB_CODE,
+  RELAY_SYNC_CODE,
+  RELAY_API_CODE,
+  RELAY_SERVER_PHASE1_CODE,
+} from "@/lib/relayServerPhase1";
+
 // Detailed per-step instructions for spinning up a store's Local Relay VM.
 // step_ids must stay stable — completion state in StoreRelaySetup is keyed on them.
 
@@ -157,5 +164,70 @@ export const SETUP_STEP_DETAILS = [
     commands: [],
   },
 ];
+
+// ---- Phase 1: local catalog cache + offline sale capture ----
+SETUP_STEP_DETAILS.push(
+  {
+    step_id: "install_sqlite",
+    label: "Phase 1 — Install the local database for offline operation",
+    instructions: [
+      "The relay keeps a local SQLite copy of this store's catalog plus a queue of sales made while the internet is down.",
+    ],
+    commands: ["cd /opt/sureflow-relay && npm install better-sqlite3"],
+  },
+  {
+    step_id: "deploy_sync_engine",
+    label: "Phase 1 — Deploy the catalog cache, sale outbox, and sync worker",
+    instructions: [
+      "Create these three files in /opt/sureflow-relay alongside server.js, then replace server.js with the Phase 1 version below.",
+      "db.js holds the SQLite schema (catalog cache, pending_sales outbox, local stock movements). sync.js talks to the cloud. api.js exposes the endpoints the terminals call.",
+      "Sales are queued locally with a store-prefixed transaction ID and pushed to the cloud every 30 seconds; the catalog is pulled down every 5 minutes.",
+    ],
+    codeFiles: [
+      { name: "db.js", code: RELAY_DB_CODE },
+      { name: "sync.js", code: RELAY_SYNC_CODE },
+      { name: "api.js", code: RELAY_API_CODE },
+      { name: "server.js (Phase 1)", code: RELAY_SERVER_PHASE1_CODE },
+    ],
+  },
+  {
+    step_id: "configure_cloud_sync",
+    label: "Phase 1 — Configure the cloud sync credentials",
+    instructions: [
+      "In the Infrastructure Command Center, click 'Generate Key' in this store's Cloud Sync card. The key is shown once — copy it immediately.",
+      "Get the sync endpoint URL from the Base44 dashboard under Code → Functions → relaySync.",
+      "Add both to /opt/sureflow-relay/.env, then restart the relay: sudo systemctl restart sureflow-relay",
+    ],
+    commands: [
+      "CLOUD_SYNC_URL=https://<your-app-domain>/api/apps/<app-id>/functions/relaySync",
+      "CLOUD_API_KEY=<paste the generated per-store key>",
+      "DB_PATH=/opt/sureflow-relay/relay.db",
+    ],
+    postInstructions: [
+      "Verify the first sync landed: curl http://<vm-ip>:3000/api/connectivity — you should see online: true and a catalog_cached_at timestamp. The Cloud Sync card in the portal will turn green.",
+    ],
+  },
+  {
+    step_id: "serve_pos_locally",
+    label: "Phase 1 — Serve the POS from the relay and point terminals at it",
+    instructions: [
+      "Build the POS front end and copy the output into /opt/sureflow-relay/pos-dist — server.js serves it statically, so terminals load the app even with no internet.",
+      "On each IBM SurePOS 700, set the browser's home page / kiosk URL to http://<relay-ip>:3000 instead of the cloud URL.",
+      "Terminals poll /api/connectivity: when offline they show an amber 'Offline — Cash Only' banner, block card, gift card, store credit, rewards, returns, exchanges, loyalty, and tax-exempt, and warn at login if the cached catalog is more than 24 hours old.",
+    ],
+    commands: [],
+  },
+  {
+    step_id: "verify_offline_failover",
+    label: "Phase 1 — Verify offline failover end to end",
+    instructions: [
+      "Unplug the relay VM's internet (leave the store LAN up) and confirm a cash sale still completes and prints.",
+      "Check the queue grew: curl http://<vm-ip>:3000/api/pending",
+      "Restore internet. Within 60 seconds the sale should appear in the cloud Transactions list exactly once, flagged as an offline capture, with stock deducted.",
+      "Push the same batch twice (POST /api/sync repeatedly) and confirm no duplicate transaction is created — the cloud endpoint is idempotent on transaction ID.",
+    ],
+    commands: [],
+  }
+);
 
 export const DEFAULT_SETUP_STEPS = SETUP_STEP_DETAILS.map(({ step_id, label }) => ({ step_id, label }));

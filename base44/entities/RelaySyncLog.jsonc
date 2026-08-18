@@ -1,0 +1,81 @@
+{
+  "name": "RelaySyncLog",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number whose relay performed this sync."
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "pull",
+        "push"
+      ],
+      "description": "pull = relay downloaded the catalog cache; push = relay uploaded queued offline sales."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "partial",
+        "error"
+      ],
+      "default": "success"
+    },
+    "records_pulled": {
+      "type": "number",
+      "default": 0,
+      "description": "Total catalog records sent down to the relay."
+    },
+    "records_pushed": {
+      "type": "number",
+      "default": 0,
+      "description": "Offline sales accepted and written to the cloud."
+    },
+    "duplicates_skipped": {
+      "type": "number",
+      "default": 0,
+      "description": "Sales already present in the cloud (idempotent retry) that were skipped."
+    },
+    "error": {
+      "type": "string",
+      "description": "Error detail when status is error or partial."
+    },
+    "duration_ms": {
+      "type": "number",
+      "default": 0
+    },
+    "synced_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the sync completed. Drives the sync-health badge in the Infrastructure Command Center."
+    }
+  },
+  "required": [
+    "store_id",
+    "direction"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

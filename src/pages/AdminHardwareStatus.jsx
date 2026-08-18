@@ -16,6 +16,9 @@ export default function AdminHardwareStatus() {
   const [stores, setStores] = useState([]);
   const [registers, setRegisters] = useState([]);
   const [setups, setSetups] = useState([]);
+  const [credentials, setCredentials] = useState([]);
+  const [syncLogs, setSyncLogs] = useState([]);
+  const [newKeys, setNewKeys] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -26,14 +29,18 @@ export default function AdminHardwareStatus() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [st, regs, sus] = await Promise.all([
+      const [st, regs, sus, creds, logs] = await Promise.all([
         base44.entities.Store.list(),
         base44.entities.Register.list(),
         base44.entities.StoreRelaySetup.list(),
+        base44.entities.RelayCredential.filter({ status: "active" }),
+        base44.entities.RelaySyncLog.list("-synced_at", 200),
       ]);
       setStores(st.filter((s) => s.status !== "inactive"));
       setRegisters(regs);
       setSetups(sus);
+      setCredentials(creds);
+      setSyncLogs(logs);
     } catch (e) {
       if (!silent) toast({ title: "Error", description: "Failed to load infrastructure data", variant: "destructive" });
     }
@@ -122,6 +129,52 @@ export default function AdminHardwareStatus() {
     }
   };
 
+  // ---- Per-store relay API key ----
+  const handleGenerateKey = async (store) => {
+    const actor = JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    const key = `sfr_${store.store_number}_${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+    const now = new Date().toISOString();
+    try {
+      const existing = credentials.find((c) => c.store_id === store.store_number);
+      if (existing) await base44.entities.RelayCredential.update(existing.id, { status: "revoked" });
+      const created = await base44.entities.RelayCredential.create({
+        store_id: store.store_number,
+        api_key: key,
+        status: "active",
+        generated_by: actor.full_name || "Admin",
+        generated_at: now,
+      });
+      setCredentials((cs) => [...cs.filter((c) => c.store_id !== store.store_number), created]);
+      setNewKeys((k) => ({ ...k, [store.store_number]: key }));
+      logAuditEvent({
+        action: existing ? "Regenerated Relay API Key" : "Generated Relay API Key",
+        category: "system",
+        description: `${existing ? "Regenerated (previous key revoked)" : "Generated"} the cloud sync API key for ${store.name} (#${store.store_number}). The relay VM must be updated with the new key to continue syncing.`,
+        page: "/admin/hardware",
+      });
+      toast({ title: "Key Generated", description: "Copy it now — it is only shown once." });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to generate relay key", variant: "destructive" });
+    }
+  };
+
+  // ---- Force an immediate relay sync ----
+  const handleForceSync = async (store) => {
+    try {
+      const res = await fetch(`${(store.relay_url || "").replace(/\/$/, "")}/api/sync`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      toast(data.ok
+        ? { title: "Sync Complete", description: `${store.name} synced with the cloud.` }
+        : { title: "Sync Failed", description: data.error || "The relay could not reach the cloud.", variant: "destructive" });
+      load(true);
+      pollNow();
+    } catch (e) {
+      toast({ title: "Sync Failed", description: `Could not reach ${store.name}'s relay.`, variant: "destructive" });
+    }
+  };
+
   // ---- Remote VM reboot ----
   const handleRebootConfirm = async () => {
     const store = rebootStore;
@@ -193,6 +246,11 @@ export default function AdminHardwareStatus() {
               relay={relayData[store.store_number]}
               registers={registers.filter((r) => r.store_id === store.store_number)}
               setupSteps={setups.find((s) => s.store_id === store.store_number)?.steps}
+              lastSync={syncLogs.find((l) => l.store_id === store.store_number)}
+              credential={credentials.find((c) => c.store_id === store.store_number)}
+              newKey={newKeys[store.store_number]}
+              onGenerateKey={handleGenerateKey}
+              onForceSync={handleForceSync}
               onToggleStep={handleToggleStep}
               onRebootClick={setRebootStore}
               onOverride={handleOverride}
