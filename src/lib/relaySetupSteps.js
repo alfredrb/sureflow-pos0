@@ -247,6 +247,34 @@ SETUP_STEP_DETAILS.push(
     ],
   },
   {
+    step_id: "diagnose_no_sync",
+    label: "Phase 1 — Nothing happens after replacing server.js (no sync, no polling)",
+    instructions: [
+      "Symptom: server.js was replaced with the Phase 1 version but the relay behaves exactly as before — no sync, no /api routes, nothing new in the log. In every case so far this is one of four causes, in this order of likelihood.",
+      "CAUSE 1 — The service is still running the OLD process. systemd keeps running the code loaded at start; editing the file changes nothing until a restart. A restart also FAILS SILENTLY back to the old state if the new file throws on load.",
+      "CAUSE 2 — The service never actually restarted because a require() failed. api.js/sync.js/db.js must all sit in /opt/sureflow-relay next to server.js, and better-sqlite3 must be installed (previous step). A missing file gives 'Cannot find module ./api' in the log.",
+      "CAUSE 3 — The .env is not being loaded into the process. The Phase 1 code reads process.env directly and does NOT use dotenv, so the systemd unit must have EnvironmentFile=/opt/sureflow-relay/.env. Without it CLOUD_SYNC_URL is undefined, every sync attempt fails instantly, and the relay looks idle.",
+      "CAUSE 4 — You are checking the wrong process. If a stray node server.js was ever started by hand it holds port 3000, so systemd's copy never binds and your curl hits the old manual process.",
+      "Run the commands below in order — each one identifies one of the causes above.",
+    ],
+    commands: [
+      "sudo systemctl restart sureflow-relay && sudo systemctl status sureflow-relay --no-pager",
+      "sudo journalctl -u sureflow-relay -n 40 --no-pager   # look for 'phase 1' in the startup line and any 'Cannot find module' / '[sync] failed'",
+      "grep -c EnvironmentFile /etc/systemd/system/sureflow-relay.service   # must print 1 — if it prints 0 see the fix below",
+      "sudo systemctl show sureflow-relay -p Environment   # confirm STORE_ID / CLOUD_SYNC_URL / CLOUD_API_KEY are present",
+      "ps aux | grep -c '[n]ode server.js'   # must be 1 — more than one means a stray manual process is holding the port",
+      "curl -s http://localhost:3000/api/connectivity   # 404 = old code still running; JSON = Phase 1 is live",
+    ],
+    postInstructions: [
+      "Startup line does not say 'phase 1' → the old file is still being loaded. Confirm you edited /opt/sureflow-relay/server.js (not a copy elsewhere) and that WorkingDirectory in the unit points at /opt/sureflow-relay.",
+      "'Cannot find module' → the named file is missing or misnamed. Re-run: ls -1 /opt/sureflow-relay/db.js /opt/sureflow-relay/sync.js /opt/sureflow-relay/api.js",
+      "EnvironmentFile missing → add it and reload systemd: sudo sed -i '/\\[Service\\]/a EnvironmentFile=/opt/sureflow-relay/.env' /etc/systemd/system/sureflow-relay.service && sudo systemctl daemon-reload && sudo systemctl restart sureflow-relay",
+      "Stray process → kill it and restart the service: sudo pkill -f 'node server.js' && sudo systemctl restart sureflow-relay",
+      "'[sync] failed: fetch failed' repeating → the routes are live and the worker IS polling; the cloud call is the problem, so go back to the cloud sync key step and re-check CLOUD_SYNC_URL and CLOUD_API_KEY.",
+      "To watch the sync worker live (it pushes every 30s and pulls every 5 min): sudo journalctl -u sureflow-relay -f",
+    ],
+  },
+  {
     step_id: "verify_api_sync",
     label: "Phase 1 — Verify the /api/sync route and force a first sync",
     instructions: [
