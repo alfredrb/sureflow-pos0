@@ -26,6 +26,8 @@ export default function POSReceipt({
   operatorPin,
   registerId,
   storeNumber,
+  managerName,
+  storeInfo,
   taxRate
 }) {
   // Single payload shape drives both the raw ESC/POS print and the browser
@@ -39,12 +41,12 @@ export default function POSReceipt({
     operator_name: operatorName,
     operator_pin: operatorPin,
     register_id: registerId || registerName,
-    store_number: storeNumber || storeConfig?.store_id,
-    manager_name: storeConfig?.manager_name,
-    tax_rate: taxRate ?? storeConfig?.default_tax_rate,
-    store_name: storeConfig?.store_name || "Supermart",
-    store_address: storeConfig?.store_address || "",
-    store_phone: storeConfig?.store_phone || "",
+    store_number: storeNumber || storeInfo?.store_number || "",
+    manager_name: managerName || storeInfo?.manager_name || "",
+    tax_rate: taxRate ?? storeInfo?.default_tax_rate ?? 0,
+    store_name: storeConfig?.store_name || storeInfo?.store_name || "Supermart",
+    store_address: storeConfig?.store_address || storeInfo?.store_address || "",
+    store_phone: storeConfig?.store_phone || storeInfo?.store_phone || "",
     header_line_1: storeConfig?.header_line_1 || "",
     header_line_2: storeConfig?.header_line_2 || "",
     footer_line_1: storeConfig?.footer_line_1 || "",

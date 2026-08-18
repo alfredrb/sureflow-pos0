@@ -77,6 +77,8 @@ export default function POSRegister() {
   const [exportCashDialog, setExportCashDialog] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [storeConfig, setStoreConfig] = useState(null);
+  // Store record + store settings — supply the receipt's store number, manager name and tax rate.
+  const [storeInfo, setStoreInfo] = useState(null);
   const [lastReceipt, setLastReceipt] = useState(null);
   const [registerPaused, setRegisterPaused] = useState(false);
   const [pauseUnlockPin, setPauseUnlockPin] = useState("");
@@ -281,6 +283,24 @@ export default function POSRegister() {
         setFunctionKeys(fkeys);
         setDiscounts(discs);
         if (config.length > 0) setStoreConfig(config[0]);
+        // Resolve the store record + settings so the receipt can print ST#, manager and tax rate.
+        try {
+          const storeId = regs[0]?.store_id || sessionStorage.getItem("pos_store_id") || "";
+          const [stores, settings] = await Promise.all([
+            storeId ? base44.entities.Store.filter({ store_number: storeId }) : Promise.resolve([]),
+            base44.entities.StoreSettings.list(),
+          ]);
+          const st = stores[0] || null;
+          const sett = settings.find(s => s.store_id === storeId) || settings[0] || null;
+          setStoreInfo({
+            store_number: st?.store_number || storeId,
+            manager_name: st?.manager_name || "",
+            default_tax_rate: sett?.default_tax_rate ?? 0,
+            store_name: st?.name || sett?.store_name || "",
+            store_address: st ? [st.address_street, st.address_city, st.address_state, st.address_zip].filter(Boolean).join(", ") : sett?.store_address || "",
+            store_phone: st?.phone || sett?.store_phone || "",
+          });
+        } catch (storeErr) { console.error("Store info unavailable:", storeErr); }
         if (regs.length > 0) {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
           setRegisterPaused(regs[0].paused || false);
@@ -1812,8 +1832,10 @@ export default function POSRegister() {
                   newBalance={receiptData.newBalance}
                   operatorPin={operator?.pin}
                   registerId={sessionStorage.getItem("pos_register_num") || receiptData.registerName}
-                  storeNumber={sessionStorage.getItem("pos_store_id") || storeConfig?.store_id}
-                  taxRate={storeConfig?.default_tax_rate}
+                  storeNumber={storeInfo?.store_number || sessionStorage.getItem("pos_store_id")}
+                  managerName={storeInfo?.manager_name}
+                  taxRate={storeInfo?.default_tax_rate}
+                  storeInfo={storeInfo}
                 />
               </div>
             </div>
