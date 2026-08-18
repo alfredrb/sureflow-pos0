@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import JsBarcode from "jsbarcode";
+import { printReceiptViaRelay } from "@/lib/relayClient";
 
 export default function POSReceipt({
   transactionId,
@@ -19,7 +20,9 @@ export default function POSReceipt({
   loyaltyMember,
   rewardsApplied = 0,
   rewardsEarned = 0,
-  newBalance = null
+  newBalance = null,
+  printerIp,
+  openDrawer
 }) {
   const barcodeRef = useRef(null);
 
@@ -38,7 +41,56 @@ export default function POSReceipt({
     }
   }, [transactionId]);
 
-  const handlePrint = () => {
+  // Raw ESC/POS print through the store's relay: no print dialog, and the same
+  // command pops the cash drawer on cash sales. Falls back to the browser dialog
+  // if the relay or printer is unreachable.
+  const printViaRelay = async () => {
+    await printReceiptViaRelay({
+      printer_ip: printerIp,
+      open_drawer: openDrawer ?? paymentMethod === "cash",
+      transaction_id: transactionId,
+      date: new Date().toLocaleString(),
+      register_name: registerName,
+      operator_name: operatorName,
+      store_name: storeConfig?.store_name || "Supermart",
+      store_address: storeConfig?.store_address || "",
+      store_phone: storeConfig?.store_phone || "",
+      header_line_1: storeConfig?.header_line_1 || "",
+      header_line_2: storeConfig?.header_line_2 || "",
+      footer_line_1: storeConfig?.footer_line_1 || "",
+      footer_line_2: storeConfig?.footer_line_2 || "",
+      items: (items || []).map((i) => ({
+        qty: i.qty,
+        name: i.name,
+        total: i.total,
+        serial_numbers: i.serial_numbers || [],
+      })),
+      subtotal,
+      tax,
+      total,
+      payment_method: paymentMethod,
+      amount_tendered: amountTendered,
+      change_due: changeDue,
+      rewards_applied: rewardsApplied,
+      rewards_earned: rewardsEarned,
+      giftcard_notice: (items || []).some((i) => i.is_giftcard),
+      tax_exempt: taxExempt || null,
+      loyalty_member: loyaltyMember || null,
+      loyalty_balance: newBalance != null ? newBalance : loyaltyMember?.rewards_balance || 0,
+    });
+  };
+
+  const handlePrint = async () => {
+    try {
+      await printViaRelay();
+      return;
+    } catch (e) {
+      console.warn("Relay print unavailable, falling back to browser print:", e.message);
+    }
+    printInBrowser();
+  };
+
+  const printInBrowser = () => {
     const receiptWindow = window.open("", "", "width=400,height=600");
     
     const storeName = storeConfig?.store_name || "Supermart";

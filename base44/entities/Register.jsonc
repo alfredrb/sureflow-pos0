@@ -105,6 +105,10 @@
       "type": "string",
       "description": "Receipt printer make/model connected to this register"
     },
+    "printer_ip": {
+      "type": "string",
+      "description": "Static LAN IP of this register's receipt printer (e.g. 192.168.1.60). The POS sends raw ESC/POS receipts and the cash-drawer kick to this address through the store's Local Relay VM on port 9100. Blank = the relay uses the first printer in its PRINTER_IPS list."
+    },
     "scanner_model": {
       "type": "string",
       "description": "Barcode scanner make/model connected to this register"

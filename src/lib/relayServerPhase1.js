@@ -138,8 +138,42 @@ export const RELAY_API_CODE = `// api.js — endpoints the POS terminals call (m
 const express = require("express");
 const store = require("./db");
 const sync = require("./sync");
+const printer = require("./printer");
 
 const router = express.Router();
+
+// ---- printing (raw ESC/POS straight to the register's Epson on port 9100) ----
+
+// Print a receipt. Body is the receipt payload from the POS; set open_drawer:true
+// on cash sales to fire the drawer kick with the same command.
+router.post("/print", async (req, res) => {
+  try {
+    await printer.printReceipt(req.body || {});
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// Pop the cash drawer on its own (cash pickups, no-sales, till checkout).
+router.post("/drawer", async (req, res) => {
+  try {
+    await printer.openDrawer((req.body || {}).printer_ip);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+// Diagnostic test print used by the Infrastructure Command Center.
+router.post("/print-test", async (req, res) => {
+  try {
+    await printer.testPrint((req.body || {}).printer_ip);
+    res.json({ ok: true, printers: printer.printers });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
 
 // Cached catalog: products, operators, registers, settings, discounts, function keys.
 router.get("/catalog", (req, res) => {

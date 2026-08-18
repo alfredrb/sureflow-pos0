@@ -32,5 +32,17 @@ export const fetchCatalog = () => relayFetch("/api/catalog", {}, 10000);
 export const queueOfflineSale = (sale) =>
   relayFetch("/api/sales", { method: "POST", body: JSON.stringify(sale) }, 10000);
 
+// Raw ESC/POS receipt print on the register's printer. Set open_drawer for cash sales.
+export const printReceiptViaRelay = (receipt) =>
+  relayFetch("/api/print", { method: "POST", body: JSON.stringify(receipt) }, 10000);
+
+// Pop the cash drawer without printing (cash pickup, no-sale, till checkout).
+export const openCashDrawer = (printer_ip) =>
+  relayFetch("/api/drawer", { method: "POST", body: JSON.stringify({ printer_ip }) }, 8000);
+
+// Diagnostic test print from the Infrastructure Command Center.
+export const relayTestPrint = (printer_ip) =>
+  relayFetch("/api/print-test", { method: "POST", body: JSON.stringify({ printer_ip }) }, 10000);
+
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
