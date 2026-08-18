@@ -97,7 +97,7 @@ function buildReceipt(r) {
   o += center(r.date || new Date().toLocaleString());
   o += "\\n" + center("***CUSTOMER COPY***");
 
-  o += "\\n\\n\\n";
+  o += "\\n";                     // GS V 66 feeds to the cutter, so no extra padding needed
   if (r.open_drawer) o += KICK;   // pop the drawer on cash sales
   o += CUT;
   return o;
@@ -116,7 +116,9 @@ function sendRaw(ip, payload) {
     sock.setTimeout(5000);
     sock.once("error", reject);
     sock.once("timeout", () => { sock.destroy(); reject(new Error("Printer timeout at " + ip)); });
-    sock.connect(PORT, ip, () => sock.end(Buffer.from(payload, "binary")));
+    // Resolve as soon as the bytes are flushed to the printer instead of waiting
+    // for the socket teardown — the print starts immediately either way.
+    sock.connect(PORT, ip, () => sock.end(Buffer.from(payload, "binary"), () => resolve(true)));
     sock.once("close", () => resolve(true));
   });
 }
