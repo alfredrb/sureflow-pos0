@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { LogOut, ShoppingCart, CreditCard, DollarSign, Banknote, X, Search, List, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench, Award, Megaphone } from "lucide-react";
+import { LogOut, ShoppingCart, RotateCcw, Headphones, ArrowLeftRight, AlertTriangle, Wrench, Megaphone } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import POSCartItem from "@/components/POSCartItem";
 import SODProtocolModal from "@/components/SODProtocolModal";
 import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
-import POSReceipt from "@/components/POSReceipt";
 import POSTaxExemptDialog from "@/components/pos/POSTaxExemptDialog";
 import POSHelpMenu from "@/components/POSHelpMenu";
 import POSTechnicianPanel from "@/components/POSTechnicianPanel";
@@ -31,6 +29,12 @@ import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { submitOfflineSale } from "@/lib/offlineSale";
 import { kickDrawer } from "@/lib/drawerKick";
 import { savePosReceiptContext } from "@/lib/posReceiptContext";
+import POSTransactionSummary from "@/components/pos/POSTransactionSummary";
+import POSReceiptDialog from "@/components/pos/POSReceiptDialog";
+import POSPaymentDialog from "@/components/pos/POSPaymentDialog";
+import POSGiftCardResultDialog from "@/components/pos/POSGiftCardResultDialog";
+import POSNewsDialog from "@/components/pos/POSNewsDialog";
+import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -902,6 +906,122 @@ export default function POSRegister() {
        }
        };
 
+  // Validate a gift-card tender before completing the sale.
+  const validateGiftCardTender = () => {
+    if (!giftCardNumber.trim() || !giftCardAmount.trim()) {
+      setGiftCardError("Please enter gift card number and amount");
+      return;
+    }
+    setGiftCardValidating(true);
+    setGiftCardError("");
+    base44.entities.GiftCard.filter({ card_number: giftCardNumber.trim() }).then(cards => {
+      if (cards.length === 0) { setGiftCardError("Gift card not found"); setGiftCardValidating(false); return; }
+      const card = cards[0];
+      if (card.status !== "active") { setGiftCardError("Gift card is not active"); setGiftCardValidating(false); return; }
+      const chargeAmount = parseFloat(giftCardAmount);
+      if (chargeAmount <= 0) { setGiftCardError("Amount must be greater than zero"); setGiftCardValidating(false); return; }
+      if (chargeAmount > card.balance) {
+        setGiftCardResult({ approved: false, card, message: `Insufficient balance. Card has $${card.balance.toFixed(2)}, but $${chargeAmount.toFixed(2)} was requested.` });
+      } else {
+        setGiftCardResult({ approved: true, card, chargeAmount, message: `Payment approved. New balance: $${(card.balance - chargeAmount).toFixed(2)}` });
+      }
+      setGiftCardValidating(false);
+    }).catch(() => {
+      setGiftCardError("Error validating gift card");
+      setGiftCardValidating(false);
+    });
+  };
+
+  const closeGiftCardResult = () => {
+    setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError("");
+    if (giftCardResult?.approved) setPaymentOpen(false);
+  };
+
+  // Complete the sale using an approved gift-card tender.
+  const completeGiftCardSale = () => {
+    const txId = "TX-" + Date.now().toString(36).toUpperCase();
+    const chargeAmount = giftCardResult.chargeAmount;
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
+    const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
+    const baseReceipt = {
+      transactionId: txId,
+      operatorName: operator.full_name,
+      registerName: registerId,
+      items: cart, subtotal, tax, total,
+      paymentMethod: "giftcard",
+      amountTendered: chargeAmount,
+      changeDue: 0,
+      rewardsApplied: loyaltyAppliedAmount,
+      rewardsEarned,
+    };
+    const clearSale = () => {
+      setCart([]); setPaymentOpen(false); setTaxExemptAppliedId("");
+      setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+      setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setAmountTendered("");
+    };
+
+    // Training mode: no balance deduction, no transaction, no stock change.
+    if (trainingMode) {
+      const practiceBalance = loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
+      const practice = {
+        ...baseReceipt,
+        loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyMember.rewards_balance } : null,
+        newBalance: practiceBalance,
+      };
+      toast({ title: "Training Sale Complete", description: `${txId} — Paid with gift card (not recorded)` });
+      setReceiptData(practice);
+      setLastReceipt(practice);
+      clearSale();
+      return;
+    }
+
+    base44.entities.GiftCard.update(giftCardResult.card.id, { balance: giftCardResult.card.balance - chargeAmount }).then(() => {
+      base44.entities.Transaction.create({
+        transaction_id: txId,
+        operator_id: operator.operator_id,
+        operator_name: operator.full_name,
+        register_id: registerId,
+        items: cart,
+        subtotal, tax, total,
+        payment_method: "giftcard",
+        giftcard_number: giftCardResult.card.card_number,
+        status: "completed",
+        amount_tendered: chargeAmount,
+        change_due: 0,
+        training_mode: trainingMode,
+        tax_exempt_id: taxExemptAppliedId || null,
+        loyalty_id: loyaltyMember?.loyalty_id || null,
+        loyalty_member_name: loyaltyMember?.name || null,
+        rewards_earned: rewardsEarned,
+        rewards_applied: loyaltyAppliedAmount
+      }).then(() => {
+        for (const item of cart) {
+          const prod = products.find(p => p.sku === item.sku);
+          if (prod) base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
+        }
+        recordSerializedSales({ items: cart, transactionId: txId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }).catch(() => {});
+        const loyaltyNewBalance = loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
+        if (loyaltyMember) {
+          base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id }).then(fresh => {
+            if (fresh.length > 0) {
+              const m = fresh[0];
+              const nb = +((m.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2);
+              base44.entities.LoyaltyMember.update(m.id, { rewards_balance: nb, lifetime_points: +((m.lifetime_points || 0) + rewardsEarned).toFixed(2) });
+            }
+          }).catch(() => {});
+        }
+        toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
+        writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
+        const loyaltyBlock = loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyNewBalance ?? loyaltyMember.rewards_balance } : null;
+        setReceiptData({ ...baseReceipt, loyaltyMember: loyaltyBlock, newBalance: loyaltyNewBalance });
+        setLastReceipt({ ...baseReceipt, taxExempt: taxExemptProfile, loyaltyMember: loyaltyBlock, newBalance: loyaltyNewBalance });
+        clearSale();
+        loadData();
+      });
+    });
+  };
+
   // Remote logout (from admin Remote Workstation) — only prompt when the cart is clear
   useEffect(() => {
     if (remoteLogout.requested && cart.length === 0) setRemoteLogoutDialog(true);
@@ -1299,150 +1419,20 @@ export default function POSRegister() {
 
         {/* LEFT — Current Transaction (hidden in diagnostics mode) */}
         {posMode !== "diagnostics" && (
-        <div className="w-[340px] bg-[#111638] border-r border-blue-500/10 flex flex-col flex-shrink-0">
-          <div className="px-3 py-2 border-b border-blue-500/10 flex items-center justify-between">
-            <p className="text-blue-300/40 text-[10px] uppercase tracking-widest">
-              {posMode === "returns" ? "Return Summary" : posMode === "exchange" ? "Exchange Summary" : "Current Transaction"}
-            </p>
-            {(posMode === "sale" || posMode === "cs") && (
-              <button onClick={() => setLoyaltyLookupOpen(true)} className="text-sky-400/70 hover:text-sky-300 text-[10px] uppercase tracking-wider flex items-center gap-1">
-                <Award className="w-3 h-3" /> Loyalty
-              </button>
-            )}
-          </div>
-
-          {/* SALE mode — normal cart */}
-          {(posMode === "sale" || posMode === "cs") && (
-            <>
-              {priceOverrideActive && (
-                <div className="bg-amber-500/10 border-b-2 border-amber-500/50 px-3 py-1.5 flex items-center justify-center flex-shrink-0">
-                  <span className="text-amber-400 font-bold text-[10px] uppercase tracking-widest">✎ PRICE OVERRIDE — tap edit on an item to change its price</span>
-                </div>
-              )}
-              <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-blue-300/20 gap-2">
-                    <ShoppingCart className="w-8 h-8" />
-                    <p className="text-xs">No items scanned</p>
-                  </div>
-                ) : cart.map((item) => (
-                  <POSCartItem key={item.sku} item={item} onUpdateQty={updateQty} onRemove={removeFromCart} priceOverrideActive={priceOverrideActive} onEditPrice={openPriceEdit} />
-                ))}
-              </div>
-              <div className="border-t border-blue-500/10 p-3 space-y-1 flex-shrink-0">
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Tax</span><span>${tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-white text-xl font-bold pt-1.5 border-t border-blue-500/10">
-                  <span>TOTAL</span><span>${total.toFixed(2)}</span>
-                </div>
-                <Button
-                  onClick={() => cart.length > 0 && setPaymentOpen(true)}
-                  disabled={cart.length === 0}
-                  className="w-full h-11 bg-green-600 hover:bg-green-500 text-white font-bold text-lg mt-1.5 rounded-xl disabled:opacity-30"
-                >
-                  <DollarSign className="w-5 h-5 mr-1" /> PAY
-                </Button>
-              </div>
-            </>
-          )}
-
-          {/* RETURNS mode — show selected return items */}
-          {posMode === "returns" && (
-            <>
-              <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                {!sidePreview || sidePreview.items.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-purple-300/20 gap-2">
-                    <RotateCcw className="w-8 h-8" />
-                    <p className="text-xs text-center">Select items to return on the right</p>
-                  </div>
-                ) : sidePreview.items.map((item, i) => (
-                  <div key={i} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-purple-500/10">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs truncate font-medium">{item.name}</p>
-                      <p className="text-purple-300/40 text-[10px]">${item.price.toFixed(2)} ea · qty {item.qty}</p>
-                    </div>
-                    <p className="text-purple-300 font-semibold text-xs w-14 text-right flex-shrink-0">−${item.total.toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-purple-500/10 p-3 space-y-1 flex-shrink-0">
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Subtotal</span><span>−${(sidePreview?.subtotal || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Tax</span><span>−${(sidePreview?.tax || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-purple-300 text-xl font-bold pt-1.5 border-t border-purple-500/10">
-                  <span>REFUND</span><span>${(sidePreview?.total || 0).toFixed(2)}</span>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* EXCHANGE mode — show returning + replacement items */}
-          {posMode === "exchange" && (
-            <>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {!sidePreview ? (
-                  <div className="flex flex-col items-center justify-center h-full text-teal-300/20 gap-2">
-                    <ArrowLeftRight className="w-8 h-8" />
-                    <p className="text-xs text-center">Select items to exchange on the right</p>
-                  </div>
-                ) : (
-                  <>
-                    {sidePreview.returnedItems.length > 0 && (
-                      <div>
-                        <p className="text-purple-300/50 text-[9px] uppercase tracking-wider px-1 mb-1">Returning</p>
-                        {sidePreview.returnedItems.map((item, i) => (
-                          <div key={i} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-purple-500/10 mb-1">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white text-xs truncate font-medium">{item.name}</p>
-                              <p className="text-purple-300/40 text-[10px]">${item.price.toFixed(2)} · qty {item.qty}</p>
-                            </div>
-                            <p className="text-purple-300 font-semibold text-xs w-14 text-right flex-shrink-0">−${item.total.toFixed(2)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {sidePreview.replaceCart.length > 0 && (
-                      <div>
-                        <p className="text-teal-300/50 text-[9px] uppercase tracking-wider px-1 mb-1">Replacement</p>
-                        {sidePreview.replaceCart.map((item, i) => (
-                          <div key={i} className="bg-[#0a0e27] rounded-lg p-2 flex items-center gap-2 border border-teal-500/10 mb-1">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white text-xs truncate font-medium">{item.name}</p>
-                              <p className="text-teal-300/40 text-[10px]">${item.price.toFixed(2)} · qty {item.qty}</p>
-                            </div>
-                            <p className="text-teal-300 font-semibold text-xs w-14 text-right flex-shrink-0">+${item.total.toFixed(2)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="border-t border-teal-500/10 p-3 space-y-1 flex-shrink-0">
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Return Value</span><span>−${(sidePreview?.returnValue || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Replace Value</span><span>+${(sidePreview?.replaceValue || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-blue-300/50 text-xs">
-                  <span>Net Tax</span><span>{(sidePreview?.netTax || 0) < 0 ? "−" : "+"}${Math.abs(sidePreview?.netTax || 0).toFixed(2)}</span>
-                </div>
-                <div className={`flex justify-between text-xl font-bold pt-1.5 border-t border-teal-500/10 ${(sidePreview?.diff || 0) > 0 ? "text-green-400" : (sidePreview?.diff || 0) < 0 ? "text-red-400" : "text-teal-300"}`}>
-                  <span>{(sidePreview?.diff || 0) > 0 ? "OWES" : (sidePreview?.diff || 0) < 0 ? "REFUND" : "EVEN"}</span>
-                  <span>${Math.abs(sidePreview?.diff || 0).toFixed(2)}</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+          <POSTransactionSummary
+            posMode={posMode}
+            cart={cart}
+            subtotal={subtotal}
+            tax={tax}
+            total={total}
+            sidePreview={sidePreview}
+            priceOverrideActive={priceOverrideActive}
+            onUpdateQty={updateQty}
+            onRemove={removeFromCart}
+            onEditPrice={openPriceEdit}
+            onOpenLoyalty={() => setLoyaltyLookupOpen(true)}
+            onPay={() => cart.length > 0 && setPaymentOpen(true)}
+          />
         )}
 
         {/* RIGHT — switches based on posMode */}
@@ -1484,102 +1474,26 @@ export default function POSRegister() {
       />
 
       {/* Payment Dialog */}
-      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-        <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-white text-sm">Payment — ${amountDue.toFixed(2)}{loyaltyAppliedAmount > 0 && <span className="text-sky-400 text-[10px] ml-2">(after ${loyaltyAppliedAmount.toFixed(2)} rewards)</span>}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              {[{ m: "cash", icon: Banknote, label: "Cash" }, { m: "credit", icon: CreditCard, label: "Credit" }, { m: "debit", icon: CreditCard, label: "Debit" }, { m: "check", icon: CreditCard, label: "Check" }, { m: "store_credit", icon: CreditCard, label: "Store Credit" }, { m: "giftcard", icon: CreditCard, label: "Gift Card" }].filter(({ m }) => !isOffline || OFFLINE_TENDERS.includes(m)).map(({ m, icon: Icon, label }) => (
-                <button key={m} onClick={() => setPaymentMethod(m)}
-                  className={`py-2.5 rounded-xl border flex flex-col items-center gap-1 transition-colors ${paymentMethod === m ? "bg-blue-600 border-blue-500 text-white" : "bg-[#0a0e27] border-blue-500/10 text-blue-300/50 hover:border-blue-500/30"}`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-[10px] font-medium">{label}</span>
-                </button>
-              ))}
-            </div>
-            {paymentMethod === "cash" && (
-               <div>
-                 <label className="text-blue-300/60 text-[10px] mb-1 block">Amount Tendered</label>
-                 <Input value={amountTendered} onChange={e => setAmountTendered(e.target.value)} type="number" step="0.01"
-                   className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" placeholder="0.00" />
-                 <div className="grid grid-cols-4 gap-1 mt-2">
-                   {[1, 5, 10, 20, 50, 100].map(v => (
-                     <button key={v} onClick={() => setAmountTendered(String(v))}
-                       className="py-1.5 rounded-md bg-[#0a0e27] border border-blue-500/10 text-blue-200 text-xs hover:bg-[#161d50] transition-colors">${v}</button>
-                   ))}
-                   <button onClick={() => setAmountTendered(amountDue.toFixed(2))}
-                     className="py-1.5 rounded-md bg-blue-600/20 border border-blue-500/20 text-blue-300 text-xs col-span-2 hover:bg-blue-600/30 transition-colors">Exact</button>
-                 </div>
-                 {parseFloat(amountTendered) >= amountDue && (
-                   <p className="text-green-400 text-center mt-2 text-base font-bold">
-                     Change: ${(parseFloat(amountTendered) - amountDue).toFixed(2)}
-                   </p>
-                 )}
-               </div>
-            )}
-            {paymentMethod === "giftcard" && (
-              <div>
-                <label className="text-blue-300/60 text-[10px] mb-1 block">Gift Card Number</label>
-                <Input value={giftCardNumber} onChange={e => setGiftCardNumber(e.target.value)} 
-                  placeholder="Enter gift card number" className="bg-[#0a0e27] border-blue-500/10 text-white mb-3" />
-                <label className="text-blue-300/60 text-[10px] mb-1 block">Amount to Charge</label>
-                <Input value={giftCardAmount} onChange={e => setGiftCardAmount(e.target.value)} type="number" step="0.01"
-                  placeholder="0.00" className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" />
-                {giftCardError && <p className="text-red-400 text-xs mt-2 text-center">{giftCardError}</p>}
-              </div>
-            )}
-            <button onClick={() => setLoyaltySignupOpen(true)} className="w-full text-sky-400/70 hover:text-sky-300 text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 py-1">
-              <Award className="w-3 h-3" /> {loyaltyMember ? "Loyalty Member Linked" : "Sign Up for Loyalty"}
-            </button>
-            <Button onClick={() => {
-              if (paymentMethod === "giftcard") {
-                if (!giftCardNumber.trim() || !giftCardAmount.trim()) {
-                  setGiftCardError("Please enter gift card number and amount");
-                  return;
-                }
-                setGiftCardValidating(true);
-                setGiftCardError("");
-                base44.entities.GiftCard.filter({ card_number: giftCardNumber.trim() }).then(cards => {
-                  if (cards.length === 0) {
-                    setGiftCardError("Gift card not found");
-                    setGiftCardValidating(false);
-                    return;
-                  }
-                  const card = cards[0];
-                  if (card.status !== "active") {
-                    setGiftCardError("Gift card is not active");
-                    setGiftCardValidating(false);
-                    return;
-                  }
-                  const chargeAmount = parseFloat(giftCardAmount);
-                  if (chargeAmount <= 0) {
-                    setGiftCardError("Amount must be greater than zero");
-                    setGiftCardValidating(false);
-                    return;
-                  }
-                  if (chargeAmount > card.balance) {
-                    setGiftCardResult({ approved: false, card, message: `Insufficient balance. Card has $${card.balance.toFixed(2)}, but $${chargeAmount.toFixed(2)} was requested.` });
-                  } else {
-                    setGiftCardResult({ approved: true, card, chargeAmount, message: `Payment approved. New balance: $${(card.balance - chargeAmount).toFixed(2)}` });
-                  }
-                  setGiftCardValidating(false);
-                }).catch(e => {
-                  setGiftCardError("Error validating gift card");
-                  setGiftCardValidating(false);
-                });
-              } else {
-                completeSale();
-              }
-            }} disabled={paymentMethod === "cash" && parseFloat(amountTendered || 0) < amountDue || paymentMethod === "giftcard" && giftCardValidating}
-              className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl disabled:opacity-50">
-              {giftCardValidating ? "Validating..." : "Complete Sale"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <POSPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        amountDue={amountDue}
+        loyaltyAppliedAmount={loyaltyAppliedAmount}
+        loyaltyMember={loyaltyMember}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        allowedTenders={isOffline ? OFFLINE_TENDERS : null}
+        amountTendered={amountTendered}
+        setAmountTendered={setAmountTendered}
+        giftCardNumber={giftCardNumber}
+        setGiftCardNumber={setGiftCardNumber}
+        giftCardAmount={giftCardAmount}
+        setGiftCardAmount={setGiftCardAmount}
+        giftCardError={giftCardError}
+        giftCardValidating={giftCardValidating}
+        onOpenLoyaltySignup={() => setLoyaltySignupOpen(true)}
+        onSubmit={() => { if (paymentMethod === "giftcard") validateGiftCardTender(); else completeSale(); }}
+      />
 
       {/* Override Authorization Dialog */}
       <Dialog open={supOverrideDialog} onOpenChange={v => { setSupOverrideDialog(v); if (!v) { setSupOverridePin(""); setSupOverrideUserId(""); setSupOverrideError(""); setPendingFunctionKey(null); } }}>
@@ -1725,137 +1639,16 @@ export default function POSRegister() {
       <ExportCashHistory isOpen={exportCashDialog} onClose={() => setExportCashDialog(false)} />
 
       {/* Receipt Dialog */}
-      {receiptData && (
-        <Dialog open={!!receiptData} onOpenChange={(open) => { if (!open) { setReceiptData(null); setTaxExemptProfile(null); } }}>
-          <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="text-white text-sm">Transaction Complete</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="bg-[#0a0e27] rounded-lg p-4 space-y-2 font-mono text-xs">
-                <div className="text-center font-bold border-b pb-2">RECEIPT</div>
-                <div className="space-y-1">
-                  <div>TX ID: {receiptData.transactionId}</div>
-                  <div>Date: {new Date().toLocaleString()}</div>
-                  <div>Register: {receiptData.registerName}</div>
-                  <div>Operator: {receiptData.operatorName}</div>
-                </div>
-                <div className="border-t border-b py-2 space-y-1">
-                  {receiptData.items.map((item, idx) => (
-                    <div key={idx} className="space-y-0.5">
-                      <div className="flex justify-between">
-                        <span>{item.qty}x {item.name}</span>
-                        <span>${item.total.toFixed(2)}</span>
-                      </div>
-                      {item.serial_numbers && item.serial_numbers.length > 0 && (
-                        <div className="pl-2">
-                          {item.serial_numbers.map((sn, i) => (
-                            <div key={i} className="text-[10px] text-indigo-300/70">SN: {sn}</div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>${receiptData.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tax:</span>
-                    <span>${receiptData.tax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold border-t pt-1">
-                    <span>TOTAL:</span>
-                    <span>${receiptData.total.toFixed(2)}</span>
-                  </div>
-                  {receiptData.rewardsApplied > 0 && (
-                    <>
-                      <div className="flex justify-between text-sky-400">
-                        <span>Rewards Credit:</span>
-                        <span>−${receiptData.rewardsApplied.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold">
-                        <span>Amount Due:</span>
-                        <span>${(receiptData.total - receiptData.rewardsApplied).toFixed(2)}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {receiptData.paymentMethod === "cash" && (
-                  <div className="border-t pt-2 space-y-1 text-xs">
-                    <div className="flex justify-between">
-                      <span>Tendered:</span>
-                      <span>${receiptData.amountTendered.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span>Change:</span>
-                      <span>${receiptData.changeDue.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-                <div className="border-t pt-3 space-y-3">
-                  <div className="flex justify-center">
-                    <svg id={`barcode-${receiptData.transactionId}`} style={{ maxWidth: "90%" }}></svg>
-                  </div>
-                  {receiptData.items.some(i => i.is_giftcard) && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded px-2 py-2">
-                      <p className="text-center text-amber-400 font-bold text-[9px] uppercase tracking-wider">⚠ Gift Cards Not Refundable</p>
-                      <p className="text-center text-amber-400/70 text-[8px] mt-1">Cannot be exchanged for cash or credit</p>
-                    </div>
-                  )}
-                {receiptTaxExempt && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded px-2 py-2 text-left space-y-0.5">
-                    <p className="text-emerald-400 font-bold text-[9px] uppercase tracking-wider">Tax Exempt — {receiptTaxExempt.name}</p>
-                    <p className="text-emerald-400/70 text-[9px]">{receiptTaxExempt.tax_exempt_id} · {receiptTaxExempt.exemption_type}{receiptTaxExempt.tax_id_number ? ` · Tax ID ${receiptTaxExempt.tax_id_number}` : ""}</p>
-                    <p className="text-emerald-400/60 text-[9px]">{[receiptTaxExempt.address_street, receiptTaxExempt.address_city, receiptTaxExempt.address_state, receiptTaxExempt.address_zip].filter(Boolean).join(", ")}</p>
-                  </div>
-                )}
-                {receiptData.loyaltyMember && (
-                  <div className="bg-sky-500/10 border border-sky-500/30 rounded px-2 py-2 text-left space-y-0.5">
-                    <p className="text-sky-400 font-bold text-[9px] uppercase tracking-wider">Loyalty Member — {receiptData.loyaltyMember.name}</p>
-                    <p className="text-sky-400/70 text-[9px]">{receiptData.loyaltyMember.loyalty_id}</p>
-                    <p className="text-sky-400/70 text-[9px]">Earned this visit: ${receiptData.rewardsEarned.toFixed(2)}</p>
-                    <p className="text-sky-400 font-bold text-[9px]">Remaining Balance: ${receiptData.newBalance != null ? receiptData.newBalance.toFixed(2) : (receiptData.loyaltyMember.rewards_balance || 0).toFixed(2)}</p>
-                  </div>
-                )}
-                  <p className="text-center text-[10px] text-blue-300/60">Thank You!</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setReceiptData(null)} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
-                  Done
-                </Button>
-                <POSReceipt
-                  transactionId={receiptData.transactionId}
-                  operatorName={receiptData.operatorName}
-                  registerName={receiptData.registerName}
-                  items={receiptData.items}
-                  subtotal={receiptData.subtotal}
-                  tax={receiptData.tax}
-                  total={receiptData.total}
-                  paymentMethod={receiptData.paymentMethod}
-                  amountTendered={receiptData.amountTendered}
-                  changeDue={receiptData.changeDue} taxExempt={receiptTaxExempt}
-                  storeConfig={storeConfig}
-                  loyaltyMember={receiptData.loyaltyMember}
-                  rewardsApplied={receiptData.rewardsApplied || 0}
-                  rewardsEarned={receiptData.rewardsEarned || 0}
-                  newBalance={receiptData.newBalance}
-                  operatorPin={operator?.pin}
-                  registerId={sessionStorage.getItem("pos_register_num") || receiptData.registerName}
-                  storeNumber={storeInfo?.store_number || sessionStorage.getItem("pos_store_id")}
-                  managerName={storeInfo?.manager_name}
-                  taxRate={storeInfo?.default_tax_rate}
-                  storeInfo={storeInfo}
-                  autoPrint
-                />
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      <POSReceiptDialog
+        receiptData={receiptData}
+        taxExempt={receiptTaxExempt}
+        storeConfig={storeConfig}
+        storeInfo={storeInfo}
+        operator={operator}
+        registerId={sessionStorage.getItem("pos_register_num") || receiptData?.registerName}
+        onClose={() => { setReceiptData(null); setTaxExemptProfile(null); }}
+        onDone={() => setReceiptData(null)}
+      />
 
       {/* Quantity Dialog */}
       <Dialog open={qtyDialog} onOpenChange={setQtyDialog}>
@@ -2002,156 +1795,11 @@ export default function POSRegister() {
       </Dialog>
 
       {/* Gift Card Payment Result Dialog */}
-      <Dialog open={!!giftCardResult} onOpenChange={v => { if (!v) { setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError(""); } }}>
-        <DialogContent className={`bg-[#111638] text-white max-w-xs ${giftCardResult?.approved ? "border-green-500/20" : "border-red-500/20"}`}>
-          <DialogHeader>
-            <DialogTitle className={giftCardResult?.approved ? "text-green-400" : "text-red-400"}>
-              {giftCardResult?.approved ? "✓ Payment Approved" : "✕ Payment Declined"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className={`rounded-lg border p-3 space-y-2 ${giftCardResult?.approved ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"}`}>
-            <p className="text-white text-sm">{giftCardResult?.message}</p>
-            {giftCardResult?.approved && (
-              <div className="space-y-1 text-xs pt-2 border-t border-white/10">
-                <div className="flex justify-between">
-                  <span className="text-blue-300/50">Card</span>
-                  <span className="text-white font-mono">{giftCardResult.card.card_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-blue-300/50">Charge Amount</span>
-                  <span className="text-white">${giftCardResult.chargeAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-blue-300/50">Old Balance</span>
-                  <span className="text-white">${giftCardResult.card.balance.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-green-400">
-                  <span>New Balance</span>
-                  <span>${(giftCardResult.card.balance - giftCardResult.chargeAmount).toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => { setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError(""); if (giftCardResult?.approved) { setPaymentOpen(false); } }} 
-              variant="outline" className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
-              {giftCardResult?.approved ? "Close" : "Back"}
-            </Button>
-            {giftCardResult?.approved && (
-              <Button onClick={() => {
-                // Process the sale with gift card payment
-                const txId = "TX-" + Date.now().toString(36).toUpperCase();
-                const chargeAmount = giftCardResult.chargeAmount;
-                const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
-                const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
-
-                // Training mode: do not deduct the gift card balance, record a transaction,
-                // or change stock — just show a receipt for practice.
-                if (trainingMode) {
-                  toast({ title: "Training Sale Complete", description: `${txId} — Paid with gift card (not recorded)` });
-                  setReceiptData({
-                    transactionId: txId,
-                    operatorName: operator.full_name,
-                    registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-                    items: cart, subtotal, tax, total,
-                    paymentMethod: "giftcard",
-                    amountTendered: chargeAmount,
-                    changeDue: 0,
-                    rewardsApplied: loyaltyAppliedAmount,
-                    loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyMember.rewards_balance } : null,
-                    rewardsEarned,
-                    newBalance: loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null
-                  });
-                  setLastReceipt({
-                    transactionId: txId,
-                    operatorName: operator.full_name,
-                    registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-                    items: cart, subtotal, tax, total,
-                    paymentMethod: "giftcard",
-                    amountTendered: chargeAmount,
-                    changeDue: 0,
-                    rewardsApplied: loyaltyAppliedAmount,
-                    loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id } : null,
-                    rewardsEarned,
-                    newBalance: loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null
-                  });
-                  setCart([]); setPaymentOpen(false); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-                  setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setAmountTendered("");
-                  return;
-                }
-
-                const newBalance = giftCardResult.card.balance - chargeAmount;
-
-                base44.entities.GiftCard.update(giftCardResult.card.id, { balance: newBalance }).then(() => {
-                  base44.entities.Transaction.create({
-                    transaction_id: txId,
-                    operator_id: operator.operator_id,
-                    operator_name: operator.full_name,
-                    register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
-                    items: cart,
-                    subtotal, tax, total,
-                    payment_method: "giftcard",
-                    giftcard_number: giftCardResult.card.card_number,
-                    status: "completed",
-                    amount_tendered: chargeAmount,
-                    change_due: 0,
-                    training_mode: trainingMode,
-                    tax_exempt_id: taxExemptAppliedId || null,
-                    loyalty_id: loyaltyMember?.loyalty_id || null,
-                    loyalty_member_name: loyaltyMember?.name || null,
-                    rewards_earned: rewardsEarned,
-                    rewards_applied: loyaltyAppliedAmount
-                  }).then(() => {
-                    for (const item of cart) {
-                      const prod = products.find(p => p.sku === item.sku);
-                      if (prod) base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
-                    }
-                    recordSerializedSales({ items: cart, transactionId: txId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }).catch(() => {});
-                    let loyaltyNewBalance = loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
-                    if (loyaltyMember) {
-                      base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id }).then(fresh => {
-                        if (fresh.length > 0) {
-                          const m = fresh[0];
-                          const nb = +((m.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2);
-                          base44.entities.LoyaltyMember.update(m.id, { rewards_balance: nb, lifetime_points: +((m.lifetime_points || 0) + rewardsEarned).toFixed(2) });
-                        }
-                      }).catch(() => {});
-                    }
-                    toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
-                    writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
-                    setReceiptData({
-                      transactionId: txId,
-                      operatorName: operator.full_name,
-                      registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-                      items: cart,
-                      subtotal, tax, total,
-                      paymentMethod: "giftcard",
-                      amountTendered: chargeAmount,
-                      changeDue: 0,
-                      rewardsApplied: loyaltyAppliedAmount,
-                      loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyNewBalance ?? loyaltyMember.rewards_balance } : null,
-                      rewardsEarned,
-                      newBalance: loyaltyNewBalance
-                    });
-                    setCart([]);
-                    setPaymentOpen(false);
-                    setTaxExemptAppliedId("");
-                    setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-                    setGiftCardResult(null);
-                    setGiftCardNumber("");
-                    setGiftCardAmount("");
-                    setAmountTendered("");
-                    setLastReceipt({ taxExempt: taxExemptProfile, transactionId: txId, operatorName: operator.full_name, registerName: sessionStorage.getItem("pos_register_num") || "REG-001", items: cart, subtotal, tax, total, paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0, rewardsApplied: loyaltyAppliedAmount, loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id } : null, rewardsEarned, newBalance: loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null });
-                    loadData();
-                  });
-                });
-              }} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold text-xs">
-                Complete Payment
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <POSGiftCardResultDialog
+        result={giftCardResult}
+        onClose={closeGiftCardResult}
+        onComplete={completeGiftCardSale}
+      />
 
       <POSTaxExemptDialog open={taxExemptDialog} onClose={() => setTaxExemptDialog(false)} onConfirm={confirmTaxExempt} initialId={taxExemptAppliedId} />
 
@@ -2185,86 +1833,20 @@ export default function POSRegister() {
       />
 
       {/* Store Announcements / News Dialog */}
-      <Dialog open={newsOpen} onOpenChange={setNewsOpen}>
-        <DialogContent className="bg-[#111638] border-blue-500/20 text-white max-w-md max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-white text-sm flex items-center gap-2">
-              <Megaphone className="w-4 h-4 text-blue-400" /> Store Announcements
-            </DialogTitle>
-          </DialogHeader>
-          {newsAnnouncements.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-blue-300/30 gap-2">
-              <Megaphone className="w-8 h-8" />
-              <p className="text-xs">No active announcements</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {newsAnnouncements.map(a => {
-                const sev = a.severity === "critical"
-                  ? "border-red-500/30 bg-red-500/10"
-                  : a.severity === "warning"
-                    ? "border-amber-500/30 bg-amber-500/10"
-                    : "border-blue-500/30 bg-blue-500/10";
-                const iconColor = a.severity === "critical" ? "text-red-400" : a.severity === "warning" ? "text-amber-400" : "text-blue-400";
-                return (
-                  <div key={a.id} className={`rounded-xl border p-3 ${sev}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className={`w-4 h-4 ${iconColor}`} />
-                      <h3 className="font-semibold text-white text-sm">{a.title}</h3>
-                    </div>
-                    <p className="text-blue-100/80 text-xs leading-relaxed whitespace-pre-wrap">{a.body}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <Button onClick={() => setNewsOpen(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs">Close</Button>
-        </DialogContent>
-      </Dialog>
+      <POSNewsDialog open={newsOpen} onOpenChange={setNewsOpen} announcements={newsAnnouncements} />
 
-      {/* Scheduled Lunch Info Dialog */}
-      <Dialog open={lunchDialogOpen} onOpenChange={setLunchDialogOpen}>
-        <DialogContent className="bg-[#111638] border-amber-500/20 text-white max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-amber-400 text-sm flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" /> Scheduled Lunch
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-blue-300/60 text-xs">Your lunch break is scheduled to begin soon.</p>
-          <div className="bg-[#0a0e27] rounded-lg p-3 space-y-1.5 text-sm">
-            <div className="flex justify-between"><span className="text-blue-300/50">Lunch Start</span><span className="text-white font-mono">{todayShift?.lunch_start}</span></div>
-            <div className="flex justify-between"><span className="text-blue-300/50">Lunch End</span><span className="text-white font-mono">{todayShift?.lunch_end || "—"}</span></div>
-          </div>
-          <p className="text-amber-400/70 text-[11px] leading-relaxed">Take your lunch on time. After {todayShift?.lunch_start}, the register will lock until you take your lunch or a supervisor authorizes continued work.</p>
-          <Button onClick={() => setLunchDialogOpen(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs">Got it</Button>
-        </DialogContent>
-      </Dialog>
-
-      {/* Lunch Lockout — past scheduled lunch while still working */}
-      <Dialog open={!!(lunchState?.past && !lunchOverrideApplied)} onOpenChange={() => {}}>
-        <DialogContent className="bg-[#0a0e27] border-amber-500/30 text-white max-w-sm [&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle className="text-amber-400 text-base flex items-center gap-2 justify-center">
-              <AlertTriangle className="w-5 h-5" /> Lunch Break Overdue
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-blue-300/60 text-sm text-center">Your scheduled lunch began at <span className="font-mono font-bold text-amber-400">{todayShift?.lunch_start}</span>. Take your lunch break now, or have a supervisor authorize continued work.</p>
-            <Input
-              type="password"
-              placeholder="CSM / Manager PIN"
-              value={lunchOverridePin}
-              onChange={e => setLunchOverridePin(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLunchOverride()}
-              className="bg-[#0a0e27] border-amber-500/20 text-white text-center text-lg tracking-widest"
-              autoFocus
-            />
-            {lunchOverrideError && <p className="text-red-400 text-xs text-center">{lunchOverrideError}</p>}
-            <Button onClick={handleLunchOverride} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold">Authorize & Continue</Button>
-            <Button onClick={logout} variant="outline" className="w-full border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">Log Out</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      </div>
-      );
-      }
+      {/* Scheduled lunch reminder + overdue-lunch lockout */}
+      <POSLunchDialogs
+        infoOpen={lunchDialogOpen}
+        setInfoOpen={setLunchDialogOpen}
+        shift={todayShift}
+        lockoutOpen={!!(lunchState?.past && !lunchOverrideApplied)}
+        pin={lunchOverridePin}
+        setPin={setLunchOverridePin}
+        error={lunchOverrideError}
+        onOverride={handleLunchOverride}
+        onLogout={logout}
+      />
+    </div>
+  );
+}
