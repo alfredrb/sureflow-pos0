@@ -179,9 +179,26 @@ SETUP_STEP_DETAILS.push(
     step_id: "deploy_sync_engine",
     label: "Phase 1 — Deploy the catalog cache, sale outbox, and sync worker",
     instructions: [
-      "Create these three files in /opt/sureflow-relay alongside server.js, then replace server.js with the Phase 1 version below.",
-      "db.js holds the SQLite schema (catalog cache, pending_sales outbox, local stock movements). sync.js talks to the cloud. api.js exposes the endpoints the terminals call.",
-      "Sales are queued locally with a store-prefixed transaction ID and pushed to the cloud every 30 seconds; the catalog is pulled down every 5 minutes.",
+      "The original server.js from the deploy step only has /status and /proxmox/reboot. Offline selling and Force Sync need three new files plus a replacement server.js — do all four, in this order, in /opt/sureflow-relay.",
+      "FILE 1 — db.js: the SQLite layer. Creates the catalog cache table, the pending_sales outbox, and the local stock-movement log, and exposes queueSale / pendingSales / getCatalog helpers.",
+      "FILE 2 — sync.js: the cloud worker. Reads CLOUD_SYNC_URL and CLOUD_API_KEY from .env, pulls the catalog every 5 minutes, pushes the outbox every 30 seconds, and tracks online/offline state. Requires db.js.",
+      "FILE 3 — api.js: the Express router the terminals and the portal call — GET /api/catalog, GET /api/connectivity, POST /api/sales, GET /api/pending, POST /api/sync. Requires db.js and sync.js.",
+      "FILE 4 — server.js (Phase 1): replaces the original file. Keeps /status and /proxmox/reboot, mounts the router at /api, starts the sync worker, and serves the local POS build from ./pos-dist.",
+      "Sales are queued locally with a store-prefixed transaction ID so the cloud can de-duplicate them on upload.",
+    ],
+    commands: [
+      "cd /opt/sureflow-relay",
+      "cp server.js server.js.phase0.bak   # keep a copy of the original before replacing it",
+      "nano db.js      # paste FILE 1 below, then Ctrl+O Enter Ctrl+X",
+      "nano sync.js    # paste FILE 2",
+      "nano api.js     # paste FILE 3",
+      "nano server.js  # replace the whole file with FILE 4",
+      "sudo systemctl restart sureflow-relay",
+      "ls -1 db.js sync.js api.js server.js   # all four must exist",
+    ],
+    postInstructions: [
+      "Restart is required — systemd runs the file that was loaded at start, so the new routes do not exist until the service restarts.",
+      "If the service will not come back up, the paste is almost always the cause: sudo journalctl -u sureflow-relay -n 30 --no-pager",
     ],
     codeFiles: [
       { name: "db.js", code: RELAY_DB_CODE },
@@ -216,6 +233,26 @@ SETUP_STEP_DETAILS.push(
       "Any other sync failure: read the relay's own log for the exact reason — sudo journalctl -u sureflow-relay -n 50 --no-pager. Verify the .env parsed correctly with: cat /opt/sureflow-relay/.env",
       "Confirm it in the portal: the store's Cloud Sync card turns green and shows the last pull/push time, and every sync is recorded in the sync log. If it stays red — check that STORE_ID matches the store number, that the key was not regenerated after you pasted it, and that the VM can reach the internet (curl -I https://google.com).",
       "Rotating the key: generate a new one, paste it into .env, restart the relay. Queued sales are never lost — they stay in the local outbox and upload once the new key authenticates.",
+    ],
+  },
+  {
+    step_id: "verify_api_sync",
+    label: "Phase 1 — Verify the /api/sync route and force a first sync",
+    instructions: [
+      "This is the route the portal's Force Sync button calls. If it 404s, the Phase 1 files above are not deployed or the service was not restarted.",
+      "Run these on the relay VM in order — each one should return JSON, not an HTML error page.",
+    ],
+    commands: [
+      "curl -s http://localhost:3000/api/connectivity   # online:true once the key works",
+      "curl -s -X POST http://localhost:3000/api/sync   # forces a pull + push, returns the sync result",
+      "curl -s http://localhost:3000/api/catalog | head -c 300   # cached products (503 = never reached the cloud yet)",
+      "curl -s http://localhost:3000/api/pending       # queued offline sales, count:0 on a fresh relay",
+    ],
+    postInstructions: [
+      "Empty reply or 'connection refused' = the relay service is not running: sudo systemctl status sureflow-relay",
+      "404 on /api/sync = server.js is still the Phase 0 version, or api.js is missing / failed to load. Re-check the previous step and restart.",
+      "/api/connectivity returns online:false = the routes are fine but the cloud call is failing — verify CLOUD_SYNC_URL and CLOUD_API_KEY in .env and that the VM has internet.",
+      "Once these pass, click Force Sync on the store card in the Infrastructure Command Center — it should report Sync Complete and the Cloud Sync panel will show the pull/push timestamps.",
     ],
   },
   {
