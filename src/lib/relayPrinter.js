@@ -25,10 +25,17 @@ function padL(s, n) { return String(s == null ? "" : s).slice(-n).padStart(n, " 
 // IBM 4690 totals block: right-aligned label + right-aligned amount.
 function amountRow(label, amount) { return padL(label, 30) + padL(amount, 12) + "\\n"; }
 
-// NAME(13) SKU(12) F AMOUNT(9) TAXCODE — the 4690 item column layout.
+// Centers text in a fixed-width column so item names line up uniformly.
+function padC(s, n) {
+  const t = String(s == null ? "" : s).slice(0, n);
+  const left = Math.floor((n - t.length) / 2);
+  return " ".repeat(left) + t + " ".repeat(n - t.length - left);
+}
+
+// NAME(centered 16) SKU(12) F AMOUNT(9) TAXCODE — the 4690 item column layout.
 function itemLine(it, exempt) {
   const code = exempt ? "E" : Number(it.tax_rate || 0) > 0 ? "X" : "O";
-  return padR(String(it.name || "").toUpperCase(), 13) + " " + padL(it.sku || "", 12) +
+  return padC(String(it.name || "").toUpperCase(), 16) + " " + padL(it.sku || "", 12) +
     " " + (it.food ? "F" : " ") + padL(money(it.total), 9) + " " + code + "\\n";
 }
 
@@ -43,9 +50,8 @@ function buildReceipt(r) {
   }
   o += "\\n";
   if (r.manager_name) o += "MANAGER " + String(r.manager_name).toUpperCase() + "\\n";
-  const txTail = String(r.transaction_id || "").replace(/[^0-9]/g, "").slice(-5) || "00000";
-  o += "ST# " + (r.store_number || "0000") + "  OP# " + (r.operator_id || "000000") +
-    "  TE# " + (r.register_id || "00") + "  TR# " + txTail + "\\n";
+  o += "ST# " + (r.store_number || "0000") + "  OP# " + (r.operator_pin || "") +
+    "  REG# " + (r.register_id || "00") + "\\n";
   o += ALIGN_L;
 
   for (const it of r.items || []) {
@@ -55,7 +61,7 @@ function buildReceipt(r) {
 
   o += amountRow("SUBTOTAL", money(r.subtotal));
   if (r.tax_exempt) o += amountRow("TAX EXEMPT", "0.00");
-  else o += amountRow("TAX 1  " + Number(r.tax_rate || 0).toFixed(3) + " %", money(r.tax));
+  else o += amountRow("TAX  " + Number(r.tax_rate || 0).toFixed(3) + " %", money(r.tax));
   o += amountRow("TOTAL", money(r.total));
   if (r.rewards_applied > 0) o += amountRow("REWARDS TEND", money(r.rewards_applied));
   const tender = String(r.payment_method || "cash").toUpperCase().replace("_", " ");
@@ -64,13 +70,13 @@ function buildReceipt(r) {
   o += amountRow("CHANGE DUE", money(r.change_due));
 
   const count = (r.items || []).reduce(function (s, i) { return s + Number(i.qty || 0); }, 0);
-  o += "\\n" + ALIGN_C + BOLD_ON + BIG_ON + "# ITEMS SOLD " + count + "\\n" + BIG_OFF + BOLD_OFF;
-  o += "TC# " + (r.transaction_id || "") + "\\n" + ALIGN_L;
+  o += "\\n" + ALIGN_C + "# ITEMS SOLD " + count + "\\n" + ALIGN_L;
 
-  // Transaction ID as a CODE128 barcode so returns can be scanned from the receipt.
+  // Transaction ID as a CODE128 barcode (with the TX printed under it) so
+  // returns can be scanned straight from the receipt.
   if (r.transaction_id) {
     const d = r.transaction_id;
-    o += ALIGN_C + GS + "h\\x50" + GS + "w\\x02" + GS + "H\\x00";
+    o += ALIGN_C + GS + "h\\x50" + GS + "w\\x02" + GS + "H\\x02";
     o += GS + "k\\x49" + String.fromCharCode(d.length + 2) + "{B" + d + "\\n" + ALIGN_L;
   }
 

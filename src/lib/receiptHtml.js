@@ -30,7 +30,7 @@ export function buildReceiptHtml(payload) {
 <body>${body}
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
 <script>
-  try { JsBarcode("#barcode", "${esc(payload.transaction_id)}", { format: "CODE128", width: 2, height: 45, displayValue: false, margin: 0 }); } catch (e) {}
+  try { JsBarcode("#barcode", "${esc(payload.transaction_id)}", { format: "CODE128", width: 2, height: 45, displayValue: true, fontSize: 12, margin: 0 }); } catch (e) {}
 <\/script>
 </body></html>`;
 }

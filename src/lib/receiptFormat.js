@@ -15,12 +15,19 @@ export const rule = (char = "-") => char.repeat(RECEIPT_WIDTH);
 export const amountRow = (label, amount) =>
   rpad(label, 30) + rpad(amount, 12);
 
-// NAME  SKU  F  AMOUNT  TAXCODE
+// Centers text inside a fixed-width column so item names line up uniformly.
+const centerPad = (s, n) => {
+  const t = String(s ?? "").slice(0, n);
+  const left = Math.floor((n - t.length) / 2);
+  return " ".repeat(left) + t + " ".repeat(n - t.length - left);
+};
+
+// NAME(centered)  SKU  F  AMOUNT  TAXCODE
 export const itemLine = (item, taxExempt) => {
   const code = taxExempt ? "E" : Number(item.tax_rate || 0) > 0 ? "X" : "O";
   const food = item.food ? "F" : " ";
   return (
-    pad(String(item.name || "").toUpperCase(), 13) +
+    centerPad(String(item.name || "").toUpperCase(), 16) +
     " " +
     rpad(item.sku || "", 12) +
     " " +
@@ -48,12 +55,9 @@ export function buildReceiptTokens(r) {
 
   if (r.manager_name) push("center", `MANAGER ${String(r.manager_name).toUpperCase()}`);
 
-  const txTail = String(r.transaction_id || "").replace(/\D/g, "").slice(-5) || "00000";
   push(
     "center",
-    `ST# ${r.store_number || "0000"}  OP# ${r.operator_id || "000000"}  TE# ${
-      r.register_id || "00"
-    }  TR# ${txTail}`
+    `ST# ${r.store_number || "0000"}  OP# ${r.operator_pin || ""}  REG# ${r.register_id || "00"}`
   );
 
   for (const item of r.items || []) {
@@ -65,7 +69,7 @@ export function buildReceiptTokens(r) {
   if (r.tax_exempt) {
     push("line", amountRow("TAX EXEMPT", "0.00"));
   } else {
-    push("line", amountRow(`TAX 1  ${Number(r.tax_rate || 0).toFixed(3)} %`, money(r.tax)));
+    push("line", amountRow(`TAX  ${Number(r.tax_rate || 0).toFixed(3)} %`, money(r.tax)));
   }
   push("line", amountRow("TOTAL", money(r.total)));
 
@@ -84,8 +88,7 @@ export function buildReceiptTokens(r) {
   push("blank");
 
   const count = (r.items || []).reduce((s, i) => s + Number(i.qty || 0), 0);
-  push("big", `# ITEMS SOLD ${count}`);
-  push("center", `TC# ${r.transaction_id || ""}`);
+  push("center", `# ITEMS SOLD ${count}`);
   push("barcode", r.transaction_id || "");
 
   if (r.giftcard_notice) {

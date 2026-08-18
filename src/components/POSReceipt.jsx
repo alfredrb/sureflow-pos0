@@ -23,7 +23,7 @@ export default function POSReceipt({
   newBalance = null,
   printerIp,
   openDrawer,
-  operatorId,
+  operatorPin,
   registerId,
   storeNumber,
   taxRate
@@ -37,7 +37,7 @@ export default function POSReceipt({
     date: new Date().toLocaleString(),
     register_name: registerName,
     operator_name: operatorName,
-    operator_id: operatorId,
+    operator_pin: operatorPin,
     register_id: registerId || registerName,
     store_number: storeNumber || storeConfig?.store_id,
     manager_name: storeConfig?.manager_name,
