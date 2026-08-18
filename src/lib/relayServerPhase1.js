@@ -8,26 +8,9 @@ const db = new Database(process.env.DB_PATH || "/opt/sureflow-relay/relay.db");
 
 db.pragma("journal_mode = WAL");
 
-db.exec(\\\`
-  CREATE TABLE IF NOT EXISTS cache (
-    key        TEXT PRIMARY KEY,
-    payload    TEXT NOT NULL,
-    cached_at  TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS pending_sales (
-    transaction_id TEXT PRIMARY KEY,
-    payload        TEXT NOT NULL,
-    created_at     TEXT NOT NULL,
-    synced         INTEGER NOT NULL DEFAULT 0,
-    synced_at      TEXT,
-    attempts       INTEGER NOT NULL DEFAULT 0,
-    last_error     TEXT
-  );
-  CREATE TABLE IF NOT EXISTS local_stock (
-    sku       TEXT PRIMARY KEY,
-    delta     INTEGER NOT NULL DEFAULT 0
-  );
-\\\`);
+db.exec("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, payload TEXT NOT NULL, cached_at TEXT NOT NULL)");
+db.exec("CREATE TABLE IF NOT EXISTS pending_sales (transaction_id TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at TEXT NOT NULL, synced INTEGER NOT NULL DEFAULT 0, synced_at TEXT, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT)");
+db.exec("CREATE TABLE IF NOT EXISTS local_stock (sku TEXT PRIMARY KEY, delta INTEGER NOT NULL DEFAULT 0)");
 
 module.exports = {
   // ---- catalog cache ----
