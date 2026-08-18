@@ -60,6 +60,7 @@ import AdminInventoryReconciliation from '@/pages/AdminInventoryReconciliation';
 import AdminClaims from '@/pages/AdminClaims';
 import AdminProfitLoss from '@/pages/AdminProfitLoss';
 import AdminFinancials from '@/pages/AdminFinancials';
+import EmployeeTrainingCenter from '@/pages/EmployeeTrainingCenter';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -94,6 +95,7 @@ const AuthenticatedApp = () => {
         <Route path="/pos/login" element={<POSLogin />} />
         <Route path="/pos/register" element={<POSRegister />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
+        <Route path="/training-center" element={<EmployeeTrainingCenter />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
