@@ -1810,6 +1810,10 @@ export default function POSRegister() {
                   rewardsApplied={receiptData.rewardsApplied || 0}
                   rewardsEarned={receiptData.rewardsEarned || 0}
                   newBalance={receiptData.newBalance}
+                  operatorPin={operator?.pin}
+                  registerId={sessionStorage.getItem("pos_register_num") || receiptData.registerName}
+                  storeNumber={sessionStorage.getItem("pos_store_id") || storeConfig?.store_id}
+                  taxRate={storeConfig?.default_tax_rate}
                 />
               </div>
             </div>

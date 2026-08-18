@@ -52,7 +52,7 @@ export default function POSReceipt({
     items: (items || []).map((i) => ({
       qty: i.qty,
       name: i.name,
-      sku: i.sku,
+      sku: i.sku || i.barcode || "",
       tax_rate: i.tax_rate,
       total: i.total,
       serial_numbers: i.serial_numbers || [],
