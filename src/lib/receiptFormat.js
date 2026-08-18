@@ -63,6 +63,26 @@ export function buildReceiptTokens(r) {
     `ST# ${r.store_number || "0000"}  OP# ${r.operator_pin || ""}  REG# ${r.register_id || "00"}`
   );
 
+  // Maintenance notice slips print a heading + wrapped message block
+  // instead of line items and totals (4690 controller-style operator notice).
+  if (r.doc_type === "notice") {
+    const n = r.notice || {};
+    push("blank");
+    push("big", (n.heading || "NOTICE").toUpperCase());
+    push("line", rule("="));
+    for (const l of n.lines || []) {
+      if (!l) push("blank");
+      else push("center", l);
+    }
+    push("line", rule("="));
+    push("blank");
+    push("center", `OPERATOR ${String(r.operator_name || "").toUpperCase()}`);
+    push("center", r.date || new Date().toLocaleString());
+    push("blank");
+    push("center", n.footer || "***MAINTENANCE NOTICE***");
+    return t;
+  }
+
   // Cash slips (advance / pickup / till check-in-out) print an amount + audit block
   // instead of line items and totals.
   if (r.doc_type === "cash") {

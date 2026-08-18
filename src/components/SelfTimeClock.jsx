@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { printMaintenanceNotices } from "@/lib/maintenanceNotices";
 
 function fmtTime(iso) {
   if (!iso) return "--";
@@ -92,6 +93,8 @@ export default function SelfTimeClock({ open, onOpenChange, operators }) {
         status: "open"
       });
       toast({ title: "Clocked in", description: operator.full_name });
+      // Print any pending pre/post maintenance notice slips (once per operator per notice)
+      printMaintenanceNotices(operator).catch(() => {});
       await refresh();
     } catch (e) {
       toast({ title: "Error clocking in", variant: "destructive" });

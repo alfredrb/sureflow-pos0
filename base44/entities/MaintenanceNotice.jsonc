@@ -1,0 +1,52 @@
+{
+  "name": "MaintenanceNotice",
+  "type": "object",
+  "properties": {
+    "maintenance_log_id": {
+      "type": "string",
+      "description": "MaintenanceLog record this notice slip was printed for."
+    },
+    "notice_type": {
+      "type": "string",
+      "enum": [
+        "pre",
+        "post"
+      ],
+      "description": "pre = upcoming-maintenance slip printed before the work; post = completed-maintenance slip printed after the work."
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator the slip was printed for. One slip per operator per notice type per maintenance log."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register / time clock station where the slip printed."
+    },
+    "printed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "maintenance_log_id",
+    "notice_type",
+    "operator_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

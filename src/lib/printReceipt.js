@@ -12,6 +12,8 @@ export function buildReceiptPayload(p) {
     reprint: !!p.reprint,
     // Cash slips (advance, pickup, till check-in/out) carry no line items.
     cash_slip: p.cashSlip || null,
+    // Maintenance notice slips (pre/post scheduled POS maintenance) — no line items.
+    notice: p.notice || null,
     open_drawer: p.openDrawer ?? p.paymentMethod === "cash",
     transaction_id: p.transactionId,
     date: p.date ? new Date(p.date).toLocaleString() : new Date().toLocaleString(),
