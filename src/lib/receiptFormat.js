@@ -63,6 +63,29 @@ export function buildReceiptTokens(r) {
     `ST# ${r.store_number || "0000"}  OP# ${r.operator_pin || ""}  REG# ${r.register_id || "00"}`
   );
 
+  // Cash slips (advance / pickup / till check-in-out) print an amount + audit block
+  // instead of line items and totals.
+  if (r.doc_type === "cash") {
+    const cs = r.cash_slip || {};
+    push("blank");
+    push("big", (cs.title || "CASH SLIP").toUpperCase());
+    push("blank");
+    push("line", amountRow("TYPE", String(cs.kind || "").toUpperCase()));
+    push("line", amountRow("AMOUNT", money(cs.amount)));
+    if (cs.reason) {
+      push("blank");
+      push("center", "REASON");
+      push("center", String(cs.reason));
+    }
+    push("blank");
+    push("line", "OPERATOR X" + "_".repeat(24));
+    push("line", "AUDITOR  X" + "_".repeat(24));
+    push("blank");
+    push("center", r.date || new Date().toLocaleString());
+    push("center", "***FOR AUDITOR CONFIRMATION***");
+    return t;
+  }
+
   for (const item of r.items || []) {
     push("line", itemLine(item, r.tax_exempt));
     for (const sn of item.serial_numbers || []) push("line", `   SN: ${sn}`);

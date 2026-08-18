@@ -233,6 +233,7 @@ export default function POSCashManagement({ operator, isOpen, onClose }) {
                   amount={printData.amount}
                   reason={printData.reason}
                   date={printData.date}
+                  operator={operator}
                 />
               </div>
             </div>

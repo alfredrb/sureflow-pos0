@@ -56,6 +56,23 @@ function buildReceipt(r) {
     "  REG# " + (r.register_id || "00") + "\\n";
   o += ALIGN_L;
 
+  // Cash slips print an amount + audit block instead of line items and totals.
+  if (r.doc_type === "cash") {
+    const cs = r.cash_slip || {};
+    o += "\\n" + ALIGN_C + BOLD_ON + BIG_ON +
+      String(cs.title || "CASH SLIP").toUpperCase() + "\\n" + BIG_OFF + BOLD_OFF + ALIGN_L + "\\n";
+    o += amountRow("TYPE", String(cs.kind || "").toUpperCase());
+    o += amountRow("AMOUNT", money(cs.amount));
+    if (cs.reason) o += "\\n" + center("REASON") + center(String(cs.reason));
+    o += "\\nOPERATOR X________________________\\n";
+    o += "AUDITOR  X________________________\\n\\n";
+    o += center(r.date || new Date().toLocaleString());
+    o += center("***FOR AUDITOR CONFIRMATION***");
+    o += "\\n";
+    o += CUT;
+    return o;
+  }
+
   for (const it of r.items || []) {
     o += itemLine(it, r.tax_exempt);
     for (const sn of it.serial_numbers || []) o += "   SN: " + sn + "\\n";

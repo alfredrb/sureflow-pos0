@@ -6,11 +6,13 @@ import { buildReceiptHtml } from "@/lib/receiptHtml";
 export function buildReceiptPayload(p) {
   return {
     printer_ip: p.printerIp,
-    // sale | return | exchange — drives the slip title and the totals labels.
+    // sale | return | exchange | cash — drives the slip title and the totals labels.
     doc_type: p.docType || "sale",
+    // Cash slips (advance, pickup, till check-in/out) carry no line items.
+    cash_slip: p.cashSlip || null,
     open_drawer: p.openDrawer ?? p.paymentMethod === "cash",
     transaction_id: p.transactionId,
-    date: new Date().toLocaleString(),
+    date: p.date ? new Date(p.date).toLocaleString() : new Date().toLocaleString(),
     register_name: p.registerName,
     operator_name: p.operatorName,
     operator_pin: p.operatorPin,

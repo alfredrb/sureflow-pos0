@@ -1,61 +1,34 @@
 import React from "react";
 import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { printReceipt } from "@/lib/printReceipt";
+import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
 
-export default function CashSlipReceipt({ type, registerName, registerId, amount, reason, date }) {
+const TITLES = {
+  advance: "CASH ADVANCE SLIP",
+  pickup: "CASH PICKUP SLIP",
+  checkin: "TILL CHECK-IN SLIP",
+  checkout: "TILL CHECK-OUT SLIP",
+};
+
+// Cash slips (advance, pickup, till check-in/out) print through the shared
+// 42-column IBM 4690 pipeline — relay ESC/POS first, browser window as fallback.
+export default function CashSlipReceipt({ type, registerName, registerId, amount, reason, date, operator }) {
   const handlePrint = () => {
-    const printWindow = window.open("", "", "height=400,width=600");
-    const content = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Cash ${type === "advance" ? "Advance" : "Pickup"} Slip</title>
-          <style>
-            body { font-family: monospace; width: 300px; margin: 0; padding: 20px; }
-            .header { text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 20px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
-            .content { font-size: 12px; line-height: 1.8; }
-            .row { display: flex; justify-content: space-between; margin: 8px 0; }
-            .label { font-weight: bold; }
-            .amount { font-size: 16px; font-weight: bold; margin: 15px 0; text-align: center; border: 2px solid #000; padding: 10px; }
-            .footer { text-align: center; font-size: 10px; margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; color: #666; }
-            .divider { border-top: 1px dashed #000; margin: 10px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            CASH ${type === "advance" ? "ADVANCE" : "PICKUP"} SLIP
-          </div>
-          <div class="content">
-            <div class="row">
-              <span class="label">Type:</span>
-              <span>${type === "advance" ? "ADVANCE" : "PICKUP"}</span>
-            </div>
-            <div class="row">
-              <span class="label">Register:</span>
-              <span>${registerId}</span>
-            </div>
-            <div class="row">
-              <span class="label">Register Name:</span>
-              <span>${registerName}</span>
-            </div>
-            <div class="divider"></div>
-            <div class="amount">$${parseFloat(amount).toFixed(2)}</div>
-            <div class="divider"></div>
-            <div class="row">
-              <span class="label">Date:</span>
-              <span>${new Date(date).toLocaleString()}</span>
-            </div>
-            ${reason ? `<div class="row"><span class="label">Reason:</span></div><div style="margin: 8px 0; font-size: 11px;">${reason}</div>` : ""}
-          </div>
-          <div class="footer">
-            FOR AUDITOR CONFIRMATION
-          </div>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(content);
-    printWindow.document.close();
-    printWindow.print();
+    printReceipt(buildPanelReceiptProps({
+      operator,
+      docType: "cash",
+      transactionId: "",
+      openDrawer: false,
+      ...(registerId ? { registerId, registerName: registerName || registerId } : {}),
+      cashSlip: {
+        title: TITLES[type] || "CASH SLIP",
+        kind: type,
+        amount: parseFloat(amount || 0),
+        reason: reason || "",
+      },
+      date,
+    }));
   };
 
   return (
