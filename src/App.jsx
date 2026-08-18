@@ -97,7 +97,6 @@ const AuthenticatedApp = () => {
         <Route path="/pos/register" element={<POSRegister />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/training-center" element={<EmployeeTrainingCenter />} />
-        <Route path="/admin/pos-feedback" element={<AdminPOSFeedback />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
@@ -141,6 +140,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/claims" element={<AdminClaims />} />
           <Route path="/admin/profit-loss" element={<AdminProfitLoss />} />
           <Route path="/admin/financials" element={<AdminFinancials />} />
+          <Route path="/admin/pos-feedback" element={<AdminPOSFeedback />} />
         </Route>
       </Route>
 
