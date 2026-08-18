@@ -36,6 +36,7 @@ import POSPaymentDialog from "@/components/pos/POSPaymentDialog";
 import POSGiftCardResultDialog from "@/components/pos/POSGiftCardResultDialog";
 import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
+import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -1135,6 +1136,19 @@ export default function POSRegister() {
   useEffect(() => {
     if (lunchState?.past) setLunchDialogOpen(false);
   }, [lunchState?.past]);
+
+  // Print the 30-minute lunch reminder slip and the lockout slip (once each per operator per day)
+  useEffect(() => {
+    if (lunchState?.upcoming && operator && todayShift) {
+      printLunchWarningSlip(operator, todayShift).catch(() => {});
+    }
+  }, [lunchState?.upcoming, operator?.operator_id, todayShift?.id]);
+
+  useEffect(() => {
+    if (lunchState?.past && !lunchOverrideApplied && operator && todayShift) {
+      printLunchLockoutSlip(operator, todayShift).catch(() => {});
+    }
+  }, [lunchState?.past, lunchOverrideApplied, operator?.operator_id, todayShift?.id]);
 
   const filteredProducts = products.filter(p => {
     const matchSearch = !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch);

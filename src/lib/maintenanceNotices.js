@@ -4,26 +4,7 @@
 // completed, a completion slip prints. Each slip prints once per operator
 // per maintenance log, tracked in the MaintenanceNotice entity.
 import { base44 } from "@/api/data";
-import { printReceipt } from "@/lib/printReceipt";
-
-const WIDTH = 42;
-
-function wrap(text, width = WIDTH) {
-  const out = [];
-  for (const para of String(text || "").split("\n")) {
-    let line = "";
-    for (const word of para.split(/\s+/).filter(Boolean)) {
-      if ((line + " " + word).trim().length > width) {
-        if (line) out.push(line);
-        line = word;
-      } else {
-        line = (line + " " + word).trim();
-      }
-    }
-    if (line) out.push(line);
-  }
-  return out;
-}
+import { printNoticeSlip, wrapNotice as wrap } from "@/lib/noticeSlip";
 
 const fmtDate = (d) => {
   if (!d) return "";
@@ -84,9 +65,6 @@ export async function printMaintenanceNotices(operator) {
   const already = new Set(printed.map(n => `${n.maintenance_log_id}:${n.notice_type}`));
 
   const registerNum = sessionStorage.getItem("pos_register_num") || "";
-  const regs = registerNum ? await base44.entities.Register.filter({ register_id: registerNum }) : [];
-  const reg = regs[0];
-  const settings = (await base44.entities.StoreSettings.list())[0] || {};
 
   const queue = [
     ...pre.map(l => ({ log: l, type: "pre" })),
@@ -94,17 +72,7 @@ export async function printMaintenanceNotices(operator) {
   ].filter(({ log, type }) => !already.has(`${log.id}:${type}`));
 
   for (const { log, type } of queue) {
-    await printReceipt({
-      docType: "notice",
-      notice: buildNotice(log, type, operator),
-      printerIp: reg?.printer_ip,
-      registerName: registerNum,
-      registerId: registerNum,
-      operatorName: operator.full_name,
-      operatorPin: operator.operator_id,
-      storeInfo: settings,
-      openDrawer: false,
-    });
+    await printNoticeSlip(buildNotice(log, type, operator), operator);
     await base44.entities.MaintenanceNotice.create({
       maintenance_log_id: log.id,
       notice_type: type,
