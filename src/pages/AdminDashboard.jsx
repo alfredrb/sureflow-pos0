@@ -11,6 +11,7 @@ import DashboardCustomizer from "@/components/DashboardCustomizer";
 import SystemHealthPanel from "@/components/SystemHealthPanel";
 import { loadConfig, saveConfig, mergeCustom, loadRoleDefaultOverrides, STORAGE_PREFIX } from "@/lib/dashboardConfig";
 import Sparkline from "@/components/Sparkline";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { dailySeriesTrailing } from "@/lib/dailySeries";
 
 export default function AdminDashboard() {
@@ -214,8 +215,8 @@ export default function AdminDashboard() {
               <Sparkline data={stats.spark?.revenue || []} color="#10b981" width={300} height={36} bars showAvg={false} />
             </div>
           </div>
-          <ShiftCalendarView />
-          <StaffingVsRevenueChart />
+          <ErrorBoundary label="Shift Calendar"><ShiftCalendarView /></ErrorBoundary>
+          <ErrorBoundary label="Staffing vs Revenue"><StaffingVsRevenueChart /></ErrorBoundary>
           <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="p-3 sm:p-5 border-b border-gray-100">
               <h2 className="font-semibold text-sm sm:text-base text-gray-900">Recent Transactions</h2>
@@ -253,9 +254,9 @@ export default function AdminDashboard() {
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">Register Audit Frequency (Last 30 Days)</h2>
               <p className="text-xs sm:text-sm text-gray-500 mt-1">Tracks audit frequency and discrepancy patterns by operator</p>
             </div>
-            <AuditFrequencyChart />
+            <ErrorBoundary label="Audit Frequency"><AuditFrequencyChart /></ErrorBoundary>
           </div>
-          <StolenItemsTrendChart rangeDays={30} />
+          <ErrorBoundary label="Stolen Items Trend"><StolenItemsTrendChart rangeDays={30} /></ErrorBoundary>
         </section>
       )}
 
@@ -267,7 +268,7 @@ export default function AdminDashboard() {
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">Inventory Reorder Suggestions</h2>
               <p className="text-xs sm:text-sm text-gray-500 mt-1">Based on peak time sales patterns</p>
             </div>
-            <InventoryReorderSuggestions />
+            <ErrorBoundary label="Inventory Reorder Suggestions"><InventoryReorderSuggestions /></ErrorBoundary>
           </div>
         </section>
       )}
@@ -275,7 +276,7 @@ export default function AdminDashboard() {
       {config.graphs.system && (
         <section className="mb-6 sm:mb-8 space-y-6">
           <SectionHeader icon={HardDrive} title="System Health" subtitle="Register, hardware, and maintenance status" color="bg-cyan-500" />
-          <SystemHealthPanel />
+          <ErrorBoundary label="System Health"><SystemHealthPanel /></ErrorBoundary>
         </section>
       )}
 
