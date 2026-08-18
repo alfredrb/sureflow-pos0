@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import moment from "moment";
 import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
+import { adminPrintReceipt } from "@/lib/adminPrint";
 
 const exportToCSV = (data, filename) => {
   const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
@@ -62,7 +63,7 @@ function groupByDate(transactions) {
   return groups;
 }
 
-function TxRow({ tx, onView }) {
+function TxRow({ tx, onView, onPrint }) {
   const badge = getStatusBadge(tx);
   return (
     <tr className="hover:bg-gray-50/50">
@@ -86,15 +87,20 @@ function TxRow({ tx, onView }) {
       </td>
       <td className="px-3 py-3 text-gray-400 text-xs">{moment(tx.created_date).format("h:mm A")}</td>
       <td className="px-3 py-3">
-        <button onClick={() => onView(tx)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors">
-          <Eye className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onView(tx)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors">
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onPrint(tx)} title="Print receipt" className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors">
+            <Printer className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </td>
     </tr>
   );
 }
 
-function DateSection({ label, transactions, onView }) {
+function DateSection({ label, transactions, onView, onPrint }) {
   if (transactions.length === 0) return null;
   return (
     <>
@@ -103,7 +109,7 @@ function DateSection({ label, transactions, onView }) {
           <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
         </td>
       </tr>
-      {transactions.map(tx => <TxRow key={tx.id} tx={tx} onView={onView} />)}
+      {transactions.map(tx => <TxRow key={tx.id} tx={tx} onView={onView} onPrint={onPrint} />)}
     </>
   );
 }
@@ -148,70 +154,33 @@ export default function AdminTransactions() {
   const olderKeys = Object.keys(groups.Older).sort((a, b) => moment(b, "MMMM D, YYYY") - moment(a, "MMMM D, YYYY"));
   const hasRows = filtered.length > 0;
 
+  // Reprints through the shared 4690 formatter on the printer assigned in Store Settings
+  // (browser print window if the store relay is unreachable).
   const handlePrint = async (tx) => {
     if (!tx) return;
-    const isNeg = tx.status === "refunded" || tx.status === "exchanged";
     const serialMap = await fetchTxSerialMap(tx.transaction_id);
-    const itemsRows = (tx.items || []).map(it => {
-      const serials = serialsForItem(it, serialMap).map(sn => `<tr><td colspan="3" style="padding-left:10px;font-size:10px;color:#444">SN: ${sn}</td></tr>`).join("");
-      return `
-      <tr>
-        <td>${it.name || ""}${it.qty > 1 ? ` &times; ${it.qty}` : ""}</td>
-        <td style="text-align:right">$${(it.price || 0).toFixed(2)}</td>
-        <td style="text-align:right">$${(it.total || 0).toFixed(2)}</td>
-      </tr>${serials}`;
-    }).join("");
-    const badge = getStatusBadge(tx);
-    const html = `<!DOCTYPE html><html><head><title>Receipt ${tx.transaction_id}</title>
-      <style>
-        * { font-family: ui-monospace, "Courier New", monospace; }
-        body { width: 300px; margin: 0 auto; padding: 8px; color: #111; font-size: 12px; }
-        h1 { font-size: 16px; text-align: center; margin: 0 0 2px; }
-        .sub { text-align: center; font-size: 11px; color: #555; margin-bottom: 8px; }
-        .meta { font-size: 11px; line-height: 1.5; margin-bottom: 8px; border-bottom: 1px dashed #999; padding-bottom: 6px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        th { text-align: left; font-size: 10px; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; padding: 2px 0; }
-        td { padding: 2px 0; vertical-align: top; }
-        .totals { margin-top: 8px; border-top: 1px dashed #999; padding-top: 6px; font-size: 12px; }
-        .totals .row { display: flex; justify-content: space-between; }
-        .totals .grand { font-size: 14px; font-weight: bold; border-top: 1px solid #111; padding-top: 4px; margin-top: 4px; }
-        .badge { display: inline-block; padding: 1px 6px; border-radius: 8px; background: #eee; font-size: 10px; font-weight: bold; }
-        .foot { text-align: center; font-size: 10px; color: #777; margin-top: 10px; border-top: 1px dashed #999; padding-top: 6px; }
-      </style></head><body>
-      <h1>SureFlow POS</h1>
-      <div class="sub">Transaction Receipt</div>
-      <div class="meta">
-        <div><strong>TX:</strong> ${tx.transaction_id}</div>
-        <div><strong>Date:</strong> ${moment(tx.created_date).format("MMM D, YYYY h:mm A")}</div>
-        <div><strong>Operator:</strong> ${tx.operator_name || "—"} (${tx.operator_id || ""})</div>
-        <div><strong>Register:</strong> ${tx.register_id || "—"}</div>
-        <div><strong>Payment:</strong> <span style="text-transform:capitalize">${tx.payment_method || ""}</span></div>
-        <div><strong>Status:</strong> <span class="badge">${badge.label}</span></div>
-        ${tx.loyalty_member_name ? `<div><strong>Loyalty:</strong> ${tx.loyalty_member_name} (${tx.loyalty_id || ""})</div>` : ""}
-        ${tx.tax_exempt_id ? `<div><strong>Tax Exempt:</strong> ${tx.tax_exempt_id}</div>` : ""}
-        ${(tx.no_receipt || tx.manager_override_return) && tx.customer_id ? `<div><strong>Customer ID:</strong> ${tx.customer_id}</div>` : ""}
-      </div>
-      <table>
-        <thead><tr><th>Item</th><th style="text-align:right">Price</th><th style="text-align:right">Total</th></tr></thead>
-        <tbody>${itemsRows}</tbody>
-      </table>
-      <div class="totals">
-        <div class="row"><span>Subtotal</span><span>$${(tx.subtotal || 0).toFixed(2)}</span></div>
-        <div class="row"><span>Tax</span><span>$${(tx.tax || 0).toFixed(2)}</span></div>
-        <div class="row grand"><span>Total</span><span>${isNeg ? "−" : ""}$${(Math.abs(tx.total) || 0).toFixed(2)}</span></div>
-        ${tx.payment_method === "cash" ? `<div class="row"><span>Tendered</span><span>$${(tx.amount_tendered || 0).toFixed(2)}</span></div><div class="row"><span>Change</span><span>$${(tx.change_due || 0).toFixed(2)}</span></div>` : ""}
-        ${tx.rewards_applied ? `<div class="row"><span>Rewards Applied</span><span>−$${(tx.rewards_applied || 0).toFixed(2)}</span></div>` : ""}
-        ${tx.rewards_earned ? `<div class="row"><span>Rewards Earned</span><span>+$${(tx.rewards_earned || 0).toFixed(2)}</span></div>` : ""}
-        ${tx.override_operator_name ? `<div class="row" style="color:#b45309"><span>Return Override By</span><span>${tx.override_operator_name}</span></div>` : ""}
-      </div>
-      <div class="foot">Thank you — this receipt was reprinted from the Transaction Log.</div>
-      </body></html>`;
-    const w = window.open("", "_blank", "width=380,height=640");
-    if (!w) return;
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    w.print();
+    const docType = tx.status === "refunded" ? "return" : tx.status === "exchanged" ? "exchange" : "sale";
+    await adminPrintReceipt({
+      docType,
+      openDrawer: false,
+      transactionId: tx.transaction_id,
+      date: tx.sale_date || tx.created_date,
+      registerId: tx.register_id,
+      registerName: tx.register_id,
+      operatorName: tx.operator_name,
+      operatorPin: tx.operator_id,
+      items: (tx.items || []).map(it => ({ ...it, serial_numbers: serialsForItem(it, serialMap) })),
+      subtotal: tx.subtotal,
+      tax: tx.tax,
+      total: Math.abs(tx.total || 0),
+      paymentMethod: tx.payment_method,
+      amountTendered: tx.amount_tendered,
+      changeDue: tx.change_due,
+      rewardsApplied: tx.rewards_applied,
+      rewardsEarned: tx.rewards_earned,
+      taxExempt: tx.tax_exempt_id ? { tax_exempt_id: tx.tax_exempt_id, name: "" } : null,
+      loyaltyMember: tx.loyalty_id ? { loyalty_id: tx.loyalty_id, name: tx.loyalty_member_name } : null,
+    });
   };
 
   if (loading) return (
@@ -268,10 +237,10 @@ export default function AdminTransactions() {
                 <tr><td colSpan={9} className="px-5 py-8 text-center text-gray-400">No transactions found</td></tr>
               ) : (
                 <>
-                  <DateSection label="Today" transactions={groups.Today} onView={setDetail} />
-                  <DateSection label="Yesterday" transactions={groups.Yesterday} onView={setDetail} />
+                  <DateSection label="Today" transactions={groups.Today} onView={setDetail} onPrint={handlePrint} />
+                  <DateSection label="Yesterday" transactions={groups.Yesterday} onView={setDetail} onPrint={handlePrint} />
                   {olderKeys.map(key => (
-                    <DateSection key={key} label={key} transactions={groups.Older[key]} onView={setDetail} />
+                    <DateSection key={key} label={key} transactions={groups.Older[key]} onView={setDetail} onPrint={handlePrint} />
                   ))}
                 </>
               )}

@@ -15,6 +15,10 @@
     "store_email": {
       "type": "string"
     },
+    "admin_printer_ip": {
+      "type": "string",
+      "description": "Static LAN IP of the printer the Admin site prints to (till check-in/out slips, cash slips, transaction reprints), reached through the store's Local Relay VM on port 9100. Blank = the relay uses the first printer in its PRINTER_IPS list."
+    },
     "default_tax_rate": {
       "type": "number",
       "default": 7,

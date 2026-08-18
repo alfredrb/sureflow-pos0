@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+import AdminPrinterCard from "@/components/admin/AdminPrinterCard";
+import { clearAdminPrintCache } from "@/lib/adminPrint";
 
 const DEFAULTS = {
   store_name: "Supermart", store_address: "", store_phone: "", store_email: "",
@@ -16,6 +18,7 @@ const DEFAULTS = {
   low_stock_threshold: 10, training_mode_default: false, require_override_pin: true, enable_remote_logout: true,
   loyalty_points_percentage: 5,
   no_receipt_return_limit: 0,
+  admin_printer_ip: "",
 };
 
 function NumberField({ label, value, onChange, suffix }) {
@@ -95,6 +98,7 @@ export default function AdminStoreSettings() {
           changes,
         });
       }
+      clearAdminPrintCache();
       toast({ title: "Settings Saved", description: "Store settings updated successfully." });
     } catch (e) {
       toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
@@ -132,6 +136,8 @@ export default function AdminStoreSettings() {
           <div className="sm:col-span-2"><Label>Email</Label><Input type="email" value={form.store_email || ""} onChange={e => set("store_email", e.target.value)} placeholder="store@example.com" /></div>
         </div>
       </div>
+
+      <AdminPrinterCard value={form.admin_printer_ip} onChange={v => set("admin_printer_ip", v)} />
 
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 sm:p-6 space-y-4">
         <div className="flex items-center gap-2 pb-2"><Percent className="w-5 h-5 text-blue-500" /><h2 className="font-semibold text-gray-900">Tax</h2></div>

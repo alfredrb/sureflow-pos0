@@ -3,6 +3,8 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 import { openCashDrawer } from "@/lib/relayClient";
+import AdminSlipPrintButton from "@/components/admin/AdminSlipPrintButton";
+import { adminPrintCashSlip } from "@/lib/adminPrint";
 
 // Pop the selected register's drawer so the till can be loaded / pulled. Silent on failure.
 const popRegisterDrawer = (register) =>
@@ -53,6 +55,17 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
           >
             Cancel
           </Button>
+          <AdminSlipPrintButton
+            className="flex-1"
+            slip={{
+              title: "TILL CHECK-OUT SLIP",
+              kind: "checkout",
+              amount: 250,
+              reason: "STANDARD $250 TILL FLOAT",
+              registerId: registers.find(r => r.id === selectedRegister)?.register_id,
+              registerName: registers.find(r => r.id === selectedRegister)?.name,
+            }}
+          />
           <Button
             onClick={async () => {
               if (!selectedRegister) {
@@ -94,6 +107,16 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
                 });
 
                 popRegisterDrawer(register);
+
+                adminPrintCashSlip({
+                  title: "TILL CHECK-OUT SLIP",
+                  kind: "checkout",
+                  amount: 250,
+                  reason: "STANDARD $250 TILL FLOAT",
+                  registerId: register?.register_id,
+                  registerName: register?.name,
+                  operatorName: user.full_name,
+                }).catch(() => {});
 
                 toast({ title: "Till checked out successfully" });
                 onClose();
@@ -261,6 +284,17 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
           >
             Cancel
           </Button>
+          <AdminSlipPrintButton
+            className="flex-1"
+            slip={{
+              title: "TILL CHECK-IN SLIP",
+              kind: "checkin",
+              amount: checkinTotal,
+              reason: `DISCREPANCY ${discrepancy >= 0 ? "+" : "-"}$${Math.abs(discrepancy).toFixed(2)}`,
+              registerId: registers.find(r => r.id === selectedRegister)?.register_id,
+              registerName: registers.find(r => r.id === selectedRegister)?.name,
+            }}
+          />
           <Button
             onClick={async () => {
               if (!selectedRegister) {
@@ -295,6 +329,16 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
                 });
 
                 popRegisterDrawer(register);
+
+                adminPrintCashSlip({
+                  title: "TILL CHECK-IN SLIP",
+                  kind: "checkin",
+                  amount: checkinTotal,
+                  reason: `DISCREPANCY ${discrepancy >= 0 ? "+" : "-"}$${Math.abs(discrepancy).toFixed(2)}`,
+                  registerId: register?.register_id,
+                  registerName: register?.name,
+                  operatorName: user.full_name,
+                }).catch(() => {});
 
                 toast({ title: "Till checked in successfully" });
                 onClose();
