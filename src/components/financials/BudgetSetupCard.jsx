@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, Target, Sparkles, Clock } from "lucide-react";
+import { Save, Target, Sparkles, Clock, DollarSign } from "lucide-react";
 
 const FIELDS = [
   { key: "revenue_budget", label: "Revenue Target", hint: "Gross sales subtotal (min $10,000)" },
@@ -16,7 +16,7 @@ const FIELDS = [
 
 export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
   const [form, setForm] = useState({
-    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, overtime_budget: 0, loss_budget: 0, expenses_budget: 0, weekly_hours_budget: 0, notes: ""
+    revenue_budget: 10000, cogs_budget: 0, labor_budget: 0, overtime_budget: 0, loss_budget: 0, expenses_budget: 0, weekly_hours_budget: 0, weekly_labor_budget: 0, overtime_threshold_hours: 40, notes: ""
   });
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -30,6 +30,8 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
       loss_budget: budget?.loss_budget || 0,
       expenses_budget: budget?.expenses_budget || 0,
       weekly_hours_budget: budget?.weekly_hours_budget || 0,
+      weekly_labor_budget: budget?.weekly_labor_budget || 0,
+      overtime_threshold_hours: budget?.overtime_threshold_hours ?? 40,
       notes: budget?.notes || ""
     });
   }, [budget?.id, month]);
@@ -47,6 +49,8 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
         loss_budget: Math.max(0, Math.round(s.loss_budget) || 0),
         expenses_budget: Math.max(0, Math.round(s.expenses_budget) || 0),
         weekly_hours_budget: Math.max(0, Math.round(s.weekly_hours_budget) || 0),
+        weekly_labor_budget: Math.max(0, Math.round(s.weekly_labor_budget) || 0),
+        overtime_threshold_hours: Math.max(0, Math.round(s.overtime_threshold_hours) || 40),
         notes: s.notes || f.notes,
       }));
     } catch { /* toast handled in page */ }
@@ -65,6 +69,8 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
       loss_budget: Number(form.loss_budget) || 0,
       expenses_budget: Number(form.expenses_budget) || 0,
       weekly_hours_budget: Number(form.weekly_hours_budget) || 0,
+      weekly_labor_budget: Number(form.weekly_labor_budget) || 0,
+      overtime_threshold_hours: Number(form.overtime_threshold_hours) || 40,
     }, () => setSaving(false));
   };
 
@@ -96,6 +102,24 @@ export default function BudgetSetupCard({ month, budget, onSave, onSuggest }) {
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">hrs</span>
         </div>
         <p className="text-[10px] text-gray-400 mt-0.5">Drives the Weekly Hours Budget target on the Shift Scheduling page.</p>
+      </div>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label className="text-xs text-gray-600 flex items-center gap-1.5"><DollarSign className="w-3 h-3" /> Weekly Labor Cost Cap ($)</Label>
+          <div className="relative mt-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+            <Input type="number" min="0" step="50" value={form.weekly_labor_budget} onChange={e => set("weekly_labor_budget", e.target.value)} className="pl-7" />
+          </div>
+          <p className="text-[10px] text-gray-400 mt-0.5">Scheduler labor-cost indicator turns red above this. 0 = no cap.</p>
+        </div>
+        <div>
+          <Label className="text-xs text-gray-600 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Overtime Threshold (hrs/week)</Label>
+          <div className="relative mt-1">
+            <Input type="number" min="0" step="1" value={form.overtime_threshold_hours} onChange={e => set("overtime_threshold_hours", e.target.value)} className="w-40" />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">hrs</span>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-0.5">Hours/week after which overtime pay applies.</p>
+        </div>
       </div>
       <div className="mt-3">
         <Label className="text-xs text-gray-600">Notes</Label>

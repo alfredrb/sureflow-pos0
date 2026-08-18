@@ -13,7 +13,7 @@ export default function AdminPayrollReport() {
   const [entries, setEntries] = useState([]);
   const [operators, setOperators] = useState([]);
   const [payRates, setPayRates] = useState([]);
-  const [settings, setSettings] = useState(null);
+  const [storeBudget, setStoreBudget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("report");
   const [startDate, setStartDate] = useState(() => {
@@ -24,16 +24,18 @@ export default function AdminPayrollReport() {
 
   const loadData = async () => {
     try {
-      const [ent, ops, rates, sets] = await Promise.all([
+      const [ent, ops, rates, budgets] = await Promise.all([
         base44.entities.TimeClockEntry.list("-clock_in", 1000),
         base44.entities.Operator.list(),
         base44.entities.PositionPayRate.list("-created_date", 50),
-        base44.entities.StoreSettings.list()
+        base44.entities.StoreBudget.list("-month", 100)
       ]);
       setEntries(ent);
       setOperators(ops);
       setPayRates(rates);
-      setSettings(sets[0] || {});
+      const now = new Date();
+      const cm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      setStoreBudget(budgets.find(b => b.month === cm) || null);
     } catch (e) {
       toast({ title: "Error loading payroll data", variant: "destructive" });
     }
@@ -43,7 +45,7 @@ export default function AdminPayrollReport() {
   useEffect(() => { loadData(); }, []);
   useRealtimeSync("TimeClockEntry", loadData, { intervalMs: 30000 });
 
-  const overtimeThreshold = settings?.overtime_threshold_hours ?? 40;
+  const overtimeThreshold = storeBudget?.overtime_threshold_hours ?? 40;
 
   const filteredEntries = entries.filter(e => {
     const d = (e.date || (e.clock_in || "").slice(0, 10));
@@ -77,20 +79,6 @@ export default function AdminPayrollReport() {
     document.body.appendChild(a); a.click();
     window.URL.revokeObjectURL(url); document.body.removeChild(a);
     toast({ title: "Payroll exported as CSV" });
-  };
-
-  const saveSettings = async (patch) => {
-    try {
-      if (settings?.id) {
-        await base44.entities.StoreSettings.update(settings.id, patch);
-      } else {
-        const created = await base44.entities.StoreSettings.create({ store_name: "Supermart", ...patch });
-        setSettings(created);
-      }
-      setSettings(prev => ({ ...prev, ...patch }));
-    } catch (e) {
-      toast({ title: "Error saving budget settings", variant: "destructive" });
-    }
   };
 
   if (loading) return <div className="p-6"><div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full" /></div>;
@@ -201,7 +189,7 @@ export default function AdminPayrollReport() {
       )}
 
       {tab === "clock" && <TimeClockManager operators={operators} />}
-      {tab === "rates" && <PositionPayRateManager settings={settings} onSettingsSave={saveSettings} />}
+      {tab === "rates" && <PositionPayRateManager />}
     </div>
   );
 }

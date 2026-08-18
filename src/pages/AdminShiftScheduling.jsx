@@ -41,7 +41,7 @@ export default function AdminShiftScheduling() {
   const [swapLogs, setSwapLogs] = useState([]);
   const [availability, setAvailability] = useState([]);
   const [payRates, setPayRates] = useState([]);
-  const [storeSettings, setStoreSettings] = useState(null);
+  const [storeBudget, setStoreBudget] = useState(null);
   const [view, setView] = useState("calendar");
   const [groupBy, setGroupBy] = useState("position");
   const [generating, setGenerating] = useState(false);
@@ -64,7 +64,7 @@ export default function AdminShiftScheduling() {
 
   const load = async () => {
     try {
-      const [shiftData, opData, regData, templateData, peakData, swapReqs, availData, rateData, settingsData] = await Promise.all([
+      const [shiftData, opData, regData, templateData, peakData, swapReqs, availData, rateData, budgetData] = await Promise.all([
         base44.entities.Shift.list("-date", 100),
         base44.entities.Operator.filter({ status: "active" }),
         base44.entities.Register.list(),
@@ -73,7 +73,7 @@ export default function AdminShiftScheduling() {
         base44.entities.ShiftSwapRequest.filter({ status: "approved" }),
         base44.entities.OperatorAvailability.list("-created_date", 500),
         base44.entities.PositionPayRate.list("-created_date", 50),
-        base44.entities.StoreSettings.list()
+        base44.entities.StoreBudget.list("-month", 100)
       ]);
 
       // Auto-sync technician shifts from the Maintenance Log (not AI-driven).
@@ -125,7 +125,9 @@ export default function AdminShiftScheduling() {
       setSwapLogs(swapReqs);
       setAvailability(availData);
       setPayRates(rateData);
-      setStoreSettings(settingsData[0] || null);
+      const _now = new Date();
+      const _cm = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`;
+      setStoreBudget(budgetData.find(b => b.month === _cm) || null);
     } catch (e) {
       console.error("Error loading:", e);
       toast({ title: "Error loading data", variant: "destructive" });
@@ -314,8 +316,8 @@ export default function AdminShiftScheduling() {
       // BEFORE the draft start. Any hours beyond the overtime threshold count as
       // overtime already worked, so the AI should cut their coming-week hours to
       // respect the weekly hours budget and the labor cost budget.
-      const overtimeThreshold = storeSettings?.overtime_threshold_hours ?? 40;
-      const laborBudget = storeSettings?.weekly_labor_budget || 0;
+      const overtimeThreshold = storeBudget?.overtime_threshold_hours ?? 40;
+      const laborBudget = storeBudget?.weekly_labor_budget || 0;
       let prevHoursByOp = {};
       try {
         const recentShifts = await base44.entities.Shift.list("-date", 500);
@@ -602,8 +604,8 @@ Return a JSON object with a "shifts" array. Each shift: { date (YYYY-MM-DD), ope
           onMove={handleMoveShift}
           onDelete={deleteShift}
           payRates={payRates}
-          laborBudget={storeSettings?.weekly_labor_budget || 0}
-          overtimeThreshold={storeSettings?.overtime_threshold_hours ?? 40}
+          laborBudget={storeBudget?.weekly_labor_budget || 0}
+          overtimeThreshold={storeBudget?.overtime_threshold_hours ?? 40}
         />
       )}
 

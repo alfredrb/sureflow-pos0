@@ -105,7 +105,7 @@ export default function AdminFinancials() {
 
   const monthLosses = losses.filter(l => inMonth(l.date)).reduce((s, l) => s + (l.amount || 0), 0);
   const monthEntries = entries.filter(e => inMonth(e.clock_in));
-  const overtimeThreshold = settings?.overtime_threshold_hours ?? 40;
+  const overtimeThreshold = budget?.overtime_threshold_hours ?? 40;
   const payroll = payrollFromTimeClock(monthEntries, operators, payRates, overtimeThreshold);
   const labor = payroll.reduce((s, p) => s + p.total_pay, 0);
   const expenses = 0;
@@ -202,8 +202,8 @@ export default function AdminFinancials() {
         weeklyDemandStaffHours += dayStaffHours;
       }
     } catch (e) { console.error("Peak load for budget suggest:", e); }
-    const currentWeeklyHours = budget?.weekly_hours_budget || settings?.weekly_hours_budget || 0;
-    const laborBudgetCap = settings?.weekly_labor_budget || 0;
+    const currentWeeklyHours = budget?.weekly_hours_budget || 0;
+    const laborBudgetCap = budget?.weekly_labor_budget || 0;
     const prompt = `You are a retail store financial planner. Recommend a monthly budget for ${month}.
 Historical actuals for the previous 3 months (oldest to newest): ${JSON.stringify(history)}.
 Peak-time demand (staff-hours needed per day-of-week, 0=Sunday..6=Saturday): ${JSON.stringify(peakByDay)}. Total weekly staff-hours required to cover demand: ${weeklyDemandStaffHours}.
@@ -217,6 +217,8 @@ Guidelines:
 - expenses_budget should be a modest estimate for rent/utilities/supplies if not evident in history.
 - overtime_budget is the monthly OVERTIME PAY allowance. Base it on the historical overtime_pay (average of recent months) relative to sales demand, keeping it a modest fraction of labor_budget.
 - weekly_hours_budget is the target labor HOURS per week. Base it on the peak-time demand (total weekly staff-hours required to cover demand), rounded to a sensible whole number.${laborBudgetCap > 0 ? ` Make sure the hours implied stay affordable under the $${laborBudgetCap}/week labor cost cap given the average pay rate.` : " Aim for efficient coverage without excessive overtime."}
+- weekly_labor_budget is the weekly labor COST cap ($) for the scheduling calendar labor-cost indicator. Base it on the weekly hours target × average pay rate, keeping total weekly pay affordable. 0 = no cap.
+- overtime_threshold_hours is the hours/week after which overtime pay applies (typically 40). Only deviate from 40 if historical overtime patterns strongly justify a different threshold.
 Return a short notes field explaining the recommendation in one or two sentences.`;
     try {
       const res = await base44.integrations.Core.InvokeLLM({
@@ -231,9 +233,11 @@ Return a short notes field explaining the recommendation in one or two sentences
             expenses_budget: { type: "number" },
             overtime_budget: { type: "number" },
             weekly_hours_budget: { type: "number" },
+            weekly_labor_budget: { type: "number" },
+            overtime_threshold_hours: { type: "number" },
             notes: { type: "string" }
           },
-          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget", "overtime_budget", "weekly_hours_budget"]
+          required: ["revenue_budget", "cogs_budget", "labor_budget", "loss_budget", "expenses_budget", "overtime_budget", "weekly_hours_budget", "weekly_labor_budget", "overtime_threshold_hours"]
         }
       });
       return res;

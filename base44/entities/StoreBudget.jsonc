@@ -41,6 +41,16 @@
       "default": 0,
       "description": "Target labor hours per week. Drives the Weekly Hours Budget target on the shift scheduling page (reflects back from the Financials Store Budget)."
     },
+    "weekly_labor_budget": {
+      "type": "number",
+      "default": 0,
+      "description": "Weekly labor COST cap ($) used by the shift scheduling calendar labor-cost indicator. Set on the Financials & Budget page; read-only in Payroll."
+    },
+    "overtime_threshold_hours": {
+      "type": "number",
+      "default": 40,
+      "description": "Hours per week after which overtime pay applies. Set on the Financials & Budget page; read-only in Payroll, and used by the payroll calc, scheduling, and the AI draft engine."
+    },
     "notes": {
       "type": "string"
     }
