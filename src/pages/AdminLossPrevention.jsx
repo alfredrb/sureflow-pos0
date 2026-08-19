@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
-import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3, Utensils, Archive } from "lucide-react";
+import { ShieldAlert, RefreshCw, LayoutDashboard, Scale, FolderSearch, Sparkles, FileText, ListTodo, TrendingDown, Shield, Database, ChevronLeft, ChevronRight, AlertTriangle, Clock, RotateCcw, PackageX, ScanLine, BarChart3, Utensils, Archive, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,7 @@ import SerializedInventoryPanel from "@/components/lossprevention/SerializedInve
 import ShrinkageReportPanel from "@/components/lossprevention/ShrinkageReportPanel";
 import MealExceptionsPanel from "@/components/lossprevention/MealExceptionsPanel";
 import EvidenceLockerPanel from "@/components/lossprevention/EvidenceLockerPanel";
+import ActionCodeAuditPanel from "@/components/lossprevention/ActionCodeAuditPanel";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -112,6 +113,7 @@ export default function AdminLossPrevention() {
   const TABS = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "events", label: "High-Risk Events", icon: AlertTriangle },
+    { id: "actioncodes", label: "Action Codes", icon: Hash },
     { id: "shorts", label: "Shorts & Longs", icon: Scale },
     { id: "investigations", label: "Investigations", icon: FolderSearch },
     { id: "theft", label: "Theft Trends", icon: TrendingDown },
@@ -169,6 +171,7 @@ export default function AdminLossPrevention() {
 
       {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} disabledEvents={disabledEvents} />}
       {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} disabledEvents={disabledEvents} onToggleCategory={toggleCategory} />}
+      {tab === "actioncodes" && <ActionCodeAuditPanel logs={logs} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}
