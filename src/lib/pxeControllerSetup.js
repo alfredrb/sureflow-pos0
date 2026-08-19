@@ -53,7 +53,12 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
   apt-get install -y --no-install-recommends \\
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
     xserver-xorg xinit chromium udev usbutils cups-client \\
-    ca-certificates curl \$EXTRA
+    ca-certificates curl iproute2 iputils-ping \$EXTRA
+  # Xorg runs as the unprivileged 'sureflow' user via startx. Debian's Xwrapper
+  # denies it the VT unless this file grants root rights — without it every start
+  # dies with "xf86OpenConsole: Cannot open virtual console (Permission denied)"
+  # and the lane falls back to the text login.
+  printf 'allowed_users=anybody\\nneeds_root_rights=yes\\n' > /etc/X11/Xwrapper.config
   # Boot straight into the POS in kiosk mode against the store relay.
   useradd -m -s /bin/bash sureflow
   echo 'ALL: kiosk' > /etc/sureflow-role
@@ -266,6 +271,33 @@ export const PXE_CONTROLLER_STEPS = [
       "ip -br addr show vmbr0.30   # the virtual IP appears on whichever node is MASTER",
     ],
     codeFiles: [{ name: "keepalived.conf", code: KEEPALIVED_CONF }],
+  },
+  {
+    step_id: "pxe_kiosk_vt_permission",
+    label: "Troubleshooting — Lane boots to the Linux text login instead of the POS",
+    instructions: [
+      "SYMPTOM: the lane finishes booting and shows a console login prompt. systemctl status sureflow-kiosk reports 'active (running)' but the timestamp is always a second or two old — the unit is crash-looping under Restart=always, and each death drops the screen back to getty on tty1.",
+      "CONFIRM IT: read the Xorg log on the lane with sudo tail -40 /tmp/Xorg.0.log. The fatal line is 'xf86OpenConsole: Cannot open virtual console 7 (Permission denied)'.",
+      "CAUSE: the kiosk unit runs Xorg as the unprivileged 'sureflow' user through startx. On Debian the Xorg binary is wrapped by /usr/lib/Xorg.wrap, which refuses to hand a non-root user a virtual console unless /etc/X11/Xwrapper.config allows it. The default image ships no such file, so X can never take vt7 no matter how many times systemd restarts it.",
+      "FIX: write Xwrapper.config into both NFS roots on the controller, then reboot the lane. The image builder now creates this file, so a rebuild keeps the fix.",
+      "The read-only NFS root means this cannot be fixed from the lane itself — always edit the image on the controller.",
+      "While you are in the chroot, note that the base image also had no iproute2 or iputils-ping, which is why 'ip route' and 'ping' returned 'No such file or directory' on the lane. Both are now in the builder's package list so lanes are diagnosable.",
+    ],
+    commands: [
+      "# On the LANE — confirm the cause first",
+      "systemctl status sureflow-kiosk --no-pager   # 'active' but restarting constantly",
+      "sudo tail -40 /tmp/Xorg.0.log               # look for 'Cannot open virtual console'",
+      "# On the CONTROLLER — grant Xorg the VT in both images",
+      "for V in legacy modern; do sudo tee /srv/nfs/sureflow-$V/etc/X11/Xwrapper.config > /dev/null <<'EOF'\nallowed_users=anybody\nneeds_root_rights=yes\nEOF\ndone",
+      "# Add the missing network diagnostic tools to the existing images",
+      "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends iproute2 iputils-ping; done",
+      "grep -r . /srv/nfs/sureflow-legacy/etc/X11/Xwrapper.config   # verify before rebooting",
+    ],
+    postInstructions: [
+      "Reboot the lane. It should go straight from the boot messages into the POS with no console login in between.",
+      "Still landing at the text login? Re-read /tmp/Xorg.0.log — with the VT permission fixed the next failure is usually '(EE) no screens found', which on SurePOS 700 video means the legacy image needs the fbdev driver and nomodeset (both already in the legacy boot entry — confirm with cat /proc/cmdline).",
+      "If X starts but the screen stays black, the kiosk browser is the problem rather than Xorg: check that /run/sureflow.env holds the RELAY value and curl the relay's /kiosk URL from the lane.",
+    ],
   },
   {
     step_id: "pxe_validate",
