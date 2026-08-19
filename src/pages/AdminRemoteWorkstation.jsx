@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle, DollarSign, Eye } from "lucide-react";
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
+import CSMApprovalStatus, { getActiveCsmApprovals } from "@/components/admin/CSMApprovalStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -470,6 +471,7 @@ export default function AdminRemoteWorkstation() {
   const newAudits = getNewlyRequestedAudits();
   // Cash pickup/advance requests logged from the POS (active within last 15 minutes)
   const cashRequests = logs.filter(l => l.event_type === "cash_request" && !l.acknowledged);
+  const csmApprovedRegisters = getActiveCsmApprovals(logs).reduce((m, l) => ({ ...m, [l.register_id]: l }), {});
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -721,6 +723,9 @@ export default function AdminRemoteWorkstation() {
         </div>
       )}
 
+      {/* Lanes currently running under a turned CSM key */}
+      <CSMApprovalStatus logs={logs} registers={registers} />
+
       {/* Pending Override Requests — top priority */}
       {pendingRequests.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex-shrink-0">
@@ -795,6 +800,14 @@ export default function AdminRemoteWorkstation() {
                   <div className="mb-3 flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
                     <span className="text-red-700 text-xs font-bold">PAUSED — Register Locked</span>
+                  </div>
+                )}
+
+                {/* CSM key approval badge */}
+                {csmApprovedRegisters[reg.register_id] && (
+                  <div className="mb-3 flex items-center gap-1.5 bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
+                    <span className="text-violet-700 text-xs font-bold">CSM APPROVED — {csmApprovedRegisters[reg.register_id].override_operator_name}</span>
                   </div>
                 )}
 
