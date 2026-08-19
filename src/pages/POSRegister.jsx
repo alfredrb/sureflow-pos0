@@ -46,6 +46,7 @@ import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
 import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
 import { resolveActionCode, needsOverrideFor, ACTION_CODE_KEY } from "@/lib/actionCodeDispatch";
+import POSPriceCheckDialog from "@/components/pos/POSPriceCheckDialog";
 import POSResumeDialog from "@/components/pos/POSResumeDialog";
 import { printSuspendSlip } from "@/lib/suspendSlip";
 
@@ -58,6 +59,7 @@ export default function POSRegister() {
   const [functionKeys, setFunctionKeys] = useState([]);
   const [actionCodes, setActionCodes] = useState([]);
   const [actionCodeOpen, setActionCodeOpen] = useState(false);
+  const [priceCheckOpen, setPriceCheckOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -550,6 +552,7 @@ export default function POSRegister() {
         writeLog("override", `Price Override mode ${priceOverrideActive ? "disabled" : "enabled"}`);
         break;
       case "price_check":
+        setPriceCheckOpen(true);
         break;
       case "request_cash_pickup":
         base44.entities.RegisterLog.create({
@@ -598,7 +601,22 @@ export default function POSRegister() {
       case "suspend": suspendTransaction(); break;
       case "resume": setResumeOpen(true); break;
       case "repeat_last":
-        toast({ title: "Not Available Yet", description: "Repeat Last Item is not implemented on this system.", variant: "destructive" });
+        if (cart.length === 0) {
+          toast({ title: "Nothing To Repeat", description: "Add an item to the sale first.", variant: "destructive" });
+          break;
+        }
+        {
+          const last = cart[cart.length - 1];
+          if (last.serialized) {
+            toast({ title: "Cannot Repeat", description: "Serialized items must be scanned individually.", variant: "destructive" });
+            break;
+          }
+          setCart(prev => prev.map((i, idx) => idx === prev.length - 1
+            ? { ...i, qty: i.qty + 1, total: +((i.qty + 1) * i.price).toFixed(2) }
+            : i));
+          writeLog("override", `Repeat last item — ${last.name}`);
+          toast({ title: "Item Repeated", description: `${last.name} — qty ${last.qty + 1}` });
+        }
         break;
       default: break;
       }
@@ -1752,6 +1770,9 @@ export default function POSRegister() {
         storeId={sessionStorage.getItem("pos_store_id") || ""}
         onSubmit={handleActionCode}
       />
+
+      {/* Price inquiry — look up an item's price without adding it to the sale */}
+      <POSPriceCheckDialog open={priceCheckOpen} onClose={() => setPriceCheckOpen(false)} products={products} />
 
       {/* Resume a suspended sale — scan the slip barcode or pick from the store list */}
       <POSResumeDialog
