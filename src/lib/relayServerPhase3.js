@@ -89,8 +89,26 @@ app.post("/ops/self-update", requireRelayToken, (req, res) => {
 // Serve the locally built POS (Phase 2). Must stay last.
 const POS_DIR = path.join(RELAY_DIR, "pos-dist");
 app.use(express.static(POS_DIR));
-app.use((req, res) => res.sendFile(path.join(POS_DIR, "index.html"), () =>
-  res.status(404).json({ error: "POS build not deployed on this relay" })));
+// SPA fallback. sendFile's callback also fires on SUCCESS (err undefined), so the
+// error branch must be guarded — replying unconditionally throws
+// ERR_HTTP_HEADERS_SENT and kills the process on every page load.
+app.use((req, res) => {
+  res.sendFile(path.join(POS_DIR, "index.html"), (err) => {
+    if (!err) return;
+    if (res.headersSent) return res.destroy();
+    res.status(404).json({ error: "POS build not deployed on this relay" });
+  });
+});
+
+// Last-resort guards: a relay must never take the store's sales path down over a
+// single bad request or a stray socket error.
+app.use((err, req, res, next) => {
+  console.error("[relay] request error:", err && err.message);
+  if (res.headersSent) return res.destroy();
+  res.status(500).json({ error: "Relay request failed" });
+});
+process.on("unhandledRejection", (e) => console.error("[relay] unhandled rejection:", e));
+process.on("uncaughtException", (e) => console.error("[relay] uncaught exception:", e));
 
 app.listen(PORT, () => {
   console.log("SureFlow relay (phase 3) for store " + process.env.STORE_ID + " on :" + PORT);
