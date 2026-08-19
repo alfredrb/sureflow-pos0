@@ -49,6 +49,10 @@ import { resolveActionCode, needsOverrideFor, ACTION_CODE_KEY } from "@/lib/acti
 import POSPriceCheckDialog from "@/components/pos/POSPriceCheckDialog";
 import POSResumeDialog from "@/components/pos/POSResumeDialog";
 import { printSuspendSlip } from "@/lib/suspendSlip";
+import { usePosAnnouncements } from "@/hooks/usePosAnnouncements";
+import { usePosLunchState } from "@/hooks/usePosLunchState";
+import { makeSuspendId, createSuspendRecord, claimSuspendRecord } from "@/lib/posSuspend";
+import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -135,9 +139,6 @@ export default function POSRegister() {
   const [idVerify, setIdVerify] = useState(null); // { product, age } — pending age verification
   const [serialCapture, setSerialCapture] = useState(null); // { product, needed, onDone } — pending serial capture for a serialized item
   const [newsOpen, setNewsOpen] = useState(false);
-  const [newsAnnouncements, setNewsAnnouncements] = useState([]);
-  const [todayShift, setTodayShift] = useState(null);
-  const [activeEntry, setActiveEntry] = useState(null);
   const [lunchDialogOpen, setLunchDialogOpen] = useState(false);
   const [lunchOverridePin, setLunchOverridePin] = useState("");
   const [lunchOverrideError, setLunchOverrideError] = useState("");
@@ -181,45 +182,11 @@ export default function POSRegister() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load active store announcements for the NEWS button
-  useEffect(() => {
-    base44.entities.Announcement.list("-created_date", 50).then(all => {
-      const now = new Date();
-      const active = all.filter(a => a.status === "active" &&
-        (!a.start_date || new Date(a.start_date) <= now) &&
-        (!a.end_date || new Date(a.end_date) >= now));
-      setNewsAnnouncements(active);
-    }).catch(() => {});
-    const unsub = base44.entities.Announcement.subscribe(() => {
-      base44.entities.Announcement.list("-created_date", 50).then(all => {
-        const now = new Date();
-        const active = all.filter(a => a.status === "active" &&
-          (!a.start_date || new Date(a.start_date) <= now) &&
-          (!a.end_date || new Date(a.end_date) >= now));
-        setNewsAnnouncements(active);
-      }).catch(() => {});
-    });
-    return () => unsub();
-  }, []);
+  // Active store announcements for the NEWS button
+  const newsAnnouncements = usePosAnnouncements();
 
-  // Load today's scheduled shift + active time-clock entry for lunch enforcement
-  useEffect(() => {
-    if (!operator) return;
-    const opId = operator.operator_id;
-    const load = async () => {
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const shifts = await base44.entities.Shift.filter({ operator_id: opId, date: today });
-        setTodayShift(shifts[0] || null);
-        const entries = await base44.entities.TimeClockEntry.filter({ operator_id: opId }, "-created_date", 50);
-        const ae = entries.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
-        setActiveEntry(ae || null);
-      } catch (e) { /* non-fatal */ }
-    };
-    load();
-    const unsub = base44.entities.TimeClockEntry.subscribe(load);
-    return () => unsub();
-  }, [operator?.operator_id]);
+  // Today's shift + clock entry, and the derived lunch enforcement state
+  const { todayShift, lunchState } = usePosLunchState(operator, currentTime);
 
   useEffect(() => {
     if (receiptData) {
@@ -695,23 +662,16 @@ export default function POSRegister() {
       return;
     }
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const suspendId = "SP-" + Date.now().toString(36).toUpperCase().slice(-6);
+    const suspendId = makeSuspendId();
     const itemCount = cart.reduce((s, i) => s + i.qty, 0);
     try {
-      await base44.entities.SuspendedTransaction.create({
-        suspend_id: suspendId,
-        store_id: sessionStorage.getItem("pos_store_id") || "",
-        register_id: registerId,
-        operator_id: operator?.operator_id || "",
-        operator_name: operator?.full_name || "",
-        items: cart,
-        subtotal, tax, total,
-        item_count: itemCount,
-        tax_exempt_id: taxExemptAppliedId || null,
-        loyalty_id: loyaltyMember?.loyalty_id || null,
-        loyalty_member_name: loyaltyMember?.name || null,
-        status: "suspended",
-        training_mode: trainingMode,
+      await createSuspendRecord({
+        suspendId,
+        storeId: sessionStorage.getItem("pos_store_id") || "",
+        registerId, operator, cart,
+        subtotal, tax, total, itemCount,
+        taxExemptId: taxExemptAppliedId,
+        loyaltyMember, trainingMode,
       });
     } catch (e) {
       toast({ title: "Suspend Failed", description: "The sale could not be suspended. Get a manager.", variant: "destructive" });
@@ -734,13 +694,7 @@ export default function POSRegister() {
     }
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     try {
-      await base44.entities.SuspendedTransaction.update(rec.id, {
-        status: "resumed",
-        resumed_at: new Date().toISOString(),
-        resumed_register_id: registerId,
-        resumed_by_operator_id: operator?.operator_id || "",
-        resumed_by_operator_name: operator?.full_name || "",
-      });
+      await claimSuspendRecord(rec, { registerId, operator });
     } catch (e) {
       toast({ title: "Resume Failed", description: "The suspend could not be claimed. Try again.", variant: "destructive" });
       return;
@@ -1350,24 +1304,6 @@ export default function POSRegister() {
     writeLog("override", "Diagnostics mode exited — normal operations resumed", { override_action: "Exit Diagnostics Mode" });
   };
 
-  // Lunch enforcement state derived from today's scheduled shift + active clock entry
-  const lunchState = (() => {
-    if (!todayShift || !todayShift.lunch_start) return null;
-    const now = currentTime;
-    const [lh, lm] = todayShift.lunch_start.split(":").map(Number);
-    const lunchStart = new Date(now); lunchStart.setHours(lh, lm, 0, 0);
-    let lunchEnd = null;
-    if (todayShift.lunch_end) {
-      const [eh, em] = todayShift.lunch_end.split(":").map(Number);
-      lunchEnd = new Date(now); lunchEnd.setHours(eh, em, 0, 0);
-    }
-    const onLunch = activeEntry?.status === "on_meal";
-    const lunchTaken = !!(activeEntry?.meal_start && activeEntry?.meal_end);
-    const upcoming = !onLunch && !lunchTaken && now >= new Date(lunchStart.getTime() - 30 * 60000) && now < lunchStart;
-    const past = !onLunch && !lunchTaken && now >= lunchStart;
-    return { lunchStart, lunchEnd, onLunch, lunchTaken, upcoming, past };
-  })();
-
   // Auto-dismiss the "scheduled lunch" info dialog once lunch is overdue so it
   // doesn't linger behind the lockout and freeze the lockout's controls.
   useEffect(() => {
@@ -1415,44 +1351,10 @@ export default function POSRegister() {
     setRobberyLoading(true);
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     const registerName = sessionStorage.getItem("pos_register_name") || "REG-001";
-    const today = new Date().toISOString().split("T")[0];
     try {
-      // Log emergency alert immediately when button is pressed
-      await base44.entities.EmergencyAlert.create({
-        alert_type: "robbery",
-        register_id: registerId,
-        register_name: registerName,
-        operator_id: operator?.operator_id || "",
-        operator_name: operator?.full_name || "",
-        operator_role: operator?.role || "",
-        timestamp: new Date().toISOString(),
-        status: "active"
-      });
-
-      // Get SOD for today
-      const sodRecords = await base44.entities.SODProtocol.filter({
-        protocol_date: today,
-        register_id: registerId,
-        status: "completed"
-      });
-      const sodStartingBalance = sodRecords.length > 0 ? sodRecords[0].till_starting_balance || 0 : 0;
-
-      // Get all cash transactions for today
-      const txs = await base44.entities.Transaction.filter({ register_id: registerId });
-      const todayTxs = txs.filter(t => t.created_date.split("T")[0] === today && t.status === "completed");
-      const totalSales = todayTxs.reduce((sum, t) => sum + (t.payment_method === "cash" ? t.total : 0), 0);
-
-      // Get cash advances (money given to register)
-      const advances = await base44.entities.CashAdvance.filter({ register_id: registerId, status: "approved" });
-      const todayAdvances = advances.filter(a => a.created_date.split("T")[0] === today).reduce((sum, a) => sum + (a.amount || 0), 0);
-
-      // Get cash pickups (money taken from register)
-      const pickups = await base44.entities.CashPickup.filter({ register_id: registerId, status: "approved" });
-      const todayPickups = pickups.filter(p => p.created_date.split("T")[0] === today).reduce((sum, p) => sum + (p.amount || 0), 0);
-
-      // Calculate expected cash: SOD + Sales + Advances - Pickups
-      const expectedCash = sodStartingBalance + totalSales + todayAdvances - todayPickups;
-      setCalculatedRobberyAmount(Math.max(0, expectedCash));
+      // Alert first — the drawer figure is worked out afterwards.
+      await raiseRobberyAlert({ registerId, registerName, operator });
+      setCalculatedRobberyAmount(await computeExpectedDrawerCash(registerId));
       setRobberyDialog(true);
     } catch (e) {
       toast({ title: "Error", description: "Failed to calculate amount", variant: "destructive" });
