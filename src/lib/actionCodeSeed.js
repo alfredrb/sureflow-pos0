@@ -29,6 +29,7 @@ export const ACTION_CODE_SEED = [
   { code: 244, label: "Dump Register",             action: "export_cash",          requires_role: "manager", status: "active",      notes: "AC_DUMP_REGISTER — cash history export" },
   { code: 250, label: "No Sale (Open Drawer)",     action: "no_sale",              requires_role: "none",    status: "active",      notes: "AC_CSM_NOSALE — code number varies by store" },
   { code: 251, label: "Cash Changer Function",     action: "cash_management",      requires_role: "csm",     status: "active",      notes: "AC_PROCESS_CASHCHGR_FUNCTION" },
+  { code: 402, label: "Print POS Configuration", action: "print_config",        requires_role: "none",    status: "active",      notes: "Prints this lane's configuration, features and hardware profile for technicians" },
   { code: 911, label: "Report Robbery",            action: "report_robbery",       requires_role: "none",    status: "active",      notes: "Emergency — logs alert and pauses the lane" },
 
   // ── Known codes whose SureFlow function is not built yet ───────────────────

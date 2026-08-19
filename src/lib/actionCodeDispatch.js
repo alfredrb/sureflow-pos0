@@ -13,7 +13,7 @@ export const ACTION_LABELS = {
   training_mode: "Training Mode", diagnostics: "Diagnostics", csm_help: "CSM Help",
   report_robbery: "Report Robbery", item_list: "Item Lookup", loyalty_lookup: "Loyalty Lookup",
   export_cash: "Cash History Export", supervisor_override: "Supervisor Override",
-  csm_approval: "CSM Key Approval", none: "None",
+  csm_approval: "CSM Key Approval", print_config: "Print POS Configuration", none: "None",
 };
 
 // Store-specific mappings win over the global (blank store_id) defaults.

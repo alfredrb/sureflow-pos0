@@ -36,6 +36,7 @@ import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
 import { printRecallSlip, printRobberySlip } from "@/lib/incidentSlips";
+import { printConfigSlip } from "@/lib/configSlip";
 import POSSupervisorOverrideDialog from "@/components/pos/POSSupervisorOverrideDialog";
 import POSRemoteOverrideStatus from "@/components/pos/POSRemoteOverrideStatus";
 import POSSwitchGuardDialog from "@/components/pos/POSSwitchGuardDialog";
@@ -551,6 +552,12 @@ export default function POSRegister() {
       case "loyalty_lookup": setLoyaltyLookupOpen(true); break;
       case "export_cash": setExportCashDialog(true); break;
       case "csm_help": requestCSM(); break;
+      case "print_config":
+        printConfigSlip(operator)
+          .then(() => toast({ title: "Configuration Printed", description: "Technician configuration slip sent to the printer." }))
+          .catch(() => toast({ title: "Print Failed", description: "The configuration slip could not be printed.", variant: "destructive" }));
+        writeLog("register_change", "POS configuration slip printed (AC 402)");
+        break;
       case "report_robbery":
         if (operator?.role === "technician") { toast({ title: "Not Available", description: "Technician sessions cannot report a robbery", variant: "destructive" }); break; }
         calculateStolenAmount();
