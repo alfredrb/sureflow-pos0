@@ -23,7 +23,7 @@ import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { recordSerializedSales, verifySerialInStock } from "@/lib/serialUtils";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
-import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
+import { fetchCatalog, queueOfflineSale, forceRelaySync, fetchLocalIp } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { submitOfflineSale } from "@/lib/offlineSale";
 import { kickDrawer } from "@/lib/drawerKick";
@@ -314,15 +314,15 @@ export default function POSRegister() {
         if (regs.length > 0) {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
           setRegisterPaused(regs[0].paused || false);
-          // Auto-detect and update IP address
+          // Auto-detect this lane's LAN IP from the store relay (not a public-IP
+          // service — that returns the store's WAN address for every register).
           try {
-            const ipResponse = await fetch('https://api.ipify.org?format=json');
-            const ipData = await ipResponse.json();
-            if (ipData.ip && ipData.ip !== regs[0].ip_address) {
-              await base44.entities.Register.update(regs[0].id, { ip_address: ipData.ip });
+            const { ip } = await fetchLocalIp();
+            if (ip && ip !== regs[0].ip_address) {
+              await base44.entities.Register.update(regs[0].id, { ip_address: ip });
             }
           } catch (e) {
-            console.error("Could not auto-detect IP:", e);
+            console.error("Could not detect lane IP from the relay:", e);
           }
         }
         const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];

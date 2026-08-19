@@ -40,6 +40,9 @@ async function relayFetch(path, options = {}, timeoutMs = 5000, base = "") {
 // { online, last_sync_at, pending_count, catalog_cached_at, catalog_stale }
 export const fetchConnectivity = () => relayFetch("/api/connectivity");
 
+// This terminal's LAN IP as the relay sees it on the store network.
+export const fetchLocalIp = () => relayFetch("/api/whoami", {}, 4000);
+
 // Locally cached catalog snapshot (products, operators, registers, settings, ...).
 export const fetchCatalog = () => relayFetch("/api/catalog", {}, 10000);
 

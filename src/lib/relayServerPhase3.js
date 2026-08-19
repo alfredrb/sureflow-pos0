@@ -65,6 +65,14 @@ app.get("/kiosk", (req, res) => {
   res.redirect("/?access_token=" + encodeURIComponent(token));
 });
 
+// The lane's own LAN address, as seen by the relay on the store network. Terminals
+// use this instead of a public-IP lookup service, which only ever returns the
+// store's WAN address and is identical for every register.
+app.get("/api/whoami", (req, res) => {
+  const raw = req.socket.remoteAddress || "";
+  res.json({ ip: raw.replace(/^::ffff:/, "") });
+});
+
 // POS routes (catalog, offline sales, printing) stay open on the store LAN.
 app.use("/api", apiRouter);
 
