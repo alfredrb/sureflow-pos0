@@ -12,75 +12,6 @@ import {
 // Detailed per-step instructions for spinning up a store's Local Relay VM.
 // step_ids must stay stable — completion state in StoreRelaySetup is keyed on them.
 
-export const RELAY_SERVER_CODE = `// server.js — SureFlow Local Relay
-const express = require("express");
-const net = require("net");
-const os = require("os");
-const { execSync, exec } = require("child_process");
-
-const app = express();
-app.use(express.json());
-
-// CORS so the cloud portal can poll this relay from the browser
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
-
-const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
-
-// TCP probe on port 9100 (ESC/POS raw print port)
-function checkPrinter(ip) {
-  return new Promise((resolve) => {
-    const sock = new net.Socket();
-    sock.setTimeout(1500);
-    sock.once("connect", () => { sock.destroy(); resolve(true); });
-    sock.once("error", () => resolve(false));
-    sock.once("timeout", () => { sock.destroy(); resolve(false); });
-    sock.connect(9100, ip);
-  });
-}
-
-function vmStats() {
-  const total = os.totalmem(), free = os.freemem();
-  let disk_pct = 0;
-  try { disk_pct = parseInt(execSync("df --output=pcent / | tail -1").toString().trim()); } catch {}
-  return {
-    cpu_pct: Math.min(100, Math.round((os.loadavg()[0] / os.cpus().length) * 100)),
-    ram_pct: Math.round(((total - free) / total) * 100),
-    disk_pct,
-    uptime_seconds: Math.round(os.uptime()),
-  };
-}
-
-app.get("/status", async (req, res) => {
-  const printers = await Promise.all(PRINTER_IPS.map(async (ip) => ({
-    ip,
-    model: "Epson TM-H6000IV",
-    reachable: await checkPrinter(ip),
-    paper_status: "ok", // extend with SNMP polling for real paper level
-    last_used: null,
-  })));
-  res.json({
-    store_id: process.env.STORE_ID,
-    vm_stats: vmStats(),
-    printers,
-    registers: [], // populate from your terminal heartbeats if tracked locally
-  });
-});
-
-app.post("/proxmox/reboot", (req, res) => {
-  res.json({ ok: true, message: "Reboot scheduled" });
-  setTimeout(() => exec("sudo /sbin/reboot"), 1000);
-});
-
-app.listen(process.env.PORT || 3000, () =>
-  console.log("SureFlow relay for store " + process.env.STORE_ID + " listening"));
-`;
-
 export const SETUP_STEP_DETAILS = [
   {
     step_id: "provision_vm",
@@ -115,9 +46,9 @@ export const SETUP_STEP_DETAILS = [
       "cd /opt/sureflow-relay && npm init -y && npm install express",
     ],
     postInstructions: [
-      "Then create /opt/sureflow-relay/server.js with the starter relay code below. It exposes GET /status (VM stats + printer health) and POST /proxmox/reboot — exactly what the Command Center polls.",
+      "Do NOT write server.js yet. The relay's application files (db.js, sync.js, api.js, printer.js, telemetry.js and server.js) are all created in the Phase 1 and Phase 3 steps below — there is no separate starter server to install first.",
+      "This step only prepares the directory and installs express. Continue to the store ID / printer configuration steps, then Phase 1.",
     ],
-    code: RELAY_SERVER_CODE,
   },
   {
     step_id: "configure_store",
@@ -148,18 +79,22 @@ export const SETUP_STEP_DETAILS = [
   {
     step_id: "enable_service",
     label: "Enable the relay as a system service (auto-start on boot)",
-    instructions: ["Create a systemd unit so the relay auto-starts and restarts on failure:"],
+    instructions: [
+      "Create the systemd unit now so the service exists and is wired to the .env — it will report 'activating (auto-restart)' until the Phase 1 files below are in place, which is expected at this point.",
+      "EnvironmentFile is required: the relay code reads process.env directly and does not use dotenv.",
+    ],
     commands: [
       "sudo tee /etc/systemd/system/sureflow-relay.service > /dev/null <<'EOF'\n[Unit]\nDescription=SureFlow Local Relay\nAfter=network.target\n\n[Service]\nWorkingDirectory=/opt/sureflow-relay\nEnvironmentFile=/opt/sureflow-relay/.env\nExecStart=/usr/bin/node server.js\nRestart=always\n\n[Install]\nWantedBy=multi-user.target\nEOF",
       "sudo systemctl daemon-reload",
       "sudo systemctl enable --now sureflow-relay",
-      "systemctl status sureflow-relay   # should show 'active (running)'",
+      "systemctl status sureflow-relay   # 'active (running)' only after the Phase 1 files exist",
     ],
   },
   {
     step_id: "test_connectivity",
     label: "Test connectivity from the cloud portal",
     instructions: [
+      "Do this after the Phase 1 files below are deployed — /status does not exist until then.",
       "From another machine on the store LAN, verify the relay answers: curl http://<vm-ip>:3000/status",
       "In the Infrastructure Command Center, set this store's Relay URL (pencil icon next to 'Relay URL') to http://<vm-ip>:3000.",
       "Click 'Poll Now' — the store card should switch to 'Relay Online' and the VM Health and Network Printers panels will populate live.",
@@ -194,24 +129,24 @@ SETUP_STEP_DETAILS.push(
     step_id: "deploy_sync_engine",
     label: "Phase 1 — Deploy the catalog cache, sale outbox, and sync worker",
     instructions: [
-      "The original server.js from the deploy step only has /status and /proxmox/reboot. Offline selling and Force Sync need three new files plus a replacement server.js — do all four, in this order, in /opt/sureflow-relay.",
+      "These four files ARE the relay application. Create all of them, in this order, in /opt/sureflow-relay.",
       "FILE 1 — db.js: the SQLite layer. Creates the catalog cache table, the pending_sales outbox, and the local stock-movement log, and exposes queueSale / pendingSales / getCatalog helpers.",
       "FILE 2 — sync.js: the cloud worker. Reads CLOUD_SYNC_URL and CLOUD_API_KEY from .env, pulls the catalog every 5 minutes, pushes the outbox every 30 seconds, and tracks online/offline state. Requires db.js.",
-      "FILE 3 — api.js: the Express router the terminals and the portal call — GET /api/catalog, GET /api/connectivity, POST /api/sales, GET /api/pending, POST /api/sync. Requires db.js and sync.js.",
-      "FILE 4 — server.js (Phase 1): replaces the original file. Keeps /status and /proxmox/reboot, mounts the router at /api, starts the sync worker, and serves the local POS build from ./pos-dist.",
+      "FILE 3 — api.js: the Express router the terminals and the portal call — GET /api/catalog, GET /api/connectivity, POST /api/sales, GET /api/pending, POST /api/sync, plus the printing routes used in the Phase 2 printing step. Requires db.js, sync.js and printer.js.",
+      "FILE 4 — server.js (Phase 1): serves /status and /proxmox/reboot, mounts the router at /api, starts the sync worker, exposes /kiosk, and serves the local POS build from ./pos-dist. Phase 3 replaces this one file with a telemetry-aware version — everything else stays.",
       "Sales are queued locally with a store-prefixed transaction ID so the cloud can de-duplicate them on upload.",
     ],
     commands: [
       "cd /opt/sureflow-relay",
-      "cp server.js server.js.phase0.bak   # keep a copy of the original before replacing it",
       "nano db.js      # paste FILE 1 below, then Ctrl+O Enter Ctrl+X",
       "nano sync.js    # paste FILE 2",
       "nano api.js     # paste FILE 3",
-      "nano server.js  # replace the whole file with FILE 4",
+      "nano server.js  # paste FILE 4",
       "sudo systemctl restart sureflow-relay",
       "ls -1 db.js sync.js api.js server.js   # all four must exist",
     ],
     postInstructions: [
+      "api.js requires ./printer, so also create printer.js from the Phase 2 printing step before the service will start cleanly.",
       "Restart is required — systemd runs the file that was loaded at start, so the new routes do not exist until the service restarts.",
       "If the service will not come back up, the paste is almost always the cause: sudo journalctl -u sureflow-relay -n 30 --no-pager",
     ],
@@ -243,7 +178,7 @@ SETUP_STEP_DETAILS.push(
       "Test the key by hand from the relay VM (a valid key returns ok:true with the product list; a bad key returns 401):",
       "curl -s -X POST \"$CLOUD_SYNC_URL\" -H 'Content-Type: application/json' -d '{\"store_id\":\"001\",\"api_key\":\"sfr_001_...\",\"action\":\"pull\"}'",
       "Opening the endpoint in a browser returns an error — that is normal, it only accepts POST. A 404 means the URL is wrong (check for a typo or a trailing slash); a 401 means the key or STORE_ID does not match; a 403 means backend functions are not enabled on the plan.",
-      "Force Sync in the portal says 'Sync Endpoint Missing' (404)? The relay is answering but is still running the original server.js from the deploy step — it has no /api/sync route. Complete the Phase 1 step above (db.js, sync.js, api.js and the Phase 1 server.js) and restart the service.",
+      "Force Sync in the portal says 'Sync Endpoint Missing' (404)? The relay is answering but has no /api/sync route, so api.js did not load. Re-check the Phase 1 files and restart the service.",
       "Force Sync says 'Relay Unreachable'? Your browser cannot reach the relay's LAN address — you must be on the store network or a VPN into it, the service must be running, and the relay must send the CORS headers included in the code above.",
       "Any other sync failure: read the relay's own log for the exact reason — sudo journalctl -u sureflow-relay -n 50 --no-pager. Verify the .env parsed correctly with: cat /opt/sureflow-relay/.env",
       "Confirm it in the portal: the store's Cloud Sync card turns green and shows the last pull/push time, and every sync is recorded in the sync log. If it stays red — check that STORE_ID matches the store number, that the key was not regenerated after you pasted it, and that the VM can reach the internet (curl -I https://google.com).",
@@ -254,9 +189,9 @@ SETUP_STEP_DETAILS.push(
     step_id: "diagnose_no_sync",
     label: "Phase 1 — Nothing happens after replacing server.js (no sync, no polling)",
     instructions: [
-      "Symptom: server.js was replaced with the Phase 1 version but the relay behaves exactly as before — no sync, no /api routes, nothing new in the log. In every case so far this is one of four causes, in this order of likelihood.",
+      "Symptom: the Phase 1 files are in place but the relay shows no sync, no /api routes, and nothing new in the log. In every case so far this is one of four causes, in this order of likelihood.",
       "CAUSE 1 — The service is still running the OLD process. systemd keeps running the code loaded at start; editing the file changes nothing until a restart. A restart also FAILS SILENTLY back to the old state if the new file throws on load.",
-      "CAUSE 2 — The service never actually restarted because a require() failed. api.js/sync.js/db.js must all sit in /opt/sureflow-relay next to server.js, and better-sqlite3 must be installed (previous step). A missing file gives 'Cannot find module ./api' in the log.",
+      "CAUSE 2 — The service never actually restarted because a require() failed. api.js/sync.js/db.js/printer.js must all sit in /opt/sureflow-relay next to server.js, and better-sqlite3 must be installed (previous step). A missing file gives 'Cannot find module ./api' in the log.",
       "CAUSE 3 — The .env is not being loaded into the process. The Phase 1 code reads process.env directly and does NOT use dotenv, so the systemd unit must have EnvironmentFile=/opt/sureflow-relay/.env. Without it CLOUD_SYNC_URL is undefined, every sync attempt fails instantly, and the relay looks idle.",
       "CAUSE 4 — You are checking the wrong process. If a stray node server.js was ever started by hand it holds port 3000, so systemd's copy never binds and your curl hits the old manual process.",
       "Run the commands below in order — each one identifies one of the causes above.",
@@ -267,7 +202,7 @@ SETUP_STEP_DETAILS.push(
       "grep -c EnvironmentFile /etc/systemd/system/sureflow-relay.service   # must print 1 — if it prints 0 see the fix below",
       "sudo systemctl show sureflow-relay -p Environment   # confirm STORE_ID / CLOUD_SYNC_URL / CLOUD_API_KEY are present",
       "ps aux | grep -c '[n]ode server.js'   # must be 1 — more than one means a stray manual process is holding the port",
-      "curl -s http://localhost:3000/api/connectivity   # 404 = old code still running; JSON = Phase 1 is live",
+      "curl -s http://localhost:3000/api/connectivity   # JSON = the relay is live; 404 = a stale process is still bound to the port",
     ],
     postInstructions: [
       "Startup line does not say 'phase 1' → the old file is still being loaded. Confirm you edited /opt/sureflow-relay/server.js (not a copy elsewhere) and that WorkingDirectory in the unit points at /opt/sureflow-relay.",
@@ -293,7 +228,7 @@ SETUP_STEP_DETAILS.push(
     ],
     postInstructions: [
       "Empty reply or 'connection refused' = the relay service is not running: sudo systemctl status sureflow-relay",
-      "404 on /api/sync = server.js is still the Phase 0 version, or api.js is missing / failed to load. Re-check the previous step and restart.",
+      "404 on /api/sync = api.js is missing or failed to load. Re-check the Phase 1 step and restart.",
       "/api/connectivity returns online:false = the routes are fine but the cloud call is failing — verify CLOUD_SYNC_URL and CLOUD_API_KEY in .env and that the VM has internet.",
       "Once these pass, click Force Sync on the store card in the Infrastructure Command Center — it should report Sync Complete and the Cloud Sync panel will show the pull/push timestamps.",
     ],
@@ -354,7 +289,7 @@ SETUP_STEP_DETAILS.push(
     ],
     postInstructions: [
       "503 'KIOSK_ACCESS_TOKEN is not set' = the variable did not reach the process. Confirm the systemd unit has EnvironmentFile=/opt/sureflow-relay/.env and that the value is on its own line with no quotes.",
-      "404 on /kiosk = the relay is running an older server.js — re-paste the Phase 1 server.js (it now includes the /kiosk route) and restart.",
+      "404 on /kiosk = server.js was pasted from an older copy. Re-paste it from the Phase 1 step (it includes the /kiosk route) and restart.",
       "Terminal still shows the login page after /kiosk = the token has expired or belongs to an account with no access to this app. Get a fresh one from a signed-in cloud session.",
     ],
   },
@@ -364,31 +299,29 @@ SETUP_STEP_DETAILS.push(
     instructions: [
       "By default the POS Print Receipt button opens the browser's print dialog, so it only works if the Epson is installed as an OS printer on every terminal. This step replaces that with raw ESC/POS printing through the relay — no dialog, and the same command pops the cash drawer on cash sales.",
       "FILE — printer.js: add it to /opt/sureflow-relay next to db.js/sync.js/api.js. It formats the receipt for 80mm paper, sends it to the printer's IP on TCP 9100, and fires the drawer kick (ESC p, pin 2).",
-      "FILE — api.js: you MUST also replace this file. 'Cannot POST /api/print-test' means your relay is running the older Phase 1 api.js, which has no printing routes — adding printer.js alone changes nothing. Re-paste api.js from the updated copy below; it requires ./printer and adds POST /api/print (receipt, with open_drawer for cash sales), POST /api/drawer (pop the drawer alone) and POST /api/print-test (diagnostic slip).",
+      "That is the only new file — the api.js you pasted in Phase 1 already carries the printing routes: POST /api/print (receipt, with open_drawer for cash sales), POST /api/drawer (pop the drawer alone) and POST /api/print-test (diagnostic slip).",
       "Set each register's Printer IP in the Registers page so receipts go to that lane's printer. Left blank, the relay prints to the first address in PRINTER_IPS.",
       "Cash drawers must be plugged into the printer's DK port — the kick is sent by the printer, not the terminal. If your drawer is wired to pin 5 instead of pin 2, change \\x00 to \\x01 in the KICK constant.",
       "If the relay or printer is unreachable the POS automatically falls back to the old browser print dialog, so cashiers are never blocked.",
     ],
     commands: [
       "cd /opt/sureflow-relay",
-      "nano printer.js   # paste FILE 1 below, then Ctrl+O Enter Ctrl+X",
-      "nano api.js      # replace the WHOLE file with FILE 2 below",
+      "nano printer.js   # paste the file below, then Ctrl+O Enter Ctrl+X",
       "sudo systemctl restart sureflow-relay",
-      "grep -c print-test api.js   # must print 1 — if it prints 0 the paste did not save",
+      "grep -c print-test api.js   # must print 1 — if it prints 0 re-paste api.js from the Phase 1 step",
       "curl -s -X POST http://localhost:3000/api/print-test   # a test slip should print and cut",
       "curl -s -X POST http://localhost:3000/api/drawer        # the drawer should pop",
       "curl -s -X POST http://localhost:3000/api/print-test -H 'Content-Type: application/json' -d '{\"printer_ip\":\"192.168.1.61\"}'   # target a specific lane",
     ],
     postInstructions: [
       "Nothing prints and you get 'Printer timeout' — the printer is not reachable on port 9100. Confirm its static IP, that it is listed in PRINTER_IPS, and that the Network Printers panel shows it online.",
-      "404 on /api/print — api.js is the older Phase 1 version. Re-paste api.js from the Phase 1 step (it now requires ./printer) and restart.",
+      "404 on /api/print — api.js was pasted from an older copy. Re-paste it from the Phase 1 step and restart.",
       "'Cannot find module ./printer' in the log — printer.js is missing or misnamed in /opt/sureflow-relay.",
       "Prints but text wraps badly — set RECEIPT_WIDTH in .env (42 for 80mm at font A, 32 for 58mm paper).",
       "Paper does not cut — the TM-H6000IV cuts on the receipt station only; confirm the roll is loaded in the receipt side, not the slip printer.",
     ],
     codeFiles: [
       { name: "printer.js", code: RELAY_PRINTER_CODE },
-      { name: "api.js (with printing routes)", code: RELAY_API_CODE },
     ],
   },
   {
