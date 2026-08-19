@@ -1,0 +1,99 @@
+{
+  "name": "ActionCode",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "number",
+      "description": "Numeric action code the operator types on the POS before pressing the Action Code key (e.g. 250). Unique per store_id."
+    },
+    "label": {
+      "type": "string",
+      "description": "Operator-facing name of the action code, shown on the POS confirmation and in the admin table."
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "void_item",
+        "void_transaction",
+        "discount_item",
+        "discount_total",
+        "price_check",
+        "no_sale",
+        "subtotal",
+        "tax_exempt",
+        "price_override",
+        "quantity",
+        "repeat_last",
+        "suspend",
+        "resume",
+        "refund",
+        "reprint_receipt",
+        "cash_management",
+        "request_cash_pickup",
+        "request_cash_advance",
+        "training_mode",
+        "diagnostics",
+        "csm_help",
+        "report_robbery",
+        "item_list",
+        "loyalty_lookup",
+        "export_cash",
+        "supervisor_override",
+        "none"
+      ],
+      "default": "none",
+      "description": "POS function this code dispatches to. Mirrors the FunctionKey action set plus POS-level actions reachable only by code."
+    },
+    "requires_role": {
+      "type": "string",
+      "enum": [
+        "none",
+        "csm",
+        "manager"
+      ],
+      "default": "none",
+      "description": "Minimum role required to run this code without a supervisor override. Gated through the same POS override/PIN flow as function keys."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "placeholder",
+        "inactive"
+      ],
+      "default": "active",
+      "description": "active = dispatches normally; placeholder = recognized but shows 'coming soon' (feature not built yet); inactive = kept as reference only, treated as not supported."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this code mapping applies to. Blank = global default used by every store that has no store-specific override for the same code."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Reference notes for technicians (original 4690/Walmart action code name, quirks, why it is unmapped)."
+    }
+  },
+  "required": [
+    "code",
+    "label",
+    "action"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

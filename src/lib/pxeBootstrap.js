@@ -115,6 +115,7 @@ export function buildPeripheralRules(reg, profiles = []) {
       `evdev:input:b0003v04B3p3025*`,
       ` KEYBOARD_KEY_70029=leftctrl   # IBM POS override strip`,
       ` KEYBOARD_KEY_7002b=tab`,
+      ` KEYBOARD_KEY_70045=f9         # Action Code key — POS listens for F9`,
       `# apply with: systemd-hwdb update && udevadm trigger`,
     );
   } else if (!libKeyboard && reg.keyboard_model) {

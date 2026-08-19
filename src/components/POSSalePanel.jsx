@@ -22,7 +22,7 @@ function getKeysForSection(sectionId, functionKeys) {
   }
 }
 
-export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList }) {
+export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode, showActionCode }) {
   const [activeSection, setActiveSection] = useState("sale");
 
   const visibleKeys = getKeysForSection(activeSection, functionKeys);
@@ -38,9 +38,19 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
     <>
       {/* 3x3 Function Key Grid */}
       <div className="flex-1 p-3 flex flex-col">
-        <p className="text-blue-300/30 text-[10px] uppercase tracking-widest mb-2">
-          {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-blue-300/30 text-[10px] uppercase tracking-widest">
+            {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
+          </p>
+          {showActionCode && (
+            <button
+              onClick={onActionCode}
+              className="px-2.5 py-1 rounded-lg bg-white/5 border border-blue-500/20 text-blue-300/70 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-blue-200 transition-colors"
+            >
+              # Action Code
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
           {gridSlots.map((fk, idx) => (
             fk ? (

@@ -25,6 +25,7 @@ import AdminEmployeeManager from '@/pages/AdminEmployeeManager';
 import AdminInventory from '@/pages/AdminInventory';
 import AdminTransactions from '@/pages/AdminTransactions';
 import AdminFunctionKeys from '@/pages/AdminFunctionKeys';
+import AdminActionCodes from '@/pages/AdminActionCodes';
 import AdminReceipt from '@/pages/AdminReceipt';
 import AdminRegisters from '@/pages/AdminRegisters';
 import AdminNetwork from '@/pages/AdminNetwork';
@@ -106,6 +107,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/transactions" element={<AdminTransactions />} />
           <Route path="/admin/function-keys" element={<AdminFunctionKeys />} />
+          <Route path="/admin/action-codes" element={<AdminActionCodes />} />
           <Route path="/admin/receipt" element={<AdminReceipt />} />
           <Route path="/admin/registers" element={<AdminRegisters />} />
           <Route path="/admin/network" element={<AdminNetwork />} />

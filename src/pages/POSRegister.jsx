@@ -44,6 +44,8 @@ import POSModeAuthDialogs from "@/components/pos/POSModeAuthDialogs";
 import POSSecurityDialogs from "@/components/pos/POSSecurityDialogs";
 import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
+import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
+import { resolveActionCode, needsOverrideFor, ACTION_CODE_KEY, hasPhysicalActionCodeKey, ACTION_LABELS } from "@/lib/actionCodeDispatch";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -52,6 +54,9 @@ export default function POSRegister() {
   const [operator, setOperator] = useState(null);
   const [products, setProducts] = useState([]);
   const [functionKeys, setFunctionKeys] = useState([]);
+  const [actionCodes, setActionCodes] = useState([]);
+  const [actionCodeOpen, setActionCodeOpen] = useState(false);
+  const [physicalActionKey, setPhysicalActionKey] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [amountTendered, setAmountTendered] = useState("");
@@ -293,15 +298,18 @@ export default function POSRegister() {
     loadDataDebounceRef.current = setTimeout(async () => {
       try {
         const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-        const [prods, fkeys, regs, discs, config] = await Promise.all([
+        const [prods, fkeys, regs, discs, config, acodes] = await Promise.all([
           base44.entities.Product.filter({ status: "active" }),
           base44.entities.FunctionKey.list("key_number"),
           base44.entities.Register.filter({ register_id: registerId }),
           base44.entities.DiscountType.list(),
-          base44.entities.ReceiptConfig.list()
+          base44.entities.ReceiptConfig.list(),
+          base44.entities.ActionCode.list()
         ]);
         setProducts(prods);
         setFunctionKeys(fkeys);
+        setActionCodes(acodes);
+        setPhysicalActionKey(hasPhysicalActionCodeKey(regs[0]));
         setDiscounts(discs);
         if (config.length > 0) setStoreConfig(config[0]);
         // Resolve the store record + settings so the receipt can print ST#, manager and tax rate.
@@ -564,9 +572,81 @@ export default function POSRegister() {
         });
         toast({ title: "Request Sent", description: "Cash advance request logged — visible to admin", variant: "default" });
         break;
+      // Actions reachable by action code (and the help menu) as well as function keys
+      case "item_list": setItemListOpen(true); break;
+      case "loyalty_lookup": setLoyaltyLookupOpen(true); break;
+      case "export_cash": setExportCashDialog(true); break;
+      case "csm_help": requestCSM(); break;
+      case "report_robbery":
+        if (operator?.role === "technician") { toast({ title: "Not Available", description: "Technician sessions cannot report a robbery", variant: "destructive" }); break; }
+        calculateStolenAmount();
+        break;
+      case "training_mode":
+        if (diagnosticsMode || trainingLocked) { toast({ title: "Training Mode Locked", description: "This session is locked in Training Mode" }); break; }
+        if (trainingMode) { setTrainingMode(false); toast({ title: "Training Mode Disabled", description: "Normal operations resumed" }); }
+        else setTrainingModeDialog(true);
+        break;
+      case "diagnostics":
+        if (diagnosticsMode) { setPosMode("diagnostics"); break; }
+        requestDiagnostics();
+        break;
+      case "refund":
+        if (!registerFeatures.feature_returns) { toast({ title: "Returns Disabled", description: "Returns are not enabled on this register", variant: "destructive" }); break; }
+        setPosMode("returns"); setSidePreview(null);
+        break;
+      case "suspend":
+      case "resume":
+      case "repeat_last":
+        toast({ title: "Not Available Yet", description: `${ACTION_LABELS[fkey.action]} is not implemented on this system.`, variant: "destructive" });
+        break;
       default: break;
       }
       };
+
+  // ── Action codes ───────────────────────────────────────────────────────────
+  // One dispatcher for both the physical Action Code key and the on-screen button.
+  const handleActionCode = (entered) => {
+    const storeId = sessionStorage.getItem("pos_store_id") || "";
+    const match = resolveActionCode(actionCodes, entered, storeId);
+    if (!match || match.status === "inactive") {
+      toast({ title: `Action Code ${entered}`, description: "Action code not supported on this system.", variant: "destructive" });
+      writeLog("override", `Unsupported action code entered: ${entered}`);
+      return;
+    }
+    if (match.status === "placeholder") {
+      toast({ title: match.label, description: "Coming soon — this function is not available yet." });
+      return;
+    }
+    setActionCodeOpen(false);
+    // Treat the resolved code as a function key so role gating, remote override
+    // and the audit/register log all flow through the existing path.
+    const asKey = { label: `${match.label} (AC ${match.code})`, action: match.action, requires_role: match.requires_role || "none" };
+    writeLog("override", `Action code ${match.code} entered — ${match.label}`);
+    // AC 24 is the override prompt itself — always ask for supervisor credentials.
+    if (match.action === "supervisor_override") {
+      setPendingFunctionKey({ ...asKey, action: "none", requires_role: "csm" });
+      setSupOverridePin(""); setSupOverrideError(""); setSupOverrideDialog(true);
+      return;
+    }
+    if (needsOverrideFor(asKey.requires_role, operator?.role)) {
+      setPendingFunctionKey(asKey);
+      setSupOverridePin(""); setSupOverrideError(""); setSupOverrideDialog(true);
+      return;
+    }
+    executeFunctionKey(asKey);
+  };
+
+  // Physical Action Code key — the IBM POS keyboard's override-strip key is mapped
+  // onto this keycode by the image's hwdb rules.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== ACTION_CODE_KEY) return;
+      e.preventDefault();
+      setActionCodeOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const openPriceEdit = (sku) => {
     const item = cart.find(i => i.sku === sku);
@@ -1390,7 +1470,13 @@ export default function POSRegister() {
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {posMode === "sale" && (
-            <POSSalePanel functionKeys={functionKeys} onFunctionKey={handleFunctionKey} onOpenItemList={() => setItemListOpen(true)} />
+            <POSSalePanel
+              functionKeys={functionKeys}
+              onFunctionKey={handleFunctionKey}
+              onOpenItemList={() => setItemListOpen(true)}
+              onActionCode={() => setActionCodeOpen(true)}
+              showActionCode={!physicalActionKey}
+            />
           )}
 
           {posMode === "returns" && (
@@ -1590,6 +1676,15 @@ export default function POSRegister() {
           if (done) done(serials);
         }}
         onClose={() => setSerialCapture(null)}
+      />
+
+      {/* Numeric action-code entry (physical Action Code key or on-screen button) */}
+      <POSActionCodeDialog
+        open={actionCodeOpen}
+        onClose={() => setActionCodeOpen(false)}
+        codes={actionCodes}
+        storeId={sessionStorage.getItem("pos_store_id") || ""}
+        onSubmit={handleActionCode}
       />
 
       {/* Store Announcements / News Dialog */}
