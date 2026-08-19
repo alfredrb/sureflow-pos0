@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Cpu, ChevronDown, ChevronRight } from "lucide-react";
 import SetupStepDetail from "@/components/infrastructure/SetupStepDetail";
+import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
 import { HARDWARE_FLEET_STEPS } from "@/lib/hardwareFleetGuide";
 
 // Reference build sheet for a lane's physical hardware: terminal generations,
@@ -25,7 +26,9 @@ export default function HardwareFleetGuide() {
       </button>
 
       {open && (
-        <div className="border-t border-gray-100 py-2">
+        <div className="border-t border-gray-100">
+          <TerminalPortMap />
+          <div className="py-2">
           {HARDWARE_FLEET_STEPS.map((step, i) => (
             <div key={step.step_id}>
               <button
@@ -41,6 +44,7 @@ export default function HardwareFleetGuide() {
               {openStep === step.step_id && <SetupStepDetail detail={step} />}
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>
