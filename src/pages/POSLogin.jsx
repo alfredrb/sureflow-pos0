@@ -66,8 +66,10 @@ export default function POSLogin() {
     // from the kernel command line, so the lane selects its own register with no
     // on-screen config step.
     const currentReg = sessionStorage.getItem("pos_register_num");
-    const bootReg = new URLSearchParams(window.location.search).get("register_id");
-    if (bootReg && bootReg !== currentReg) {
+    const bootReg = new URLSearchParams(window.location.search).get("register_id")
+      || sessionStorage.getItem("pos_boot_register");
+    if (bootReg) {
+      sessionStorage.setItem("pos_boot_register", bootReg);
       base44.entities.Register.filter({ register_id: bootReg }).then(results => {
         if (results.length > 0) {
           const reg = results[0];
@@ -191,6 +193,8 @@ export default function POSLogin() {
     setConfigLoading(false);
   };
 
+  const pinInputRef = React.useRef(null);
+
   const handleKey = (key) => {
     if (step === "id") {
       if (key === "CLR") setOperatorId("");
@@ -202,6 +206,26 @@ export default function POSLogin() {
       else if (key !== "ENT" && pin.length < 6) setPin(prev => prev + key);
     }
   };
+
+  // Physical keyboard on the pinpad — operators with an IBM POS keyboard (or any
+  // USB keyboard) type the ID and PIN instead of touching the on-screen keys.
+  // Enter advances Operator ID -> PIN, then submits.
+  useEffect(() => {
+    if (loginMode !== "pinpad") return;
+    if (showConfig || conflict || lunchLockout || showShiftLookup || showTimeClock) return;
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); handleKey(e.key); }
+      else if (e.key === "Enter") { e.preventDefault(); handleKey("ENT"); }
+      else if (e.key === "Backspace") {
+        e.preventDefault();
+        if (step === "id") setOperatorId(p => p.slice(0, -1));
+        else setPin(p => p.slice(0, -1));
+      } else if (e.key === "Escape") { e.preventDefault(); handleKey("CLR"); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [loginMode, step, operatorId, pin, loading, showConfig, conflict, lunchLockout, showShiftLookup, showTimeClock]);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -494,12 +518,14 @@ export default function POSLogin() {
                   placeholder="Enter operator ID"
                   autoComplete="username"
                   autoFocus
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); pinInputRef.current?.focus(); } }}
                   className="bg-[#0a0e27] border-blue-500/20 text-white placeholder:text-blue-500/30 font-mono h-11"
                 />
               </div>
               <div className="space-y-1.5">
                 <p className="text-blue-300/60 text-xs uppercase tracking-widest">PIN</p>
                 <Input
+                  ref={pinInputRef}
                   type="password"
                   value={pin}
                   onChange={e => setPin(e.target.value)}
