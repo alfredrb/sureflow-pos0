@@ -7,6 +7,8 @@ const esc = (s) =>
 
 export function buildReceiptHtml(payload) {
   const tokens = buildReceiptTokens(payload);
+  // Barcode value comes from the token itself so notice slips (suspends) print theirs too.
+  const barcodeValue = tokens.find((t) => t.type === "barcode" && t.text)?.text || "";
 
   const body = tokens
     .map((t) => {
@@ -30,7 +32,7 @@ export function buildReceiptHtml(payload) {
 <body>${body}
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
 <script>
-  try { JsBarcode("#barcode", "${esc(payload.transaction_id)}", { format: "CODE128", width: 2, height: 45, displayValue: true, fontSize: 12, margin: 0 }); } catch (e) {}
+  try { JsBarcode("#barcode", "${esc(barcodeValue)}", { format: "CODE128", width: 2, height: 45, displayValue: true, fontSize: 12, margin: 0 }); } catch (e) {}
 <\/script>
 </body></html>`;
 }

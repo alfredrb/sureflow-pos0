@@ -78,6 +78,8 @@ export function buildReceiptTokens(r) {
     push("blank");
     push("center", `OPERATOR ${String(r.operator_name || "").toUpperCase()}`);
     push("center", r.date || new Date().toLocaleString());
+    // Scannable slips (suspended sales) carry a barcode the POS can read back.
+    if (n.barcode) push("barcode", n.barcode);
     push("blank");
     push("center", n.footer || "***MAINTENANCE NOTICE***");
     return t;

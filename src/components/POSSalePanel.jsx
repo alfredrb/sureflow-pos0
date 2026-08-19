@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Hash } from "lucide-react";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -22,12 +23,14 @@ function getKeysForSection(sectionId, functionKeys) {
   }
 }
 
-export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode, showActionCode }) {
+export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode }) {
   const [activeSection, setActiveSection] = useState("sale");
 
+  // The Advance tab gives one of its nine slots to the Action Code key.
+  const maxKeys = activeSection === "advance" ? 8 : 9;
   const visibleKeys = getKeysForSection(activeSection, functionKeys);
-  const gridSlots = [...visibleKeys.slice(0, 9)];
-  while (gridSlots.length < 9) gridSlots.push(null);
+  const gridSlots = [...visibleKeys.slice(0, maxKeys)];
+  while (gridSlots.length < maxKeys) gridSlots.push(null);
 
   const handleSectionClick = (sectionId) => {
     if (sectionId === "item_list") onOpenItemList();
@@ -38,20 +41,21 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
     <>
       {/* 3x3 Function Key Grid */}
       <div className="flex-1 p-3 flex flex-col">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-blue-300/30 text-[10px] uppercase tracking-widest">
-            {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
-          </p>
-          {showActionCode && (
+        <p className="text-blue-300/30 text-[10px] uppercase tracking-widest mb-2">
+          {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
+        </p>
+        <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
+          {/* Touchscreen Action Code key — lives on the Advance tab so operators
+              without the physical keyboard key can still enter numeric codes. */}
+          {activeSection === "advance" && (
             <button
               onClick={onActionCode}
-              className="px-2.5 py-1 rounded-lg bg-white/5 border border-blue-500/20 text-blue-300/70 text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 hover:text-blue-200 transition-colors"
+              className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg bg-slate-700"
             >
-              # Action Code
+              <Hash className="w-5 h-5" />
+              <span className="text-center leading-tight">Action Code</span>
             </button>
           )}
-        </div>
-        <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
           {gridSlots.map((fk, idx) => (
             fk ? (
               <button

@@ -1,0 +1,142 @@
+{
+  "name": "SuspendedTransaction",
+  "type": "object",
+  "properties": {
+    "suspend_id": {
+      "type": "string",
+      "description": "Suspend number printed as a CODE128 barcode on the suspend slip (e.g. SP-1A2B3C). Scanning or keying this at any register in the store restores the cart."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number the suspend belongs to. A suspend can only be resumed inside the same store."
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register the transaction was suspended on."
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator who suspended the transaction."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "items": {
+      "type": "array",
+      "description": "Full cart snapshot at suspend time, including price overrides, discounts and captured serial numbers so the sale resumes exactly as it was.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "tax_rate": {
+            "type": "number"
+          },
+          "discount_type": {
+            "type": "string"
+          },
+          "discount_percentage": {
+            "type": "number"
+          },
+          "original_price": {
+            "type": "number"
+          },
+          "serialized": {
+            "type": "boolean"
+          },
+          "serial_numbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number",
+      "default": 0
+    },
+    "tax": {
+      "type": "number",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "default": 0
+    },
+    "item_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total units suspended, shown in the resume picker."
+    },
+    "tax_exempt_id": {
+      "type": "string",
+      "description": "Tax Exempt ID that was applied to the sale before it was suspended, restored on resume."
+    },
+    "loyalty_id": {
+      "type": "string",
+      "description": "Loyalty member linked to the sale before suspend, restored on resume."
+    },
+    "loyalty_member_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "suspended",
+        "resumed",
+        "voided",
+        "expired"
+      ],
+      "default": "suspended",
+      "description": "suspended = available to resume; resumed = already pulled back into a sale (cannot be reused); voided = cancelled by a supervisor; expired = passed the end-of-day cut-off."
+    },
+    "resumed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resumed_register_id": {
+      "type": "string",
+      "description": "Register that resumed the suspend \u2014 may differ from the originating register."
+    },
+    "resumed_by_operator_id": {
+      "type": "string"
+    },
+    "resumed_by_operator_name": {
+      "type": "string"
+    },
+    "training_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when suspended from a training-mode session. Training suspends can only be resumed in training mode."
+    }
+  },
+  "required": [
+    "suspend_id",
+    "register_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

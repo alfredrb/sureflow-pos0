@@ -45,7 +45,9 @@ import POSSecurityDialogs from "@/components/pos/POSSecurityDialogs";
 import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
 import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
-import { resolveActionCode, needsOverrideFor, ACTION_CODE_KEY, hasPhysicalActionCodeKey, ACTION_LABELS } from "@/lib/actionCodeDispatch";
+import { resolveActionCode, needsOverrideFor, ACTION_CODE_KEY } from "@/lib/actionCodeDispatch";
+import POSResumeDialog from "@/components/pos/POSResumeDialog";
+import { printSuspendSlip } from "@/lib/suspendSlip";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -56,7 +58,7 @@ export default function POSRegister() {
   const [functionKeys, setFunctionKeys] = useState([]);
   const [actionCodes, setActionCodes] = useState([]);
   const [actionCodeOpen, setActionCodeOpen] = useState(false);
-  const [physicalActionKey, setPhysicalActionKey] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [amountTendered, setAmountTendered] = useState("");
@@ -309,7 +311,6 @@ export default function POSRegister() {
         setProducts(prods);
         setFunctionKeys(fkeys);
         setActionCodes(acodes);
-        setPhysicalActionKey(hasPhysicalActionCodeKey(regs[0]));
         setDiscounts(discs);
         if (config.length > 0) setStoreConfig(config[0]);
         // Resolve the store record + settings so the receipt can print ST#, manager and tax rate.
@@ -594,10 +595,10 @@ export default function POSRegister() {
         if (!registerFeatures.feature_returns) { toast({ title: "Returns Disabled", description: "Returns are not enabled on this register", variant: "destructive" }); break; }
         setPosMode("returns"); setSidePreview(null);
         break;
-      case "suspend":
-      case "resume":
+      case "suspend": suspendTransaction(); break;
+      case "resume": setResumeOpen(true); break;
       case "repeat_last":
-        toast({ title: "Not Available Yet", description: `${ACTION_LABELS[fkey.action]} is not implemented on this system.`, variant: "destructive" });
+        toast({ title: "Not Available Yet", description: "Repeat Last Item is not implemented on this system.", variant: "destructive" });
         break;
       default: break;
       }
@@ -647,6 +648,72 @@ export default function POSRegister() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // ── Suspend / resume ───────────────────────────────────────────────────────
+  // Parks the current cart under a suspend number and prints a barcoded slip.
+  // Any lane in the same store can scan that slip to pull the items back.
+  const suspendTransaction = async () => {
+    if (cart.length === 0) {
+      toast({ title: "Nothing To Suspend", description: "Add items to the sale first.", variant: "destructive" });
+      return;
+    }
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const suspendId = "SP-" + Date.now().toString(36).toUpperCase().slice(-6);
+    const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+    try {
+      await base44.entities.SuspendedTransaction.create({
+        suspend_id: suspendId,
+        store_id: sessionStorage.getItem("pos_store_id") || "",
+        register_id: registerId,
+        operator_id: operator?.operator_id || "",
+        operator_name: operator?.full_name || "",
+        items: cart,
+        subtotal, tax, total,
+        item_count: itemCount,
+        tax_exempt_id: taxExemptAppliedId || null,
+        loyalty_id: loyaltyMember?.loyalty_id || null,
+        loyalty_member_name: loyaltyMember?.name || null,
+        status: "suspended",
+        training_mode: trainingMode,
+      });
+    } catch (e) {
+      toast({ title: "Suspend Failed", description: "The sale could not be suspended. Get a manager.", variant: "destructive" });
+      return;
+    }
+    printSuspendSlip({ suspendId, items: cart, total, itemCount, registerId, operator }).catch(() => {});
+    writeLog("override", `Transaction suspended — ${suspendId} · ${itemCount} item(s) · $${total.toFixed(2)}`);
+    toast({ title: "Sale Suspended", description: `${suspendId} — give the printed slip to the customer.` });
+    setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+  };
+
+  const resumeSuspended = async (rec) => {
+    if (cart.length > 0) {
+      toast({ title: "Sale In Progress", description: "Finish or void the current sale before resuming a suspend.", variant: "destructive" });
+      return;
+    }
+    if (!!rec.training_mode !== trainingMode) {
+      toast({ title: "Cannot Resume", description: rec.training_mode ? "This suspend was created in training mode." : "Exit training mode to resume a live sale.", variant: "destructive" });
+      return;
+    }
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    try {
+      await base44.entities.SuspendedTransaction.update(rec.id, {
+        status: "resumed",
+        resumed_at: new Date().toISOString(),
+        resumed_register_id: registerId,
+        resumed_by_operator_id: operator?.operator_id || "",
+        resumed_by_operator_name: operator?.full_name || "",
+      });
+    } catch (e) {
+      toast({ title: "Resume Failed", description: "The suspend could not be claimed. Try again.", variant: "destructive" });
+      return;
+    }
+    setCart(rec.items || []);
+    if (rec.tax_exempt_id) setTaxExemptAppliedId(rec.tax_exempt_id);
+    setResumeOpen(false);
+    writeLog("override", `Suspended sale resumed — ${rec.suspend_id} (suspended on ${rec.register_id} by ${rec.operator_name})`);
+    toast({ title: "Sale Resumed", description: `${rec.suspend_id} — ${rec.item_count} item(s) restored.` });
+  };
 
   const openPriceEdit = (sku) => {
     const item = cart.find(i => i.sku === sku);
@@ -1475,7 +1542,6 @@ export default function POSRegister() {
               onFunctionKey={handleFunctionKey}
               onOpenItemList={() => setItemListOpen(true)}
               onActionCode={() => setActionCodeOpen(true)}
-              showActionCode={!physicalActionKey}
             />
           )}
 
@@ -1685,6 +1751,15 @@ export default function POSRegister() {
         codes={actionCodes}
         storeId={sessionStorage.getItem("pos_store_id") || ""}
         onSubmit={handleActionCode}
+      />
+
+      {/* Resume a suspended sale — scan the slip barcode or pick from the store list */}
+      <POSResumeDialog
+        open={resumeOpen}
+        onClose={() => setResumeOpen(false)}
+        storeId={sessionStorage.getItem("pos_store_id") || ""}
+        onResume={resumeSuspended}
+        toast={toast}
       />
 
       {/* Store Announcements / News Dialog */}

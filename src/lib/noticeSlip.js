@@ -25,7 +25,8 @@ export function wrapNotice(text, width = WIDTH) {
 
 /**
  * Prints one notice slip to this register's printer (browser fallback if the
- * relay is unreachable). notice = { heading, lines[], footer }.
+ * relay is unreachable). notice = { heading, lines[], footer, barcode }.
+ * When notice.barcode is set it prints as a scannable CODE128 symbol.
  */
 export async function printNoticeSlip(notice, operator) {
   const registerNum = sessionStorage.getItem("pos_register_num") || "";
@@ -34,6 +35,7 @@ export async function printNoticeSlip(notice, operator) {
   await printReceipt({
     docType: "notice",
     notice,
+    transactionId: notice?.barcode || "",
     printerIp: regs[0]?.printer_ip,
     registerName: registerNum,
     registerId: registerNum,
