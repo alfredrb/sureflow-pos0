@@ -80,11 +80,22 @@ export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles =
     `LABEL sureflow`,
     `  KERNEL ${img.kernel}`,
     `  INITRD ${img.initrd}`,
-    `  APPEND root=/dev/nfs nfsroot=${controllerIp}:${img.nfsroot},vers=3,tcp rw ip=dhcp ${img.extra}${driverArgs ? " " + driverArgs : ""} \\`,
-    ...(uniqueModules.length ? [`    modules-load=${uniqueModules.join(",")} \\`] : []),
-    `    sureflow.register_id=${reg.register_id} sureflow.store_id=${reg.store_id || ""} \\`,
-    `    sureflow.printer_ip=${reg.printer_ip || ""} sureflow.scanner_if=${reg.scanner_interface || "usb_hid"} \\`,
-    `    sureflow.relay=${(relayUrl || "").trim().replace(/\/+$/, "") || `http://${controllerIp}:3000`}`,
+    // APPEND must be ONE physical line. pxelinux has no line-continuation syntax —
+    // a trailing backslash truncates the kernel cmdline at that point, silently
+    // dropping every argument after it (modules-load, register identity, relay URL).
+    `  APPEND ${[
+      `root=/dev/nfs`,
+      `nfsroot=${controllerIp}:${img.nfsroot},vers=3,tcp`,
+      `rw ip=dhcp`,
+      img.extra,
+      driverArgs,
+      uniqueModules.length ? `modules-load=${uniqueModules.join(",")}` : "",
+      `sureflow.register_id=${reg.register_id}`,
+      `sureflow.store_id=${reg.store_id || ""}`,
+      `sureflow.printer_ip=${reg.printer_ip || ""}`,
+      `sureflow.scanner_if=${reg.scanner_interface || "usb_hid"}`,
+      `sureflow.relay=${(relayUrl || "").trim().replace(/\/+$/, "") || `http://${controllerIp}:3000`}`,
+    ].filter(Boolean).join(" ")}`,
   ].join("\n");
 }
 
