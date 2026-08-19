@@ -53,7 +53,10 @@ export function pxeConfigFileName(reg) {
 }
 
 // The per-terminal pxelinux entry, keyed by MAC so hardware identity drives the boot.
-export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles = []) {
+// relayUrl is the store's Local Relay VM, which usually lives on the BACKEND vlan —
+// a different host from the PXE controller. Left blank it falls back to the
+// controller's own address, which is only correct when both run on one box.
+export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles = [], relayUrl = "") {
   const img = BOOT_IMAGES[reg.boot_profile];
   if (!img) {
     return `# ${reg.name} (${reg.register_id}) boots from local disk — no PXE entry required.`;
@@ -81,7 +84,7 @@ export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles =
     ...(uniqueModules.length ? [`    modules-load=${uniqueModules.join(",")} \\`] : []),
     `    sureflow.register_id=${reg.register_id} sureflow.store_id=${reg.store_id || ""} \\`,
     `    sureflow.printer_ip=${reg.printer_ip || ""} sureflow.scanner_if=${reg.scanner_interface || "usb_hid"} \\`,
-    `    sureflow.relay=http://${controllerIp}:3000`,
+    `    sureflow.relay=${(relayUrl || "").trim().replace(/\/+$/, "") || `http://${controllerIp}:3000`}`,
   ].join("\n");
 }
 

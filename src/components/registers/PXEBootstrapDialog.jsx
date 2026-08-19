@@ -33,6 +33,7 @@ function CodeBlock({ title, path, code }) {
 
 export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
   const [controllerIp, setControllerIp] = useState("10.0.30.10");
+  const [relayUrl, setRelayUrl] = useState("");
   const [profiles, setProfiles] = useState([]);
 
   useEffect(() => {
@@ -43,6 +44,12 @@ export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
       if (cancelled) return;
       const active = all.filter(p => p.active !== false);
       setProfiles(active);
+      // The relay usually sits on the backend VLAN, not on the PXE controller, so
+      // the terminal's boot entry has to point at the store's registered relay URL.
+      if (register.store_id) {
+        const stores = await base44.entities.Store.filter({ store_number: register.store_id });
+        if (!cancelled && stores[0]?.relay_url) setRelayUrl(stores[0].relay_url);
+      }
       const matched = matchedProfiles(register, active);
       logAuditEvent({
         action: "Generated PXE Bootstrap Artifacts",
@@ -85,9 +92,24 @@ export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
             </div>
           )}
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Store Controller IP</label>
-            <Input value={controllerIp} onChange={e => setControllerIp(e.target.value)} className="font-mono text-sm" />
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Store Controller IP</label>
+              <Input value={controllerIp} onChange={e => setControllerIp(e.target.value)} className="font-mono text-sm" />
+              <p className="text-xs text-gray-400 mt-1">Serves the kernel and NFS root on the PXE VLAN.</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Relay URL</label>
+              <Input
+                value={relayUrl}
+                onChange={e => setRelayUrl(e.target.value)}
+                placeholder={`http://${controllerIp}:3000`}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                {relayUrl ? "From this store's registered relay." : "Blank = same host as the controller."}
+              </p>
+            </div>
           </div>
 
           <div className="border border-gray-100 bg-gray-50 rounded-xl p-3">
@@ -105,7 +127,7 @@ export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
             )}
           </div>
 
-          <CodeBlock title="PXE boot entry" path={`/srv/tftp/${pxeConfigFileName(register)}`} code={buildPxelinuxConfig(register, controllerIp, profiles)} />
+          <CodeBlock title="PXE boot entry" path={`/srv/tftp/${pxeConfigFileName(register)}`} code={buildPxelinuxConfig(register, controllerIp, profiles, relayUrl)} />
           <CodeBlock title="DHCP reservation (PXE VLAN)" path="/etc/dnsmasq.d/sureflow-pxe.conf" code={buildDnsmasqEntry(register)} />
           <CodeBlock title="Peripheral rules" path="/etc/udev/rules.d/70-sureflow.rules" code={buildPeripheralRules(register, profiles)} />
           <CodeBlock title="Xorg input config" path="/etc/X11/xorg.conf.d/90-sureflow-input.conf" code={buildXorgConfig(register, profiles)} />
