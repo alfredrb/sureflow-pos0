@@ -59,10 +59,14 @@ app.post("/api/heartbeat", (req, res) => {
 });
 
 // Kiosk provisioning (Phase 2) — hands the stored cloud session to a terminal.
+// Lands directly on the POS login (never the Home screen) and passes the lane's
+// register_id straight through, so the login screen selects its own register.
 app.get("/kiosk", (req, res) => {
   const token = process.env.KIOSK_ACCESS_TOKEN;
   if (!token) return res.status(503).json({ error: "KIOSK_ACCESS_TOKEN is not set" });
-  res.redirect("/?access_token=" + encodeURIComponent(token));
+  const reg = String(req.query.register_id || "").replace(/[^\\w-]/g, "");
+  res.redirect("/pos/login?access_token=" + encodeURIComponent(token) +
+    (reg ? "&register_id=" + encodeURIComponent(reg) : ""));
 });
 
 // The lane's own LAN address, as seen by the relay on the store network. Terminals
