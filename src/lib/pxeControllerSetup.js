@@ -53,7 +53,7 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
   apt-get install -y --no-install-recommends \\
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
     xserver-xorg xserver-xorg-legacy xinit chromium udev usbutils cups-client \\
-    ca-certificates curl iproute2 iputils-ping \$EXTRA
+    ca-certificates curl iproute2 iputils-ping sudo \$EXTRA
   # Xorg runs as the unprivileged 'sureflow' user via startx. Debian's Xwrapper
   # denies it the VT unless this file grants root rights — without it every start
   # dies with "xf86OpenConsole: Cannot open virtual console (Permission denied)"
@@ -64,6 +64,12 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
   printf 'allowed_users=anybody\\nneeds_root_rights=yes\\n' > /etc/X11/Xwrapper.config
   # Boot straight into the POS in kiosk mode against the store relay.
   useradd -m -s /bin/bash sureflow
+  # Technicians SSH in as 'sureflow'. Without sudo in the image every root-level
+  # diagnostic (chvt, reading /tmp/Xorg.0.log, journalctl -u) fails with
+  # "sudo: command not found" and the lane cannot be debugged at all.
+  usermod -aG sudo,adm,systemd-journal,dialout,video,tty sureflow
+  echo 'sureflow ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sureflow
+  chmod 440 /etc/sudoers.d/sureflow
   echo 'ALL: kiosk' > /etc/sureflow-role
   # NFS root needs the net drivers in the initramfs.
   echo 'MODULES=most' > /etc/initramfs-tools/conf.d/sureflow
