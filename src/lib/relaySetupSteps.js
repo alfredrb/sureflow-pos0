@@ -1,6 +1,7 @@
 import { RELAY_PRINTER_CODE } from "@/lib/relayPrinter";
 import { RELAY_REFRESH_SCRIPT } from "@/lib/relayRefreshScript";
 import { SETUP_STEP_DETAILS_PHASE3 } from "@/lib/relaySetupStepsPhase3";
+import { RELAY_SERVICE_HARDENING_STEP } from "@/lib/relayServiceHardening";
 import {
   RELAY_DB_CODE,
   RELAY_SYNC_CODE,
@@ -433,7 +434,8 @@ SETUP_STEP_DETAILS.push(
     ],
     commands: [],
   },
-  ...SETUP_STEP_DETAILS_PHASE3
+  ...SETUP_STEP_DETAILS_PHASE3,
+  RELAY_SERVICE_HARDENING_STEP
 );
 
 export const DEFAULT_SETUP_STEPS = SETUP_STEP_DETAILS.map(({ step_id, label }) => ({ step_id, label }));
