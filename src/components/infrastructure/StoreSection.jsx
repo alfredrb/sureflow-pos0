@@ -7,6 +7,7 @@ import PrinterStatusCard from "@/components/infrastructure/PrinterStatusCard";
 import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCard";
 import RelaySetupGuide from "@/components/infrastructure/RelaySetupGuide";
 import SyncHealthCard from "@/components/infrastructure/SyncHealthCard";
+import RelayOpsCard from "@/components/infrastructure/RelayOpsCard";
 
 export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync }) {
   const [open, setOpen] = useState(true);
@@ -81,6 +82,7 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               onGenerateKey={onGenerateKey}
               onForceSync={onForceSync}
             />
+            <RelayOpsCard store={store} relay={relay} />
             <div className="bg-white border border-gray-100 rounded-2xl p-5 md:col-span-2 xl:col-span-1">
               <p className="text-sm font-semibold text-gray-900 mb-3">Register Hardware</p>
               {registers.length === 0 ? (
