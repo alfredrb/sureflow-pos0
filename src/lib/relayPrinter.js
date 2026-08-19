@@ -56,6 +56,29 @@ function buildReceipt(r) {
     "  REG# " + (r.register_id || "00") + "\\n";
   o += ALIGN_L;
 
+  // Operator notice slips (maintenance notices, store announcements, suspended
+  // sales) print a heading + message block instead of line items and totals.
+  // A notice.barcode value prints as a scannable CODE128 symbol (suspend slips).
+  if (r.doc_type === "notice") {
+    const n = r.notice || {};
+    o += "\\n" + ALIGN_C + BOLD_ON + BIG_ON +
+      String(n.heading || "NOTICE").toUpperCase() + "\\n" + BIG_OFF + BOLD_OFF + ALIGN_L;
+    o += "=".repeat(WIDTH) + "\\n" + ALIGN_C;
+    for (const l of n.lines || []) o += (l ? l : "") + "\\n";
+    o += ALIGN_L + "=".repeat(WIDTH) + "\\n\\n";
+    o += center("OPERATOR " + String(r.operator_name || "").toUpperCase());
+    o += center(r.date || new Date().toLocaleString());
+    if (n.barcode) {
+      const b = String(n.barcode);
+      o += ALIGN_C + GS + "h\\x50" + GS + "w\\x02" + GS + "H\\x02";
+      o += GS + "k\\x49" + String.fromCharCode(b.length + 2) + "{B" + b + "\\n" + ALIGN_L;
+    }
+    o += "\\n" + center(n.footer || "***MAINTENANCE NOTICE***");
+    o += "\\n";
+    o += CUT;
+    return o;
+  }
+
   // Cash slips print an amount + audit block instead of line items and totals.
   if (r.doc_type === "cash") {
     const cs = r.cash_slip || {};
