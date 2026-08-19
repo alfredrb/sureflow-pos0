@@ -52,7 +52,7 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
   apt-get update
   apt-get install -y --no-install-recommends \\
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
-    xserver-xorg xserver-xorg-legacy xinit chromium udev usbutils cups-client \\
+    xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
     ca-certificates curl iproute2 iputils-ping sudo \$EXTRA
   # Xorg runs as the unprivileged 'sureflow' user via startx. Debian's Xwrapper
   # denies it the VT unless this file grants root rights — without it every start
@@ -96,8 +96,14 @@ Wants=network-online.target
 User=sureflow
 Environment=DISPLAY=:0
 ExecStartPre=/usr/local/bin/sureflow-boot-env
+# NEVER pass -logfile here. Xorg.wrap rejects -logfile (and -modulepath,
+# -configdir) when X is started by a non-root user and exits immediately, which
+# looks exactly like a crash loop with no Xorg log written at all. The log lands
+# in ~/.local/share/xorg/Xorg.0.log instead.
 ExecStart=/usr/bin/startx /usr/local/bin/sureflow-kiosk
 Restart=always
+RestartSec=3
+StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target
