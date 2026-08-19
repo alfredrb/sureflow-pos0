@@ -13,6 +13,7 @@ import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCa
 import { DEFAULT_SETUP_STEPS } from "@/components/infrastructure/RelaySetupGuide";
 import PXEControllerGuide from "@/components/infrastructure/PXEControllerGuide";
 import HardwareLibraryPanel from "@/components/infrastructure/HardwareLibraryPanel";
+import HardwareFleetGuide from "@/components/infrastructure/HardwareFleetGuide";
 
 export default function AdminHardwareStatus() {
   const [stores, setStores] = useState([]);
@@ -238,6 +239,8 @@ export default function AdminHardwareStatus() {
           </SelectContent>
         </Select>
       </div>
+
+      <HardwareFleetGuide />
 
       <PXEControllerGuide />
 
