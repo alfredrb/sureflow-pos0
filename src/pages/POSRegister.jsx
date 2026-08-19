@@ -1579,7 +1579,17 @@ export default function POSRegister() {
         remoteLogoutPending={remoteLogout.requested && cart.length > 0}
         remoteLogoutReason={remoteLogout.reason}
         csmApproval={csmApproval}
-        onEndCsmApproval={() => { setCsmApproval(null); toast({ title: "CSM Approval Ended", description: "The lane is back to normal authorization." }); }}
+        onEndCsmApproval={() => {
+          if (csmApproval) {
+            writeLog("override", `CSM key approval ended by operator — was authorized by ${csmApproval.name}`, {
+              override_operator_id: csmApproval.operator_id,
+              override_operator_name: csmApproval.name,
+              override_action: "End CSM Key Approval",
+            });
+          }
+          setCsmApproval(null);
+          toast({ title: "CSM Approval Ended", description: "The lane is back to normal authorization." });
+        }}
       />
 
       {/* Main body */}

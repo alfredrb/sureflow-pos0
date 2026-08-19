@@ -8,8 +8,14 @@ export function getActiveCsmApprovals(logs = []) {
   const byRegister = {};
   logs
     .filter(l => l.override_action === "Enable CSM Key Approval" || l.override_action === "End CSM Key Approval")
-    .sort((a, b) => new Date(a.created_date) - new Date(b.created_date))
-    .forEach(l => { byRegister[l.register_id] = l; });
+    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+    .forEach(l => {
+      // Newest first — the first event seen for a lane is its current state.
+      // Ties on the same timestamp resolve to "ended" so the badge never sticks.
+      if (byRegister[l.register_id] === undefined) byRegister[l.register_id] = l;
+      else if (new Date(byRegister[l.register_id].created_date).getTime() === new Date(l.created_date).getTime()
+        && l.override_action === "End CSM Key Approval") byRegister[l.register_id] = l;
+    });
   return Object.values(byRegister)
     .filter(l => l.override_action === "Enable CSM Key Approval")
     .sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
