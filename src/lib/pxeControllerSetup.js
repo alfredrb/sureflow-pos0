@@ -52,12 +52,15 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
   apt-get update
   apt-get install -y --no-install-recommends \\
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
-    xserver-xorg xinit chromium udev usbutils cups-client \\
+    xserver-xorg xserver-xorg-legacy xinit chromium udev usbutils cups-client \\
     ca-certificates curl iproute2 iputils-ping \$EXTRA
   # Xorg runs as the unprivileged 'sureflow' user via startx. Debian's Xwrapper
   # denies it the VT unless this file grants root rights — without it every start
   # dies with "xf86OpenConsole: Cannot open virtual console (Permission denied)"
   # and the lane falls back to the text login.
+  # NOTE: this file is only read by /usr/lib/xorg/Xorg.wrap, which ships in
+  # xserver-xorg-legacy (installed above). Without that package there is no
+  # setuid wrapper, so the config is silently ignored and X still cannot get vt7.
   printf 'allowed_users=anybody\\nneeds_root_rights=yes\\n' > /etc/X11/Xwrapper.config
   # Boot straight into the POS in kiosk mode against the store relay.
   useradd -m -s /bin/bash sureflow
@@ -278,8 +281,10 @@ export const PXE_CONTROLLER_STEPS = [
     instructions: [
       "SYMPTOM: the lane finishes booting and shows a console login prompt. systemctl status sureflow-kiosk reports 'active (running)' but the timestamp is always a second or two old — the unit is crash-looping under Restart=always, and each death drops the screen back to getty on tty1.",
       "CONFIRM IT: read the Xorg log on the lane with sudo tail -40 /tmp/Xorg.0.log. The fatal line is 'xf86OpenConsole: Cannot open virtual console 7 (Permission denied)'.",
-      "CAUSE: the kiosk unit runs Xorg as the unprivileged 'sureflow' user through startx. On Debian the Xorg binary is wrapped by /usr/lib/Xorg.wrap, which refuses to hand a non-root user a virtual console unless /etc/X11/Xwrapper.config allows it. The default image ships no such file, so X can never take vt7 no matter how many times systemd restarts it.",
-      "FIX: write Xwrapper.config into both NFS roots on the controller, then reboot the lane. The image builder now creates this file, so a rebuild keeps the fix.",
+      "CAUSE: the kiosk unit runs Xorg as the unprivileged 'sureflow' user through startx. On Debian a non-root user can only take a virtual console through the setuid wrapper /usr/lib/xorg/Xorg.wrap, and that wrapper is what reads /etc/X11/Xwrapper.config. The default image ships neither, so X can never take vt7 no matter how many times systemd restarts it.",
+      "TWO PARTS TO THE FIX, and the config alone is not enough: Xwrapper.config is ONLY read by Xorg.wrap, which ships in the xserver-xorg-legacy package. If that package is missing, /usr/bin/Xorg is a plain non-setuid script, the config file is silently ignored, and the log keeps showing the exact same 'Cannot open virtual console 7' error even after you write it. Check with: ls -l /usr/lib/xorg/Xorg.wrap — 'No such file or directory' means the package is the real problem.",
+      "FIX: install xserver-xorg-legacy into the NFS root AND write Xwrapper.config, then reboot the lane. The image builder now does both, so a rebuild keeps the fix.",
+      "Also confirm the NFS root is not mounted nosuid (grep ' / ' /proc/mounts on the lane) — a nosuid root ignores the setuid bit and no amount of package installing will help.",
       "The read-only NFS root means this cannot be fixed from the lane itself — always edit the image on the controller.",
       "While you are in the chroot, note that the base image also had no iproute2 or iputils-ping, which is why 'ip route' and 'ping' returned 'No such file or directory' on the lane. Both are now in the builder's package list so lanes are diagnosable.",
     ],
@@ -287,6 +292,11 @@ export const PXE_CONTROLLER_STEPS = [
       "# On the LANE — confirm the cause first",
       "systemctl status sureflow-kiosk --no-pager   # 'active' but restarting constantly",
       "sudo tail -40 /tmp/Xorg.0.log               # look for 'Cannot open virtual console'",
+      "ls -l /usr/lib/xorg/Xorg.wrap               # missing = xserver-xorg-legacy is not installed",
+      "grep ' / ' /proc/mounts                     # the root must NOT be mounted nosuid",
+      "# On the CONTROLLER — install the setuid wrapper that reads Xwrapper.config",
+      "for V in legacy modern; do [ -d /srv/nfs/sureflow-$V ] && sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends xserver-xorg-legacy; done",
+      "ls -l /srv/nfs/sureflow-legacy/usr/lib/xorg/Xorg.wrap   # expect -rwsr-sr-x (setuid root)",
       "# On the CONTROLLER — grant Xorg the VT in both images",
       "for V in legacy modern; do sudo tee /srv/nfs/sureflow-$V/etc/X11/Xwrapper.config > /dev/null <<'EOF'\nallowed_users=anybody\nneeds_root_rights=yes\nEOF\ndone",
       "# Add the missing network diagnostic tools to the existing images",
