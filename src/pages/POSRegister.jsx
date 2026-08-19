@@ -53,6 +53,7 @@ import { usePosAnnouncements } from "@/hooks/usePosAnnouncements";
 import { usePosLunchState } from "@/hooks/usePosLunchState";
 import { makeSuspendId, createSuspendRecord, claimSuspendRecord } from "@/lib/posSuspend";
 import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
+import { buildReceipt, commitSaleTransaction, lookupGiftCardTender, commitGiftCardSale } from "@/lib/posSaleCommit";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -917,6 +918,11 @@ export default function POSRegister() {
     toast({ title: amt > 0 ? "Rewards Applied" : "Loyalty Member Linked", description: `${member.name} — ${member.loyalty_id}${amt > 0 ? ` (-$${amt.toFixed(2)})` : ""}` });
   };
 
+  const clearSaleState = () => {
+    setCart([]); setPaymentOpen(false); setAmountTendered("");
+    setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+  };
+
   const completeSale = async () => {
     if (cart.length === 0) return;
     const missingSerials = cart.find(i => i.serialized && !(i.serial_numbers && i.serial_numbers.length === i.qty));
@@ -925,38 +931,26 @@ export default function POSRegister() {
       return;
     }
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const tendered = parseFloat(amountTendered || total);
     const changeDue = paymentMethod === "cash" ? Math.max(0, parseFloat(amountTendered || 0) - amountDue) : 0;
     const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
     const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
+    const receiptBase = {
+      txId, operator, registerId, cart, subtotal, tax, total,
+      paymentMethod, amountTendered: tendered, changeDue,
+      loyaltyAppliedAmount, rewardsEarned, taxExempt: taxExemptProfile,
+    };
 
     // Training mode: simulate the sale without recording anything — no transaction log
     // entry, no stock changes, no register log. Only show a receipt for practice.
     if (trainingMode) {
+      const practiceBalance = loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
+      const practice = buildReceipt({ ...receiptBase, loyaltyMember, newBalance: practiceBalance });
       toast({ title: "Training Sale Complete", description: `${txId} — Change: $${changeDue.toFixed(2)} (not recorded)` });
-      setReceiptData({
-        transactionId: txId,
-        operatorName: operator.full_name,
-        registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-        items: cart, subtotal, tax, total,
-        paymentMethod,
-        amountTendered: parseFloat(amountTendered || total),
-        changeDue,
-        rewardsApplied: loyaltyAppliedAmount,
-        loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyMember.rewards_balance } : null,
-        rewardsEarned,
-        newBalance: loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null
-      });
-      setLastReceipt({
-         taxExempt: taxExemptProfile,
-         transactionId: txId,
-        operatorName: operator.full_name,
-        registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-        items: cart, subtotal, tax, total,
-        paymentMethod,
-        amountTendered: parseFloat(amountTendered || total),
-        changeDue
-      });
-      setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+      setReceiptData(practice);
+      setLastReceipt(practice);
+      clearSaleState();
       return;
     }
 
@@ -966,143 +960,68 @@ export default function POSRegister() {
         toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
         return;
       }
-      const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-      const tendered = parseFloat(amountTendered || total);
       try {
         await submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod, amountTendered: tendered, changeDue, taxExemptId: taxExemptAppliedId });
       } catch (e) {
         toast({ title: "Sale Not Saved", description: "The local relay rejected the sale. Get a manager.", variant: "destructive" });
         return;
       }
-      const offlineReceipt = {
-        transactionId: txId, operatorName: operator.full_name, registerName: registerId,
-        items: cart, subtotal, tax, total, paymentMethod,
-        amountTendered: tendered, changeDue, rewardsApplied: 0, rewardsEarned: 0,
-        loyaltyMember: null, newBalance: null, taxExempt: taxExemptProfile,
-      };
+      const offlineReceipt = buildReceipt({ ...receiptBase, loyaltyAppliedAmount: 0, rewardsEarned: 0, loyaltyMember: null });
       toast({ title: "Sale Saved Offline", description: `${txId} — will upload when the connection returns.` });
       setReceiptData(offlineReceipt);
       setLastReceipt(offlineReceipt);
-      setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+      clearSaleState();
       refreshConnectivity();
       return;
     }
 
     try {
-      await base44.entities.Transaction.create({
-        transaction_id: txId, operator_id: operator.operator_id, operator_name: operator.full_name,
-        register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+      const newBalance = await commitSaleTransaction({
+        txId, operator, registerId,
+        storeId: sessionStorage.getItem("pos_store_id") || "",
+        cart, products, subtotal, tax, total,
+        paymentMethod, amountTendered: tendered, changeDue,
+        trainingMode, taxExemptId: taxExemptAppliedId,
+        loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
+      });
+      toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
+      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, {
+        transaction_id: txId,
+        transaction_total: total,
         items: cart.map(item => ({
           sku: item.sku, name: item.name, qty: item.qty, price: item.price, total: item.total,
-          // tax_rate must persist on the sale so refunds can return the tax charged.
-          tax_rate: item.tax_rate || 0,
-          discount_type: item.discount_type || null, discount_percentage: item.discount_percentage || 0, original_price: item.original_price || item.price,
-          ...(item.serialized ? { serialized: true, serial_numbers: item.serial_numbers } : {})
+          tax_rate: item.tax_rate,
+          discount_type: item.discount_type || null,
+          discount_percentage: item.discount_percentage || 0,
+          original_price: item.original_price || item.price,
         })),
-        subtotal, tax, total, payment_method: paymentMethod, status: "completed",
-        amount_tendered: parseFloat(amountTendered || total), change_due: changeDue,
-        training_mode: trainingMode,
-        tax_exempt_id: taxExemptAppliedId || null,
-        loyalty_id: loyaltyMember?.loyalty_id || null,
-        loyalty_member_name: loyaltyMember?.name || null,
-        rewards_earned: rewardsEarned,
-        rewards_applied: loyaltyAppliedAmount
       });
-      for (const item of cart) {
-        const prod = products.find(p => p.sku === item.sku);
-        if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
-      }
-      try { await recordSerializedSales({ items: cart, transactionId: txId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }); } catch {}
-      let loyaltyNewBalance = null;
-      if (loyaltyMember) {
-        try {
-          const fresh = await base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id });
-          if (fresh.length > 0) {
-            const m = fresh[0];
-            loyaltyNewBalance = +((m.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2);
-            await base44.entities.LoyaltyMember.update(m.id, {
-              rewards_balance: loyaltyNewBalance,
-              lifetime_points: +((m.lifetime_points || 0) + rewardsEarned).toFixed(2)
-            });
-          }
-        } catch (e) { /* non-fatal */ }
-      }
-      toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
-       writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { 
-         transaction_id: txId, 
-         transaction_total: total,
-         items: cart.map(item => ({
-           sku: item.sku,
-           name: item.name,
-           qty: item.qty,
-           price: item.price,
-           total: item.total,
-           tax_rate: item.tax_rate,
-           discount_type: item.discount_type || null,
-           discount_percentage: item.discount_percentage || 0,
-           original_price: item.original_price || item.price
-         }))
-       });
-       // Show receipt dialog
-       setReceiptData({
-         transactionId: txId,
-         operatorName: operator.full_name,
-         registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-         items: cart,
-         subtotal,
-         tax,
-         total,
-         paymentMethod,
-         amountTendered: parseFloat(amountTendered || total),
-         changeDue,
-         rewardsApplied: loyaltyAppliedAmount,
-         loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyNewBalance ?? loyaltyMember.rewards_balance } : null,
-         rewardsEarned,
-         newBalance: loyaltyNewBalance
-       });
-       setCart([]); setPaymentOpen(false); setAmountTendered(""); setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-       setLastReceipt({
-          transactionId: txId,
-          operatorName: operator.full_name,
-          registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
-          items: cart,
-          subtotal,
-          tax,
-          total,
-          paymentMethod,
-          amountTendered: parseFloat(amountTendered || total),
-          changeDue
-        });
-        loadData();
-       } catch (e) {
-       toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
-       }
-       };
+      const receipt = buildReceipt({ ...receiptBase, loyaltyMember, newBalance });
+      setReceiptData(receipt);
+      setLastReceipt(receipt);
+      clearSaleState();
+      loadData();
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
+    }
+  };
 
   // Validate a gift-card tender before completing the sale.
-  const validateGiftCardTender = () => {
+  const validateGiftCardTender = async () => {
     if (!giftCardNumber.trim() || !giftCardAmount.trim()) {
       setGiftCardError("Please enter gift card number and amount");
       return;
     }
     setGiftCardValidating(true);
     setGiftCardError("");
-    base44.entities.GiftCard.filter({ card_number: giftCardNumber.trim() }).then(cards => {
-      if (cards.length === 0) { setGiftCardError("Gift card not found"); setGiftCardValidating(false); return; }
-      const card = cards[0];
-      if (card.status !== "active") { setGiftCardError("Gift card is not active"); setGiftCardValidating(false); return; }
-      const chargeAmount = parseFloat(giftCardAmount);
-      if (chargeAmount <= 0) { setGiftCardError("Amount must be greater than zero"); setGiftCardValidating(false); return; }
-      if (chargeAmount > card.balance) {
-        setGiftCardResult({ approved: false, card, message: `Insufficient balance. Card has $${card.balance.toFixed(2)}, but $${chargeAmount.toFixed(2)} was requested.` });
-      } else {
-        setGiftCardResult({ approved: true, card, chargeAmount, message: `Payment approved. New balance: $${(card.balance - chargeAmount).toFixed(2)}` });
-      }
-      setGiftCardValidating(false);
-    }).catch(() => {
+    try {
+      const { error, result } = await lookupGiftCardTender(giftCardNumber, giftCardAmount);
+      if (error) setGiftCardError(error);
+      else setGiftCardResult(result);
+    } catch (e) {
       setGiftCardError("Error validating gift card");
-      setGiftCardValidating(false);
-    });
+    }
+    setGiftCardValidating(false);
   };
 
   const closeGiftCardResult = () => {
@@ -1111,37 +1030,26 @@ export default function POSRegister() {
   };
 
   // Complete the sale using an approved gift-card tender.
-  const completeGiftCardSale = () => {
+  const completeGiftCardSale = async () => {
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
     const chargeAmount = giftCardResult.chargeAmount;
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
     const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
-    const baseReceipt = {
-      transactionId: txId,
-      operatorName: operator.full_name,
-      registerName: registerId,
-      items: cart, subtotal, tax, total,
-      paymentMethod: "giftcard",
-      amountTendered: chargeAmount,
-      changeDue: 0,
-      rewardsApplied: loyaltyAppliedAmount,
-      rewardsEarned,
+    const receiptBase = {
+      txId, operator, registerId, cart, subtotal, tax, total,
+      paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0,
+      loyaltyAppliedAmount, rewardsEarned, taxExempt: taxExemptProfile,
     };
     const clearSale = () => {
-      setCart([]); setPaymentOpen(false); setTaxExemptAppliedId("");
-      setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-      setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setAmountTendered("");
+      clearSaleState();
+      setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount("");
     };
 
     // Training mode: no balance deduction, no transaction, no stock change.
     if (trainingMode) {
       const practiceBalance = loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
-      const practice = {
-        ...baseReceipt,
-        loyaltyMember: loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyMember.rewards_balance } : null,
-        newBalance: practiceBalance,
-      };
+      const practice = buildReceipt({ ...receiptBase, loyaltyMember, newBalance: practiceBalance });
       toast({ title: "Training Sale Complete", description: `${txId} — Paid with gift card (not recorded)` });
       setReceiptData(practice);
       setLastReceipt(practice);
@@ -1149,50 +1057,25 @@ export default function POSRegister() {
       return;
     }
 
-    base44.entities.GiftCard.update(giftCardResult.card.id, { balance: giftCardResult.card.balance - chargeAmount }).then(() => {
-      base44.entities.Transaction.create({
-        transaction_id: txId,
-        operator_id: operator.operator_id,
-        operator_name: operator.full_name,
-        register_id: registerId,
-        items: cart,
-        subtotal, tax, total,
-        payment_method: "giftcard",
-        giftcard_number: giftCardResult.card.card_number,
-        status: "completed",
-        amount_tendered: chargeAmount,
-        change_due: 0,
-        training_mode: trainingMode,
-        tax_exempt_id: taxExemptAppliedId || null,
-        loyalty_id: loyaltyMember?.loyalty_id || null,
-        loyalty_member_name: loyaltyMember?.name || null,
-        rewards_earned: rewardsEarned,
-        rewards_applied: loyaltyAppliedAmount
-      }).then(() => {
-        for (const item of cart) {
-          const prod = products.find(p => p.sku === item.sku);
-          if (prod) base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
-        }
-        recordSerializedSales({ items: cart, transactionId: txId, operator, storeId: sessionStorage.getItem("pos_store_id") || "" }).catch(() => {});
-        const loyaltyNewBalance = loyaltyMember ? +((loyaltyMember.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
-        if (loyaltyMember) {
-          base44.entities.LoyaltyMember.filter({ loyalty_id: loyaltyMember.loyalty_id }).then(fresh => {
-            if (fresh.length > 0) {
-              const m = fresh[0];
-              const nb = +((m.rewards_balance || 0) - loyaltyAppliedAmount + rewardsEarned).toFixed(2);
-              base44.entities.LoyaltyMember.update(m.id, { rewards_balance: nb, lifetime_points: +((m.lifetime_points || 0) + rewardsEarned).toFixed(2) });
-            }
-          }).catch(() => {});
-        }
-        toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
-        writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
-        const loyaltyBlock = loyaltyMember ? { name: loyaltyMember.name, loyalty_id: loyaltyMember.loyalty_id, rewards_balance: loyaltyNewBalance ?? loyaltyMember.rewards_balance } : null;
-        setReceiptData({ ...baseReceipt, loyaltyMember: loyaltyBlock, newBalance: loyaltyNewBalance });
-        setLastReceipt({ ...baseReceipt, taxExempt: taxExemptProfile, loyaltyMember: loyaltyBlock, newBalance: loyaltyNewBalance });
-        clearSale();
-        loadData();
+    try {
+      const newBalance = await commitGiftCardSale({
+        card: giftCardResult.card, chargeAmount,
+        txId, operator, registerId,
+        storeId: sessionStorage.getItem("pos_store_id") || "",
+        cart, products, subtotal, tax, total,
+        trainingMode, taxExemptId: taxExemptAppliedId,
+        loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
       });
-    });
+      toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
+      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
+      const receipt = buildReceipt({ ...receiptBase, loyaltyMember, newBalance });
+      setReceiptData(receipt);
+      setLastReceipt(receipt);
+      clearSale();
+      loadData();
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to process gift card sale", variant: "destructive" });
+    }
   };
 
   // The virtual CSM key turns itself back off as soon as a sale completes, so a
