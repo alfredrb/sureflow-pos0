@@ -9,13 +9,15 @@
 
 const POLE_SERIAL_RULES = `# /etc/udev/rules.d/72-sureflow-pole-serial.rules
 # IBM 2x20 VFD pole on the SurePOS powered-serial block. The connector is RJ45 but
-# the channel is IBM powered RS-232 — it is NOT Ethernet. Do not patch it into a
-# switch: 24V on those pins will damage the switch port.
+# the channel is IBM powered RS-485 (differential, half duplex) — it is NOT Ethernet
+# and NOT RS-232. Do not patch it into a switch: the power pins will damage the port.
 SUBSYSTEM=="tty", KERNEL=="ttyS0", SYMLINK+="sureflow-linedisplay", MODE="0660", GROUP="dialout"
 
 # --- init (once at boot) ---
 # /usr/local/bin/sureflow-linedisplay-init
-#   stty -F /dev/sureflow-linedisplay 9600 cs8 -cstopb -parenb raw
+#   RS-485 is half duplex: the driver must not echo, and nothing else may share the
+#   bus while the POS is writing. crtscts OFF — there are no hardware flow lines.
+#   stty -F /dev/sureflow-linedisplay 9600 cs8 -cstopb -parenb -crtscts raw -echo
 `;
 
 const POLE_USB_RULES = `# /etc/udev/rules.d/72-sureflow-pole-usb.rules
@@ -72,15 +74,17 @@ export const HARDWARE_FLEET_STEPS = [
   },
   {
     step_id: "hw_pole_ibm",
-    label: "Pole display A — IBM 2x20 VFD (RJ45 powered serial)",
+    label: "Pole display A — IBM 2x20 VFD (RJ45 powered RS-485)",
     instructions: [
-      "The RJ45 jack on this pole carries IBM powered RS-232, not Ethernet. Never patch it into a network switch — the 24V on those pins will damage the switch port.",
-      "It talks plain 9600 8N1 with the standard 2x20 VFD escape sequences, so no kernel driver is needed beyond 8250.",
+      "The RJ45 jack on this pole carries IBM powered RS-485, not Ethernet and not RS-232. Never patch it into a network switch — the power pins will damage the switch port.",
+      "RS-485 is a differential, half-duplex bus, so three things matter: the pole is write-only from the POS (nothing is read back), the port must run with no hardware flow control and no echo, and only one device may sit on the bus per lane. A second device on the same run garbles both.",
+      "Because it is half duplex, a failed write is silent — there is no reply to check. Always prove the pole with the shell write below before blaming the POS.",
+      "It talks 9600 8N1 with the standard 2x20 VFD escape sequences, so no kernel driver is needed beyond 8250 — the RS-485 transceiver is in the terminal's powered-serial block and needs no configuration.",
       "The udev rule below lands it on /dev/sureflow-linedisplay — the single device node the POS writes to regardless of pole generation.",
       "Fits both the 746 and the 786, since both keep the powered-serial block.",
     ],
     commands: [
-      "sudo stty -F /dev/sureflow-linedisplay 9600 cs8 -cstopb -parenb raw",
+      "sudo stty -F /dev/sureflow-linedisplay 9600 cs8 -cstopb -parenb -crtscts raw -echo",
       "# Prove the pole is alive before involving the POS\nprintf 'SUREFLOW POLE OK' | sudo tee /dev/sureflow-linedisplay",
     ],
     codeFiles: [{ name: "72-sureflow-pole-serial.rules", code: POLE_SERIAL_RULES }],

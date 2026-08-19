@@ -9,7 +9,7 @@ export const TERMINAL_PORT_MAPS = [
     model: "IBM SurePOS 746",
     subtitle: "Legacy class — VGA video, fbdev, nomodeset",
     ports: [
-      { id: "9A", label: "9A", kind: "powered_serial", volts: "12V", device: "IBM 2x20 pole display (RJ45)", node: "/dev/sureflow-linedisplay", note: "RJ45 connector but powered RS-232 — never patch into a switch." },
+      { id: "9A", label: "9A", kind: "powered_serial", volts: "12V", device: "IBM 2x20 pole display (RJ45)", node: "/dev/sureflow-linedisplay", note: "RJ45 connector but powered RS-485, half duplex — never patch into a switch." },
       { id: "9B", label: "9B", kind: "powered_serial", volts: "12V", device: "Spare powered serial", node: "—", note: "Second pole or powered scanner if 9A is taken." },
       { id: "4A", label: "4A", kind: "serial", volts: "—", device: "Integrated MSR wedge", node: "/dev/sureflow-msr", note: "Requires i8042.nomux=1 or the controller drops the wedge." },
       { id: "5A", label: "5A", kind: "serial", volts: "—", device: "RS-232 scanner (legacy)", node: "/dev/ttyS2", note: "Only for IBM RS-232 / OCIA scanners." },
@@ -25,7 +25,7 @@ export const TERMINAL_PORT_MAPS = [
     model: "IBM SurePOS 786",
     subtitle: "Modern class — DisplayPort, Intel modesetting",
     ports: [
-      { id: "9A", label: "9A", kind: "powered_serial", volts: "12V", device: "IBM 2x20 pole display (RJ45)", node: "/dev/sureflow-linedisplay", note: "Same powered-serial block as the 746." },
+      { id: "9A", label: "9A", kind: "powered_serial", volts: "12V", device: "IBM 2x20 pole display (RJ45)", node: "/dev/sureflow-linedisplay", note: "Same powered RS-485 block as the 746." },
       { id: "9B", label: "9B", kind: "powered_serial", volts: "12V", device: "Spare powered serial", node: "—", note: "Unused on most 786 lanes." },
       { id: "4A", label: "4A", kind: "serial", volts: "—", device: "Integrated MSR wedge", node: "/dev/sureflow-msr", note: "No nomux quirk needed on this generation." },
       { id: "PUSB1", label: "24V USB", kind: "powered_usb", volts: "24V", device: "Receipt printer power (adapter card)", node: "—", note: "Power only — data stays on Ethernet." },
