@@ -304,10 +304,15 @@ app.use("/api", api);
 // One-time terminal provisioning. Set KIOSK_ACCESS_TOKEN in .env once, then point
 // every terminal's kiosk URL at /kiosk — the relay hands the cloud session token to
 // the browser so no one has to paste it per register. Keep .env root-only (chmod 600).
+// Lands directly on the POS login (not the Home screen), and passes through the
+// lane's register_id from the kiosk URL so the login screen selects the register
+// itself — no on-screen config needed on a PXE-booted lane.
 app.get("/kiosk", (req, res) => {
   const t = process.env.KIOSK_ACCESS_TOKEN;
   if (!t) return res.status(503).send("KIOSK_ACCESS_TOKEN is not set in the relay .env");
-  res.redirect("/?access_token=" + encodeURIComponent(t));
+  const reg = String(req.query.register_id || "").replace(/[^\\w-]/g, "");
+  res.redirect("/pos/login?access_token=" + encodeURIComponent(t) +
+    (reg ? "&register_id=" + encodeURIComponent(reg) : ""));
 });
 
 // Serve the POS build so terminals load locally: put the built files in ./pos-dist

@@ -62,9 +62,29 @@ export default function POSLogin() {
         (!a.end_date || new Date(a.end_date) >= now));
       setAnnouncements(active);
     }).catch(() => {});
-    // Validate stored register on mount
+    // PXE kiosk boot — the relay's /kiosk redirect carries the lane's register_id
+    // from the kernel command line, so the lane selects its own register with no
+    // on-screen config step.
     const currentReg = sessionStorage.getItem("pos_register_num");
-    if (!currentReg) {
+    const bootReg = new URLSearchParams(window.location.search).get("register_id");
+    if (bootReg && bootReg !== currentReg) {
+      base44.entities.Register.filter({ register_id: bootReg }).then(results => {
+        if (results.length > 0) {
+          const reg = results[0];
+          base44.entities.Register.update(reg.id, { status: "online" }).catch(() => {});
+          sessionStorage.setItem("pos_register_num", reg.register_id);
+          if (reg.store_id) sessionStorage.setItem("pos_store_id", reg.store_id);
+          setRegisterNum(reg.register_id);
+          if (reg.ip_address) {
+            setRegisterIp(reg.ip_address);
+            sessionStorage.setItem("pos_register_ip", reg.ip_address);
+          }
+        } else {
+          toast({ title: "Register Not Found", description: `Boot identity "${bootReg}" does not match any register. Please select one.`, variant: "destructive" });
+          openForcedConfig();
+        }
+      }).catch(() => {});
+    } else if (!currentReg) {
       openForcedConfig();
     } else {
       base44.entities.Register.filter({ register_id: currentReg }).then(results => {

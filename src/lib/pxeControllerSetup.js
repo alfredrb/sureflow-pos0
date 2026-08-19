@@ -126,6 +126,40 @@ done
 cat "\$OUT"
 `;
 
+const SUREFLOW_KIOSK_SH = `#!/bin/bash
+# /usr/local/bin/sureflow-kiosk (inside the image)
+# Launched by startx from sureflow-kiosk.service. Opens the relay's /kiosk route,
+# which redirects straight to the POS LOGIN screen — the Home page is never shown
+# on a lane. The register_id from the kernel command line rides along so the
+# login screen selects this lane's register automatically.
+#
+# systemd's Environment= values are NOT reliably propagated through startx, so the
+# kernel command line is parsed here directly — the one source of truth the PXE
+# entry always provides.
+for arg in \$(cat /proc/cmdline); do
+  case "\$arg" in
+    sureflow.relay=*)       RELAY="\${arg#*=}" ;;
+    sureflow.register_id=*) REGISTER_ID="\${arg#*=}" ;;
+  esac
+done
+URL="\${RELAY:-http://10.0.40.10:3000}/kiosk"
+[ -n "\$REGISTER_ID" ] && URL="\$URL?register_id=\$REGISTER_ID"
+
+# Minimal window manager so Chromium can go fullscreen cleanly.
+openbox &
+
+# --force-device-scale-factor=0.8 is the TEMPORARY fix for the 12-inch IBM
+# monitors clipping the POS layout. Remove it once the POS UI is natively
+# responsive at small sizes.
+exec chromium \\
+  --kiosk "\$URL" \\
+  --noerrdialogs --disable-infobars --no-first-run \\
+  --disable-session-crashed-bubble --disable-translate \\
+  --check-for-update-interval=31536000 \\
+  --overscroll-history-navigation=0 \\
+  --force-device-scale-factor=0.8
+`;
+
 const KEEPALIVED_CONF = `# /etc/keepalived/keepalived.conf — controller A (MASTER)
 # Both controllers share 10.0.30.10; terminals only ever know the virtual IP,
 # so a failover is invisible to a booting lane.
@@ -242,14 +276,18 @@ export const PXE_CONTROLLER_STEPS = [
     instructions: [
       "The PXE entry passes sureflow.register_id, sureflow.store_id, sureflow.printer_ip, sureflow.scanner_if and sureflow.relay on the kernel command line, so one shared image serves every lane — identity comes from the MAC-keyed boot file, not from local config.",
       "sureflow-boot-env converts those args into /run/sureflow.env, which the kiosk service reads to point the POS at this store's relay as the correct register.",
+      "sureflow-kiosk (the Chromium launcher) parses the kernel command line itself and opens the relay's /kiosk route with the lane's register_id — the relay redirects straight to the POS login with the register pre-selected, so a booted lane never shows the Home screen or an on-screen register picker.",
+      "The launcher carries --force-device-scale-factor=0.8 as the temporary fix for 12-inch IBM monitors clipping the POS layout — drop the flag when the POS is natively responsive.",
       "Peripheral rules (IBM 3AA01194300 hwdb scancodes, RS-232 / USB-OCIA scanner symlinks) are generated per register on the Registers page — install them into the image, then run systemd-hwdb update && udevadm trigger inside the chroot.",
     ],
     commands: [
       "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-boot-env  # paste below, repeat for -legacy",
+      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-kiosk     # paste below, repeat for -legacy",
       "sudo chroot /srv/nfs/sureflow-modern systemctl enable sureflow-kiosk",
     ],
     codeFiles: [
       { name: "sureflow-boot-env", code: BOOT_ENV_SH },
+      { name: "sureflow-kiosk", code: SUREFLOW_KIOSK_SH },
       { name: "sureflow-kiosk.service", code: KIOSK_SERVICE },
     ],
   },
