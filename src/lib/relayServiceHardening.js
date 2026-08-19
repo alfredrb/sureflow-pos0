@@ -48,7 +48,9 @@ logger -t sureflow-watchdog "relay did not answer \$URL — restarting service"
 systemctl restart sureflow-relay
 `;
 
-const WATCHDOG_UNITS = `# /etc/systemd/system/sureflow-relay-watchdog.service
+const WATCHDOG_SERVICE = `# /etc/systemd/system/sureflow-relay-watchdog.service
+# The job the timer runs. It has NO [Install] section and NO [Timer] section —
+# a .service and a .timer are two separate files and must never be combined.
 [Unit]
 Description=SureFlow relay health watchdog
 After=sureflow-relay.service
@@ -57,8 +59,10 @@ After=sureflow-relay.service
 Type=oneshot
 EnvironmentFile=/opt/sureflow-relay/.env
 ExecStart=/usr/local/sbin/sureflow-relay-watchdog
+`;
 
-# --- /etc/systemd/system/sureflow-relay-watchdog.timer ---
+const WATCHDOG_TIMER = `# /etc/systemd/system/sureflow-relay-watchdog.timer
+# The schedule. Same base name as the .service above, which is how systemd pairs them.
 [Unit]
 Description=Run the SureFlow relay watchdog every minute
 
@@ -66,6 +70,7 @@ Description=Run the SureFlow relay watchdog every minute
 OnBootSec=2min
 OnUnitActiveSec=1min
 AccuracySec=10s
+Unit=sureflow-relay-watchdog.service
 
 [Install]
 WantedBy=timers.target
@@ -96,9 +101,13 @@ export const RELAY_SERVICE_HARDENING_STEP = {
     "sudo systemctl daemon-reload && sudo systemctl restart sureflow-relay",
     "systemctl show sureflow-relay -p Restart -p RestartSec -p StartLimitIntervalSec   # confirm always / 3s / 0",
     "# --- OPTIONAL WATCHDOG (for a wedged process) ---",
-    "sudo install -m 755 /dev/stdin /usr/local/sbin/sureflow-relay-watchdog   # paste the script below",
-    "sudo nano /etc/systemd/system/sureflow-relay-watchdog.service   # first block below",
-    "sudo nano /etc/systemd/system/sureflow-relay-watchdog.timer     # second block below",
+    "# THREE separate files. Do not paste the .service and .timer into one file.",
+    "sudo nano /usr/local/sbin/sureflow-relay-watchdog   # paste FILE 2 below, then Ctrl+O Enter Ctrl+X",
+    "sudo chmod 755 /usr/local/sbin/sureflow-relay-watchdog",
+    "sudo /usr/local/sbin/sureflow-relay-watchdog && echo 'script ok'   # must print 'script ok' before continuing",
+    "sudo tee /etc/systemd/system/sureflow-relay-watchdog.service > /dev/null <<'EOF'\n[Unit]\nDescription=SureFlow relay health watchdog\nAfter=sureflow-relay.service\n\n[Service]\nType=oneshot\nEnvironmentFile=/opt/sureflow-relay/.env\nExecStart=/usr/local/sbin/sureflow-relay-watchdog\nEOF",
+    "sudo tee /etc/systemd/system/sureflow-relay-watchdog.timer > /dev/null <<'EOF'\n[Unit]\nDescription=Run the SureFlow relay watchdog every minute\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=1min\nAccuracySec=10s\nUnit=sureflow-relay-watchdog.service\n\n[Install]\nWantedBy=timers.target\nEOF",
+    "sudo systemd-analyze verify /etc/systemd/system/sureflow-relay-watchdog.timer   # silence = both units are valid",
     "sudo systemctl daemon-reload && sudo systemctl enable --now sureflow-relay-watchdog.timer",
     "systemctl list-timers sureflow-relay-watchdog --no-pager   # confirm it is scheduled",
   ],
@@ -107,12 +116,17 @@ export const RELAY_SERVICE_HARDENING_STEP = {
     "CAUSE 2 confirmed (OOM): raise the VM to 4 GB in Proxmox, or cap node's heap by adding Environment=NODE_OPTIONS=--max-old-space-size=512 to the unit's [Service] section.",
     "CAUSE 3 confirmed (unhandled rejection): the hardened unit restarts it in 3 seconds so the store keeps selling, but capture the stack so it can be fixed properly — sudo journalctl -u sureflow-relay -n 100 --no-pager > /tmp/relay-crash.txt — and send me that file.",
     "Watchdog firing repeatedly (grep sureflow-watchdog in journalctl) means the process wedges rather than crashes — that is a real bug to chase, not something to leave the timer papering over.",
+    "'Job failed. See journalctl -xe' when enabling the timer, and list-timers shows '0 timers listed' — the timer unit itself is invalid. Almost always the .service and .timer got pasted into ONE file: a file containing both [Service] and [Timer] is not a valid unit of either type. Use the two tee commands above (they write each file separately) and re-run: sudo systemctl daemon-reload && sudo systemctl enable --now sureflow-relay-watchdog.timer",
+    "Diagnose an enable failure precisely with: sudo systemd-analyze verify /etc/systemd/system/sureflow-relay-watchdog.timer and sudo journalctl -u sureflow-relay-watchdog.timer -n 20 --no-pager",
+    "'Failed to enable: Unit file is masked / No such file' — the filename is wrong. Both files must sit in /etc/systemd/system with the exact same base name: sureflow-relay-watchdog.service and sureflow-relay-watchdog.timer. Check with: ls -l /etc/systemd/system/sureflow-relay-watchdog.*",
+    "The watchdog is optional. If the timer will not cooperate, skip it — the hardened unit alone fixes the failure you were actually hitting.",
     "Still dying with no message at all? Check the whole VM did not reboot: uptime and last reboot. A Proxmox host restart with 'Start at boot' unset on the VM looks identical to a relay crash from the portal's side.",
     "Keep an eye on it from the cloud: the relayHealthWatch backend function records unreachable relays, so the store card history shows whether the gaps have actually stopped after this change.",
   ],
   codeFiles: [
     { name: "sureflow-relay.service (hardened)", code: HARDENED_UNIT },
-    { name: "sureflow-relay-watchdog", code: WATCHDOG_SCRIPT },
-    { name: "watchdog .service + .timer", code: WATCHDOG_UNITS },
+    { name: "sureflow-relay-watchdog (shell script)", code: WATCHDOG_SCRIPT },
+    { name: "sureflow-relay-watchdog.service", code: WATCHDOG_SERVICE },
+    { name: "sureflow-relay-watchdog.timer", code: WATCHDOG_TIMER },
   ],
 };
