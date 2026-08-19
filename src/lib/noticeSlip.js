@@ -41,6 +41,9 @@ export async function printNoticeSlip(notice, operator) {
     registerId: registerNum,
     operatorName: operator?.full_name || "",
     operatorPin: operator?.operator_id || "",
+    // Notice slips share the sale receipt header, so the store number has to come
+    // from the register (or the store's settings) the same way sales do.
+    storeNumber: regs[0]?.store_id || settings.store_id || "",
     storeInfo: settings,
     openDrawer: false,
   });
