@@ -60,6 +60,8 @@ export default function POSRegister() {
   const [actionCodes, setActionCodes] = useState([]);
   const [actionCodeOpen, setActionCodeOpen] = useState(false);
   const [priceCheckOpen, setPriceCheckOpen] = useState(false);
+  // Virtual CSM key — while set, CSM-level actions run without a per-action PIN.
+  const [csmApproval, setCsmApproval] = useState(null); // { operator_id, name, role }
   const [resumeOpen, setResumeOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -641,13 +643,30 @@ export default function POSRegister() {
     // and the audit/register log all flow through the existing path.
     const asKey = { label: `${match.label} (AC ${match.code})`, action: match.action, requires_role: match.requires_role || "none" };
     writeLog("override", `Action code ${match.code} entered — ${match.label}`);
+    // CSM Key Approval — turning the virtual key off needs no credentials; turning
+    // it on always prompts for CSM/Manager credentials, whoever the operator is.
+    if (match.action === "csm_approval") {
+      if (csmApproval) {
+        writeLog("override", `CSM key approval ended by operator — was authorized by ${csmApproval.name}`, {
+          override_operator_id: csmApproval.operator_id,
+          override_operator_name: csmApproval.name,
+          override_action: "End CSM Key Approval",
+        });
+        setCsmApproval(null);
+        toast({ title: "CSM Approval Ended", description: "The lane is back to normal authorization." });
+        return;
+      }
+      setPendingFunctionKey({ ...asKey, action: "csm_approval", requires_role: "csm" });
+      setSupOverridePin(""); setSupOverrideError(""); setSupOverrideDialog(true);
+      return;
+    }
     // AC 24 is the override prompt itself — always ask for supervisor credentials.
     if (match.action === "supervisor_override") {
       setPendingFunctionKey({ ...asKey, action: "none", requires_role: "csm" });
       setSupOverridePin(""); setSupOverrideError(""); setSupOverrideDialog(true);
       return;
     }
-    if (needsOverrideFor(asKey.requires_role, operator?.role)) {
+    if (needsOverrideFor(asKey.requires_role, operator?.role, !!csmApproval)) {
       setPendingFunctionKey(asKey);
       setSupOverridePin(""); setSupOverrideError(""); setSupOverrideDialog(true);
       return;
@@ -753,9 +772,15 @@ export default function POSRegister() {
 
   const handleFunctionKey = (fkey) => {
     const effectiveRole = fkey.requires_role || (fkey.requires_supervisor ? "csm" : "none");
-    const needsOverride =
-      (effectiveRole === "csm" && operator?.role === "cashier") ||
-      (effectiveRole === "manager" && (operator?.role === "cashier" || operator?.role === "csm"));
+    const needsOverride = needsOverrideFor(effectiveRole, operator?.role, !!csmApproval);
+    // Ran under the turned CSM key — attribute it to the approving supervisor.
+    if (!needsOverride && csmApproval && effectiveRole === "csm") {
+      writeLog("override", `"${fkey.label}" run under CSM key approval by ${csmApproval.name}`, {
+        override_operator_id: csmApproval.operator_id,
+        override_operator_name: csmApproval.name,
+        override_action: fkey.label,
+      });
+    }
     if (needsOverride) {
       setPendingFunctionKey(fkey);
       setSupOverridePin("");
@@ -784,6 +809,18 @@ export default function POSRegister() {
     setSupOverrideDialog(false);
     setSupOverridePin("");
     setSupOverrideUserId("");
+    // Turning the virtual CSM key on, rather than running a single action.
+    if (pendingFunctionKey?.action === "csm_approval") {
+      setCsmApproval({ operator_id: sup.operator_id, name: sup.full_name, role: sup.role });
+      setPendingFunctionKey(null);
+      writeLog("override", `CSM key approval enabled by ${sup.full_name} — CSM-level actions run without a per-action PIN until the sale completes`, {
+        override_operator_id: sup.operator_id,
+        override_operator_name: sup.full_name,
+        override_action: "Enable CSM Key Approval",
+      });
+      toast({ title: "CSM Approved", description: `${sup.full_name} turned the CSM key — ends when this sale completes.` });
+      return;
+    }
     toast({ title: "Override Granted", description: `${sup.full_name} authorized the action` });
     if (pendingFunctionKey) {
       writeLog("override", `Override for "${pendingFunctionKey.label}" authorized by ${sup.full_name}`, {
@@ -1204,6 +1241,19 @@ export default function POSRegister() {
     });
   };
 
+  // The virtual CSM key turns itself back off as soon as a sale completes, so a
+  // supervisor walking away can't leave the lane authorized.
+  useEffect(() => {
+    if (lastReceipt && csmApproval) {
+      writeLog("override", `CSM key approval ended automatically on sale completion — was authorized by ${csmApproval.name}`, {
+        override_operator_id: csmApproval.operator_id,
+        override_operator_name: csmApproval.name,
+        override_action: "End CSM Key Approval",
+      });
+      setCsmApproval(null);
+    }
+  }, [lastReceipt?.transactionId]);
+
   // Remote logout (from admin Remote Workstation) — only prompt when the cart is clear
   useEffect(() => {
     if (remoteLogout.requested && cart.length === 0) setRemoteLogoutDialog(true);
@@ -1528,6 +1578,8 @@ export default function POSRegister() {
         onClearLoyalty={() => { setLoyaltyMember(null); setLoyaltyAppliedAmount(0); }}
         remoteLogoutPending={remoteLogout.requested && cart.length > 0}
         remoteLogoutReason={remoteLogout.reason}
+        csmApproval={csmApproval}
+        onEndCsmApproval={() => { setCsmApproval(null); toast({ title: "CSM Approval Ended", description: "The lane is back to normal authorization." }); }}
       />
 
       {/* Main body */}

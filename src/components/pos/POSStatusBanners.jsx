@@ -6,9 +6,17 @@ export default function POSStatusBanners({
   trainingMode, trainingLocked, taxExemptId,
   loyaltyMember, loyaltyAppliedAmount, onClearLoyalty,
   remoteLogoutPending, remoteLogoutReason,
+  csmApproval, onEndCsmApproval,
 }) {
   return (
     <>
+      {csmApproval && (
+        <div className="bg-violet-500/10 border-b-2 border-violet-500/50 px-3 py-2 flex items-center justify-center gap-3 flex-shrink-0">
+          <span className="text-violet-300 font-bold text-xs uppercase tracking-widest">🔑 CSM APPROVED — {csmApproval.name} · ends when this sale completes</span>
+          <button onClick={onEndCsmApproval} className="text-violet-300/60 hover:text-violet-200 text-xs">turn off</button>
+        </div>
+      )}
+
       {trainingMode && (
         <div className="bg-gradient-to-r from-orange-500/10 via-orange-500/15 to-orange-500/10 border-b-2 border-orange-500/50 px-3 py-2 flex items-center justify-center flex-shrink-0">
           <span className="text-orange-400 font-bold text-xs uppercase tracking-widest">⚠ TRAINING MODE — TRANSACTIONS NOT RECORDED{trainingLocked ? " (LOCKED)" : ""}</span>

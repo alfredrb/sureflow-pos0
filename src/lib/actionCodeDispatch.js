@@ -12,7 +12,8 @@ export const ACTION_LABELS = {
   request_cash_pickup: "Request Cash Pickup", request_cash_advance: "Request Cash Advance",
   training_mode: "Training Mode", diagnostics: "Diagnostics", csm_help: "CSM Help",
   report_robbery: "Report Robbery", item_list: "Item Lookup", loyalty_lookup: "Loyalty Lookup",
-  export_cash: "Cash History Export", supervisor_override: "Supervisor Override", none: "None",
+  export_cash: "Cash History Export", supervisor_override: "Supervisor Override",
+  csm_approval: "CSM Key Approval", none: "None",
 };
 
 // Store-specific mappings win over the global (blank store_id) defaults.
@@ -26,8 +27,10 @@ export function resolveActionCode(codes, code, storeId = "") {
 }
 
 // Does this operator need a supervisor override to run this code?
-export function needsOverrideFor(requiredRole, operatorRole) {
-  if (requiredRole === "csm") return operatorRole === "cashier";
+// While the lane's virtual CSM key is turned (csmApproved), CSM-level actions run
+// without a prompt. Manager-level actions always require their own PIN.
+export function needsOverrideFor(requiredRole, operatorRole, csmApproved = false) {
+  if (requiredRole === "csm") return operatorRole === "cashier" && !csmApproved;
   if (requiredRole === "manager") return operatorRole === "cashier" || operatorRole === "csm";
   return false;
 }
