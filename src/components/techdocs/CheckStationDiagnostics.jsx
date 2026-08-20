@@ -73,10 +73,11 @@ export default function CheckStationDiagnostics() {
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
         <p className="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5" /> If the cheque never leaves the release position
+          <AlertTriangle className="w-3.5 h-3.5" /> Reading the results
         </p>
         <ul className="text-[11px] text-amber-800 mt-1.5 space-y-1 list-disc pl-4 leading-snug">
           <li>Tests 1 and 2 doing nothing means the printer is not executing cheque commands — the receipt station working does not prove the cheque station does.</li>
+          <li><strong>Eject works but both reads return nothing.</strong> That is the diagnosis, not a symptom: the motor and the command channel are fine, so the printer is accepting FS a but has no MICR data to send back. Stop testing commands — print the self-test below and confirm the reader exists in that unit.</li>
           <li>The TM-H6000IV ships in MICR and non-MICR variants. Print a self-test (hold FEED while powering on): the sheet lists the installed options. No MICR line means there is no reader in that unit.</li>
           <li>On MICR units the reader can be switched off in the printer's memory switches — set it with the Epson TM Utility over the same LAN address, then repeat test 3.</li>
           <li>The cheque must be inserted face-up and pushed in until it stops squarely against the rear guide, or the paper-detect sensor never arms the read.</li>
