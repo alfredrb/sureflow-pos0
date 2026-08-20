@@ -7,7 +7,7 @@ import POSCartItem from "@/components/POSCartItem";
 // Returns mode, and the returning/replacement breakdown in Exchange mode.
 export default function POSTransactionSummary({
   posMode, cart, subtotal, tax, total, sidePreview,
-  priceOverrideActive, onUpdateQty, onRemove, onEditPrice, onOpenLoyalty, onPay,
+  priceOverrideActive, onUpdateQty, onRemove, onEditPrice, onOpenLoyalty, onPay, statusLine,
 }) {
   const isSale = posMode === "sale" || posMode === "cs";
 
@@ -152,6 +152,8 @@ export default function POSTransactionSummary({
           </div>
         </>
       )}
+
+      {statusLine}
     </div>
   );
 }

@@ -91,6 +91,9 @@
   }
 }
 
+/* POS register shows system messages on the 4690-style status line instead of corner toasts */
+body.pos-inline-toasts [data-toast-root] { display: none; }
+
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 

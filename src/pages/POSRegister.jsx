@@ -45,6 +45,7 @@ import POSModeAuthDialogs from "@/components/pos/POSModeAuthDialogs";
 import POSSecurityDialogs from "@/components/pos/POSSecurityDialogs";
 import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
+import POSStatusLine from "@/components/pos/POSStatusLine";
 import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
 import { resolveActionCode, needsOverrideFor } from "@/lib/actionCodeDispatch";
 import useActionCodeBuffer from "@/hooks/useActionCodeBuffer";
@@ -168,7 +169,7 @@ export default function POSRegister() {
   const loadDataDebounceRef = React.useRef(null);
   const [relaySyncing, setRelaySyncing] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast, toasts } = useToast();
   const { isOffline, pendingCount, catalogStale, refresh: refreshConnectivity } = useOfflineMode();
 
   // 4690-style keypad buzzer — a click on every keystroke and screen touch.
@@ -690,6 +691,15 @@ export default function POSRegister() {
     onOpenPad: () => setActionCodeOpen(true),
     enabled: posMode === "sale" && !actionCodeOpen && !paymentOpen && !supOverrideDialog,
   });
+
+  // System messages print on the 4690-style status line under Current Transaction,
+  // so the floating corner toasts are hidden while the lane panel is on screen.
+  const latestMessage = toasts.find(t => t.open !== false) || null;
+  const inlineToasts = posMode !== "diagnostics";
+  useEffect(() => {
+    document.body.classList.toggle("pos-inline-toasts", inlineToasts);
+    return () => document.body.classList.remove("pos-inline-toasts");
+  }, [inlineToasts]);
 
   // ── Suspend / resume ───────────────────────────────────────────────────────
   // Parks the current cart under a suspend number and prints a barcoded slip.
@@ -1457,6 +1467,7 @@ export default function POSRegister() {
             onEditPrice={openPriceEdit}
             onOpenLoyalty={() => setLoyaltyLookupOpen(true)}
             onPay={() => cart.length > 0 && setPaymentOpen(true)}
+            statusLine={<POSStatusLine actionCodeBuffer={actionCodeBuffer} message={latestMessage} />}
           />
         )}
 
@@ -1678,13 +1689,6 @@ export default function POSRegister() {
         }}
         onClose={() => setSerialCapture(null)}
       />
-
-      {/* Keyed action code awaiting the Action Code key */}
-      {actionCodeBuffer && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2 bg-blue-600 text-white font-mono text-lg font-bold rounded-lg shadow-lg">
-          AC {actionCodeBuffer} — press ACTION CODE
-        </div>
-      )}
 
       {/* Numeric action-code entry (physical Action Code key or on-screen button) */}
       <POSActionCodeDialog

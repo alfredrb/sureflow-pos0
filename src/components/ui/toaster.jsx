@@ -12,7 +12,7 @@ export function Toaster() {
   const { toasts, dismiss } = useToast();
 
   return (
-    <ToastProvider>
+    <ToastProvider data-toast-root="">
       {toasts.filter((t) => t.open !== false).map(function ({ id, title, description, action, ...props }) {
         return (
           <Toast key={id} {...props}>
