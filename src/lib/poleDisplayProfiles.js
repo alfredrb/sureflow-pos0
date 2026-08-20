@@ -21,6 +21,38 @@ export const POLE_DISPLAY_PROFILES = {
       "with ESC = 2 through the printer, writes both lines, then reselects the printer so receipts keep working. " +
       "Leave the pole IP blank; the lane's printer IP carries the traffic.",
   },
+  ibm_4610_2x20: {
+    key: "ibm_4610_2x20",
+    label: "IBM 2×20 Pole (4610 chain)",
+    vendor: "IBM",
+    // Reserved: the IBM pole is not an Epson device — it hangs on the 4610
+    // printer's RS-485 device chain and answers on its own chain address with the
+    // IBM/ADX display command set, not ESC = peripheral select.
+    supported: false,
+    transport: "printer_chain_rs485",
+    port: 9100,
+    columns: 20,
+    rows: 2,
+    notes:
+      "IBM SurePOS 2×20 VFD on the 4610 printer's RS-485 device chain (single-pole straight RJ45; Y-cable only for " +
+      "mirrored dual displays). Addressed on the chain rather than by ESC = peripheral select, so it needs its own " +
+      "relay profile block with the IBM/ADX display command frames captured from a live unit. Profile reserved.",
+  },
+  toshiba_4820_2x20: {
+    key: "toshiba_4820_2x20",
+    label: "Toshiba 2×20 Pole (4820 chain)",
+    vendor: "Toshiba",
+    // Same electrical/command family as the IBM pole (Toshiba took the estate
+    // over), kept as its own profile so lane hardware audits stay accurate.
+    supported: false,
+    transport: "printer_chain_rs485",
+    port: 9100,
+    columns: 20,
+    rows: 2,
+    notes:
+      "Toshiba-badged 2×20 VFD on the 4610/4820 RS-485 device chain — same command family as the IBM pole, kept as a " +
+      "separate profile so the hardware audit shows what is actually fitted. Profile reserved pending captured frames.",
+  },
   logic_ld9900: {
     key: "logic_ld9900",
     label: "Logic Controls LD9900",

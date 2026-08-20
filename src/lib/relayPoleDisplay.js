@@ -35,6 +35,13 @@ const PROFILES = {
     },
   },
 
+  // IBM / Toshiba 2x20 poles on the 4610/4820 RS-485 device chain. These are NOT
+  // Epson devices: they answer on a chain address with the IBM/ADX display
+  // command set, so ESC = peripheral select does not reach them. Reserved until
+  // the frames are captured from a live unit.
+  ibm_4610_2x20: null,
+  toshiba_4820_2x20: null,
+
   // Logic Controls LD9900 (LCI command set over a serial-device server) —
   // reserved. Fill in its frame() before enabling the profile on lanes.
   logic_ld9900: null,
