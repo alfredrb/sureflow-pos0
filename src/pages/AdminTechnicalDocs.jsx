@@ -1,17 +1,19 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText } from "lucide-react";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
 import PXEControllerGuide from "@/components/infrastructure/PXEControllerGuide";
 import HardwareLibraryPanel from "@/components/infrastructure/HardwareLibraryPanel";
 import HardwareFleetGuide from "@/components/infrastructure/HardwareFleetGuide";
 import RelayDeploymentReference from "@/components/techdocs/RelayDeploymentReference";
+import CheckReaderReference from "@/components/techdocs/CheckReaderReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
   { id: "ports", label: "Terminal Ports", icon: Plug, blurb: "Rear-panel port maps and wiring tables per terminal model." },
   { id: "pxe", label: "PXE Controller", icon: Server, blurb: "Diskless boot controller: DHCP/TFTP, NFS roots, kiosk image and boot profiles." },
   { id: "relay", label: "Relay Deployment", icon: HardDrive, blurb: "Local Relay VM build: OS, networking, app, printing and telemetry." },
+  { id: "check", label: "Cheque Station", icon: FileText, blurb: "MICR reading, endorsement franking and the relay cheque routes." },
   { id: "library", label: "Driver Library", icon: Boxes, blurb: "Per-model driver profiles applied to the diskless image at build time." },
 ];
 
@@ -63,6 +65,7 @@ export default function AdminTechnicalDocs() {
           )}
           {active === "pxe" && <PXEControllerGuide />}
           {active === "relay" && <RelayDeploymentReference />}
+          {active === "check" && <CheckReaderReference />}
           {active === "library" && <HardwareLibraryPanel />}
         </div>
       </div>

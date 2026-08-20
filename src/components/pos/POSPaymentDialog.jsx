@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import POSTenderList from "@/components/pos/POSTenderList";
+import POSCheckDialog from "@/components/pos/POSCheckDialog";
 import { TENDER_OPTIONS, balanceDue, changeFrom, isSettled, resolveTenderAmount } from "@/lib/tenderSplit";
 
 // 4690 tender flow: key an amount (or leave it blank for the full balance), then
@@ -16,8 +17,12 @@ export default function POSPaymentDialog({
   amountTendered, setAmountTendered,
   giftCardMode, setGiftCardMode,
   giftCardNumber, setGiftCardNumber, giftCardAmount, setGiftCardAmount, giftCardError, giftCardValidating,
-  onOpenLoyaltySignup, onSubmit, onSubmitGiftCard,
+  onOpenLoyaltySignup, onSubmit, onSubmitGiftCard, checkContext,
 }) {
+  // Check tender routes through the cheque station first (MICR read + franking)
+  // and only becomes a committed tender once the cheque is accepted.
+  const [checkOpen, setCheckOpen] = React.useState(false);
+  const [checkAmount, setCheckAmount] = React.useState(0);
   const options = allowedTenders ? TENDER_OPTIONS.filter(t => allowedTenders.includes(t.m)) : TENDER_OPTIONS;
   const balance = balanceDue(amountDue, tenders);
   const change = changeFrom(amountDue, tenders);
@@ -27,8 +32,19 @@ export default function POSPaymentDialog({
   const commit = (method) => {
     const amt = resolveTenderAmount(method, amountTendered, amountDue, tenders);
     if (amt <= 0) return;
+    if (method === "check") {
+      setCheckAmount(amt);
+      setCheckOpen(true);
+      return;
+    }
     onAddTender({ method, amount: amt });
     setAmountTendered("");
+  };
+
+  const onCheckAccepted = (t) => {
+    setCheckOpen(false);
+    setAmountTendered("");
+    onAddTender({ method: "check", amount: t.amount, reference: t.reference });
   };
 
   return (
@@ -122,6 +138,9 @@ export default function POSPaymentDialog({
             </>
           )}
         </div>
+
+        <POSCheckDialog open={checkOpen} onOpenChange={setCheckOpen}
+          amount={checkAmount} context={checkContext || {}} onAccept={onCheckAccepted} />
       </DialogContent>
     </Dialog>
   );

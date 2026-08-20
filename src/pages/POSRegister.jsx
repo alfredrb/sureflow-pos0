@@ -1578,6 +1578,16 @@ export default function POSRegister() {
         onOpenLoyaltySignup={() => setLoyaltySignupOpen(true)}
         onSubmit={completeSale}
         onSubmitGiftCard={validateGiftCardTender}
+        checkContext={{
+          store_name: storeConfig?.store_name || storeInfo?.store_name,
+          store_number: storeInfo?.store_number || sessionStorage.getItem("pos_store_id") || "",
+          store_id: sessionStorage.getItem("pos_store_id") || "",
+          register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+          operator_id: operator?.operator_id || "",
+          operator_name: operator?.full_name || "",
+          operator_pin: operator?.pin || "",
+          training_mode: trainingMode,
+        }}
       />
 
       {/* Override Authorization Dialog */}

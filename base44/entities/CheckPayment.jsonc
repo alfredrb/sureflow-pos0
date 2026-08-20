@@ -1,0 +1,124 @@
+{
+  "name": "CheckPayment",
+  "type": "object",
+  "properties": {
+    "check_number": {
+      "type": "string",
+      "description": "Cheque serial number, read from the MICR line or keyed by the operator. Printed on the receipt as the check tender reference."
+    },
+    "routing_number": {
+      "type": "string",
+      "description": "9-digit ABA routing / transit number from the MICR line. Validated with the ABA mod-10 checksum before the tender is accepted."
+    },
+    "account_number": {
+      "type": "string",
+      "description": "Bank account number from the MICR on-us field."
+    },
+    "account_last4": {
+      "type": "string",
+      "description": "Last four digits of the account number, safe to show on screens and audit lists."
+    },
+    "micr_raw": {
+      "type": "string",
+      "description": "Raw E-13B MICR string exactly as the printer's cheque reader returned it, including the T / o / d symbol markers. Kept for disputes and re-presentment."
+    },
+    "entry_method": {
+      "type": "string",
+      "enum": [
+        "micr_read",
+        "manual"
+      ],
+      "default": "micr_read",
+      "description": "micr_read = the TM-H6000 cheque reader returned the MICR line; manual = the reader failed or was bypassed and the operator keyed the numbers."
+    },
+    "amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Amount of this cheque as tendered on the sale."
+    },
+    "franked": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once the endorsement / franking legend was printed on the back of the cheque by the slip station."
+    },
+    "franked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the routing number passed the ABA checksum and the writer was not on the bad-cheque block list."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "declined",
+        "returned",
+        "represented",
+        "cleared",
+        "written_off"
+      ],
+      "default": "accepted",
+      "description": "accepted = taken at the register; declined = refused at the register (failed verification or blocked writer); returned = bounced by the bank; represented = re-deposited after a return; cleared = funds settled; written_off = charged to shrink."
+    },
+    "decline_reason": {
+      "type": "string",
+      "description": "Why the cheque was refused or returned (bad routing, NSF, blocked writer, stop payment)."
+    },
+    "customer_name": {
+      "type": "string",
+      "description": "Cheque writer name as recorded at the register."
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "ID presented by the cheque writer (driver licence / state ID number)."
+    },
+    "transaction_id": {
+      "type": "string",
+      "description": "Transaction this cheque paid for. Blank until the sale commits."
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": "string"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "store_id": {
+      "type": "string"
+    },
+    "training_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when captured in a training-mode session. Training cheques are excluded from deposits and Loss Prevention."
+    }
+  },
+  "required": [
+    "check_number"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

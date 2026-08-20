@@ -64,6 +64,19 @@ export const openCashDrawer = (printer_ip) =>
 export const relayTestPrint = (printer_ip, base = "", station = "") =>
   relayFetch("/api/print-test", { method: "POST", body: JSON.stringify({ printer_ip, station }) }, station === "slip" ? 40000 : 10000, base);
 
+// Cheque station — read the E-13B MICR line. The printer waits for the operator
+// to insert the cheque, so this call gets a long timeout.
+export const readCheckMicr = (printer_ip) =>
+  relayFetch("/api/check/read", { method: "POST", body: JSON.stringify({ printer_ip }) }, 50000);
+
+// Print the FOR DEPOSIT ONLY endorsement on the back of the cheque and eject it.
+export const frankCheck = (payload) =>
+  relayFetch("/api/check/frank", { method: "POST", body: JSON.stringify(payload) }, 45000);
+
+// Release a cheque without franking (refused tender / aborted read).
+export const ejectCheck = (printer_ip) =>
+  relayFetch("/api/check/eject", { method: "POST", body: JSON.stringify({ printer_ip }) }, 15000);
+
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
 
