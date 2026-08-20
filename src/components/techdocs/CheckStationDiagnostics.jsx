@@ -36,7 +36,7 @@ const TESTS = [
   },
   {
     label: "6. Relay route check — is the deployed build current?",
-    why: "Confirms the relay is serving the cheque routes and which module build is loaded. Anything other than check-reader-build 3 means the old copy is still on disk.",
+    why: "Confirms the relay is serving the cheque routes and which module build is loaded. Anything other than check-reader-build 4 means the old copy is still on disk.",
     cmd: `curl -s -m 60 -X POST http://localhost:3000/api/check/read \\
   -H 'Content-Type: application/json' -d '{"printer_ip":"192.168.1.60"}'`,
   },

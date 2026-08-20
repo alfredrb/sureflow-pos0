@@ -44,7 +44,7 @@ export default function CheckReaderReference() {
           <span className="font-semibold"> FOR DEPOSIT ONLY</span> endorsement, then <span className="font-mono text-xs">FS a 2</span> to eject.
           Selecting Check at tender arms the reader automatically and prompts the operator to insert the cheque; a failed or dirty
           read falls back to manual keying, flagged on the cheque record.
-          The module logs <span className="font-mono text-xs">check-reader-build 3</span> — an older build stamp means the previous
+          The module logs <span className="font-mono text-xs">check-reader-build 4</span> — an older build stamp means the previous
           copy is still deployed on the relay.
         </p>
       </div>

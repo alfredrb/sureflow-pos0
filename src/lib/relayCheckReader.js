@@ -7,7 +7,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 3";
+const BUILD = "check-reader-build 4";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -72,15 +72,19 @@ function readMicr(ip, timeoutMs = 45000) {
     }, timeoutMs);
 
     sock.once("error", (e) => finish(reject, e));
+    // The TM-H6000IV does NOT terminate the MICR line with CR/LF — it streams the
+    // E-13B characters and then simply stops. Waiting for a newline hangs forever,
+    // so settle the read once the reader has been quiet for a moment.
+    let quiet = null;
     sock.on("data", (d) => {
       buf += d.toString("binary");
-      // The reader terminates the MICR line with CR/LF. A leading 0x0f/0x1c byte
-      // signals a read error (dirty or unreadable MICR).
-      if (/[\\r\\n]/.test(buf)) {
-        const line = buf.replace(/[\\r\\n]+$/, "").replace(/^[\\x00-\\x1f]+/, "");
+      clearTimeout(quiet);
+      quiet = setTimeout(() => {
+        // Strip control bytes; a lone 0x0f/0x1c reply means the MICR was unreadable.
+        const line = buf.replace(/[\\x00-\\x1f\\x7f]/g, "").trim();
         if (!line || /^ERR/i.test(line)) finish(reject, new Error("MICR unreadable — key the cheque manually"));
         else finish(resolve, { micr: line, build: BUILD });
-      }
+      }, 600);
     });
     sock.connect(PORT, target, () => {
       // Reset first, THEN send the read on its own. No ESC f wait-for-paper and no
