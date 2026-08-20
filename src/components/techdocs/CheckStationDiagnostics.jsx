@@ -20,13 +20,13 @@ const TESTS = [
     label: "3. MICR read — capture the raw reply",
     why: "Reset, then arm the reader and hold the socket open. Insert the cheque face-up when prompted. Any hex output is the MICR line (or an error byte). Empty output = the printer has no MICR module or it is disabled in the memory switches.",
     cmd: `{ printf '\\x1b\\x40'; sleep 0.3; printf '\\x1c\\x61\\x30\\x30'; sleep 25; } \\
-  | nc -w30 192.168.1.60 9100 | xxd | head -20`,
+  | nc -w30 192.168.1.60 9100 | od -c | head -20`,
   },
   {
     label: "4. MICR read, alternate parameter",
     why: "Some firmware revisions only answer to n = 0x31 (read then eject). Try this if test 3 returns nothing but tests 1 and 2 work.",
     cmd: `{ printf '\\x1b\\x40'; sleep 0.3; printf '\\x1c\\x61\\x30\\x31'; sleep 25; } \\
-  | nc -w30 192.168.1.60 9100 | xxd | head -20`,
+  | nc -w30 192.168.1.60 9100 | od -c | head -20`,
   },
   {
     label: "5. Relay route check — is the deployed build current?",
@@ -80,6 +80,7 @@ export default function CheckStationDiagnostics() {
           <li>The TM-H6000IV ships in MICR and non-MICR variants. Print a self-test (hold FEED while powering on): the sheet lists the installed options. No MICR line means there is no reader in that unit.</li>
           <li>On MICR units the reader can be switched off in the printer's memory switches — set it with the Epson TM Utility over the same LAN address, then repeat test 3.</li>
           <li>The cheque must be inserted face-up and pushed in until it stops squarely against the rear guide, or the paper-detect sensor never arms the read.</li>
+          <li>The headless relay image has no <span className="font-mono">xxd</span>. Use <span className="font-mono">od -c</span> as shown above, or install it with <span className="font-mono">sudo apt-get install -y vim-common</span>.</li>
           <li>If port 9100 is held open by a spooler or an older relay process, the reply is consumed before the relay sees it — check with <span className="font-mono">ss -tnp | grep 9100</span> on the relay.</li>
         </ul>
       </div>
