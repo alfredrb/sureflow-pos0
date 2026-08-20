@@ -48,7 +48,13 @@ export default function POSPaymentDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    {/* Cheque station prompt lives OUTSIDE the tender dialog — nested inside it the
+        parent's overlay and focus trap sat on top of it, so the insert-cheque
+        prompt never became visible or clickable. */}
+    <POSCheckDialog open={checkOpen} onOpenChange={setCheckOpen}
+      amount={checkAmount} context={checkContext || {}} onAccept={onCheckAccepted} />
+    <Dialog open={open && !checkOpen} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#111638] border-blue-500/10 text-white max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-white text-sm">
@@ -139,9 +145,8 @@ export default function POSPaymentDialog({
           )}
         </div>
 
-        <POSCheckDialog open={checkOpen} onOpenChange={setCheckOpen}
-          amount={checkAmount} context={checkContext || {}} onAccept={onCheckAccepted} />
       </DialogContent>
     </Dialog>
+    </>
   );
 }
