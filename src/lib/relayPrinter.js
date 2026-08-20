@@ -7,7 +7,7 @@ const net = require("net");
 
 // Bumped whenever this file changes. The test print shows it, so a technician can
 // confirm the relay is actually running the current printer.js and not a stale copy.
-const BUILD = "printer-build 3 (slip station)";
+const BUILD = "printer-build 4 (slip paper select)";
 
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
@@ -22,9 +22,13 @@ const CUT = GS + "V\\x42\\x00";
 // Slip station (front insert slot) — used for chits and for printing a receipt on a
 // blank sheet when the receipt roll is out. 40 columns, impact, no cutter.
 const SLIP_WIDTH = Number(process.env.SLIP_WIDTH || 40);
-const SEL_SLIP = ESC + "c0\\x02";              // ESC c 0 2 — print on the slip station
+// ESC c 0 n selects which sheet prints. n=2 is the slip station on most units, but
+// some TM-H6000IV configurations answer on n=4 (validation/cheque slot). Set
+// SLIP_PAPER=4 in the relay .env if a slip test still comes out on the roll.
+const SLIP_PAPER = Number(process.env.SLIP_PAPER || 2);
+const SEL_SLIP = ESC + "c0" + String.fromCharCode(SLIP_PAPER);
 const SEL_RECEIPT = ESC + "c0\\x01";           // ESC c 0 1 — back to the receipt roll
-const SEL_SLIP_CMD = ESC + "c1\\x02";          // ESC c 1 2 — apply line settings to the slip
+const SEL_SLIP_CMD = ESC + "c1" + String.fromCharCode(SLIP_PAPER);
 const SEL_RECEIPT_CMD = ESC + "c1\\x01";
 // ESC f t1 t2 — t1 is the insertion WAIT time (seconds), t2 the detection wait.
 // t1 must be non-zero or the printer gives up instantly and never waits for the sheet.
@@ -233,6 +237,7 @@ module.exports = {
   // prove whether the slip station itself responds, separate from receipt layout.
   testPrint: (ip, station) => {
     const body = BOLD_ON + "SUREFLOW TEST PRINT\\n" + BOLD_OFF + BUILD + "\\n" +
+      "STATION " + (station || "receipt") + " PAPER " + SLIP_PAPER + "\\n" +
       new Date().toLocaleString() + "\\n" + (process.env.STORE_ID || "") + "\\n";
     return sendRaw(resolvePrinter(ip), station === "slip"
       ? INIT + SEL_SLIP + SEL_SLIP_CMD + WAIT_INSERT + ALIGN_C + body + EJECT + SEL_RECEIPT + SEL_RECEIPT_CMD
