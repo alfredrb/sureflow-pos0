@@ -77,6 +77,43 @@ export const frankCheck = (payload) =>
 export const ejectCheck = (printer_ip) =>
   relayFetch("/api/check/eject", { method: "POST", body: JSON.stringify({ printer_ip }) }, 15000);
 
+// ── Customer-facing Ingenico pinpad ────────────────────────────────────────
+// Every call carries the lane's pinpad_ip plus the profile key (isc250,
+// lane_7000) so the relay knows which command set to speak. Display calls are
+// fire-and-forget; capture calls hold the socket open while the customer acts.
+
+// Mirror the running cart on the pad so the customer can follow the sale.
+export const pinpadShowCart = (payload) =>
+  relayFetch("/api/pinpad/cart", { method: "POST", body: JSON.stringify(payload) }, 6000);
+
+// Simple high-contrast message on the pad ("INSERT CHEQUE", "THANK YOU").
+export const pinpadDisplay = (payload) =>
+  relayFetch("/api/pinpad/display", { method: "POST", body: JSON.stringify(payload) }, 6000);
+
+// Return the pad to its idle/welcome screen.
+export const pinpadClear = (payload) =>
+  relayFetch("/api/pinpad/clear", { method: "POST", body: JSON.stringify(payload) }, 6000);
+
+// Blocking: the customer signs on the pad. Returns { image_base64, format }.
+export const pinpadCaptureSignature = (payload) =>
+  relayFetch("/api/pinpad/signature", { method: "POST", body: JSON.stringify(payload) }, 90000);
+
+// Blocking: the customer keys a number on the pad (gift card number). Returns { value }.
+export const pinpadEnterNumber = (payload) =>
+  relayFetch("/api/pinpad/input", { method: "POST", body: JSON.stringify(payload) }, 90000);
+
+// Blocking: "Approve $amount?" — returns { approved }.
+export const pinpadConfirm = (payload) =>
+  relayFetch("/api/pinpad/confirm", { method: "POST", body: JSON.stringify(payload) }, 90000);
+
+// Blocking: post-sale 1–5 rating screen. Returns { rating } (null if skipped).
+export const pinpadCollectRating = (payload) =>
+  relayFetch("/api/pinpad/rating", { method: "POST", body: JSON.stringify(payload) }, 45000);
+
+// Abort whatever the pad is waiting on and hand control back to the operator.
+export const pinpadCancel = (payload) =>
+  relayFetch("/api/pinpad/cancel", { method: "POST", body: JSON.stringify(payload) }, 8000);
+
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
 

@@ -7,12 +7,14 @@ import { base44 } from "@/api/base44Client";
 import { readCheckMicr, frankCheck, ejectCheck } from "@/lib/relayClient";
 import { parseMicr, validateCheck, last4 } from "@/lib/checkMicr";
 import { findActiveBlock, blockReasonLabel } from "@/lib/checkBlockList";
+import { hasPinpad, promptOnPinpad, captureSignatureOnPinpad, cancelPinpad, idlePinpad } from "@/lib/pinpadFlow";
+import POSPinpadPrompt from "@/components/pos/POSPinpadPrompt";
 
 // 4690 cheque tender: insert the cheque, the TM-H6000 reads the MICR line, the
 // operator confirms the numbers, the register franks the back "FOR DEPOSIT ONLY"
 // and ejects it. A failed read drops straight into manual entry.
 export default function POSCheckDialog({ open, onOpenChange, amount, context = {}, onAccept }) {
-  const [step, setStep] = useState("insert");   // insert | review | franking
+  const [step, setStep] = useState("insert");   // insert | reading | review | signature | franking
   const [fields, setFields] = useState({ routing: "", account: "", check_number: "", customer_name: "", customer_id: "" });
   const [micrRaw, setMicrRaw] = useState("");
   const [method, setMethod] = useState("micr_read");
@@ -67,6 +69,21 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
     read();
   }, [open, read]);
 
+  // The cheque writer signs on the customer pinpad before anything is franked, so
+  // the stored signature can be compared against the cheque in the back office.
+  const runSignature = async () => {
+    promptOnPinpad(context, "PLEASE SIGN", [
+      `CHEQUE $${Number(amount || 0).toFixed(2)}`,
+      "Sign with the stylus",
+    ]);
+    const out = await captureSignatureOnPinpad(context, {
+      title: "PLEASE SIGN",
+      lines: [`CHEQUE $${Number(amount || 0).toFixed(2)}`],
+    });
+    idlePinpad(context);
+    return out;
+  };
+
   const accept = async () => {
     const problem = validateCheck(fields);
     if (problem) { setError(problem); return; }
@@ -83,6 +100,17 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
       setError(`CHEQUE REFUSED — writer is on the block list (${blockReasonLabel(block.reason)}). Take another tender.`);
       return;
     }
+    // Signature first (when the lane has a pinpad), then frank and record.
+    if (hasPinpad(context)) {
+      setStep("signature");
+      const sig = await runSignature();
+      finalize(sig);
+      return;
+    }
+    finalize({ skipped: "No pinpad configured on this lane" });
+  };
+
+  const finalize = async (signature = {}) => {
     setStep("franking");
     const record = {
       check_number: fields.check_number,
@@ -101,6 +129,9 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
       operator_name: context.operator_name || "",
       store_id: context.store_id || "",
       training_mode: !!context.training_mode,
+      ...(signature.url
+        ? { signature_url: signature.url, signature_captured_at: new Date().toISOString() }
+        : { signature_skipped_reason: signature.skipped || "" }),
     };
     let franked = false;
     try {
@@ -135,6 +166,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
       });
     }
     try { await ejectCheck(context.printer_ip); } catch (e) { /* nothing loaded */ }
+    cancelPinpad(context);
     reset(); onOpenChange(false);
   };
 
@@ -208,6 +240,15 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
               </Button>
             </div>
           </div>
+        )}
+
+        {step === "signature" && (
+          <POSPinpadPrompt
+            title="CUSTOMER IS SIGNING ON THE PINPAD"
+            detail="The signature is stored against this cheque so the back office can verify it later."
+            onSkip={() => { cancelPinpad(context); finalize({ skipped: "Operator bypassed the signature prompt" }); }}
+            skipLabel="Skip Signature — Accept & Frank"
+          />
         )}
 
         {step === "franking" && (

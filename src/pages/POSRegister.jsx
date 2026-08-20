@@ -64,6 +64,8 @@ import { printVoidSlip } from "@/lib/voidSlip";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
+import { collectSaleRating } from "@/lib/pinpadFlow";
+import usePinpadCartMirror from "@/hooks/usePinpadCartMirror";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -97,6 +99,8 @@ export default function POSRegister() {
   const [priceEditSku, setPriceEditSku] = useState(null);
   const [priceEditValue, setPriceEditValue] = useState("");
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
+  // Customer-facing Ingenico pinpad on this lane (blank model = no pad fitted).
+  const [pinpadConfig, setPinpadConfig] = useState({ pinpad_model: "", pinpad_ip: "" });
   // Supervisor override for function keys
   const [supOverrideDialog, setSupOverrideDialog] = useState(false);
   const [supOverridePin, setSupOverridePin] = useState("");
@@ -340,6 +344,7 @@ export default function POSRegister() {
         } catch (storeErr) { console.error("Store info unavailable:", storeErr); }
         if (regs.length > 0) {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
+          setPinpadConfig({ pinpad_model: regs[0].pinpad_model || "", pinpad_ip: regs[0].pinpad_ip || "" });
           setRegisterPaused(regs[0].paused || false);
           // Auto-detect this lane's LAN IP from the store relay (not a public-IP
           // service — that returns the store's WAN address for every register).
@@ -527,6 +532,14 @@ export default function POSRegister() {
   const total = subtotal + tax;
   const amountDue = Math.max(0, total - loyaltyAppliedAmount);
   const receiptTaxExempt = receiptData?.taxExempt || taxExemptProfile;
+
+  // Customer-facing pinpad: mirrors the sale as it is rung up, and is the shared
+  // context for signature capture, gift-card entry, amount approval and the rating.
+  const pinpadContext = usePinpadCartMirror({
+    pinpadConfig,
+    registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
+    cart, subtotal, tax, total,
+  });
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
@@ -1106,6 +1119,9 @@ export default function POSRegister() {
       setReceiptData(receipt);
       setLastReceipt(receipt);
       clearSaleState();
+      // Rating screen runs on the customer pad while the operator hands over the
+      // receipt — it stores itself against the sale and never blocks the lane.
+      collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {
       toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
@@ -1180,6 +1196,7 @@ export default function POSRegister() {
       setReceiptData(receipt);
       setLastReceipt(receipt);
       clearSale();
+      collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {
       toast({ title: "Error", description: "Failed to process gift card sale", variant: "destructive" });
@@ -1578,7 +1595,9 @@ export default function POSRegister() {
         onOpenLoyaltySignup={() => setLoyaltySignupOpen(true)}
         onSubmit={completeSale}
         onSubmitGiftCard={validateGiftCardTender}
+        pinpadContext={pinpadContext}
         checkContext={{
+          ...pinpadContext,
           store_name: storeConfig?.store_name || storeInfo?.store_name,
           store_number: storeInfo?.store_number || sessionStorage.getItem("pos_store_id") || "",
           store_id: sessionStorage.getItem("pos_store_id") || "",

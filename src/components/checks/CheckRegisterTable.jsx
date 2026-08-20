@@ -13,7 +13,7 @@ const STATUS_STYLES = {
 
 // Cheque ledger rows. Status transitions are driven from the parent so the
 // audit-logged update lives in one place.
-export default function CheckRegisterTable({ checks, onSetStatus, onBlockWriter, blockedAccounts = [], busyId }) {
+export default function CheckRegisterTable({ checks, onSetStatus, onBlockWriter, onViewSignature, blockedAccounts = [], busyId }) {
   const isBlocked = (c) => blockedAccounts.includes(String(c.account_last4 || ""));
   if (!checks.length) {
     return <p className="py-10 text-center text-sm text-blue-300/50">No cheques recorded.</p>;
@@ -57,6 +57,10 @@ export default function CheckRegisterTable({ checks, onSetStatus, onBlockWriter,
               </td>
               <td className="px-3 py-2">
                 <div className="flex flex-wrap gap-1">
+                  {c.signature_url && (
+                    <Button size="sm" variant="outline" onClick={() => onViewSignature?.(c)}
+                      className="h-7 border-sky-500/30 px-2 text-[10px] text-sky-300 hover:bg-sky-500/10">Signature</Button>
+                  )}
                   {c.status === "accepted" && (
                     <>
                       <Button size="sm" variant="outline" disabled={busyId === c.id}

@@ -129,6 +129,24 @@
       "type": "string",
       "description": "Cash drawer serial number"
     },
+    "pinpad_model": {
+      "type": "string",
+      "enum": [
+        "",
+        "isc250",
+        "lane_7000"
+      ],
+      "default": "",
+      "description": "Customer-facing Ingenico pinpad attached to this lane. Selects the command profile the relay uses to drive it: isc250 = Ingenico iSC Touch 250 (supported today), lane_7000 = Ingenico Lane/7000 (profile reserved for a future rollout). Blank = no pinpad on this lane, and every pinpad prompt is skipped silently."
+    },
+    "pinpad_ip": {
+      "type": "string",
+      "description": "Static LAN IP of this lane's Ingenico pinpad (e.g. 192.168.1.70). The POS drives signature capture, customer prompts, gift-card entry, the cart mirror and the rating screen through the store's Local Relay VM on this address."
+    },
+    "pinpad_serial": {
+      "type": "string",
+      "description": "Pinpad serial number, for the hardware audit."
+    },
     "terminal_model": {
       "type": "string",
       "description": "POS terminal / computer make and model (e.g. IBM SurePOS 700, Elo EPS00E2)"

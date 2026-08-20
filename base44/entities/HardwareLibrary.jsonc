@@ -4,7 +4,7 @@
   "properties": {
     "model": {
       "type": "string",
-      "description": "Exact hardware model string as entered on the Register hardware profile (e.g. 'IBM SurePOS 700', 'IBM SurePoint 4820', 'IBM 3AA01194300', 'Zebra DS4308'). Matching is done on this value."
+      "description": "Exact hardware model string as entered on the Register hardware profile (e.g. 'IBM SurePOS 700', 'IBM SurePoint 4820', 'IBM 3AA01194300', 'Zebra DS4308', 'Ingenico iSC Touch 250'). Matching is done on this value."
     },
     "device_type": {
       "type": "string",
@@ -17,14 +17,15 @@
         "msr",
         "line_display",
         "cash_drawer",
+        "pinpad",
         "other"
       ],
       "default": "other",
-      "description": "Class of peripheral this driver profile applies to."
+      "description": "Class of peripheral this driver profile applies to. pinpad = customer-facing Ingenico signature / prompt device driven by the relay."
     },
     "vendor": {
       "type": "string",
-      "description": "Manufacturer (e.g. IBM, Toshiba, Zebra, Epson)."
+      "description": "Manufacturer (e.g. IBM, Toshiba, Zebra, Epson, Ingenico)."
     },
     "packages": {
       "type": "array",
@@ -53,6 +54,14 @@
     "xorg_config": {
       "type": "string",
       "description": "Xorg input/output configuration snippet for this device (touchscreen calibration matrix, evdev section)."
+    },
+    "pinpad_profile_key": {
+      "type": "string",
+      "description": "Command-profile key the relay pinpad module uses to drive this device (e.g. 'isc250', 'lane_7000'). Only used when device_type is pinpad \u2014 it is how a new pinpad model is added without changing POS or relay code."
+    },
+    "pinpad_commands": {
+      "type": "string",
+      "description": "Command profile for this pinpad as JSON: the byte sequences / request shapes for clear screen, display text, multi-line cart display, signature capture, numeric input and the rating screen. The relay reads this instead of hard-coding one model's protocol."
     },
     "notes": {
       "type": "string",

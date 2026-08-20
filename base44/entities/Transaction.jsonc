@@ -104,6 +104,15 @@
       "type": "string",
       "description": "Gift card number if payment_method is giftcard"
     },
+    "customer_rating": {
+      "type": "number",
+      "description": "Customer's 1\u20135 satisfaction rating, tapped on the lane's customer-facing pinpad after the sale completed. Blank = the customer did not rate the visit (no pinpad, walked away, or timed out)."
+    },
+    "rating_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the customer rating was captured on the pinpad."
+    },
     "training_mode": {
       "type": "boolean",
       "default": false,

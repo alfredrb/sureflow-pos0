@@ -45,6 +45,19 @@
       "type": "string",
       "format": "date-time"
     },
+    "signature_url": {
+      "type": "string",
+      "description": "Stored image of the cheque writer's signature, captured on the lane's Ingenico pinpad at tender time. Opened from the Cheque Register so the back office can compare it against the signature on the cheque."
+    },
+    "signature_captured_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the signature was captured on the pinpad."
+    },
+    "signature_skipped_reason": {
+      "type": "string",
+      "description": "Why no signature was captured (no pinpad on the lane, pinpad unreachable, operator bypassed the prompt)."
+    },
     "verified": {
       "type": "boolean",
       "default": false,

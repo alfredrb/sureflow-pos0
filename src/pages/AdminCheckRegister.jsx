@@ -8,6 +8,7 @@ import { logAuditEvent } from "@/lib/auditLogger";
 import CheckRegisterStats from "@/components/checks/CheckRegisterStats";
 import CheckRegisterTable from "@/components/checks/CheckRegisterTable";
 import CheckBlockListPanel from "@/components/checks/CheckBlockListPanel";
+import CheckSignatureDialog from "@/components/checks/CheckSignatureDialog";
 import { blockReasonLabel } from "@/lib/checkBlockList";
 
 const FILTERS = ["all", "accepted", "returned", "represented", "cleared", "written_off", "declined"];
@@ -22,6 +23,7 @@ export default function AdminCheckRegister() {
   const [busyId, setBusyId] = useState(null);
   const [blocks, setBlocks] = useState([]);
   const [blockRefresh, setBlockRefresh] = useState(0);
+  const [signatureCheck, setSignatureCheck] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -129,11 +131,14 @@ export default function AdminCheckRegister() {
           {loading
             ? <p className="py-10 text-center text-sm text-blue-300/50">Loading cheques…</p>
             : <CheckRegisterTable checks={visible} onSetStatus={handleSetStatus} onBlockWriter={handleBlockWriter}
+                onViewSignature={setSignatureCheck}
                 blockedAccounts={blocks.map((b) => String(b.account_last4 || ""))} busyId={busyId} />}
         </CardContent>
       </Card>
 
       <CheckBlockListPanel refreshKey={blockRefresh} />
+
+      <CheckSignatureDialog check={signatureCheck} onClose={() => setSignatureCheck(null)} />
     </div>
   );
 }
