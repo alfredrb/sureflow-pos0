@@ -29,7 +29,13 @@ const TESTS = [
   | nc -w30 192.168.1.60 9100 | od -c | head -20`,
   },
   {
-    label: "5. Relay route check — is the deployed build current?",
+    label: "5. Long read — insert the cheque AFTER the command is armed",
+    why: "The reader only answers while it is armed and it will not wait indefinitely. This holds the socket for 60s and prints every byte, including a lone 0x0F/0x1C error byte. Run it, wait for the carriage to stop, THEN insert the cheque face-up against the rear guide. Still no bytes on a unit whose self test lists MICR means the reader is disabled in the memory switches — turn it on with the Epson TM Utility (MICR / Cheque settings) over the same LAN address.",
+    cmd: `{ printf '\\x1b\\x40'; sleep 0.5; printf '\\x1c\\x61\\x30\\x30'; sleep 60; } \\
+  | nc -w70 192.168.1.60 9100 | od -An -tx1c`,
+  },
+  {
+    label: "6. Relay route check — is the deployed build current?",
     why: "Confirms the relay is serving the cheque routes and which module build is loaded. Anything other than check-reader-build 3 means the old copy is still on disk.",
     cmd: `curl -s -m 60 -X POST http://localhost:3000/api/check/read \\
   -H 'Content-Type: application/json' -d '{"printer_ip":"192.168.1.60"}'`,
