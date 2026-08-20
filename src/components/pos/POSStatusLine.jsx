@@ -20,8 +20,8 @@ export default function POSStatusLine({ actionCodeBuffer, message, remotePending
   if (actionCodeBuffer) {
     return (
       <div className="bg-blue-600 px-3 py-2 flex-shrink-0 border-t border-blue-400/30">
-        <p className="text-white font-mono text-sm font-bold tracking-wide">AC {actionCodeBuffer}</p>
-        <p className="text-blue-100/80 text-[10px] uppercase tracking-widest">Press Action Code key</p>
+        <p className="text-white font-mono text-sm font-bold tracking-wide">{actionCodeBuffer}</p>
+        <p className="text-blue-100/80 text-[10px] uppercase tracking-widest">Enter = item &nbsp;·&nbsp; Action Code key = code</p>
       </div>
     );
   }

@@ -16,7 +16,6 @@ import POSReturnsPanel from "@/components/POSReturnsPanel";
 import POSExchangePanel from "@/components/POSExchangePanel";
 import POSSalePanel from "@/components/POSSalePanel";
 import POSItemList from "@/components/POSItemList";
-import POSScanEntry from "@/components/pos/POSScanEntry";
 import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
@@ -702,6 +701,7 @@ export default function POSRegister() {
   const { buffer: actionCodeBuffer } = useActionCodeBuffer({
     onDispatch: handleActionCode,
     onOpenPad: () => setActionCodeOpen(true),
+    onEnter: (code) => addByCode(code),
     enabled: posMode === "sale" && !actionCodeOpen && !paymentOpen && !supOverrideDialog,
   });
 
@@ -1500,10 +1500,6 @@ export default function POSRegister() {
 
         {/* RIGHT — switches based on posMode */}
         <div className="flex-1 flex flex-col overflow-hidden">
-
-          {posMode === "sale" && (
-            <POSScanEntry onSubmitCode={addByCode} />
-          )}
 
           {posMode === "sale" && (
             <POSSalePanel
