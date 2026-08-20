@@ -2,9 +2,9 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-// Outcome dialog for a remote override request, plus the floating "waiting for
-// approval" badge shown while a request is outstanding.
-export default function POSRemoteOverrideStatus({ result, onCloseResult, pending, onCancelPending }) {
+// Outcome dialog for a remote override request. The "waiting for approval" state
+// is shown on the 4690-style status line under Current Transaction.
+export default function POSRemoteOverrideStatus({ result, onCloseResult }) {
   return (
     <>
       <Dialog open={!!result} onOpenChange={v => { if (!v) onCloseResult(); }}>
@@ -40,16 +40,6 @@ export default function POSRemoteOverrideStatus({ result, onCloseResult, pending
         </DialogContent>
       </Dialog>
 
-      {pending && (
-        <div className="fixed bottom-16 right-3 z-50 bg-violet-600/90 backdrop-blur-md text-white rounded-xl px-4 py-2.5 shadow-2xl shadow-violet-900/50 flex items-center gap-2.5 border border-violet-300/25">
-          <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse flex-shrink-0" />
-          <div className="leading-tight">
-            <p className="text-[11px] font-semibold tracking-wide">Remote Override Pending</p>
-            <p className="text-[9px] text-violet-200/90 max-w-[170px] truncate">Waiting for approval of "{pending.action}"…</p>
-          </div>
-          <button onClick={onCancelPending} className="ml-1 w-5 h-5 grid place-items-center rounded-md text-violet-300 hover:text-white hover:bg-white/10 text-xs">✕</button>
-        </div>
-      )}
     </>
   );
 }

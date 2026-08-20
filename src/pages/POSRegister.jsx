@@ -859,6 +859,13 @@ export default function POSRegister() {
     }
   };
 
+  const cancelRemoteOverride = () => {
+    if (typeof remotePollingRef.current === "function") remotePollingRef.current();
+    setRemotePolling(false);
+    setRemoteRequestSent(null);
+    setPendingFunctionKey(null);
+  };
+
   const sendRemoteOverrideRequest = async () => {
     if (!pendingFunctionKey) return;
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
@@ -1467,7 +1474,14 @@ export default function POSRegister() {
             onEditPrice={openPriceEdit}
             onOpenLoyalty={() => setLoyaltyLookupOpen(true)}
             onPay={() => cart.length > 0 && setPaymentOpen(true)}
-            statusLine={<POSStatusLine actionCodeBuffer={actionCodeBuffer} message={latestMessage} />}
+            statusLine={
+              <POSStatusLine
+                actionCodeBuffer={actionCodeBuffer}
+                message={latestMessage}
+                remotePending={remoteRequestSent}
+                onCancelRemotePending={cancelRemoteOverride}
+              />
+            }
           />
         )}
 
@@ -1558,8 +1572,6 @@ export default function POSRegister() {
       <POSRemoteOverrideStatus
         result={remoteResultDialog}
         onCloseResult={() => setRemoteResultDialog(null)}
-        pending={remoteRequestSent}
-        onCancelPending={() => { if (typeof remotePollingRef.current === "function") remotePollingRef.current(); setRemotePolling(false); setRemoteRequestSent(null); setPendingFunctionKey(null); }}
       />
 
       {/* Tab Switch Guard Dialog */}
