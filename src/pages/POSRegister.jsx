@@ -46,7 +46,8 @@ import POSSecurityDialogs from "@/components/pos/POSSecurityDialogs";
 import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
 import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
-import { resolveActionCode, needsOverrideFor, ACTION_CODE_KEY } from "@/lib/actionCodeDispatch";
+import { resolveActionCode, needsOverrideFor } from "@/lib/actionCodeDispatch";
+import useActionCodeBuffer from "@/hooks/useActionCodeBuffer";
 import POSPriceCheckDialog from "@/components/pos/POSPriceCheckDialog";
 import POSResumeDialog from "@/components/pos/POSResumeDialog";
 import { printSuspendSlip } from "@/lib/suspendSlip";
@@ -682,17 +683,13 @@ export default function POSRegister() {
     executeFunctionKey(asKey);
   };
 
-  // Physical Action Code key — the IBM POS keyboard's override-strip key is mapped
-  // onto this keycode by the image's hwdb rules.
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== ACTION_CODE_KEY) return;
-      e.preventDefault();
-      setActionCodeOpen(true);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // 4690 flow — type the code on the keypad then press the physical Action Code
+  // key to run it directly. Pressing the key with nothing typed opens the pinpad.
+  const { buffer: actionCodeBuffer } = useActionCodeBuffer({
+    onDispatch: handleActionCode,
+    onOpenPad: () => setActionCodeOpen(true),
+    enabled: posMode === "sale" && !actionCodeOpen && !paymentOpen && !supOverrideDialog,
+  });
 
   // ── Suspend / resume ───────────────────────────────────────────────────────
   // Parks the current cart under a suspend number and prints a barcoded slip.
@@ -1681,6 +1678,13 @@ export default function POSRegister() {
         }}
         onClose={() => setSerialCapture(null)}
       />
+
+      {/* Keyed action code awaiting the Action Code key */}
+      {actionCodeBuffer && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2 bg-blue-600 text-white font-mono text-lg font-bold rounded-lg shadow-lg">
+          AC {actionCodeBuffer} — press ACTION CODE
+        </div>
+      )}
 
       {/* Numeric action-code entry (physical Action Code key or on-screen button) */}
       <POSActionCodeDialog
