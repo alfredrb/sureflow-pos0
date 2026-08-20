@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { printReceipt } from "@/lib/printReceipt";
 import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
-import { RotateCcw, FileX, ShieldCheck } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import POSNoReceiptReturn from "@/components/pos/POSNoReceiptReturn";
+import ReturnModeButtons from "@/components/pos/ReturnModeButtons";
 import ReturnReasonDialog from "@/components/pos/ReturnReasonDialog";
 import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
 import { markSerialReturned, itemHasSerials, isSerialSoldForSku } from "@/lib/serialUtils";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export default function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange }) {
+export default function ReturnsPanel({ operator, products, loadData, toast, onPreviewChange, onRegisterLookup }) {
   const [returnTxId, setReturnTxId] = useState("");
   const [returnTransaction, setReturnTransaction] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -29,14 +30,16 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const [serialVerify, setSerialVerify] = useState(null); // { index, mode }
   const [verifiedSerials, setVerifiedSerials] = useState({}); // { [index]: serial }
 
-  const lookUp = async () => {
-    if (!returnTxId) return;
+  const lookUp = async (idOverride) => {
+    const lookupId = (typeof idOverride === "string" ? idOverride : returnTxId).trim().toUpperCase();
+    if (!lookupId) return;
+    setReturnTxId(lookupId);
     setSearching(true);
     setReturnTransaction(null);
     setSelectedItems({});
     setOverrideOperator(null);
     setExpiredItems([]);
-    const results = await base44.entities.Transaction.filter({ transaction_id: returnTxId });
+    const results = await base44.entities.Transaction.filter({ transaction_id: lookupId });
     if (results.length === 0) {
       toast({ title: "Not Found", description: "No transaction with that ID", variant: "destructive" });
     } else {
@@ -152,6 +155,12 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const rateFor = (i) => i.tax_rate ?? products.find(p => p.sku === i.sku)?.tax_rate ?? 0;
   const returnTax = +returnItems.reduce((s, i) => s + (i.total * (rateFor(i) / 100)), 0).toFixed(2);
   const returnTotal = +(returnSubtotal + returnTax).toFixed(2);
+
+  // Keying a transaction number on the operator prompt line and pressing Enter
+  // runs the same Look Up Transaction as the on-screen field.
+  useEffect(() => {
+    onRegisterLookup?.((code) => { setReturnMode("receipt"); lookUp(code); });
+  }, [onRegisterLookup]);
 
   // Notify parent of preview state
   useEffect(() => {
@@ -277,16 +286,10 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
       </div>
 
       {/* Return type buttons */}
-      <div className="flex gap-2 flex-shrink-0">
-        <button onClick={() => { setReturnMode("no_receipt"); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); onPreviewChange(null); }}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${returnMode === "no_receipt" ? "bg-fuchsia-600 text-white border-fuchsia-500" : "bg-[#111638] text-fuchsia-300/70 border-fuchsia-500/20 hover:border-fuchsia-500/40"}`}>
-          <FileX className="w-3.5 h-3.5" /> No Receipt Return
-        </button>
-        <button onClick={() => { setReturnMode("manager_override"); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); onPreviewChange(null); }}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors ${returnMode === "manager_override" ? "bg-orange-600 text-white border-orange-500" : "bg-[#111638] text-orange-300/70 border-orange-500/20 hover:border-orange-500/40"}`}>
-          <ShieldCheck className="w-3.5 h-3.5" /> Manager Override Return
-        </button>
-      </div>
+      <ReturnModeButtons
+        returnMode={returnMode}
+        onSelect={(m) => { setReturnMode(m); setReturnTransaction(null); setSelectedItems({}); setOverrideOperator(null); setExpiredItems([]); onPreviewChange(null); }}
+      />
 
       {returnMode === "receipt" && (
       <>
@@ -297,11 +300,11 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
           <Input
             value={returnTxId}
             onChange={e => setReturnTxId(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === "Enter" && lookUp()}
+            onKeyDown={e => e.key === "Enter" && lookUp(returnTxId)}
             placeholder="TX-XXXXXXXX"
             className="bg-[#0a0e27] border-purple-500/20 text-white font-mono placeholder:text-blue-300/20"
           />
-          <Button disabled={searching || !returnTxId} onClick={lookUp} className="bg-purple-600 hover:bg-purple-500 flex-shrink-0">
+          <Button disabled={searching || !returnTxId} onClick={() => lookUp(returnTxId)} className="bg-purple-600 hover:bg-purple-500 flex-shrink-0">
             {searching ? "..." : "Look Up"}
           </Button>
         </div>

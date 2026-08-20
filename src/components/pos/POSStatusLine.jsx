@@ -4,7 +4,7 @@ import RemoteOverrideWaitLine from "@/components/pos/RemoteOverrideWaitLine";
 // 4690-style operator prompt line at the foot of the Current Transaction panel.
 // Shows the action code being keyed in and the latest system message, instead of
 // a floating corner toast.
-export default function POSStatusLine({ actionCodeBuffer, message, remotePending, onCancelRemotePending }) {
+export default function POSStatusLine({ actionCodeBuffer, message, remotePending, onCancelRemotePending, entryHint }) {
   if (remotePending) {
     return <RemoteOverrideWaitLine remotePending={remotePending} onCancel={onCancelRemotePending} />;
   }
@@ -13,7 +13,7 @@ export default function POSStatusLine({ actionCodeBuffer, message, remotePending
     return (
       <div className="bg-blue-600 px-3 py-2 flex-shrink-0 border-t border-blue-400/30">
         <p className="text-white font-mono text-sm font-bold tracking-wide">{actionCodeBuffer}</p>
-        <p className="text-blue-100/80 text-[10px] uppercase tracking-widest">Enter = item &nbsp;·&nbsp; Action Code key = code</p>
+        <p className="text-blue-100/80 text-[10px] uppercase tracking-widest">{entryHint || "Enter = item  ·  Action Code key = code"}</p>
       </div>
     );
   }

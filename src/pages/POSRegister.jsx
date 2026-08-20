@@ -107,6 +107,10 @@ export default function POSRegister() {
   const [remoteRequestSent, setRemoteRequestSent] = useState(null); // { requestId, action }
   const [remotePolling, setRemotePolling] = useState(false);
   const remotePollingRef = React.useRef(null);
+  // Returns / Exchange register their Look Up Transaction handler here so the
+  // operator prompt line can drive it with the keypad.
+  const panelLookupRef = React.useRef(null);
+  const registerPanelLookup = React.useCallback((fn) => { panelLookupRef.current = fn; }, []);
   const [remoteResultDialog, setRemoteResultDialog] = useState(null); // { approved, action, by, note }
   // Top-level mode: "sale" | "returns" | "cs" | "diagnostics"
   const [posMode, setPosMode] = useState("sale");
@@ -701,8 +705,14 @@ export default function POSRegister() {
   const { buffer: actionCodeBuffer } = useActionCodeBuffer({
     onDispatch: handleActionCode,
     onOpenPad: () => setActionCodeOpen(true),
-    onEnter: (code) => addByCode(code),
-    enabled: posMode === "sale" && !actionCodeOpen && !paymentOpen && !supOverrideDialog,
+    // Sale mode rings the entry up as an item; Returns / Exchange run it through
+    // Look Up Transaction instead.
+    onEnter: (code) => {
+      if (posMode === "sale") { addByCode(code); return; }
+      const lookup = panelLookupRef.current;
+      if (lookup) lookup(code);
+    },
+    enabled: ["sale", "returns", "exchange"].includes(posMode) && !actionCodeOpen && !paymentOpen && !supOverrideDialog,
   });
 
   // System messages print on the 4690-style status line under Current Transaction,
@@ -1246,6 +1256,8 @@ export default function POSRegister() {
       const sup = res.operator;
       setDiagnosticsMode(true);
       setTrainingMode(true);
+      setPosMode("diagnostics");
+      setSidePreview(null);
       setDiagOverrideDialog(false);
       setDiagOverrideId(""); setDiagOverridePin("");
       toast({ title: "Diagnostics Mode Enabled", description: `${sup.full_name} authorized — Training Mode active` });
@@ -1489,6 +1501,7 @@ export default function POSRegister() {
             onPay={() => cart.length > 0 && setPaymentOpen(true)}
             statusLine={
               <POSStatusLine
+                entryHint={posMode === "sale" ? "Enter = item  ·  Action Code key = code" : "Enter = look up transaction  ·  Action Code key = code"}
                 actionCodeBuffer={actionCodeBuffer}
                 message={latestMessage}
                 remotePending={remoteRequestSent}
@@ -1511,11 +1524,11 @@ export default function POSRegister() {
           )}
 
           {posMode === "returns" && (
-            <POSReturnsPanel operator={operator} products={products} loadData={loadData} toast={toast} onPreviewChange={setSidePreview} />
+            <POSReturnsPanel operator={operator} products={products} loadData={loadData} toast={toast} onPreviewChange={setSidePreview} onRegisterLookup={registerPanelLookup} />
           )}
 
           {posMode === "exchange" && (
-            <POSExchangePanel operator={operator} products={products} loadData={loadData} toast={toast} onPreviewChange={setSidePreview} />
+            <POSExchangePanel operator={operator} products={products} loadData={loadData} toast={toast} onPreviewChange={setSidePreview} onRegisterLookup={registerPanelLookup} />
           )}
 
           {posMode === "cs" && (

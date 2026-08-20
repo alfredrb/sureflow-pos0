@@ -9,7 +9,7 @@ import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { markSerialReturned, recordSerializedSales, itemHasSerials, isSerialSoldForSku, verifySerialInStock } from "@/lib/serialUtils";
 
-export default function ExchangePanel({ operator, products, loadData, toast, onPreviewChange }) {
+export default function ExchangePanel({ operator, products, loadData, toast, onPreviewChange, onRegisterLookup }) {
   const [txId, setTxId] = useState("");
   const [origTx, setOrigTx] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -23,12 +23,14 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   const [replaceSerialCapture, setReplaceSerialCapture] = useState(null); // { product }
   const [verifiedReturnSerials, setVerifiedReturnSerials] = useState({}); // { [index]: serial }
 
-  const lookUp = async () => {
-    if (!txId) return;
+  const lookUp = async (idOverride) => {
+    const lookupId = (typeof idOverride === "string" ? idOverride : txId).trim().toUpperCase();
+    if (!lookupId) return;
+    setTxId(lookupId);
     setSearching(true);
     setOrigTx(null); setReturnSel({}); setReplaceCart([]);
     // Allow looking up completed OR partially-refunded (still "completed") transactions
-    const results = await base44.entities.Transaction.filter({ transaction_id: txId });
+    const results = await base44.entities.Transaction.filter({ transaction_id: lookupId });
     const valid = results.filter(t => t.status === "completed");
     if (valid.length === 0) toast({ title: "Not Found", description: "No eligible transaction with that ID", variant: "destructive" });
     else { setOrigTx(valid[0]); setStep("select"); }
@@ -197,6 +199,11 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
     loadData();
   };
 
+  // Keying a transaction number on the operator prompt line + Enter looks it up.
+  useEffect(() => {
+    onRegisterLookup?.((code) => lookUp(code));
+  }, [onRegisterLookup]);
+
   const reset = () => { setTxId(""); setOrigTx(null); setReturnSel({}); setReplaceCart([]); setVerifiedReturnSerials({}); setStep("lookup"); onPreviewChange(null); };
 
   return (
@@ -211,9 +218,9 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
           <div className="bg-[#111638] rounded-xl border border-teal-500/10 p-3 space-y-2 flex-shrink-0">
             <label className="text-blue-300/50 text-[10px] uppercase tracking-wider block">Look Up Original Transaction</label>
             <div className="flex gap-2">
-              <Input value={txId} onChange={e => setTxId(e.target.value.toUpperCase())} onKeyDown={e => e.key === "Enter" && lookUp()}
+              <Input value={txId} onChange={e => setTxId(e.target.value.toUpperCase())} onKeyDown={e => e.key === "Enter" && lookUp(txId)}
                 placeholder="TX-XXXXXXXX" className="bg-[#0a0e27] border-teal-500/20 text-white font-mono placeholder:text-blue-300/20" />
-              <Button disabled={searching || !txId} onClick={lookUp} className="bg-teal-600 hover:bg-teal-500 flex-shrink-0">
+              <Button disabled={searching || !txId} onClick={() => lookUp(txId)} className="bg-teal-600 hover:bg-teal-500 flex-shrink-0">
                 {searching ? "..." : "Look Up"}
               </Button>
             </div>

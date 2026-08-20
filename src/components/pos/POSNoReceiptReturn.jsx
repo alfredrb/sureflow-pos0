@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import POSSerialVerifyDialog from "@/components/pos/POSSerialVerifyDialog";
 import { isSerialSoldForSku, markSerialReturned } from "@/lib/serialUtils";
+import { noReceiptMode } from "@/lib/noReceiptModes";
 
 function makeGiftCardNumber() {
   return "GC-" + Date.now().toString().slice(-8) + Math.floor(Math.random() * 90 + 10);
@@ -12,8 +13,9 @@ function makeGiftCardNumber() {
 
 function buildReceiptHTML({ store, txId, operatorName, registerName, items, subtotal, tax, total, paymentMethod, giftCardNumber, customerId, mode, managerName, refusal, denialReason, limitWarn }) {
   const storeName = store?.store_name || "Supermart";
-  const isManager = mode === "manager_override";
-  const title = refusal ? "NO-RECEIPT RETURN DENIED" : isManager ? "MANAGER OVERRIDE RETURN" : "NO-RECEIPT RETURN";
+  const cfg = noReceiptMode(mode);
+  const isManager = !!cfg.authRole;
+  const title = refusal ? "NO-RECEIPT RETURN DENIED" : cfg.slipTitle;
   const itemsHTML = (items || []).map(i => {
     let row = `<div class="row"><span>${i.qty}x ${i.name}</span><span>$${i.total.toFixed(2)}</span></div>`;
     if (i.serial_numbers && i.serial_numbers.length) {
@@ -77,16 +79,12 @@ function printDoc(html) {
 }
 
 export default function POSNoReceiptReturn({ mode, operator, products, loadData, toast, onPreviewChange, onBack }) {
-  const isManager = mode === "manager_override";
-  const THEME = isManager ? {
-    icon: "text-orange-400", text: "text-orange-300", border: "border-orange-500/20",
-    label: "text-orange-300/60", btn: "bg-orange-600 hover:bg-orange-500 text-white",
-    totalText: "text-orange-300",
-  } : {
-    icon: "text-fuchsia-400", text: "text-fuchsia-300", border: "border-fuchsia-500/20",
-    label: "text-fuchsia-300/60", btn: "bg-fuchsia-600 hover:bg-fuchsia-500 text-white",
-    totalText: "text-fuchsia-300",
-  };
+  const cfg = noReceiptMode(mode);
+  // Every authorized flow (manager override, CSM override, no-ID) is recorded and
+  // audited the same way as the original Manager Override Return.
+  const isManager = !!cfg.authRole;
+  const needsCustomerId = cfg.requiresCustomerId;
+  const THEME = cfg.theme;
 
   const [store, setStore] = useState(null);
   const [managerAuth, setManagerAuth] = useState(null);
@@ -120,11 +118,11 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
     setAuthorizing(true);
     try {
       const ops = await base44.entities.Operator.filter({ pin: managerPin });
-      const mgr = ops.find(o => o.role === "manager" && o.pos_access !== false);
-      if (!mgr) { setManagerError("Invalid PIN — Manager required"); setAuthorizing(false); return; }
+      const mgr = ops.find(o => cfg.authRoles.includes(o.role) && o.pos_access !== false);
+      if (!mgr) { setManagerError(cfg.authRole === "manager" ? "Invalid PIN — Manager required" : "Invalid PIN — CSM or Manager required"); setAuthorizing(false); return; }
       setManagerAuth(mgr);
       setManagerPin("");
-      toast({ title: "Manager Authorized", description: `${mgr.full_name} approved the manager override return` });
+      toast({ title: "Authorized", description: `${mgr.full_name} approved the ${cfg.title.toLowerCase()}` });
     } catch (e) { setManagerError("Authorization failed"); }
     setAuthorizing(false);
   };
@@ -221,6 +219,9 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
     setReturnItems(prev => prev.map(i => i.sku === sku ? { ...i, qty: q, total: +(q * i.price).toFixed(2) } : i));
   };
 
+  // No-ID returns skip the customer lookup entirely — the manager PIN is the gate.
+  const readyForItems = needsCustomerId ? (customerVerified && !blocked) : !!managerAuth;
+
   const removeItem = (key) => setReturnItems(prev => prev.filter(i => (i.serial || i.sku) !== key));
 
   const subtotal = returnItems.reduce((s, i) => s + i.total, 0);
@@ -232,9 +233,8 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
     setProcessing(true);
     try {
       const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-      const prefix = isManager ? "MO-" : "NR-";
-      const txId = prefix + Date.now().toString(36).toUpperCase();
-      const custId = customerId.trim();
+      const txId = cfg.prefix + Date.now().toString(36).toUpperCase();
+      const custId = needsCustomerId ? customerId.trim() : "";
 
       const giftCardNumber = makeGiftCardNumber();
       await base44.entities.GiftCard.create({
@@ -246,7 +246,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         purchased_by_operator_name: operator.full_name,
         register_id: registerId,
         status: "active",
-        notes: `Issued for ${isManager ? "manager override" : "no-receipt"} return — Customer ID ${custId}`,
+        notes: `Issued for ${cfg.title} — ${custId ? `Customer ID ${custId}` : "no customer ID captured"}`,
         transactions: [{ transaction_id: txId, amount: total, transaction_date: new Date().toISOString(), operator_id: operator.operator_id, operator_name: operator.full_name, register_id: registerId, type: "refund", remaining_balance: total }],
       });
 
@@ -275,8 +275,11 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
 
       const lim = store?.no_receipt_return_limit || 0;
       let newCount = 1;
-      const existing = await base44.entities.NoReceiptCustomer.filter({ customer_id: custId });
-      if (existing.length > 0) {
+      // No-ID returns can't be tracked against a customer record.
+      const existing = custId ? await base44.entities.NoReceiptCustomer.filter({ customer_id: custId }) : [];
+      if (!custId) {
+        newCount = 0;
+      } else if (existing.length > 0) {
         const r = existing[0];
         newCount = (r.return_count || 0) + 1;
         await base44.entities.NoReceiptCustomer.update(r.id, {
@@ -295,7 +298,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         });
       }
       let receiptWarn = "";
-      if (lim > 0) {
+      if (lim > 0 && custId) {
         if (newCount >= lim) receiptWarn = `You have reached your no-receipt return limit (${newCount}/${lim}). Future no-receipt returns will be denied.`;
         else if (newCount >= Math.ceil(0.75 * lim)) receiptWarn = `You have reached 75% of your no-receipt return limit (${newCount}/${lim}). You will be cut off soon.`;
       }
@@ -306,8 +309,8 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         operator_name: operator.full_name,
         operator_role: operator.role,
         register_id: registerId,
-        detail: `${isManager ? "Manager override return" : "No-receipt return"} — Customer ID ${custId} — $${total.toFixed(2)} (refunded to gift card ${giftCardNumber})`,
-        ...(managerAuth ? { override_operator_id: managerAuth.operator_id, override_operator_name: managerAuth.full_name, override_action: "Manager Override Return" } : {}),
+        detail: `${cfg.logLabel} — ${custId ? `Customer ID ${custId}` : "NO CUSTOMER ID"} — $${total.toFixed(2)} (refunded to gift card ${giftCardNumber})`,
+        ...(managerAuth ? { override_operator_id: managerAuth.operator_id, override_operator_name: managerAuth.full_name, override_action: cfg.title } : {}),
       });
 
       printDoc(buildReceiptHTML({ store, txId, operatorName: operator.full_name, registerName: registerId, items: returnItems, subtotal, tax, total, paymentMethod: "giftcard", giftCardNumber, customerId: custId, mode, managerName: managerAuth?.full_name, refusal: false, limitWarn: receiptWarn }));
@@ -328,26 +331,29 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
       <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           {isManager ? <ShieldCheck className={`w-4 h-4 ${THEME.icon}`} /> : <FileX className={`w-4 h-4 ${THEME.icon}`} />}
-          <p className={`${THEME.text} text-xs uppercase tracking-widest font-bold`}>{isManager ? "Manager Override Return" : "No Receipt Return"}</p>
+          <p className={`${THEME.text} text-xs uppercase tracking-widest font-bold`}>{cfg.title}</p>
         </div>
         <button onClick={onBack} className="text-blue-300/50 hover:text-blue-300 text-[10px] uppercase tracking-wider flex items-center gap-1"><ArrowLeft className="w-3 h-3" /> Receipt Return</button>
       </div>
 
       {isManager && !managerAuth && (
         <div className={`bg-[#111638] rounded-xl border ${THEME.border} p-4 space-y-3 flex-shrink-0`}>
-          <p className="text-orange-300/80 text-xs">A Manager PIN is required to process a Manager Override Return.</p>
-          <Input type="password" placeholder="Manager PIN" value={managerPin} onChange={e => setManagerPin(e.target.value)} onKeyDown={e => e.key === "Enter" && authorizeManager()} className="bg-[#0a0e27] border-orange-500/20 text-white text-center text-lg tracking-widest" autoFocus />
+          <p className={`${THEME.label} text-xs`}>
+            A {cfg.authRole === "manager" ? "Manager" : "CSM or Manager"} PIN is required to process a {cfg.title}.
+            {!needsCustomerId && " No customer ID will be captured for this return."}
+          </p>
+          <Input type="password" placeholder={cfg.authRole === "manager" ? "Manager PIN" : "CSM / Manager PIN"} value={managerPin} onChange={e => setManagerPin(e.target.value)} onKeyDown={e => e.key === "Enter" && authorizeManager()} className={`bg-[#0a0e27] ${THEME.input} text-white text-center text-lg tracking-widest`} autoFocus />
           {managerError && <p className="text-red-400 text-xs text-center">{managerError}</p>}
-          <Button onClick={authorizeManager} disabled={authorizing || !managerPin} className="w-full bg-orange-600 hover:bg-orange-500 text-white">{authorizing ? "Authorizing..." : "Authorize Manager"}</Button>
+          <Button onClick={authorizeManager} disabled={authorizing || !managerPin} className={`w-full ${THEME.btn}`}>{authorizing ? "Authorizing..." : "Authorize"}</Button>
         </div>
       )}
 
-      {(!isManager || managerAuth) && !customerVerified && !blocked && (
+      {needsCustomerId && (!isManager || managerAuth) && !customerVerified && !blocked && (
         <div className={`bg-[#111638] rounded-xl border ${THEME.border} p-4 space-y-3 flex-shrink-0`}>
           <label className={`${THEME.label} text-[10px] uppercase tracking-wider block`}>Customer ID *</label>
           <Input value={customerId} onChange={e => setCustomerId(e.target.value)} onKeyDown={e => e.key === "Enter" && lookupCustomer()} placeholder="Enter customer ID number" className="bg-[#0a0e27] border-white/10 text-white font-mono" autoFocus />
           <Button onClick={lookupCustomer} disabled={!customerId.trim()} className={`w-full ${THEME.btn}`}>Continue</Button>
-          {isManager && managerAuth && <p className="text-orange-300/60 text-[10px] text-center">Authorized by {managerAuth.full_name}</p>}
+          {isManager && managerAuth && <p className={`${THEME.label} text-[10px] text-center`}>Authorized by {managerAuth.full_name}</p>}
         </div>
       )}
 
@@ -363,15 +369,20 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
         </div>
       )}
 
-      {customerVerified && !blocked && (
+      {readyForItems && (
         <>
           <div className={`bg-[#111638] rounded-xl border ${THEME.border} p-3 flex-shrink-0`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className={`${THEME.label} text-[10px] uppercase tracking-wider`}>Customer ID</p>
-                <p className="text-white font-mono font-bold">{customerId}</p>
+                <p className={`${THEME.label} text-[10px] uppercase tracking-wider`}>{needsCustomerId ? "Customer ID" : "Customer ID Not Required"}</p>
+                <p className="text-white font-mono font-bold">{needsCustomerId ? customerId : "— NO ID —"}</p>
               </div>
-              <button onClick={() => { setCustomerVerified(false); setCustomerId(""); setReturnItems([]); onPreviewChange(null); setPosWarn(""); }} className="text-blue-300/50 hover:text-blue-300 text-[10px] uppercase tracking-wider">Change</button>
+              {needsCustomerId && (
+                <button onClick={() => { setCustomerVerified(false); setCustomerId(""); setReturnItems([]); onPreviewChange(null); setPosWarn(""); }} className="text-blue-300/50 hover:text-blue-300 text-[10px] uppercase tracking-wider">Change</button>
+              )}
+              {!needsCustomerId && managerAuth && (
+                <p className={`${THEME.label} text-[10px]`}>Authorized by {managerAuth.full_name}</p>
+              )}
             </div>
           </div>
 
@@ -431,7 +442,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
             <div className="flex justify-between text-blue-300/50 text-xs"><span>Tax</span><span>−${tax.toFixed(2)}</span></div>
             <div className={`flex justify-between ${THEME.totalText} text-lg font-bold pt-1.5 border-t border-purple-500/10`}><span>REFUND</span><span>${total.toFixed(2)}</span></div>
             <Button onClick={processRefund} disabled={returnItems.length === 0 || processing} className={`w-full ${THEME.btn} font-bold disabled:opacity-40`}>
-              {processing ? "Processing..." : `Process ${isManager ? "Manager Override" : "No-Receipt"} Return — $${total.toFixed(2)}`}
+              {processing ? "Processing..." : `Process ${cfg.title} — $${total.toFixed(2)}`}
             </Button>
           </div>
         </>
