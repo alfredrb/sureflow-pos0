@@ -73,7 +73,7 @@ export default function POSPaymentDialog({
                   <label className="text-blue-300/60 text-[10px] mb-1 block">
                     Amount — leave blank to tender the full balance
                   </label>
-                  <Input value={amountTendered} onChange={e => setAmountTendered(e.target.value)} type="number" step="0.01"
+                  <Input value={amountTendered} onChange={e => setAmountTendered(e.target.value)} type="number" step="0.01" autoFocus
                     className="bg-[#0a0e27] border-blue-500/10 text-white text-xl h-12 text-center" placeholder={balance.toFixed(2)} />
                   <div className="grid grid-cols-4 gap-1 mt-2">
                     {[1, 5, 10, 20, 50, 100].map(v => (

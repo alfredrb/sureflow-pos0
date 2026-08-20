@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Hash } from "lucide-react";
 import { resolveActionCode, ACTION_LABELS } from "@/lib/actionCodeDispatch";
+import { usePinpadKeys } from "@/hooks/usePinpadKeys";
 
 // Same 3x4 keypad layout and key styling as the POS login pinpad.
 const PAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "ENT"];
@@ -20,6 +21,9 @@ export default function POSActionCodeDialog({ open, onClose, codes, storeId, onS
     : { tone: "text-emerald-300", text: `${match.label} · ${ACTION_LABELS[match.action] || match.action}` };
 
   const submit = () => { if (buffer) onSubmit(buffer); };
+
+  // IBM POS keyboard / any USB keyboard drives the same buffer as the on-screen pad.
+  usePinpadKeys({ active: open, value: buffer, setValue: setBuffer, maxLength: 4, onEnter: submit });
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>

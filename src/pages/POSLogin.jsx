@@ -8,6 +8,7 @@ import SelfTimeClock from "@/components/SelfTimeClock";
 import VersionLogDialog from "@/components/VersionLogDialog";
 import POSVersionButton from "@/components/POSVersionButton";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
+import { usePinpadKeys } from "@/hooks/usePinpadKeys";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -226,6 +227,13 @@ export default function POSLogin() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [loginMode, step, operatorId, pin, loading, showConfig, conflict, lunchLockout, showShiftLookup, showTimeClock]);
+
+  // Every secondary pinpad on this screen also takes the physical keyboard.
+  // Only one is ever on screen at a time, so they never share a keystroke.
+  usePinpadKeys({ active: showConfig && !configUnlocked, value: configPin, setValue: setConfigPin, onEnter: handleConfigUnlock });
+  usePinpadKeys({ active: showShiftLookup && !currentOperator, value: shiftLookupPin, setValue: setShiftLookupPin, onEnter: () => handleShiftLookup() });
+  usePinpadKeys({ active: !!conflict, value: overridePin, setValue: setOverridePin, onEnter: () => handleDualLoginOverride(), onClear: () => { setOverridePin(""); setOverrideError(""); } });
+  usePinpadKeys({ active: !!lunchLockout, value: overridePin, setValue: setOverridePin, onEnter: () => handleLunchOverride(), onClear: () => { setOverridePin(""); setOverrideError(""); } });
 
   const handleLogin = async () => {
     setLoading(true);
