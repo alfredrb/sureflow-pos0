@@ -114,6 +114,18 @@ export const pinpadCollectRating = (payload) =>
 export const pinpadCancel = (payload) =>
   relayFetch("/api/pinpad/cancel", { method: "POST", body: JSON.stringify(payload) }, 8000);
 
+// ── Customer pole display (line display) ───────────────────────────────────
+// Fire-and-forget 2×20 frames. DM-D110 poles ride the receipt printer's address
+// (pass-through); the profile key tells the relay which command set to speak.
+
+// Write two display lines: { profile, pole_ip, lines: [line1, line2] }.
+export const poleShow = (payload) =>
+  relayFetch("/api/pole/show", { method: "POST", body: JSON.stringify(payload) }, 6000);
+
+// Return the pole to its idle/welcome message.
+export const poleIdle = (payload) =>
+  relayFetch("/api/pole/idle", { method: "POST", body: JSON.stringify(payload) }, 6000);
+
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
 

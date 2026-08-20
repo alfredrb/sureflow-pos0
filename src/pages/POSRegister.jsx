@@ -66,6 +66,8 @@ import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
 import { collectSaleRating } from "@/lib/pinpadFlow";
 import usePinpadCartMirror from "@/hooks/usePinpadCartMirror";
+import usePoleDisplayMirror from "@/hooks/usePoleDisplayMirror";
+import { showTotalDueOnPole, showChangeOnPole } from "@/lib/poleDisplayFlow";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -101,6 +103,8 @@ export default function POSRegister() {
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
   // Customer-facing Ingenico pinpad on this lane (blank model = no pad fitted).
   const [pinpadConfig, setPinpadConfig] = useState({ pinpad_model: "", pinpad_ip: "" });
+  // Customer pole display on this lane (blank model = no pole fitted).
+  const [poleConfig, setPoleConfig] = useState({ pole_display_model: "", pole_display_ip: "", printer_ip: "" });
   // Supervisor override for function keys
   const [supOverrideDialog, setSupOverrideDialog] = useState(false);
   const [supOverridePin, setSupOverridePin] = useState("");
@@ -345,6 +349,7 @@ export default function POSRegister() {
         if (regs.length > 0) {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
           setPinpadConfig({ pinpad_model: regs[0].pinpad_model || "", pinpad_ip: regs[0].pinpad_ip || "" });
+          setPoleConfig({ pole_display_model: regs[0].pole_display_model || "", pole_display_ip: regs[0].pole_display_ip || "", printer_ip: regs[0].printer_ip || "" });
           setRegisterPaused(regs[0].paused || false);
           // Auto-detect this lane's LAN IP from the store relay (not a public-IP
           // service — that returns the store's WAN address for every register).
@@ -540,6 +545,19 @@ export default function POSRegister() {
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
     cart, subtotal, tax, total,
   });
+
+  // Customer pole display: mirrors the item just rung up and the running total,
+  // and drops back to the welcome screen between customers.
+  const poleContext = usePoleDisplayMirror({
+    poleConfig,
+    registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
+    cart, total,
+  });
+
+  // Tender screen — the pole switches to AMOUNT DUE while payment is taken.
+  useEffect(() => {
+    if (paymentOpen && cart.length > 0) showTotalDueOnPole(poleContext, amountDue);
+  }, [paymentOpen]);
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
@@ -1067,6 +1085,7 @@ export default function POSRegister() {
       const practiceBalance = loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
       const practice = buildReceipt({ ...receiptBase, loyaltyMember, newBalance: practiceBalance });
       toast({ title: "Training Sale Complete", description: `${txId} — Change: $${changeDue.toFixed(2)} (not recorded)` });
+      showChangeOnPole(poleContext, { total, change: changeDue });
       setReceiptData(practice);
       setLastReceipt(practice);
       clearSaleState();
@@ -1087,6 +1106,7 @@ export default function POSRegister() {
       }
       const offlineReceipt = buildReceipt({ ...receiptBase, loyaltyAppliedAmount: 0, rewardsEarned: 0, loyaltyMember: null });
       toast({ title: "Sale Saved Offline", description: `${txId} — will upload when the connection returns.` });
+      showChangeOnPole(poleContext, { total, change: changeDue });
       setReceiptData(offlineReceipt);
       setLastReceipt(offlineReceipt);
       clearSaleState();
@@ -1119,6 +1139,7 @@ export default function POSRegister() {
       setReceiptData(receipt);
       setLastReceipt(receipt);
       clearSaleState();
+      showChangeOnPole(poleContext, { total, change: changeDue });
       // Rating screen runs on the customer pad while the operator hands over the
       // receipt — it stores itself against the sale and never blocks the lane.
       collectSaleRating(pinpadContext, txId);
@@ -1196,6 +1217,7 @@ export default function POSRegister() {
       setReceiptData(receipt);
       setLastReceipt(receipt);
       clearSale();
+      showChangeOnPole(poleContext, { total, change: 0 });
       collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {

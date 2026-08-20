@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
+import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
 import PXEControllerGuide from "@/components/infrastructure/PXEControllerGuide";
 import HardwareLibraryPanel from "@/components/infrastructure/HardwareLibraryPanel";
@@ -17,6 +18,7 @@ const SECTIONS = [
   { id: "relay", label: "Relay Deployment", icon: HardDrive, blurb: "Local Relay VM build: OS, networking, app, printing and telemetry." },
   { id: "check", label: "Cheque Station", icon: FileText, blurb: "MICR reading, endorsement franking, relay cheque routes and hardware diagnostics." },
   { id: "pinpad", label: "Customer Pinpad", icon: PenLine, blurb: "Ingenico signature capture, customer prompts, cart mirror, rating and relay pinpad routes." },
+  { id: "poledisplay", label: "Pole Display", icon: Tv, blurb: "Customer line display: item/total mirror, amount due, change, and the relay pole module (DM-D110 via the printer)." },
   { id: "library", label: "Driver Library", icon: Boxes, blurb: "Per-model driver profiles applied to the diskless image at build time." },
 ];
 
@@ -71,6 +73,7 @@ export default function AdminTechnicalDocs() {
           {active === "check" && <CheckReaderReference />}
           {active === "check" && <CheckStationDiagnostics />}
           {active === "pinpad" && <PinpadReference />}
+          {active === "poledisplay" && <PoleDisplayReference />}
           {active === "library" && <HardwareLibraryPanel />}
         </div>
       </div>

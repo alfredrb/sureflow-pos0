@@ -147,6 +147,24 @@
       "type": "string",
       "description": "Pinpad serial number, for the hardware audit."
     },
+    "pole_display_model": {
+      "type": "string",
+      "enum": [
+        "",
+        "epson_dmd110",
+        "logic_ld9900"
+      ],
+      "default": "",
+      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile the relay uses: epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer (supported today), logic_ld9900 = Logic Controls LD9900 over a serial-device server (profile reserved). Blank = no pole on this lane, and every display update is skipped silently."
+    },
+    "pole_display_ip": {
+      "type": "string",
+      "description": "LAN IP the relay writes pole display frames to. For the DM-D110 leave this blank \u2014 it hangs off the receipt printer's DM-D port and the relay routes through printer_ip. Only set for displays with their own network address (serial-device server)."
+    },
+    "pole_display_serial": {
+      "type": "string",
+      "description": "Pole display serial number, for the hardware audit."
+    },
     "terminal_model": {
       "type": "string",
       "description": "POS terminal / computer make and model (e.g. IBM SurePOS 700, Elo EPS00E2)"
