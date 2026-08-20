@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { printReceipt } from "@/lib/printReceipt";
 import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
+import { normalizeTxId } from "@/lib/txLookupId";
 import { ArrowLeftRight, Search, X, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ export default function ExchangePanel({ operator, products, loadData, toast, onP
   const [verifiedReturnSerials, setVerifiedReturnSerials] = useState({}); // { [index]: serial }
 
   const lookUp = async (idOverride) => {
-    const lookupId = (typeof idOverride === "string" ? idOverride : txId).trim().toUpperCase();
+    const lookupId = normalizeTxId(typeof idOverride === "string" ? idOverride : txId);
     if (!lookupId) return;
     setTxId(lookupId);
     setSearching(true);

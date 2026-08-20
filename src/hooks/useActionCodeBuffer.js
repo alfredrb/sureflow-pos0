@@ -36,8 +36,10 @@ export default function useActionCodeBuffer({ onDispatch, onOpenPad, onEnter, en
         return;
       }
 
-      if (/^[0-9]$/.test(e.key)) {
-        setBuffer(prev => (prev + e.key).slice(0, 20));
+      // Digits cover action codes and UPCs; letters and hyphens let a keyboard-wedge
+      // scanner drop a full transaction number (TX-1A2B3C) straight onto the line.
+      if (/^[0-9A-Za-z-]$/.test(e.key)) {
+        setBuffer(prev => (prev + e.key.toUpperCase()).slice(0, 24));
       } else if (e.key === "Backspace") {
         setBuffer(prev => prev.slice(0, -1));
       } else if (e.key === "Escape") {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
 import { printReceipt } from "@/lib/printReceipt";
 import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
+import { normalizeTxId } from "@/lib/txLookupId";
 import { RotateCcw } from "lucide-react";
 import POSNoReceiptReturn from "@/components/pos/POSNoReceiptReturn";
 import ReturnModeButtons from "@/components/pos/ReturnModeButtons";
@@ -31,7 +32,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
   const [verifiedSerials, setVerifiedSerials] = useState({}); // { [index]: serial }
 
   const lookUp = async (idOverride) => {
-    const lookupId = (typeof idOverride === "string" ? idOverride : returnTxId).trim().toUpperCase();
+    const lookupId = normalizeTxId(typeof idOverride === "string" ? idOverride : returnTxId);
     if (!lookupId) return;
     setReturnTxId(lookupId);
     setSearching(true);
