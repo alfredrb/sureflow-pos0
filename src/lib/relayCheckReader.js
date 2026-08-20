@@ -7,7 +7,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 1";
+const BUILD = "check-reader-build 2";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -22,10 +22,13 @@ const SEL_RECEIPT = ESC + "c0\\x03";
 const WAIT_INSERT = ESC + "f\\x1e\\x0a";   // wait ~30s for the sheet
 const EJECT = "\\x0c";                      // FF — print and eject the cheque
 
-// FS a 0 n — read the MICR line. n=48 reads and keeps the cheque loaded so the
-// same insertion can be franked; the reader answers with the E-13B line then \\r\\n.
-const MICR_READ = FS + "a0" + "\\x30";
-const MICR_CANCEL = FS + "b";               // cancel a pending read and release the cheque
+// FS a n — read the MICR line. n = 0x30 ('0') starts the read; the cheque stays
+// loaded so the same insertion can be franked, and the reader answers with the
+// E-13B line then CR/LF. n = 0x31 ('1') cancels a pending read.
+// NOTE: exactly ONE parameter byte. Sending FS a "0" 0x30 (two bytes) leaves a
+// stray character in the data stream and the reader never answers.
+const MICR_READ = FS + "a" + "\\x30";
+const MICR_CANCEL = FS + "a" + "\\x31";     // cancel a pending read and release the cheque
 
 function resolvePrinter(ip) {
   const target = ip || PRINTER_IPS[0];
@@ -76,7 +79,11 @@ function readMicr(ip, timeoutMs = 45000) {
       }
     });
     sock.connect(PORT, target, () => {
-      sock.write(Buffer.from(INIT + SEL_SLIP + WAIT_INSERT + MICR_READ, "binary"));
+      // No ESC f here: the MICR read command itself waits for the cheque to be
+      // inserted. Prefixing it with the slip-station "wait for paper" command
+      // blocks the printer before the read ever starts, which is why the lane
+      // sat on "reading MICR line" forever and no data came back.
+      sock.write(Buffer.from(INIT + SEL_SLIP + MICR_READ, "binary"));
     });
   });
 }
