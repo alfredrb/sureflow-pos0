@@ -16,23 +16,38 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
   const [micrRaw, setMicrRaw] = useState("");
   const [method, setMethod] = useState("micr_read");
   const [error, setError] = useState("");
+  // The reader holds its socket open until a cheque is inserted, so the read can
+  // sit for up to ~45s. This lets the operator bail out immediately instead of
+  // being stuck on the waiting screen.
+  const cancelledRef = React.useRef(false);
 
   const reset = () => {
+    cancelledRef.current = false;
     setStep("insert"); setError(""); setMicrRaw(""); setMethod("micr_read");
     setFields({ routing: "", account: "", check_number: "", customer_name: "", customer_id: "" });
   };
 
   const set = (k, v) => setFields(f => ({ ...f, [k]: v }));
 
+  const cancelRead = async () => {
+    cancelledRef.current = true;
+    setMethod("manual");
+    setError("Reader cancelled — key the cheque numbers from the MICR line.");
+    setStep("review");
+    try { await ejectCheck(context.printer_ip); } catch (e) { /* nothing loaded */ }
+  };
+
   const read = async () => {
-    setError(""); setStep("reading");
+    setError(""); cancelledRef.current = false; setStep("reading");
     try {
       const out = await readCheckMicr(context.printer_ip);
+      if (cancelledRef.current) return;
       const parsed = parseMicr(out.micr);
       setMicrRaw(out.micr); setMethod("micr_read");
       setFields(f => ({ ...f, routing: parsed.routing, account: parsed.account, check_number: parsed.check_number }));
       setStep("review");
     } catch (e) {
+      if (cancelledRef.current) return;
       setError(e.message || "Cheque reader did not respond.");
       setMethod("manual");
       setStep("review");
@@ -118,7 +133,14 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
         )}
 
         {step === "reading" && (
-          <p className="text-amber-300 text-xs text-center py-6 animate-pulse">Waiting for cheque — reading MICR line...</p>
+          <div className="space-y-3 text-center py-4">
+            <p className="text-amber-300 text-xs animate-pulse">Waiting for cheque — reading MICR line...</p>
+            <p className="text-blue-300/50 text-[10px]">The reader waits up to 45 seconds for the cheque. If it does not pick up the MICR line, cancel and key it in.</p>
+            <Button variant="outline" onClick={cancelRead}
+              className="w-full h-10 border-blue-500/30 text-blue-200 hover:bg-blue-500/10 text-xs">
+              Cancel Read — Key Manually
+            </Button>
+          </div>
         )}
 
         {step === "review" && (
