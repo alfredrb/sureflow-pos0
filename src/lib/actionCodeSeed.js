@@ -8,7 +8,8 @@
 
 export const ACTION_CODE_SEED = [
   // ── Mapped to live SureFlow functions ──────────────────────────────────────
-  { code: 1,   label: "Void Previous Transaction", action: "void_transaction",     requires_role: "csm",     status: "active",      notes: "AC_VOID_PREVIOUS_TRANS" },
+  { code: 1,   label: "Void Previous Transaction", action: "void_cash_transaction", requires_role: "manager", status: "active",      notes: "AC_VOID_PREVIOUS_TRANS — pulls a completed CASH sale back out of the books. Current shift only, manager approval, void slip prints." },
+  { code: 13,  label: "Abort Transaction",         action: "abort_transaction",    requires_role: "none",    status: "active",      notes: "Clears the in-progress sale before tender (formerly mapped to void_transaction)" },
   { code: 2,   label: "Void Item",                 action: "void_item",            requires_role: "none",    status: "active",      notes: "Voids the last item on the sale" },
   { code: 3,   label: "Quantity Entry",            action: "quantity",             requires_role: "none",    status: "active",      notes: "Sets quantity on the last item" },
   { code: 4,   label: "Tax Exempt",                action: "tax_exempt",           requires_role: "csm",     status: "active",      notes: "AC_TAX_EXEMPT" },

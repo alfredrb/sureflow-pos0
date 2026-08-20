@@ -43,6 +43,15 @@
       "type": "boolean",
       "default": false
     },
+    "transaction_code_format": {
+      "type": "string",
+      "enum": [
+        "barcode",
+        "qr"
+      ],
+      "default": "barcode",
+      "description": "How the transaction number is printed on receipts and scannable slips. barcode = CODE128 (1D); qr = QR code, which the Zebra DS4308 2D imager reads and which survives creased or photographed receipts better."
+    },
     "show_discounts": {
       "type": "boolean",
       "default": true,

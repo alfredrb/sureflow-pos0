@@ -18,7 +18,7 @@ export default function AdminReceipt() {
       const configs = await base44.entities.ReceiptConfig.list();
       if (configs.length > 0) { setConfig(configs[0]); setConfigId(configs[0].id); }
       else {
-        const defaults = { store_name: "My Store", store_address: "", store_phone: "", header_line_1: "", header_line_2: "", footer_line_1: "Thank you!", footer_line_2: "", show_operator_name: true, show_date_time: true, show_register_id: true, show_tax_breakdown: true, show_barcode: false, show_discounts: true };
+        const defaults = { store_name: "My Store", store_address: "", store_phone: "", header_line_1: "", header_line_2: "", footer_line_1: "Thank you!", footer_line_2: "", show_operator_name: true, show_date_time: true, show_register_id: true, show_tax_breakdown: true, show_barcode: false, transaction_code_format: "barcode", show_discounts: true };
         setConfig(defaults);
       }
       setLoading(false);
@@ -77,6 +77,29 @@ export default function AdminReceipt() {
                 <Switch checked={config[opt.key]} onCheckedChange={v => setConfig({ ...config, [opt.key]: v })} />
               </div>
             ))}
+
+            <div className={config.show_barcode === false ? "opacity-40 pointer-events-none" : ""}>
+              <label className="text-sm text-gray-700 block mb-1">Transaction Code Format</label>
+              <p className="text-xs text-gray-500 mb-2">Both formats scan on the lane's 2D imager. QR holds up better on creased or photographed receipts; CODE128 matches legacy slips.</p>
+              <div className="flex gap-2">
+                {[
+                  { v: "barcode", label: "Barcode (CODE128)" },
+                  { v: "qr", label: "QR Code" },
+                ].map(o => (
+                  <button
+                    key={o.v}
+                    onClick={() => setConfig({ ...config, transaction_code_format: o.v })}
+                    className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${
+                      (config.transaction_code_format || "barcode") === o.v
+                        ? "bg-blue-600 border-blue-600 text-white"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

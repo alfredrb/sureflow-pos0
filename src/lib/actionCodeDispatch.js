@@ -3,7 +3,8 @@
 // button behave identically.
 
 export const ACTION_LABELS = {
-  void_item: "Void Item", void_transaction: "Void Transaction",
+  void_item: "Void Item", abort_transaction: "Abort Transaction",
+  void_cash_transaction: "Void Cash Transaction", void_transaction: "Abort Transaction (legacy)",
   discount_item: "Discount Item", discount_total: "Discount Total",
   price_check: "Price Check", no_sale: "No Sale", subtotal: "Subtotal",
   tax_exempt: "Tax Exempt", price_override: "Price Override", quantity: "Quantity",

@@ -9,7 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 
 const actions = [
-  { value: "void_item", label: "Void Item" }, { value: "void_transaction", label: "Void Transaction" },
+  { value: "void_item", label: "Void Item" },
+  { value: "abort_transaction", label: "Abort Transaction (clears sale before tender)" },
+  { value: "void_cash_transaction", label: "Void Cash Transaction (completed cash sale — Manager)" },
+  { value: "void_transaction", label: "Abort Transaction (legacy)" },
   { value: "discount_item", label: "Discount Item" }, { value: "discount_total", label: "Discount Total" },
   { value: "price_check", label: "Price Check" }, { value: "no_sale", label: "No Sale" },
   { value: "subtotal", label: "Subtotal" }, { value: "tax_exempt", label: "Tax Exempt" },

@@ -122,7 +122,31 @@
         "refunded",
         "exchanged"
       ],
-      "default": "completed"
+      "default": "completed",
+      "description": "voided = a completed cash sale pulled back out of the books by a manager-approved cash void. Voided sales are excluded from revenue, EOD and all financial roll-ups but retained for Loss Prevention."
+    },
+    "voided_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the cash void was performed at the register."
+    },
+    "voided_by_operator_id": {
+      "type": "string",
+      "description": "Operator who ran the cash void."
+    },
+    "voided_by_operator_name": {
+      "type": "string"
+    },
+    "void_approved_by_operator_id": {
+      "type": "string",
+      "description": "Manager who approved the cash void (the slip's APPROVED BY signature)."
+    },
+    "void_approved_by_operator_name": {
+      "type": "string"
+    },
+    "void_reason": {
+      "type": "string",
+      "description": "Reason the sale was voided, entered at the register and printed on the void slip."
     },
     "refund_type": {
       "type": "string",

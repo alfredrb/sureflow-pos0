@@ -12,6 +12,8 @@
       "type": "string",
       "enum": [
         "void_item",
+        "abort_transaction",
+        "void_cash_transaction",
         "void_transaction",
         "discount_item",
         "discount_total",
@@ -28,7 +30,8 @@
         "reprint_receipt",
         "none"
       ],
-      "default": "none"
+      "default": "none",
+      "description": "abort_transaction clears the in-progress sale before tender. void_cash_transaction pulls a COMPLETED cash sale back out of the books (manager approval, current shift only). void_transaction is the legacy name for abort_transaction and is kept so existing keys keep working."
     },
     "color": {
       "type": "string",

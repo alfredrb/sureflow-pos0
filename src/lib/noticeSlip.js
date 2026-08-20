@@ -32,7 +32,10 @@ export async function printNoticeSlip(notice, operator) {
   const registerNum = sessionStorage.getItem("pos_register_num") || "";
   const regs = registerNum ? await base44.entities.Register.filter({ register_id: registerNum }) : [];
   const settings = (await base44.entities.StoreSettings.list())[0] || {};
+  // Slips honour the Receipt Customizer's barcode/QR choice too.
+  const receiptConfig = (await base44.entities.ReceiptConfig.list())[0] || null;
   await printReceipt({
+    storeConfig: receiptConfig,
     docType: "notice",
     notice,
     transactionId: notice?.barcode || "",

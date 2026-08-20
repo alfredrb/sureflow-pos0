@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Hash } from "lucide-react";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
-const NON_SALE_ACTIONS = ["void_item", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
+const NON_SALE_ACTIONS = ["void_item", "abort_transaction", "void_cash_transaction", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
 const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [

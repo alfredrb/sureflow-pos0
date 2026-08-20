@@ -42,6 +42,7 @@ export default function ReceiptPreview4690({ config }) {
     amount_tendered: 20,
     change_due: on.tax_exempt ? 5.04 : 4.48,
     transaction_id: "TXN-000123",
+    code_format: config.transaction_code_format || "barcode",
     date: new Date().toLocaleString(),
     giftcard_notice: !!on.giftcard,
     tax_exempt: on.tax_exempt ? { tax_exempt_id: "TX-55921", name: "Northside School Dist" } : null,
@@ -76,9 +77,10 @@ export default function ReceiptPreview4690({ config }) {
             if (t.type === "big") return <div key={i} className="text-center text-[13px] font-bold">{t.text}</div>;
             if (t.type === "center") return <div key={i} className="text-center">{t.text}</div>;
             if (t.type === "barcode") {
-              return config.show_barcode === false ? null : (
+              if (config.show_barcode === false) return null;
+              return (
                 <div key={i} className="text-center my-1">
-                  <div className="inline-block bg-gray-300 h-7 w-28 rounded" />
+                  <div className={`inline-block bg-gray-300 rounded ${t.format === "qr" ? "h-14 w-14" : "h-7 w-28"}`} />
                   <div>{t.text}</div>
                 </div>
               );

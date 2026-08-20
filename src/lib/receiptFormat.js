@@ -46,6 +46,10 @@ export const itemLine = (item, taxExempt) => {
 export function buildReceiptTokens(r) {
   const t = [];
   const push = (type, text) => t.push({ type, text });
+  // The transaction number prints either as CODE128 or as a QR code, per the
+  // Receipt Customizer. Both are readable by the lane's 2D imager.
+  const pushCode = (text) =>
+    t.push({ type: "barcode", text, format: r.code_format === "qr" ? "qr" : "code128" });
 
   push("big", (r.store_name || "Store").toUpperCase());
   for (const l of [r.header_line_1, r.store_address, r.store_phone]) {
@@ -79,7 +83,7 @@ export function buildReceiptTokens(r) {
     push("center", `OPERATOR ${String(r.operator_name || "").toUpperCase()}`);
     push("center", r.date || new Date().toLocaleString());
     // Scannable slips (suspended sales) carry a barcode the POS can read back.
-    if (n.barcode) push("barcode", n.barcode);
+    if (n.barcode) pushCode(n.barcode);
     push("blank");
     push("center", n.footer || "***MAINTENANCE NOTICE***");
     return t;
@@ -145,7 +149,7 @@ export function buildReceiptTokens(r) {
 
   const count = (r.items || []).reduce((s, i) => s + Number(i.qty || 0), 0);
   push("center", `# ITEMS ${r.doc_type === "return" ? "RETURNED" : "SOLD"} ${count}`);
-  push("barcode", r.transaction_id || "");
+  pushCode(r.transaction_id || "");
 
   if (r.giftcard_notice) {
     push("center", "GIFT CARDS NOT REFUNDABLE");

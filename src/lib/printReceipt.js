@@ -16,6 +16,8 @@ export function buildReceiptPayload(p) {
     notice: p.notice || null,
     open_drawer: p.openDrawer ?? p.paymentMethod === "cash",
     transaction_id: p.transactionId,
+    // barcode (CODE128) or qr — set in the Receipt Customizer.
+    code_format: p.storeConfig?.transaction_code_format || "barcode",
     date: p.date ? new Date(p.date).toLocaleString() : new Date().toLocaleString(),
     register_name: p.registerName,
     operator_name: p.operatorName,

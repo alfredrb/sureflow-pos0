@@ -55,6 +55,10 @@ import { usePosLunchState } from "@/hooks/usePosLunchState";
 import { makeSuspendId, createSuspendRecord, claimSuspendRecord } from "@/lib/posSuspend";
 import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
 import { buildReceipt, commitSaleTransaction, lookupGiftCardTender, commitGiftCardSale } from "@/lib/posSaleCommit";
+import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
+import { commitCashVoid } from "@/lib/posVoidSale";
+import { printVoidSlip } from "@/lib/voidSlip";
+import { logAuditEvent } from "@/lib/auditLogger";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -69,6 +73,7 @@ export default function POSRegister() {
   // Virtual CSM key — while set, CSM-level actions run without a per-action PIN.
   const [csmApproval, setCsmApproval] = useState(null); // { operator_id, name, role }
   const [resumeOpen, setResumeOpen] = useState(false);
+  const [voidCashOpen, setVoidCashOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [amountTendered, setAmountTendered] = useState("");
@@ -240,6 +245,9 @@ export default function POSRegister() {
     if (!op) { navigate("/pos/login"); return; }
     const parsed = JSON.parse(op);
     setOperator(parsed);
+    // Cash voids are limited to the current shift — the lane session start is
+    // that boundary, so it is stamped once when the operator signs on.
+    if (!sessionStorage.getItem("pos_shift_start")) sessionStorage.setItem("pos_shift_start", new Date().toISOString());
     if (parsed.role === "technician") { setTrainingMode(true); setTrainingLocked(true); }
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     
@@ -491,7 +499,15 @@ export default function POSRegister() {
 
   const executeFunctionKey = (fkey) => {
     switch (fkey.action) {
-      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0); writeLog("void", "Entire transaction voided"); break;
+      // Abort clears the in-progress sale before tender. "void_transaction" is the
+      // legacy name for the same thing, kept so existing keys/codes keep working.
+      case "abort_transaction":
+      case "void_transaction": setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0); writeLog("void", "Transaction aborted before tender"); break;
+      // Void a COMPLETED cash sale from this shift — manager approval required.
+      case "void_cash_transaction":
+        if (cart.length > 0) { toast({ title: "Finish The Sale First", description: "Abort or tender the sale in progress before voiding a completed transaction.", variant: "destructive" }); break; }
+        setVoidCashOpen(true);
+        break;
       case "void_item":
         if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); writeLog("void", `Item voided: ${voided.name}`); }
         break;
@@ -689,6 +705,30 @@ export default function POSRegister() {
     writeLog("override", `Transaction suspended — ${suspendId} · ${itemCount} item(s) · $${total.toFixed(2)}`);
     toast({ title: "Sale Suspended", description: `${suspendId} — give the printed slip to the customer.` });
     setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+  };
+
+  // Manager-approved void of a completed cash sale: out of the books, stock back
+  // on hand, rewards reversed, drawer overage flagged, slip printed.
+  const handleCashVoid = async (tx, manager, reason) => {
+    await commitCashVoid({ tx, operator, manager, reason });
+    setVoidCashOpen(false);
+    printVoidSlip({ tx, manager, operator, reason }).catch(() => {});
+    writeLog("void", `Cash transaction voided — ${tx.transaction_id} · $${Number(tx.total || 0).toFixed(2)} · approved by ${manager.full_name}${reason ? ` · ${reason}` : ""}`, {
+      transaction_id: tx.transaction_id,
+      transaction_total: tx.total,
+      override_operator_id: manager.operator_id,
+      override_operator_name: manager.full_name,
+      override_action: "Void Cash Transaction",
+    });
+    logAuditEvent({
+      action: "Voided Cash Transaction",
+      category: "register",
+      description: `${tx.transaction_id} ($${Number(tx.total || 0).toFixed(2)}) voided on ${tx.register_id} by ${operator?.full_name}, approved by ${manager.full_name}. Stock restored, rewards reversed, drawer overage flagged.${reason ? ` Reason: ${reason}` : ""}`,
+      page: "/pos/register",
+      actor: manager,
+    });
+    toast({ title: "Transaction Voided", description: `${tx.transaction_id} — return $${Number(tx.total || 0).toFixed(2)} to the customer.` });
+    loadData();
   };
 
   const resumeSuspended = async (rec) => {
@@ -1623,6 +1663,16 @@ export default function POSRegister() {
         codes={actionCodes}
         storeId={sessionStorage.getItem("pos_store_id") || ""}
         onSubmit={handleActionCode}
+      />
+
+      {/* Void a completed cash sale from this shift (manager approval) */}
+      <POSVoidCashDialog
+        open={voidCashOpen}
+        onClose={() => setVoidCashOpen(false)}
+        registerId={sessionStorage.getItem("pos_register_num") || "REG-001"}
+        operator={operator}
+        shiftStart={sessionStorage.getItem("pos_shift_start")}
+        onConfirmed={handleCashVoid}
       />
 
       {/* Price inquiry — look up an item's price without adding it to the sale */}
