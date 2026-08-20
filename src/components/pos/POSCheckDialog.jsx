@@ -6,6 +6,7 @@ import { FileText, ScanLine, ShieldCheck, AlertTriangle } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { readCheckMicr, frankCheck, ejectCheck } from "@/lib/relayClient";
 import { parseMicr, validateCheck, last4 } from "@/lib/checkMicr";
+import { findActiveBlock, blockReasonLabel } from "@/lib/checkBlockList";
 
 // 4690 cheque tender: insert the cheque, the TM-H6000 reads the MICR line, the
 // operator confirms the numbers, the register franks the back "FOR DEPOSIT ONLY"
@@ -16,6 +17,8 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
   const [micrRaw, setMicrRaw] = useState("");
   const [method, setMethod] = useState("micr_read");
   const [error, setError] = useState("");
+  const [blocked, setBlocked] = useState(null);
+  const [checking, setChecking] = useState(false);
   // The reader holds its socket open until a cheque is inserted, so the read can
   // sit for up to ~45s. This lets the operator bail out immediately instead of
   // being stuck on the waiting screen.
@@ -23,7 +26,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
 
   const reset = () => {
     cancelledRef.current = false;
-    setStep("insert"); setError(""); setMicrRaw(""); setMethod("micr_read");
+    setStep("insert"); setError(""); setBlocked(null); setChecking(false); setMicrRaw(""); setMethod("micr_read");
     setFields({ routing: "", account: "", check_number: "", customer_name: "", customer_id: "" });
   };
 
@@ -67,7 +70,20 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
   const accept = async () => {
     const problem = validateCheck(fields);
     if (problem) { setError(problem); return; }
-    setError(""); setStep("franking");
+    // Block list is checked on the account, after the numbers are settled and
+    // before anything is franked — a blocked writer must not get an endorsed cheque.
+    setError(""); setChecking(true);
+    let block = null;
+    try {
+      block = await findActiveBlock({ routing: fields.routing, account: fields.account });
+    } catch (e) { /* list unavailable — do not hold up the lane */ }
+    setChecking(false);
+    if (block) {
+      setBlocked(block);
+      setError(`CHEQUE REFUSED — writer is on the block list (${blockReasonLabel(block.reason)}). Take another tender.`);
+      return;
+    }
+    setStep("franking");
     const record = {
       check_number: fields.check_number,
       routing_number: fields.routing,
@@ -110,7 +126,10 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
         check_number: fields.check_number, routing_number: fields.routing,
         account_number: fields.account, account_last4: last4(fields.account), micr_raw: micrRaw,
         entry_method: method, amount: Number(amount || 0), verified: false, status: "declined",
-        decline_reason: error || "Refused at register", register_id: context.register_id || "",
+        decline_reason: blocked
+          ? `Block list — ${blockReasonLabel(blocked.reason)}${blocked.customer_name ? ` (${blocked.customer_name})` : ""}`
+          : error || "Refused at register",
+        register_id: context.register_id || "",
         operator_id: context.operator_id || "", operator_name: context.operator_name || "",
         store_id: context.store_id || "", training_mode: !!context.training_mode,
       });
@@ -161,6 +180,16 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
                 <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> {error}
               </p>
             )}
+            {blocked && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2.5">
+                <p className="text-red-300 text-[11px] font-bold uppercase tracking-wider">Cheque tender blocked</p>
+                <p className="text-red-200/80 text-[10px] mt-1 leading-snug">
+                  {blocked.customer_name ? `${blocked.customer_name} — ` : ""}{blockReasonLabel(blocked.reason)}
+                  {blocked.source_check_number ? ` · cheque ${blocked.source_check_number}` : ""}
+                </p>
+                <p className="text-red-200/60 text-[10px] mt-1">This cheque cannot be accepted. Refuse it and take cash or card.</p>
+              </div>
+            )}
             {micrRaw && <p className="text-blue-300/50 text-[10px] font-mono break-all">MICR {micrRaw}</p>}
             {[["routing", "Routing (ABA)"], ["account", "Account Number"], ["check_number", "Cheque Number"],
               ["customer_name", "Writer Name"], ["customer_id", "ID Presented"]].map(([k, label]) => (
@@ -173,8 +202,9 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
             <div className="flex gap-2 pt-1">
               <Button variant="outline" onClick={decline}
                 className="flex-1 h-10 border-red-500/30 text-red-300 hover:bg-red-500/10 text-xs">Refuse Cheque</Button>
-              <Button onClick={accept} className="flex-1 h-10 bg-green-600 hover:bg-green-500 font-bold text-xs gap-1">
-                <ShieldCheck className="w-4 h-4" /> Accept & Frank
+              <Button onClick={accept} disabled={!!blocked || checking}
+                className="flex-1 h-10 bg-green-600 hover:bg-green-500 font-bold text-xs gap-1 disabled:opacity-40">
+                <ShieldCheck className="w-4 h-4" /> {checking ? "Checking..." : blocked ? "Blocked" : "Accept & Frank"}
               </Button>
             </div>
           </div>

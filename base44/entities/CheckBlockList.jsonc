@@ -1,0 +1,112 @@
+{
+  "name": "CheckBlockList",
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string",
+      "description": "Cheque writer being refused. Shown to the operator when the register blocks the tender."
+    },
+    "routing_number": {
+      "type": "string",
+      "description": "9-digit ABA routing number of the blocked account. Matched together with account_last4 when the full account number is not on file."
+    },
+    "account_number": {
+      "type": "string",
+      "description": "Full bank account number of the blocked account. When present this is the primary match \u2014 any cheque drawn on this account is refused."
+    },
+    "account_last4": {
+      "type": "string",
+      "description": "Last four digits of the blocked account, safe to display at the register and in the admin list."
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "ID (driver licence / state ID) recorded for the blocked writer, if one was presented."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "returned_nsf",
+        "written_off",
+        "stop_payment",
+        "fraud",
+        "repeat_offender",
+        "manager_request",
+        "other"
+      ],
+      "default": "returned_nsf",
+      "description": "Why this writer is refused. Printed in the operator-facing refusal message."
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "returned_cheque",
+        "written_off"
+      ],
+      "default": "manual",
+      "description": "manual = added by hand in the cheque register; returned_cheque / written_off = raised from a cheque in the ledger."
+    },
+    "source_check_id": {
+      "type": "string",
+      "description": "CheckPayment record this block was raised from, when it came out of the ledger."
+    },
+    "source_check_number": {
+      "type": "string",
+      "description": "Cheque number that triggered the block, for reference in the admin list."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "lifted"
+      ],
+      "default": "active",
+      "description": "Only active entries are enforced at the register. Lifted entries are retained as history."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text detail for the back office (amount owed, collection status, court reference)."
+    },
+    "added_by": {
+      "type": "string",
+      "description": "Admin who added the block."
+    },
+    "lifted_by": {
+      "type": "string",
+      "description": "Admin who lifted the block."
+    },
+    "lifted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lift_reason": {
+      "type": "string",
+      "description": "Why the block was lifted (debt settled, wrong account, cheque cleared on re-presentment)."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number that raised the block. Blank = enforced chain-wide."
+    }
+  },
+  "required": [
+    "reason"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

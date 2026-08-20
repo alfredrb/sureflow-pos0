@@ -13,7 +13,8 @@ const STATUS_STYLES = {
 
 // Cheque ledger rows. Status transitions are driven from the parent so the
 // audit-logged update lives in one place.
-export default function CheckRegisterTable({ checks, onSetStatus, busyId }) {
+export default function CheckRegisterTable({ checks, onSetStatus, onBlockWriter, blockedAccounts = [], busyId }) {
+  const isBlocked = (c) => blockedAccounts.includes(String(c.account_last4 || ""));
   if (!checks.length) {
     return <p className="py-10 text-center text-sm text-blue-300/50">No cheques recorded.</p>;
   }
@@ -85,6 +86,15 @@ export default function CheckRegisterTable({ checks, onSetStatus, busyId }) {
                         onClick={() => onSetStatus(c, "written_off")}
                         className="h-7 border-purple-500/30 px-2 text-[10px] text-purple-300 hover:bg-purple-500/10">Write Off</Button>
                     </>
+                  )}
+                  {(c.status === "returned" || c.status === "written_off") && (
+                    isBlocked(c) ? (
+                      <span className="inline-flex h-7 items-center px-2 text-[10px] text-red-300/70">Writer blocked</span>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled={busyId === c.id}
+                        onClick={() => onBlockWriter?.(c)}
+                        className="h-7 border-red-500/40 px-2 text-[10px] text-red-300 hover:bg-red-500/10">Block Writer</Button>
+                    )
                   )}
                 </div>
               </td>

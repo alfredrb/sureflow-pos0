@@ -7,6 +7,8 @@ import { Banknote, RefreshCw } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLogger";
 import CheckRegisterStats from "@/components/checks/CheckRegisterStats";
 import CheckRegisterTable from "@/components/checks/CheckRegisterTable";
+import CheckBlockListPanel from "@/components/checks/CheckBlockListPanel";
+import { blockReasonLabel } from "@/lib/checkBlockList";
 
 const FILTERS = ["all", "accepted", "returned", "represented", "cleared", "written_off", "declined"];
 
@@ -18,12 +20,47 @@ export default function AdminCheckRegister() {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [blocks, setBlocks] = useState([]);
+  const [blockRefresh, setBlockRefresh] = useState(0);
 
   const load = async () => {
     setLoading(true);
-    const list = await base44.entities.CheckPayment.list("-created_date", 500);
+    const [list, blockList] = await Promise.all([
+      base44.entities.CheckPayment.list("-created_date", 500),
+      base44.entities.CheckBlockList.filter({ status: "active" }),
+    ]);
     setChecks(list.filter((c) => !c.training_mode));
+    setBlocks(blockList);
     setLoading(false);
+  };
+
+  // Raising a block straight off a bounced cheque — the ledger only keeps the last
+  // four of the account, so the block matches on routing + last four at the lane.
+  const handleBlockWriter = async (check) => {
+    setBusyId(check.id);
+    const reason = check.status === "written_off" ? "written_off" : "returned_nsf";
+    await base44.entities.CheckBlockList.create({
+      customer_name: check.customer_name || "",
+      routing_number: check.routing_number || "",
+      account_last4: check.account_last4 || "",
+      customer_id: check.customer_id || "",
+      reason,
+      source: check.status === "written_off" ? "written_off" : "returned_cheque",
+      source_check_id: check.id,
+      source_check_number: check.check_number || "",
+      status: "active",
+      store_id: check.store_id || "",
+    });
+    await logAuditEvent({
+      action: "Blocked Cheque Writer From Ledger",
+      category: "operator",
+      description: `${check.customer_name || "Account ***" + (check.account_last4 || "")} blocked from paying by cheque after cheque ${check.check_number} — ${blockReasonLabel(reason)}. Every lane will now refuse cheques drawn on this account.`,
+      page: "/admin/check-register",
+      changes: [{ field: "block_list", from: "not blocked", to: `active (${reason})` }],
+    });
+    setBusyId(null);
+    setBlockRefresh((n) => n + 1);
+    load();
   };
 
   useEffect(() => { load(); }, []);
@@ -91,9 +128,12 @@ export default function AdminCheckRegister() {
         <CardContent>
           {loading
             ? <p className="py-10 text-center text-sm text-blue-300/50">Loading cheques…</p>
-            : <CheckRegisterTable checks={visible} onSetStatus={handleSetStatus} busyId={busyId} />}
+            : <CheckRegisterTable checks={visible} onSetStatus={handleSetStatus} onBlockWriter={handleBlockWriter}
+                blockedAccounts={blocks.map((b) => String(b.account_last4 || ""))} busyId={busyId} />}
         </CardContent>
       </Card>
+
+      <CheckBlockListPanel refreshKey={blockRefresh} />
     </div>
   );
 }
