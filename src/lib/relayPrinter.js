@@ -18,10 +18,14 @@ const CUT = GS + "V\\x42\\x00";
 // Slip station (front insert slot) — used for chits and for printing a receipt on a
 // blank sheet when the receipt roll is out. 40 columns, impact, no cutter.
 const SLIP_WIDTH = Number(process.env.SLIP_WIDTH || 40);
-const SEL_SLIP = ESC + "c0\\x02";              // select slip station
-const SEL_RECEIPT = ESC + "c0\\x01";           // back to the receipt roll
-const WAIT_INSERT = ESC + "f\\x00\\x1e";       // wait for the operator to insert paper (~30s)
-const EJECT = ESC + "q";                        // release / eject the sheet
+const SEL_SLIP = ESC + "c0\\x02";              // ESC c 0 2 — print on the slip station
+const SEL_RECEIPT = ESC + "c0\\x01";           // ESC c 0 1 — back to the receipt roll
+const SEL_SLIP_CMD = ESC + "c1\\x02";          // ESC c 1 2 — apply line settings to the slip
+const SEL_RECEIPT_CMD = ESC + "c1\\x01";
+// ESC f t1 t2 — t1 is the insertion WAIT time (seconds), t2 the detection wait.
+// t1 must be non-zero or the printer gives up instantly and never waits for the sheet.
+const WAIT_INSERT = ESC + "f\\x1e\\x0a";       // wait ~30s for the operator to insert paper
+const EJECT = "\\x0c";                          // FF — print and eject the cut sheet
 // Drawer kick: pin 2, 100ms on / 200ms off. Some drawers are wired to pin 5 (p=1).
 const KICK = ESC + "p\\x00\\x32\\x64";
 
@@ -166,7 +170,7 @@ function buildSlip(r) {
     const t = String(s == null ? "" : s).slice(0, w);
     return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
-  let o = INIT + SEL_SLIP + WAIT_INSERT;
+  let o = INIT + SEL_SLIP + SEL_SLIP_CMD + WAIT_INSERT;
   o += ctr(String(r.store_name || "Store").toUpperCase());
   if (r.store_phone) o += ctr(r.store_phone);
   o += ctr("ST# " + (r.store_number || "0000") + " OP# " + (r.operator_pin || "") +
@@ -192,7 +196,7 @@ function buildSlip(r) {
   if (r.transaction_id) o += ctr("TX " + r.transaction_id);
   o += ctr(r.date || new Date().toLocaleString());
   o += ctr(r.slip_note || "***SLIP COPY***") + "\\n";
-  o += EJECT + SEL_RECEIPT;
+  o += EJECT + SEL_RECEIPT + SEL_RECEIPT_CMD;
   return o;
 }
 
