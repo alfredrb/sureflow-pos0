@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench, MessageSquare } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
 import VersionLogDialog from "@/components/VersionLogDialog";
@@ -45,6 +45,9 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           </button>
           <button onClick={() => { setFeedbackOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             <MessageSquare className="w-4 h-4" /> Feedback
+          </button>
+          <button onClick={() => window.location.reload()} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
+            <RefreshCw className="w-4 h-4" /> Refresh POS Screen
           </button>
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM
