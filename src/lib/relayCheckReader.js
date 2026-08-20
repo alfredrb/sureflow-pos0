@@ -7,7 +7,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 2";
+const BUILD = "check-reader-build 3";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -22,13 +22,17 @@ const SEL_RECEIPT = ESC + "c0\\x03";
 const WAIT_INSERT = ESC + "f\\x1e\\x0a";   // wait ~30s for the sheet
 const EJECT = "\\x0c";                      // FF — print and eject the cheque
 
-// FS a n — read the MICR line. n = 0x30 ('0') starts the read; the cheque stays
-// loaded so the same insertion can be franked, and the reader answers with the
-// E-13B line then CR/LF. n = 0x31 ('1') cancels a pending read.
-// NOTE: exactly ONE parameter byte. Sending FS a "0" 0x30 (two bytes) leaves a
-// stray character in the data stream and the reader never answers.
-const MICR_READ = FS + "a" + "\\x30";
-const MICR_CANCEL = FS + "a" + "\\x31";     // cancel a pending read and release the cheque
+// Cheque-station command family (1C 61 xx). These are the ONLY commands the
+// printer accepts while MICR mode is active — anything else makes it eject the
+// cheque and drop out of MICR mode, which is why the read must be sent on its own.
+//   FS a 0 n  (1C 61 30 n) — read the cheque MICR line. n is REQUIRED; 0x30 waits
+//                            for the cheque, reads E-13B, and keeps it loaded.
+//   FS a 1    (1C 61 31)   — load the cheque to the print starting position
+//                            (used before franking the back).
+//   FS a 2    (1C 61 32)   — eject the cheque.
+const MICR_READ = FS + "a0" + "\\x30";
+const LOAD_CHECK = FS + "a\\x31";
+const EJECT_CHECK = FS + "a\\x32";
 
 function resolvePrinter(ip) {
   const target = ip || PRINTER_IPS[0];
@@ -63,7 +67,7 @@ function readMicr(ip, timeoutMs = 45000) {
       fn(arg);
     };
     const timer = setTimeout(() => {
-      try { sock.write(Buffer.from(MICR_CANCEL, "binary")); } catch (e) {}
+      try { sock.write(Buffer.from(EJECT_CHECK, "binary")); } catch (e) {}
       finish(reject, new Error("No cheque inserted / MICR read timed out"));
     }, timeoutMs);
 
@@ -79,11 +83,12 @@ function readMicr(ip, timeoutMs = 45000) {
       }
     });
     sock.connect(PORT, target, () => {
-      // No ESC f here: the MICR read command itself waits for the cheque to be
-      // inserted. Prefixing it with the slip-station "wait for paper" command
-      // blocks the printer before the read ever starts, which is why the lane
-      // sat on "reading MICR line" forever and no data came back.
-      sock.write(Buffer.from(INIT + SEL_SLIP + MICR_READ, "binary"));
+      // Reset first, THEN send the read on its own. No ESC f wait-for-paper and no
+      // paper-source select in front of it: FS a 0 waits for the cheque itself, and
+      // any non-cheque command issued once MICR mode is armed makes the printer
+      // abandon the read — that is why the lane sat on "reading MICR line" forever.
+      sock.write(Buffer.from(INIT, "binary"));
+      setTimeout(() => { try { sock.write(Buffer.from(MICR_READ, "binary")); } catch (e) {} }, 120);
     });
   });
 }
@@ -95,7 +100,9 @@ function buildFranking(c) {
     const t = String(s == null ? "" : s).slice(0, w);
     return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
-  let o = INIT + SEL_SLIP + WAIT_INSERT + ALIGN_L;
+  // The cheque is still in the printer from the read, so load it to the print
+  // starting position with FS a 1 instead of waiting for a fresh sheet (ESC f).
+  let o = SEL_SLIP + LOAD_CHECK + ALIGN_L;
   o += ctr(BOLD_ON + "FOR DEPOSIT ONLY" + BOLD_OFF);
   o += ctr(String(c.store_name || "STORE").toUpperCase());
   o += ctr("ST# " + (c.store_number || "0000") + "  REG# " + (c.register_id || "00"));
@@ -104,7 +111,7 @@ function buildFranking(c) {
   if (c.transaction_id) o += ctr("TX " + c.transaction_id);
   o += ctr(c.date || new Date().toLocaleString());
   o += ctr("OP " + (c.operator_pin || "") + " " + String(c.operator_name || "").toUpperCase());
-  o += "\\n" + EJECT + SEL_RECEIPT;
+  o += "\\n" + EJECT_CHECK + SEL_RECEIPT;
   return o;
 }
 
@@ -112,7 +119,7 @@ module.exports = {
   readMicr,
   frankCheck: (c) => sendRaw(resolvePrinter(c.printer_ip), buildFranking(c)),
   // Release a cheque without franking it (declined tender, aborted read).
-  ejectCheck: (ip) => sendRaw(resolvePrinter(ip), INIT + SEL_SLIP + MICR_CANCEL + EJECT + SEL_RECEIPT),
+  ejectCheck: (ip) => sendRaw(resolvePrinter(ip), EJECT_CHECK + SEL_RECEIPT),
   BUILD,
 };
 `;

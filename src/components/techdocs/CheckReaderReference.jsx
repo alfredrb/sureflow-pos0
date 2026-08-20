@@ -37,13 +37,15 @@ export default function CheckReaderReference() {
           <FileText className="w-5 h-5 text-blue-600" /> Cheque Station (MICR + Franking)
         </h2>
         <p className="text-gray-500 text-sm mt-1">
-          Epson TM-H6000IV cheque flow. The register selects paper source 4 and issues
-          <span className="font-mono text-xs"> FS a 0 </span> (one parameter byte, no <span className="font-mono text-xs">ESC f</span> prefix —
-          the read command waits for the cheque itself) to read the E-13B MICR line, holding the socket open to parse the
-          response, then prints the <span className="font-semibold">FOR DEPOSIT ONLY</span> endorsement on the back and ejects.
-          A failed or dirty read falls back to manual keying at the POS, flagged on the cheque record.
-          The module logs <span className="font-mono text-xs">check-reader-build 2</span> — if the relay reports build 1, the old
-          copy is still deployed and the read will never return.
+          Epson TM-H6000IV cheque flow, using the cheque-station command family only:
+          <span className="font-mono text-xs"> FS a 0 n </span>(read MICR — sent on its own, with no
+          <span className="font-mono text-xs"> ESC f </span>or paper-select in front of it, since any other command drops the
+          printer out of MICR mode), <span className="font-mono text-xs">FS a 1</span> to load the cheque to the print position for the
+          <span className="font-semibold"> FOR DEPOSIT ONLY</span> endorsement, then <span className="font-mono text-xs">FS a 2</span> to eject.
+          Selecting Check at tender arms the reader automatically and prompts the operator to insert the cheque; a failed or dirty
+          read falls back to manual keying, flagged on the cheque record.
+          The module logs <span className="font-mono text-xs">check-reader-build 3</span> — an older build stamp means the previous
+          copy is still deployed on the relay.
         </p>
       </div>
       {BLOCKS.map(b => <CodeBlock key={b.file} {...b} />)}

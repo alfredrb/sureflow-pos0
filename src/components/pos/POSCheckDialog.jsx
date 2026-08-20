@@ -37,7 +37,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
     try { await ejectCheck(context.printer_ip); } catch (e) { /* nothing loaded */ }
   };
 
-  const read = async () => {
+  const read = React.useCallback(async () => {
     setError(""); cancelledRef.current = false; setStep("reading");
     try {
       const out = await readCheckMicr(context.printer_ip);
@@ -52,7 +52,17 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
       setMethod("manual");
       setStep("review");
     }
-  };
+  }, [context.printer_ip]);
+
+  // Selecting Check at tender arms the cheque station straight away — the operator
+  // is prompted to insert the cheque instead of having to press Read MICR first.
+  const armedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!open) { armedRef.current = false; return; }
+    if (armedRef.current) return;
+    armedRef.current = true;
+    read();
+  }, [open, read]);
 
   const accept = async () => {
     const problem = validateCheck(fields);
@@ -134,7 +144,8 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
 
         {step === "reading" && (
           <div className="space-y-3 text-center py-4">
-            <p className="text-amber-300 text-xs animate-pulse">Waiting for cheque — reading MICR line...</p>
+            <p className="text-white text-sm font-bold">INSERT CHEQUE FACE-UP IN FRONT SLOT</p>
+            <p className="text-amber-300 text-xs animate-pulse">Reading MICR line...</p>
             <p className="text-blue-300/50 text-[10px]">The reader waits up to 45 seconds for the cheque. If it does not pick up the MICR line, cancel and key it in.</p>
             <Button variant="outline" onClick={cancelRead}
               className="w-full h-10 border-blue-500/30 text-blue-200 hover:bg-blue-500/10 text-xs">
