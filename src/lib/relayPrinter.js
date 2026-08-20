@@ -7,7 +7,7 @@ const net = require("net");
 
 // Bumped whenever this file changes. The test print shows it, so a technician can
 // confirm the relay is actually running the current printer.js and not a stale copy.
-const BUILD = "printer-build 4 (slip paper select)";
+const BUILD = "printer-build 5 (slip paper 4, no sensor cmd)";
 
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
@@ -22,14 +22,13 @@ const CUT = GS + "V\\x42\\x00";
 // Slip station (front insert slot) — used for chits and for printing a receipt on a
 // blank sheet when the receipt roll is out. 40 columns, impact, no cutter.
 const SLIP_WIDTH = Number(process.env.SLIP_WIDTH || 40);
-// ESC c 0 n selects which sheet prints. n=2 is the slip station on most units, but
-// some TM-H6000IV configurations answer on n=4 (validation/cheque slot). Set
-// SLIP_PAPER=4 in the relay .env if a slip test still comes out on the roll.
-const SLIP_PAPER = Number(process.env.SLIP_PAPER || 2);
+// ESC c 0 n selects which sheet prints. On the TM-H6000 family n=4 is the slip /
+// cheque station (verified on hardware) and n=3 returns to the 80mm receipt roll.
+// Do NOT also send ESC c 1 n — that is the paper-END SENSOR select and it cancels
+// the slip selection, sending the job back to the roll.
+const SLIP_PAPER = Number(process.env.SLIP_PAPER || 4);
 const SEL_SLIP = ESC + "c0" + String.fromCharCode(SLIP_PAPER);
-const SEL_RECEIPT = ESC + "c0\\x01";           // ESC c 0 1 — back to the receipt roll
-const SEL_SLIP_CMD = ESC + "c1" + String.fromCharCode(SLIP_PAPER);
-const SEL_RECEIPT_CMD = ESC + "c1\\x01";
+const SEL_RECEIPT = ESC + "c0\\x03";           // ESC c 0 3 — back to the receipt roll
 // ESC f t1 t2 — t1 is the insertion WAIT time (seconds), t2 the detection wait.
 // t1 must be non-zero or the printer gives up instantly and never waits for the sheet.
 const WAIT_INSERT = ESC + "f\\x1e\\x0a";       // wait ~30s for the operator to insert paper
@@ -178,7 +177,7 @@ function buildSlip(r) {
     const t = String(s == null ? "" : s).slice(0, w);
     return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
-  let o = INIT + SEL_SLIP + SEL_SLIP_CMD + WAIT_INSERT;
+  let o = INIT + SEL_SLIP + WAIT_INSERT;
   o += ctr(String(r.store_name || "Store").toUpperCase());
   if (r.store_phone) o += ctr(r.store_phone);
   o += ctr("ST# " + (r.store_number || "0000") + " OP# " + (r.operator_pin || "") +
@@ -204,7 +203,7 @@ function buildSlip(r) {
   if (r.transaction_id) o += ctr("TX " + r.transaction_id);
   o += ctr(r.date || new Date().toLocaleString());
   o += ctr(r.slip_note || "***SLIP COPY***") + "\\n";
-  o += EJECT + SEL_RECEIPT + SEL_RECEIPT_CMD;
+  o += EJECT + SEL_RECEIPT;
   return o;
 }
 
@@ -240,7 +239,7 @@ module.exports = {
       "STATION " + (station || "receipt") + " PAPER " + SLIP_PAPER + "\\n" +
       new Date().toLocaleString() + "\\n" + (process.env.STORE_ID || "") + "\\n";
     return sendRaw(resolvePrinter(ip), station === "slip"
-      ? INIT + SEL_SLIP + SEL_SLIP_CMD + WAIT_INSERT + ALIGN_C + body + EJECT + SEL_RECEIPT + SEL_RECEIPT_CMD
+      ? INIT + SEL_SLIP + WAIT_INSERT + ALIGN_C + body + EJECT + SEL_RECEIPT
       : INIT + ALIGN_C + body + "\\n\\n" + CUT);
   },
   printers: PRINTER_IPS,
