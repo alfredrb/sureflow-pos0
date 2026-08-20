@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Copy, Check, FileText } from "lucide-react";
 import { RELAY_CHECK_READER_CODE, RELAY_CHECK_ROUTES_CODE } from "@/lib/relayCheckReader";
+import { RELAY_SERVER_WITH_CHECKS_CODE } from "@/lib/relayServerWithChecks";
 
 const BLOCKS = [
   { file: "checkReader.js", code: RELAY_CHECK_READER_CODE, note: "Drop into the relay app directory next to printer.js." },
-  { file: "server.js (routes)", code: RELAY_CHECK_ROUTES_CODE, note: "Mount alongside /api/print, then restart sureflow-relay." },
+  { file: "server.js (routes only)", code: RELAY_CHECK_ROUTES_CODE, note: "Just the three routes, if you are patching an existing server.js." },
+  { file: "server.js (complete file)", code: RELAY_SERVER_WITH_CHECKS_CODE, note: "Full Phase 3 server with the cheque routes already in place — after /api, before the static POS build and SPA catch-all." },
 ];
 
 function CodeBlock({ file, code, note }) {
