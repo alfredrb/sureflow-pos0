@@ -1634,6 +1634,7 @@ export default function POSRegister() {
         storeInfo={storeInfo}
         operator={operator}
         registerId={sessionStorage.getItem("pos_register_num") || receiptData?.registerName}
+        toast={toast}
         onClose={() => { setReceiptData(null); setTaxExemptProfile(null); }}
         onDone={() => setReceiptData(null)}
       />

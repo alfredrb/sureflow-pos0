@@ -2,11 +2,39 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import POSReceipt from "@/components/POSReceipt";
+import POSSlipPrintButton from "@/components/pos/POSSlipPrintButton";
 
 // On-screen receipt shown after a completed sale. Presentational only — the
 // barcode is rendered into the svg id below by the POS page.
-export default function POSReceiptDialog({ receiptData, taxExempt, storeConfig, storeInfo, operator, registerId, onClose, onDone }) {
+export default function POSReceiptDialog({ receiptData, taxExempt, storeConfig, storeInfo, operator, registerId, onClose, onDone, toast }) {
   if (!receiptData) return null;
+
+  // One payload shared by the roll print and the slip-station chit print.
+  const printProps = {
+    transactionId: receiptData.transactionId,
+    operatorName: receiptData.operatorName,
+    registerName: receiptData.registerName,
+    items: receiptData.items,
+    subtotal: receiptData.subtotal,
+    tax: receiptData.tax,
+    total: receiptData.total,
+    paymentMethod: receiptData.paymentMethod,
+    tenders: receiptData.tenders || [],
+    amountTendered: receiptData.amountTendered,
+    changeDue: receiptData.changeDue,
+    taxExempt,
+    storeConfig,
+    loyaltyMember: receiptData.loyaltyMember,
+    rewardsApplied: receiptData.rewardsApplied || 0,
+    rewardsEarned: receiptData.rewardsEarned || 0,
+    newBalance: receiptData.newBalance,
+    operatorPin: operator?.pin,
+    registerId,
+    storeNumber: storeInfo?.store_number,
+    managerName: storeInfo?.manager_name,
+    taxRate: storeInfo?.default_tax_rate,
+    storeInfo,
+  };
 
   return (
     <Dialog open={!!receiptData} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -126,32 +154,8 @@ export default function POSReceiptDialog({ receiptData, taxExempt, storeConfig, 
             <Button variant="outline" onClick={onDone} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
               Done
             </Button>
-            <POSReceipt
-              transactionId={receiptData.transactionId}
-              operatorName={receiptData.operatorName}
-              registerName={receiptData.registerName}
-              items={receiptData.items}
-              subtotal={receiptData.subtotal}
-              tax={receiptData.tax}
-              total={receiptData.total}
-              paymentMethod={receiptData.paymentMethod}
-              tenders={receiptData.tenders || []}
-              amountTendered={receiptData.amountTendered}
-              changeDue={receiptData.changeDue}
-              taxExempt={taxExempt}
-              storeConfig={storeConfig}
-              loyaltyMember={receiptData.loyaltyMember}
-              rewardsApplied={receiptData.rewardsApplied || 0}
-              rewardsEarned={receiptData.rewardsEarned || 0}
-              newBalance={receiptData.newBalance}
-              operatorPin={operator?.pin}
-              registerId={registerId}
-              storeNumber={storeInfo?.store_number}
-              managerName={storeInfo?.manager_name}
-              taxRate={storeInfo?.default_tax_rate}
-              storeInfo={storeInfo}
-              autoPrint
-            />
+            <POSSlipPrintButton {...printProps} toast={toast} />
+            <POSReceipt {...printProps} autoPrint />
           </div>
         </div>
       </DialogContent>

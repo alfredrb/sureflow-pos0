@@ -6,6 +6,10 @@ import { buildReceiptHtml } from "@/lib/receiptHtml";
 export function buildReceiptPayload(p) {
   return {
     printer_ip: p.printerIp,
+    // "receipt" = the paper roll (default); "slip" = the front slip station, which
+    // prints a compact 40-column chit on any blank sheet the operator inserts.
+    station: p.station || "receipt",
+    slip_note: p.slipNote || "",
     // sale | return | exchange | cash — drives the slip title and the totals labels.
     doc_type: p.docType || "sale",
     // Admin transaction-log reprints footer as ***REPRINTED*** instead of ***CUSTOMER COPY***.
@@ -61,6 +65,12 @@ export function buildReceiptPayload(p) {
     loyalty_member: p.loyaltyMember || null,
     loyalty_balance: p.newBalance != null ? p.newBalance : p.loyaltyMember?.rewards_balance || 0,
   };
+}
+
+// Prints the same receipt data as a chit on the printer's slip station — used when
+// the receipt roll is out, or any time a blank-paper copy is wanted.
+export async function printOnSlip(props) {
+  return printReceipt({ ...props, station: "slip", slipNote: props.slipNote || "***SLIP COPY***" });
 }
 
 export async function printReceipt(props) {

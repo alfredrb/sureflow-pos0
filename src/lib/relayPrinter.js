@@ -15,6 +15,13 @@ const ALIGN_L = ESC + "a0", ALIGN_C = ESC + "a1";
 const BOLD_ON = ESC + "E1", BOLD_OFF = ESC + "E0";
 const BIG_ON = GS + "!\\x11", BIG_OFF = GS + "!\\x00";
 const CUT = GS + "V\\x42\\x00";
+// Slip station (front insert slot) — used for chits and for printing a receipt on a
+// blank sheet when the receipt roll is out. 40 columns, impact, no cutter.
+const SLIP_WIDTH = Number(process.env.SLIP_WIDTH || 40);
+const SEL_SLIP = ESC + "c0\\x02";              // select slip station
+const SEL_RECEIPT = ESC + "c0\\x01";           // back to the receipt roll
+const WAIT_INSERT = ESC + "f\\x00\\x1e";       // wait for the operator to insert paper (~30s)
+const EJECT = ESC + "q";                        // release / eject the sheet
 // Drawer kick: pin 2, 100ms on / 200ms off. Some drawers are wired to pin 5 (p=1).
 const KICK = ESC + "p\\x00\\x32\\x64";
 
@@ -149,6 +156,46 @@ function buildReceipt(r) {
   return o;
 }
 
+// Compact 40-column version of a receipt for the slip station. The impact slip
+// station has no cutter and poor barcode quality, so the transaction number
+// prints as text and the sheet is ejected instead of cut.
+function buildSlip(r) {
+  const w = SLIP_WIDTH;
+  const rowL = (label, amount) => padL(label, w - 12) + padL(amount, 12) + "\\n";
+  const ctr = (s) => {
+    const t = String(s == null ? "" : s).slice(0, w);
+    return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
+  };
+  let o = INIT + SEL_SLIP + WAIT_INSERT;
+  o += ctr(String(r.store_name || "Store").toUpperCase());
+  if (r.store_phone) o += ctr(r.store_phone);
+  o += ctr("ST# " + (r.store_number || "0000") + " OP# " + (r.operator_pin || "") +
+    " REG# " + (r.register_id || "00"));
+  o += "-".repeat(w) + "\\n";
+  if (r.doc_type === "return") o += ctr("*** RETURN / REFUND ***");
+  if (r.doc_type === "exchange") o += ctr("*** EXCHANGE ***");
+  for (const it of r.items || []) {
+    o += padR(String(it.name || "").toUpperCase(), w - 12) + padL(money(it.total), 12) + "\\n";
+    for (const sn of it.serial_numbers || []) o += "  SN: " + sn + "\\n";
+  }
+  o += "-".repeat(w) + "\\n";
+  o += rowL("SUBTOTAL", money(r.subtotal));
+  o += rowL(r.tax_exempt ? "TAX EXEMPT" : "TAX", money(r.tax_exempt ? 0 : r.tax));
+  o += rowL("TOTAL", money(r.total));
+  const tenders = (r.tenders || []).length ? r.tenders
+    : [{ method: r.payment_method || "cash", amount: r.amount_tendered || r.total }];
+  for (const t of tenders) {
+    o += rowL(String(t.method || "cash").toUpperCase().replace("_", " ") + " TEND", money(t.amount));
+  }
+  o += rowL("CHANGE DUE", money(r.change_due));
+  o += "-".repeat(w) + "\\n";
+  if (r.transaction_id) o += ctr("TX " + r.transaction_id);
+  o += ctr(r.date || new Date().toLocaleString());
+  o += ctr(r.slip_note || "***SLIP COPY***") + "\\n";
+  o += EJECT + SEL_RECEIPT;
+  return o;
+}
+
 // Resolve which printer to talk to: explicit IP, else the store's first configured printer.
 function resolvePrinter(ip) {
   const target = ip || PRINTER_IPS[0];
@@ -170,7 +217,9 @@ function sendRaw(ip, payload) {
 }
 
 module.exports = {
-  printReceipt: (receipt) => sendRaw(resolvePrinter(receipt.printer_ip), buildReceipt(receipt)),
+  // station: "slip" prints the compact chit on an inserted blank sheet instead of the roll.
+  printReceipt: (receipt) => sendRaw(resolvePrinter(receipt.printer_ip),
+    receipt.station === "slip" ? buildSlip(receipt) : buildReceipt(receipt)),
   openDrawer: (ip) => sendRaw(resolvePrinter(ip), INIT + KICK),
   testPrint: (ip) => sendRaw(resolvePrinter(ip), INIT + ALIGN_C + BOLD_ON + "SUREFLOW TEST PRINT\\n" + BOLD_OFF +
     new Date().toLocaleString() + "\\n" + (process.env.STORE_ID || "") + "\\n\\n\\n" + CUT),
