@@ -5,7 +5,7 @@ import { printOnSlip } from "@/lib/printReceipt";
 
 // Prints the receipt as a compact chit on the printer's slip station (blank paper
 // inserted in the front slot) — for when the receipt roll is out, or on request.
-export default function POSSlipPrintButton({ toast, ...receiptProps }) {
+export default function POSSlipPrintButton({ toast, className, label, ...receiptProps }) {
   const [printing, setPrinting] = useState(false);
 
   const print = async () => {
@@ -21,9 +21,9 @@ export default function POSSlipPrintButton({ toast, ...receiptProps }) {
 
   return (
     <Button variant="outline" disabled={printing} onClick={print}
-      className="flex-1 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 text-xs gap-1">
-      <FileText className="w-3 h-3" />
-      {printing ? "Printing..." : "Chit / Blank Paper"}
+      className={className || "flex-1 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 text-xs gap-1"}>
+      <FileText className="w-4 h-4" />
+      {printing ? "Printing..." : (label || "Chit / Blank Paper")}
     </Button>
   );
 }

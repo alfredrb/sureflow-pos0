@@ -1,5 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { Check } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import POSReceipt from "@/components/POSReceipt";
 import POSSlipPrintButton from "@/components/pos/POSSlipPrintButton";
@@ -150,12 +151,18 @@ export default function POSReceiptDialog({ receiptData, taxExempt, storeConfig, 
               <p className="text-center text-[10px] text-blue-300/60">Thank You!</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onDone} className="flex-1 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-xs">
+          {/* Three equal-width actions, same height / type / icon size so the
+              completion footer reads as one uniform row. */}
+          <div className="grid grid-cols-3 gap-2">
+            <Button variant="outline" onClick={onDone}
+              className="w-full h-11 flex-col gap-0.5 border-blue-500/20 text-blue-300 hover:bg-blue-500/10 text-[11px] font-semibold">
+              <Check className="w-4 h-4" />
               Done
             </Button>
-            <POSSlipPrintButton {...printProps} toast={toast} />
-            <POSReceipt {...printProps} autoPrint />
+            <POSSlipPrintButton {...printProps} toast={toast} label="Slip"
+              className="w-full h-11 flex-col gap-0.5 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 text-[11px] font-semibold" />
+            <POSReceipt {...printProps} autoPrint
+              className="w-full h-11 flex-col gap-0.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold" />
           </div>
         </div>
       </DialogContent>

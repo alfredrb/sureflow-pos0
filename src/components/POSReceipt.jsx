@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { printReceipt } from "@/lib/printReceipt";
 
 export default function POSReceipt(props) {
-  const { autoPrint = false, transactionId } = props;
+  const { autoPrint = false, transactionId, className } = props;
   const printedRef = useRef(null);
 
   // Auto-print once per transaction as soon as the receipt is shown.
@@ -15,7 +15,8 @@ export default function POSReceipt(props) {
   }, [autoPrint, transactionId]);
 
   return (
-    <Button onClick={() => printReceipt(props)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2">
+    <Button onClick={() => printReceipt(props)}
+      className={className || "bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"}>
       <Printer className="w-4 h-4" />
       {autoPrint ? "Reprint Receipt" : "Print Receipt"}
     </Button>
