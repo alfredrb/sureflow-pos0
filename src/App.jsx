@@ -63,6 +63,7 @@ import AdminProfitLoss from '@/pages/AdminProfitLoss';
 import AdminFinancials from '@/pages/AdminFinancials';
 import EmployeeTrainingCenter from '@/pages/EmployeeTrainingCenter';
 import AdminPOSFeedback from '@/pages/AdminPOSFeedback';
+import AdminTechnicalDocs from '@/pages/AdminTechnicalDocs';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -143,6 +144,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/profit-loss" element={<AdminProfitLoss />} />
           <Route path="/admin/financials" element={<AdminFinancials />} />
           <Route path="/admin/pos-feedback" element={<AdminPOSFeedback />} />
+          <Route path="/admin/technical-docs" element={<AdminTechnicalDocs />} />
         </Route>
       </Route>
 

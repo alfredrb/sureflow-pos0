@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
+import { Link } from "react-router-dom";
 import { useRelayPolling } from "@/hooks/useRelayPolling";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { HardDrive, RefreshCw, Search } from "lucide-react";
@@ -11,9 +12,6 @@ import StoreSection from "@/components/infrastructure/StoreSection";
 import RebootConfirmDialog from "@/components/infrastructure/RebootConfirmDialog";
 import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCard";
 import { DEFAULT_SETUP_STEPS } from "@/components/infrastructure/RelaySetupGuide";
-import PXEControllerGuide from "@/components/infrastructure/PXEControllerGuide";
-import HardwareLibraryPanel from "@/components/infrastructure/HardwareLibraryPanel";
-import HardwareFleetGuide from "@/components/infrastructure/HardwareFleetGuide";
 
 export default function AdminHardwareStatus() {
   const [stores, setStores] = useState([]);
@@ -240,11 +238,13 @@ export default function AdminHardwareStatus() {
         </Select>
       </div>
 
-      <HardwareFleetGuide />
-
-      <PXEControllerGuide />
-
-      <HardwareLibraryPanel />
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">Hardware, PXE & driver reference</p>
+          <p className="text-xs text-gray-400 mt-0.5">The fleet hardware guide, port maps, PXE controller build and driver library now live on the Technical Documentation page.</p>
+        </div>
+        <Link to="/admin/technical-docs" className="text-sm font-medium text-blue-600 hover:underline whitespace-nowrap">Open Technical Documentation →</Link>
+      </div>
 
       {sortedStores.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-400">

@@ -1,4 +1,4 @@
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, ClipboardCheck, PackageX, TrendingDown, Scale, MessageSquare, Hash } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, ClipboardCheck, PackageX, TrendingDown, Scale, MessageSquare, Hash, BookOpen } from "lucide-react";
 
 export const adminNavGroups = [
   {
@@ -59,6 +59,7 @@ export const adminNavGroups = [
       { label: "Data Viewer", path: "/admin/data-viewer", icon: FileJson },
       { label: "Admin Permissions", path: "/admin/permissions", icon: Lock },
       { label: "Audit Trail", path: "/admin-audit-log", icon: ScrollText },
+      { label: "Technical Documentation", path: "/admin/technical-docs", icon: BookOpen },
     ],
   },
 ];
