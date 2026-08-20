@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 // Scheduled-lunch reminder plus the overdue-lunch lockout that blocks the register
 // until the operator takes lunch or a supervisor authorizes continued work.
-export default function POSLunchDialogs({ infoOpen, setInfoOpen, shift, lockoutOpen, pin, setPin, error, onOverride, onLogout }) {
+export default function POSLunchDialogs({ infoOpen, setInfoOpen, shift, lockoutOpen, supId, setSupId, pin, setPin, error, onOverride, onLogout }) {
   return (
     <>
       <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
@@ -36,13 +36,19 @@ export default function POSLunchDialogs({ infoOpen, setInfoOpen, shift, lockoutO
           <div className="space-y-4">
             <p className="text-blue-300/60 text-sm text-center">Your scheduled lunch began at <span className="font-mono font-bold text-amber-400">{shift?.lunch_start}</span>. Take your lunch break now, or have a supervisor authorize continued work.</p>
             <Input
+              placeholder="CSM / Manager Operator ID"
+              value={supId}
+              onChange={e => setSupId(e.target.value)}
+              className="bg-[#0a0e27] border-amber-500/20 text-white text-center tracking-widest"
+              autoFocus
+            />
+            <Input
               type="password"
-              placeholder="CSM / Manager PIN"
+              placeholder="PIN"
               value={pin}
               onChange={e => setPin(e.target.value)}
               onKeyDown={e => e.key === "Enter" && onOverride()}
               className="bg-[#0a0e27] border-amber-500/20 text-white text-center text-lg tracking-widest"
-              autoFocus
             />
             {error && <p className="text-red-400 text-xs text-center">{error}</p>}
             <Button onClick={onOverride} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold">Authorize & Continue</Button>

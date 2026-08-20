@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/data";
-import { Monitor, Loader2, Wifi, WifiOff, Settings, Lock, Calendar, LayoutDashboard, AlertTriangle, Clock, Keyboard, Grid3x3 } from "lucide-react";
+import { Monitor, Loader2, Wifi, WifiOff, Settings, AlertTriangle, Keyboard, Grid3x3 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import SelfTimeClock from "@/components/SelfTimeClock";
 import VersionLogDialog from "@/components/VersionLogDialog";
 import POSVersionButton from "@/components/POSVersionButton";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
-import { usePinpadKeys } from "@/hooks/usePinpadKeys";
 import { useKeyClick } from "@/hooks/useKeyClick";
+import POSCredentialPinpad from "@/components/pos/POSCredentialPinpad";
+import ShiftLookupDialog from "@/components/pos/ShiftLookupDialog";
+import { verifyOperatorCredentials, SUPERVISOR_ROLES, CONFIG_ROLES } from "@/lib/operatorAuth";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -21,6 +23,7 @@ export default function POSLogin() {
   const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "");
   const [registerIp, setRegisterIp] = useState(sessionStorage.getItem("pos_register_ip") || "—");
   const [showConfig, setShowConfig] = useState(false);
+  const [configId, setConfigId] = useState("");
   const [configPin, setConfigPin] = useState("");
   const [configUnlocked, setConfigUnlocked] = useState(false);
   const [availableRegisters, setAvailableRegisters] = useState([]);
@@ -29,11 +32,9 @@ export default function POSLogin() {
   const [forceConfig, setForceConfig] = useState(false);
   const [showShiftLookup, setShowShiftLookup] = useState(false);
   const [showTimeClock, setShowTimeClock] = useState(false);
-  const [shiftLookupPin, setShiftLookupPin] = useState("");
-  const [currentOperator, setCurrentOperator] = useState(null);
-  const [currentShift, setCurrentShift] = useState(null);
   const [operators, setOperators] = useState([]);
   const [conflict, setConflict] = useState(null); // { operator, otherRegister }
+  const [overrideId, setOverrideId] = useState("");
   const [overridePin, setOverridePin] = useState("");
   const [overrideError, setOverrideError] = useState("");
   const [overrideLoading, setOverrideLoading] = useState(false);
@@ -144,7 +145,7 @@ export default function POSLogin() {
   const handleConfigOpen = () => {
     setForceConfig(false);
     setShowConfig(true);
-    setConfigPin("");
+    setConfigId(""); setConfigPin("");
     setConfigUnlocked(false);
     setAvailableRegisters([]);
     setDetectedIp(null);
@@ -153,11 +154,8 @@ export default function POSLogin() {
   const handleConfigUnlock = async () => {
     setConfigLoading(true);
     try {
-      const csms = await base44.entities.Operator.filter({ role: "csm", status: "active" });
-      const managers = await base44.entities.Operator.filter({ role: "manager", status: "active" });
-      const techs = await base44.entities.Operator.filter({ role: "technician", status: "active" });
-      const all = [...csms, ...managers, ...techs];
-      if (all.some(op => op.pin === configPin)) {
+      const res = await verifyOperatorCredentials(configId, configPin, { roles: CONFIG_ROLES, requireActive: true });
+      if (res.ok) {
         const [registers, ip] = await Promise.all([
           base44.entities.Register.list(),
           getLocalIP()
@@ -166,11 +164,11 @@ export default function POSLogin() {
         setDetectedIp(ip);
         setConfigUnlocked(true);
       } else {
-        toast({ title: "Access Denied", description: "Invalid CSM/Manager/Technician PIN", variant: "destructive" });
+        toast({ title: "Access Denied", description: res.error, variant: "destructive" });
         setConfigPin("");
       }
     } catch {
-      toast({ title: "Error", description: "Could not verify PIN", variant: "destructive" });
+      toast({ title: "Error", description: "Could not verify credentials", variant: "destructive" });
     }
     setConfigLoading(false);
   };
@@ -231,12 +229,8 @@ export default function POSLogin() {
 
   useKeyClick();
 
-  // Every secondary pinpad on this screen also takes the physical keyboard.
-  // Only one is ever on screen at a time, so they never share a keystroke.
-  usePinpadKeys({ active: showConfig && !configUnlocked, value: configPin, setValue: setConfigPin, onEnter: handleConfigUnlock });
-  usePinpadKeys({ active: showShiftLookup && !currentOperator, value: shiftLookupPin, setValue: setShiftLookupPin, onEnter: () => handleShiftLookup() });
-  usePinpadKeys({ active: !!conflict, value: overridePin, setValue: setOverridePin, onEnter: () => handleDualLoginOverride(), onClear: () => { setOverridePin(""); setOverrideError(""); } });
-  usePinpadKeys({ active: !!lunchLockout, value: overridePin, setValue: setOverridePin, onEnter: () => handleLunchOverride(), onClear: () => { setOverridePin(""); setOverrideError(""); } });
+  // Secondary prompts run through POSCredentialPinpad, which owns its own physical
+  // keyboard handling — only one of them is ever on screen at a time.
 
   const handleLogin = async () => {
     setLoading(true);
@@ -277,7 +271,7 @@ export default function POSLogin() {
           const lunchTaken = !!(activeEntry.meal_start && activeEntry.meal_end);
           if (!lunchTaken && new Date() >= lunchStart) {
             setLunchLockout({ operator: op, shift: todayShift });
-            setOverridePin(""); setOverrideError("");
+            setOverrideId(""); setOverridePin(""); setOverrideError("");
             setLoading(false);
             return;
           }
@@ -290,7 +284,7 @@ export default function POSLogin() {
         const activeReg = (mostRecent && mostRecent.event_type === "login") ? mostRecent.register_id : null;
         if (activeReg && activeReg !== currentReg) {
           setConflict({ operator: op, otherRegister: activeReg });
-          setOverridePin(""); setOverrideError("");
+          setOverrideId(""); setOverridePin(""); setOverrideError("");
           setLoading(false);
           return;
         }
@@ -307,14 +301,13 @@ export default function POSLogin() {
     setOverrideError("");
     setOverrideLoading(true);
     try {
-      const ops = await base44.entities.Operator.filter({ pin: overridePin });
-      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-      if (!sup) {
-        const blocked = ops.find(o => o.role === "csm" || o.role === "manager");
-        setOverrideError(blocked ? "This supervisor's POS access is disabled" : "Invalid PIN — CSM or Manager required");
+      const res = await verifyOperatorCredentials(overrideId, overridePin, { roles: SUPERVISOR_ROLES });
+      if (!res.ok) {
+        setOverrideError(res.error);
         setOverrideLoading(false);
         return;
       }
+      const sup = res.operator;
       const op = conflict.operator;
       const currentReg = sessionStorage.getItem("pos_register_num");
       // Force logout from the other register to keep session tracking accurate
@@ -340,7 +333,7 @@ export default function POSLogin() {
       });
       sessionStorage.setItem("pos_operator", JSON.stringify(op));
       setConflict(null);
-      setOverridePin("");
+      setOverrideId(""); setOverridePin("");
       navigate("/pos/register");
     } catch (e) {
       setOverrideError("Override failed — try again");
@@ -352,14 +345,13 @@ export default function POSLogin() {
     setOverrideError("");
     setOverrideLoading(true);
     try {
-      const ops = await base44.entities.Operator.filter({ pin: overridePin });
-      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-      if (!sup) {
-        const blocked = ops.find(o => o.role === "csm" || o.role === "manager");
-        setOverrideError(blocked ? "This supervisor's POS access is disabled" : "Invalid PIN — CSM or Manager required");
+      const res = await verifyOperatorCredentials(overrideId, overridePin, { roles: SUPERVISOR_ROLES });
+      if (!res.ok) {
+        setOverrideError(res.error);
         setOverrideLoading(false);
         return;
       }
+      const sup = res.operator;
       const op = lunchLockout.operator;
       await base44.entities.RegisterLog.create({
         event_type: "override",
@@ -374,37 +366,12 @@ export default function POSLogin() {
       });
       sessionStorage.setItem("pos_operator", JSON.stringify(op));
       setLunchLockout(null);
-      setOverridePin("");
+      setOverrideId(""); setOverridePin("");
       navigate("/pos/register");
     } catch (e) {
       setOverrideError("Override failed — try again");
     }
     setOverrideLoading(false);
-  };
-
-  const handleShiftLookup = async () => {
-    if (!shiftLookupPin) {
-      toast({ title: "Please enter your PIN", variant: "destructive" });
-      return;
-    }
-    try {
-      const foundOperator = operators.find(op => op.pin === shiftLookupPin);
-      if (!foundOperator) {
-        toast({ title: "Invalid PIN", variant: "destructive" });
-        setShiftLookupPin("");
-        return;
-      }
-      const today = new Date().toISOString().split('T')[0];
-      const shifts = await base44.entities.Shift.filter({ 
-        operator_id: foundOperator.operator_id,
-        date: today
-      });
-      setCurrentOperator(foundOperator);
-      setCurrentShift(shifts[0] || null);
-      setShiftLookupPin("");
-    } catch (e) {
-      toast({ title: "Error looking up shift", variant: "destructive" });
-    }
   };
 
   return (
@@ -581,64 +548,8 @@ export default function POSLogin() {
       </div>
 
 
-      {/* Shift Lookup Modal */}
-      {showShiftLookup && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
-          <div className="bg-[#111638] border border-blue-500/10 rounded-2xl p-6 w-full max-w-xs space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="w-4 h-4 text-blue-400" />
-              <h3 className="text-white font-semibold text-sm">Shift Lookup</h3>
-            </div>
-
-            {!currentOperator ? (
-              <div className="space-y-3">
-                <p className="text-blue-300/50 text-xs">Enter your PIN:</p>
-                <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-blue-500/10 min-h-[44px] flex items-center justify-center">
-                  {"•".repeat(shiftLookupPin.length) || <span className="text-blue-500/20">----</span>}
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
-                    <button key={k} onClick={() => {
-                      if (k === "CLR") setShiftLookupPin("");
-                      else if (k === "ENT" && shiftLookupPin.length > 0) handleShiftLookup();
-                      else if (k !== "ENT" && shiftLookupPin.length < 6) setShiftLookupPin(p => p + k);
-                    }}
-                    className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 ${
-                      k === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
-                      k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
-                      "bg-[#1a1f4a] text-white border border-blue-500/10"
-                    }`}>
-                      {k}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
-                  <p className="text-blue-300/50 text-[10px] uppercase tracking-wider">Operator</p>
-                  <p className="text-white font-semibold text-sm">{currentOperator.full_name}</p>
-                </div>
-                {currentShift ? (
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 space-y-1">
-                    <p className="text-blue-300/50 text-[10px] uppercase tracking-wider">Shift Today</p>
-                    <p className="text-white font-semibold text-sm">{currentShift.start_time} - {currentShift.end_time}</p>
-                    <p className="text-blue-300/70 text-xs">{currentShift.register_name}</p>
-                  </div>
-                ) : (
-                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-                    <p className="text-yellow-400/70 text-xs">No shifts scheduled for today</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <button onClick={() => { setShowShiftLookup(false); setCurrentOperator(null); setCurrentShift(null); setShiftLookupPin(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center mt-2">
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Shift Lookup — same identify prompt as the self-service Time Clock */}
+      <ShiftLookupDialog open={showShiftLookup} onOpenChange={setShowShiftLookup} operators={operators} />
 
       {/* Self-Service Time Clock Modal */}
       <SelfTimeClock open={showTimeClock} onOpenChange={setShowTimeClock} operators={operators} />
@@ -653,28 +564,16 @@ export default function POSLogin() {
             </div>
 
             {!configUnlocked ? (
-              <div className="space-y-3">
-                <p className="text-blue-300/50 text-xs">Enter CSM, Manager, or Technician PIN to unlock:</p>
-                <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-blue-500/10 min-h-[44px] flex items-center justify-center">
-                  {"•".repeat(configPin.length) || <span className="text-blue-500/20">----</span>}
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
-                    <button key={k} disabled={configLoading} onClick={() => {
-                      if (k === "CLR") setConfigPin("");
-                      else if (k === "ENT" && configPin.length > 0) handleConfigUnlock();
-                      else if (k !== "ENT" && configPin.length < 6) setConfigPin(p => p + k);
-                    }}
-                    className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
-                      k === "ENT" ? "bg-blue-600 hover:bg-blue-500 text-white" :
-                      k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
-                      "bg-[#1a1f4a] text-white border border-blue-500/10"
-                    }`}>
-                      {configLoading && k === "ENT" ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : k}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <POSCredentialPinpad
+                active={showConfig && !configUnlocked}
+                prompt="Enter a CSM, Manager, or Technician Operator ID and PIN to unlock:"
+                operatorId={configId}
+                setOperatorId={setConfigId}
+                pin={configPin}
+                setPin={setConfigPin}
+                onSubmit={handleConfigUnlock}
+                loading={configLoading}
+              />
             ) : (
               <div className="space-y-3">
                 {detectedIp && (
@@ -743,29 +642,20 @@ export default function POSLogin() {
             <p className="text-blue-300/70 text-xs leading-relaxed">
               {conflict.operator.full_name} is currently logged in at register{" "}
               <span className="font-mono font-bold text-amber-400">{conflict.otherRegister}</span>.
-              To log in here, a CSM or Manager must authorize.
+              To log in here, a CSM or Manager must authorize with their Operator ID and PIN.
             </p>
-            <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-amber-500/20 min-h-[44px] flex items-center justify-center">
-              {"•".repeat(overridePin.length) || <span className="text-blue-500/20">----</span>}
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
-                <button key={k} disabled={overrideLoading} onClick={() => {
-                  if (k === "CLR") { setOverridePin(""); setOverrideError(""); }
-                  else if (k === "ENT" && overridePin.length > 0) handleDualLoginOverride();
-                  else if (k !== "ENT" && overridePin.length < 6) setOverridePin(p => p + k);
-                }}
-                className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
-                  k === "ENT" ? "bg-amber-600 hover:bg-amber-500 text-white" :
-                  k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
-                  "bg-[#1a1f4a] text-white border border-blue-500/10"
-                }`}>
-                  {overrideLoading && k === "ENT" ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : k}
-                </button>
-              ))}
-            </div>
-            {overrideError && <p className="text-red-400 text-xs text-center">{overrideError}</p>}
-            <button onClick={() => { setConflict(null); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
+            <POSCredentialPinpad
+              active={!!conflict}
+              accent="amber"
+              operatorId={overrideId}
+              setOperatorId={setOverrideId}
+              pin={overridePin}
+              setPin={setOverridePin}
+              onSubmit={handleDualLoginOverride}
+              loading={overrideLoading}
+              error={overrideError}
+            />
+            <button onClick={() => { setConflict(null); setOverrideId(""); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
               Cancel
             </button>
           </div>
@@ -783,29 +673,20 @@ export default function POSLogin() {
             <p className="text-blue-300/70 text-xs leading-relaxed">
               {lunchLockout.operator.full_name} has passed the scheduled lunch time of{" "}
               <span className="font-mono font-bold text-orange-400">{lunchLockout.shift.lunch_start}</span>.
-              A CSM or Manager must authorize to continue working.
+              A CSM or Manager must authorize with their Operator ID and PIN to continue working.
             </p>
-            <div className="bg-[#0a0e27] rounded-xl p-3 font-mono text-xl text-white tracking-[0.4em] text-center border border-orange-500/20 min-h-[44px] flex items-center justify-center">
-              {"•".repeat(overridePin.length) || <span className="text-blue-500/20">----</span>}
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {["1","2","3","4","5","6","7","8","9","CLR","0","ENT"].map(k => (
-                <button key={k} disabled={overrideLoading} onClick={() => {
-                  if (k === "CLR") { setOverridePin(""); setOverrideError(""); }
-                  else if (k === "ENT" && overridePin.length > 0) handleLunchOverride();
-                  else if (k !== "ENT" && overridePin.length < 6) setOverridePin(p => p + k);
-                }}
-                className={`h-10 rounded-lg font-bold text-sm transition-all active:scale-95 disabled:opacity-50 ${
-                  k === "ENT" ? "bg-orange-600 hover:bg-orange-500 text-white" :
-                  k === "CLR" ? "bg-red-600/20 text-red-400 border border-red-500/20" :
-                  "bg-[#1a1f4a] text-white border border-blue-500/10"
-                }`}>
-                  {overrideLoading && k === "ENT" ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : k}
-                </button>
-              ))}
-            </div>
-            {overrideError && <p className="text-red-400 text-xs text-center">{overrideError}</p>}
-            <button onClick={() => { setLunchLockout(null); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
+            <POSCredentialPinpad
+              active={!!lunchLockout}
+              accent="orange"
+              operatorId={overrideId}
+              setOperatorId={setOverrideId}
+              pin={overridePin}
+              setPin={setOverridePin}
+              onSubmit={handleLunchOverride}
+              loading={overrideLoading}
+              error={overrideError}
+            />
+            <button onClick={() => { setLunchLockout(null); setOverrideId(""); setOverridePin(""); setOverrideError(""); }} className="text-blue-400/40 hover:text-blue-300 text-xs w-full text-center">
               Cancel
             </button>
           </div>

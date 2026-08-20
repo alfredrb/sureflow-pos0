@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/components/ui/use-toast";
 import { printMaintenanceNotices } from "@/lib/maintenanceNotices";
 import { printAnnouncementSlips } from "@/lib/announcementSlips";
+import OperatorIdentifyForm from "@/components/pos/OperatorIdentifyForm";
 
 function fmtTime(iso) {
   if (!iso) return "--";
@@ -27,7 +28,6 @@ function elapsedLabel(ms) {
 
 export default function SelfTimeClock({ open, onOpenChange, operators }) {
   const { toast } = useToast();
-  const [pin, setPin] = useState("");
   const [operator, setOperator] = useState(null);
   const [entry, setEntry] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -54,26 +54,26 @@ export default function SelfTimeClock({ open, onOpenChange, operators }) {
     }
   }, []);
 
-  const handleIdentify = async () => {
-    if (!pin) {
-      toast({ title: "Enter your PIN", variant: "destructive" });
+  // Operator ID + PIN — a PIN alone is not enough to identify anyone at the clock.
+  const handleIdentify = async (operatorId, pin, clear) => {
+    if (!operatorId || !pin) {
+      toast({ title: "Enter your Operator ID and PIN", variant: "destructive" });
       return;
     }
-    const found = (operators || []).find(op => op.pin === pin && op.status === "active");
+    const found = (operators || []).find(op => op.operator_id === operatorId && op.pin === pin && op.status === "active");
     if (!found) {
-      toast({ title: "Invalid PIN", variant: "destructive" });
-      setPin("");
+      toast({ title: "Invalid Operator ID or PIN", variant: "destructive" });
+      clear();
       return;
     }
     setOperator(found);
-    setPin("");
+    clear();
     await loadOpenEntry(found.operator_id);
   };
 
   const reset = () => {
     setOperator(null);
     setEntry(null);
-    setPin("");
   };
 
   const refresh = async () => {
@@ -197,23 +197,7 @@ export default function SelfTimeClock({ open, onOpenChange, operators }) {
         </DialogHeader>
 
         {!operator ? (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Enter Your PIN</label>
-              <Input
-                type="password"
-                placeholder="****"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleIdentify()}
-                maxLength="4"
-                autoFocus
-              />
-            </div>
-            <Button onClick={handleIdentify} className="w-full bg-amber-600 hover:bg-amber-700">
-              <LogIn className="w-4 h-4" /> Identify
-            </Button>
-          </div>
+          <OperatorIdentifyForm onIdentify={handleIdentify} buttonLabel="Identify" />
         ) : (
           <div className="space-y-4">
             <div className="bg-amber-50 rounded-lg p-4">

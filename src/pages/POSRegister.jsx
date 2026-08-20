@@ -61,6 +61,7 @@ import { commitCashVoid } from "@/lib/posVoidSale";
 import { printVoidSlip } from "@/lib/voidSlip";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { useKeyClick } from "@/hooks/useKeyClick";
+import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -122,6 +123,7 @@ export default function POSRegister() {
   const [storeInfo, setStoreInfo] = useState(null);
   const [lastReceipt, setLastReceipt] = useState(null);
   const [registerPaused, setRegisterPaused] = useState(false);
+  const [pauseUnlockId, setPauseUnlockId] = useState("");
   const [pauseUnlockPin, setPauseUnlockPin] = useState("");
   const [pauseUnlockError, setPauseUnlockError] = useState("");
   const [remoteLogout, setRemoteLogout] = useState({ requested: false, reason: "" });
@@ -133,6 +135,7 @@ export default function POSRegister() {
   const [trainingMode, setTrainingMode] = useState(false);
   const [trainingLocked, setTrainingLocked] = useState(false);
   const [trainingModeDialog, setTrainingModeDialog] = useState(false);
+  const [trainingModeId, setTrainingModeId] = useState("");
   const [trainingModePin, setTrainingModePin] = useState("");
   const [trainingModeError, setTrainingModeError] = useState("");
   const [giftCardPaymentDialog, setGiftCardPaymentDialog] = useState(false);
@@ -152,11 +155,13 @@ export default function POSRegister() {
   const [serialCapture, setSerialCapture] = useState(null); // { product, needed, onDone } — pending serial capture for a serialized item
   const [newsOpen, setNewsOpen] = useState(false);
   const [lunchDialogOpen, setLunchDialogOpen] = useState(false);
+  const [lunchOverrideId, setLunchOverrideId] = useState("");
   const [lunchOverridePin, setLunchOverridePin] = useState("");
   const [lunchOverrideError, setLunchOverrideError] = useState("");
   const [lunchOverrideApplied, setLunchOverrideApplied] = useState(false);
   const [diagnosticsMode, setDiagnosticsMode] = useState(false);
   const [diagOverrideDialog, setDiagOverrideDialog] = useState(false);
+  const [diagOverrideId, setDiagOverrideId] = useState("");
   const [diagOverridePin, setDiagOverridePin] = useState("");
   const [diagOverrideError, setDiagOverrideError] = useState("");
   const loadDataDebounceRef = React.useRef(null);
@@ -929,18 +934,15 @@ export default function POSRegister() {
 
   const handlePauseUnlock = async () => {
     setPauseUnlockError("");
-    const ops = await base44.entities.Operator.filter({ pin: pauseUnlockPin });
-    const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-    if (!sup) {
-      setPauseUnlockError("Invalid PIN or insufficient role (CSM/Manager required)");
-      return;
-    }
+    const res = await verifyOperatorCredentials(pauseUnlockId, pauseUnlockPin, { roles: SUPERVISOR_ROLES });
+    if (!res.ok) { setPauseUnlockError(res.error); return; }
+    const sup = res.operator;
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     const regs = await base44.entities.Register.filter({ register_id: registerId });
     if (regs.length > 0) {
       await base44.entities.Register.update(regs[0].id, { paused: false });
       setRegisterPaused(false);
-      setPauseUnlockPin("");
+      setPauseUnlockId(""); setPauseUnlockPin("");
       toast({ title: "Register Unlocked", description: `${sup.full_name} unpaused the register` });
     }
   };
@@ -1188,19 +1190,16 @@ export default function POSRegister() {
   const handleLunchOverride = async () => {
     setLunchOverrideError("");
     try {
-      const ops = await base44.entities.Operator.filter({ pin: lunchOverridePin });
-      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-      if (!sup) {
-        setLunchOverrideError("Invalid PIN or insufficient role (CSM/Manager required)");
-        return;
-      }
+      const res = await verifyOperatorCredentials(lunchOverrideId, lunchOverridePin, { roles: SUPERVISOR_ROLES });
+      if (!res.ok) { setLunchOverrideError(res.error); return; }
+      const sup = res.operator;
       writeLog("override", `Lunch lockout override — scheduled lunch ${todayShift?.lunch_start} passed; authorized by ${sup.full_name} to continue working.`, {
         override_operator_id: sup.operator_id,
         override_operator_name: sup.full_name,
         override_action: "Lunch Lockout Override",
       });
       setLunchOverrideApplied(true);
-      setLunchOverridePin("");
+      setLunchOverrideId(""); setLunchOverridePin("");
       toast({ title: "Override Granted", description: `${sup.full_name} authorized continued work` });
     } catch (e) {
       setLunchOverrideError("Override failed — try again");
@@ -1208,21 +1207,20 @@ export default function POSRegister() {
   };
 
   const requestDiagnostics = () => {
-    setDiagOverridePin(""); setDiagOverrideError("");
+    setDiagOverrideId(""); setDiagOverridePin(""); setDiagOverrideError("");
     setDiagOverrideDialog(true);
   };
 
   const authorizeDiagnostics = async () => {
     setDiagOverrideError("");
-    if (!diagOverridePin.trim()) { setDiagOverrideError("Enter CSM / Manager PIN"); return; }
     try {
-      const ops = await base44.entities.Operator.filter({ pin: diagOverridePin.trim() });
-      const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-      if (!sup) { setDiagOverrideError("Invalid PIN or insufficient role (CSM/Manager required)"); return; }
+      const res = await verifyOperatorCredentials(diagOverrideId, diagOverridePin, { roles: SUPERVISOR_ROLES });
+      if (!res.ok) { setDiagOverrideError(res.error); return; }
+      const sup = res.operator;
       setDiagnosticsMode(true);
       setTrainingMode(true);
       setDiagOverrideDialog(false);
-      setDiagOverridePin("");
+      setDiagOverrideId(""); setDiagOverridePin("");
       toast({ title: "Diagnostics Mode Enabled", description: `${sup.full_name} authorized — Training Mode active` });
       writeLog("override", `Diagnostics mode enabled — authorized by ${sup.full_name}`, {
         override_operator_id: sup.operator_id,
@@ -1236,15 +1234,11 @@ export default function POSRegister() {
 
   const enableTrainingMode = async () => {
     setTrainingModeError("");
-    const ops = await base44.entities.Operator.filter({ pin: trainingModePin });
-    const sup = ops.find(o => (o.role === "csm" || o.role === "manager") && o.pos_access !== false);
-    if (!sup) {
-      setTrainingModeError("Invalid PIN or insufficient role (CSM/Manager required)");
-      return;
-    }
+    const res = await verifyOperatorCredentials(trainingModeId, trainingModePin, { roles: SUPERVISOR_ROLES });
+    if (!res.ok) { setTrainingModeError(res.error); return; }
     setTrainingMode(true);
     setTrainingModeDialog(false);
-    setTrainingModePin("");
+    setTrainingModeId(""); setTrainingModePin("");
     toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
   };
 
@@ -1361,6 +1355,8 @@ export default function POSRegister() {
 
   if (registerPaused) return (
     <POSPausedScreen
+      operatorId={pauseUnlockId}
+      setOperatorId={setPauseUnlockId}
       pin={pauseUnlockPin}
       setPin={setPauseUnlockPin}
       error={pauseUnlockError}
@@ -1620,13 +1616,17 @@ export default function POSRegister() {
       {/* Training + Diagnostics mode authorization */}
       <POSModeAuthDialogs
         trainingOpen={trainingModeDialog}
-        setTrainingOpen={v => { setTrainingModeDialog(v); if (!v) { setTrainingModePin(""); setTrainingModeError(""); } }}
+        setTrainingOpen={v => { setTrainingModeDialog(v); if (!v) { setTrainingModeId(""); setTrainingModePin(""); setTrainingModeError(""); } }}
+        trainingId={trainingModeId}
+        setTrainingId={setTrainingModeId}
         trainingPin={trainingModePin}
         setTrainingPin={setTrainingModePin}
         trainingError={trainingModeError}
         onEnableTraining={enableTrainingMode}
         diagOpen={diagOverrideDialog}
-        setDiagOpen={v => { setDiagOverrideDialog(v); if (!v) { setDiagOverridePin(""); setDiagOverrideError(""); } }}
+        setDiagOpen={v => { setDiagOverrideDialog(v); if (!v) { setDiagOverrideId(""); setDiagOverridePin(""); setDiagOverrideError(""); } }}
+        diagId={diagOverrideId}
+        setDiagId={setDiagOverrideId}
         diagPin={diagOverridePin}
         setDiagPin={setDiagOverridePin}
         diagError={diagOverrideError}
@@ -1722,6 +1722,8 @@ export default function POSRegister() {
         setInfoOpen={setLunchDialogOpen}
         shift={todayShift}
         lockoutOpen={!!(lunchState?.past && !lunchOverrideApplied)}
+        supId={lunchOverrideId}
+        setSupId={setLunchOverrideId}
         pin={lunchOverridePin}
         setPin={setLunchOverridePin}
         error={lunchOverrideError}

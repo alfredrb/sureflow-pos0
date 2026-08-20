@@ -4,25 +4,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-// Supervisor PIN prompts for entering Training Mode and Diagnostics Mode.
+// Supervisor credential prompts (Operator ID + PIN) for entering Training Mode and
+// Diagnostics Mode.
 export default function POSModeAuthDialogs({
-  trainingOpen, setTrainingOpen, trainingPin, setTrainingPin, trainingError, onEnableTraining,
-  diagOpen, setDiagOpen, diagPin, setDiagPin, diagError, onEnableDiagnostics,
+  trainingOpen, setTrainingOpen, trainingId, setTrainingId, trainingPin, setTrainingPin, trainingError, onEnableTraining,
+  diagOpen, setDiagOpen, diagId, setDiagId, diagPin, setDiagPin, diagError, onEnableDiagnostics,
 }) {
   return (
     <>
       <Dialog open={trainingOpen} onOpenChange={setTrainingOpen}>
         <DialogContent className="bg-[#111638] border-orange-500/20 text-white max-w-xs">
           <DialogHeader><DialogTitle className="text-orange-400 text-sm">Enable Training Mode</DialogTitle></DialogHeader>
-          <p className="text-blue-300/60 text-xs">Training mode disables all financial logging. A CSM or Manager PIN is required to enable.</p>
+          <p className="text-blue-300/60 text-xs">Training mode disables all financial logging. A CSM or Manager Operator ID and PIN are required to enable.</p>
+          <Input
+            placeholder="CSM / Manager Operator ID"
+            value={trainingId}
+            onChange={e => setTrainingId(e.target.value)}
+            className="bg-[#0a0e27] border-orange-500/20 text-white text-center tracking-widest"
+            autoFocus
+          />
           <Input
             type="password"
-            placeholder="CSM / Manager PIN"
+            placeholder="PIN"
             value={trainingPin}
             onChange={e => setTrainingPin(e.target.value)}
             onKeyDown={e => e.key === "Enter" && onEnableTraining()}
             className="bg-[#0a0e27] border-orange-500/20 text-white text-center text-lg tracking-widest"
-            autoFocus
           />
           {trainingError && <p className="text-red-400 text-xs text-center">{trainingError}</p>}
           <Button onClick={onEnableTraining} className="w-full bg-orange-600 hover:bg-orange-500 text-white">Enable Training Mode</Button>
@@ -36,15 +43,21 @@ export default function POSModeAuthDialogs({
               <Wrench className="w-4 h-4" /> Enable Diagnostics Mode
             </DialogTitle>
           </DialogHeader>
-          <p className="text-blue-300/60 text-xs">Holding the version button requires a CSM or Manager PIN. Enabling Diagnostics adds the Diagnostics tab and puts the register in Training Mode until you sign out or exit.</p>
+          <p className="text-blue-300/60 text-xs">Holding the version button requires CSM or Manager credentials. Enabling Diagnostics adds the Diagnostics tab and puts the register in Training Mode until you sign out or exit.</p>
+          <Input
+            placeholder="CSM / Manager Operator ID"
+            value={diagId}
+            onChange={e => setDiagId(e.target.value)}
+            className="bg-[#0a0e27] border-emerald-500/20 text-white text-center tracking-widest"
+            autoFocus
+          />
           <Input
             type="password"
-            placeholder="CSM / Manager PIN"
+            placeholder="PIN"
             value={diagPin}
             onChange={e => setDiagPin(e.target.value)}
             onKeyDown={e => e.key === "Enter" && onEnableDiagnostics()}
             className="bg-[#0a0e27] border-emerald-500/20 text-white text-center text-lg tracking-widest"
-            autoFocus
           />
           {diagError && <p className="text-red-400 text-xs text-center">{diagError}</p>}
           <div className="flex gap-2">
