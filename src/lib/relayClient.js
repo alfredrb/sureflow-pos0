@@ -59,8 +59,10 @@ export const openCashDrawer = (printer_ip) =>
   relayFetch("/api/drawer", { method: "POST", body: JSON.stringify({ printer_ip }) }, 8000);
 
 // Diagnostic test print from the Infrastructure Command Center.
-export const relayTestPrint = (printer_ip, base = "") =>
-  relayFetch("/api/print-test", { method: "POST", body: JSON.stringify({ printer_ip }) }, 10000, base);
+// station "slip" targets the front impact slot — the printer waits ~30s for a
+// blank sheet, so that call gets a longer timeout.
+export const relayTestPrint = (printer_ip, base = "", station = "") =>
+  relayFetch("/api/print-test", { method: "POST", body: JSON.stringify({ printer_ip, station }) }, station === "slip" ? 40000 : 10000, base);
 
 // Ask the relay to sync with the cloud right now.
 export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
