@@ -53,6 +53,7 @@ export const adminNavGroups = [
     label: "Setup & Config", icon: Settings, items: [
       { label: "Function Keys", path: "/admin/function-keys", icon: Keyboard },
       { label: "Action Codes", path: "/admin/action-codes", icon: Hash },
+      { label: "Key Remapper", path: "/admin/keyboard-mapper", icon: Keyboard },
       { label: "Receipt Setup", path: "/admin/receipt", icon: Receipt },
       { label: "Training Guides", path: "/admin-training-guides", icon: GraduationCap },
       { label: "Store Settings", path: "/admin/settings", icon: SettingsIcon },

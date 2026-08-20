@@ -1,0 +1,88 @@
+{
+  "name": "KeyboardLayout",
+  "type": "object",
+  "properties": {
+    "keyboard_model": {
+      "type": "string",
+      "description": "Keyboard model this physical layout applies to (e.g. 'IBM 3AA01194300'). Matched against Register.keyboard_model, so one layout serves every register on that model."
+    },
+    "label": {
+      "type": "string",
+      "description": "Friendly name for this layout revision (e.g. 'Standard lane layout')."
+    },
+    "slots": {
+      "type": "array",
+      "description": "Physical key slots on the function-key block, in reading order. Each slot maps a captured hardware scancode onto a logical keycode, and that keycode onto a POS function key.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slot_id": {
+            "type": "string",
+            "description": "Stable slot identifier (e.g. r1c1)."
+          },
+          "row": {
+            "type": "number"
+          },
+          "col": {
+            "type": "number"
+          },
+          "cap_label": {
+            "type": "string",
+            "description": "Text printed on the physical keycap."
+          },
+          "scancode": {
+            "type": "string",
+            "description": "Raw HID scancode captured with evtest (e.g. 70045). Blank until the model is calibrated."
+          },
+          "keycode": {
+            "type": "string",
+            "description": "Logical key the scancode is remapped to via hwdb (e.g. f9). This is what the POS listens for."
+          },
+          "function_key_number": {
+            "type": "number",
+            "description": "FunctionKey.key_number this slot triggers. Blank = slot unassigned."
+          },
+          "locked": {
+            "type": "boolean",
+            "default": false,
+            "description": "Locked slots cannot be reassigned in the editor (e.g. the Action Code key and the Ctrl+Action Code robbery alarm)."
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Calibration notes for technicians (panel revision, quirks)."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive layouts are kept for history but not applied to image builds."
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Admin who last saved this layout."
+    }
+  },
+  "required": [
+    "keyboard_model"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

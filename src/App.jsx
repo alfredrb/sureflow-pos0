@@ -64,6 +64,7 @@ import AdminFinancials from '@/pages/AdminFinancials';
 import EmployeeTrainingCenter from '@/pages/EmployeeTrainingCenter';
 import AdminPOSFeedback from '@/pages/AdminPOSFeedback';
 import AdminTechnicalDocs from '@/pages/AdminTechnicalDocs';
+import AdminKeyboardMapper from '@/pages/AdminKeyboardMapper';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -145,6 +146,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/financials" element={<AdminFinancials />} />
           <Route path="/admin/pos-feedback" element={<AdminPOSFeedback />} />
           <Route path="/admin/technical-docs" element={<AdminTechnicalDocs />} />
+          <Route path="/admin/keyboard-mapper" element={<AdminKeyboardMapper />} />
         </Route>
       </Route>
 
