@@ -16,6 +16,7 @@ import POSReturnsPanel from "@/components/POSReturnsPanel";
 import POSExchangePanel from "@/components/POSExchangePanel";
 import POSSalePanel from "@/components/POSSalePanel";
 import POSItemList from "@/components/POSItemList";
+import POSScanEntry from "@/components/pos/POSScanEntry";
 import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
@@ -441,6 +442,18 @@ export default function POSRegister() {
     }
     commitAddToCart(product);
     return true;
+  };
+
+  // Scanned or keyed UPC / SKU entry — runs the same path as the item list picker.
+  const addByCode = (code) => {
+    const key = code.trim().toLowerCase();
+    const product = products.find(p => (p.barcode || "").toLowerCase() === key)
+      || products.find(p => (p.sku || "").toLowerCase() === key);
+    if (!product) {
+      toast({ title: "Item Not Found", description: `No item matches "${code}".`, variant: "destructive" });
+      return;
+    }
+    addToCart(product);
   };
 
   const handleIDVerified = () => {
@@ -1284,7 +1297,7 @@ export default function POSRegister() {
   }, [lunchState?.past, lunchOverrideApplied, operator?.operator_id, todayShift?.id]);
 
   const filteredProducts = products.filter(p => {
-    const matchSearch = !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch);
+    const matchSearch = !itemSearch || p.name.toLowerCase().includes(itemSearch.toLowerCase()) || p.sku.includes(itemSearch) || (p.barcode || "").includes(itemSearch);
     const matchCat = selectedCat === "All" || p.category === selectedCat;
     return matchSearch && matchCat;
   });
@@ -1487,6 +1500,10 @@ export default function POSRegister() {
 
         {/* RIGHT — switches based on posMode */}
         <div className="flex-1 flex flex-col overflow-hidden">
+
+          {posMode === "sale" && (
+            <POSScanEntry onSubmitCode={addByCode} />
+          )}
 
           {posMode === "sale" && (
             <POSSalePanel
