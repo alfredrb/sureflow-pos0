@@ -62,7 +62,43 @@
         "giftcard",
         "rewards"
       ],
-      "default": "cash"
+      "default": "cash",
+      "description": "Primary tender on the sale \u2014 the largest tender when the sale was split. Kept as the single-value field every report, EOD roll-up and the cash-void path reads. See tenders for the full breakdown."
+    },
+    "tenders": {
+      "type": "array",
+      "description": "Every tender applied to this sale, in the order the operator committed them. A single-tender sale has one entry. The amounts always sum to the total due plus any cash overpayment (which becomes change_due).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "credit",
+              "debit",
+              "check",
+              "store_credit",
+              "giftcard",
+              "rewards"
+            ],
+            "description": "Tender type for this portion of the payment."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount applied on this tender. For cash this may exceed the remaining balance, producing change."
+          },
+          "reference": {
+            "type": "string",
+            "description": "Optional tender reference \u2014 check number, gift card number, or auth code."
+          }
+        }
+      }
+    },
+    "split_tender": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when more than one tender was applied to the sale. Lets reports flag split payments without inspecting the tenders array."
     },
     "giftcard_number": {
       "type": "string",

@@ -55,6 +55,7 @@ import { usePosLunchState } from "@/hooks/usePosLunchState";
 import { makeSuspendId, createSuspendRecord, claimSuspendRecord } from "@/lib/posSuspend";
 import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
 import { buildReceipt, commitSaleTransaction, lookupGiftCardTender, commitGiftCardSale } from "@/lib/posSaleCommit";
+import { appliedTotal, balanceDue, changeFrom, isSettled, primaryTender, tendersAllowed } from "@/lib/tenderSplit";
 import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
 import { commitCashVoid } from "@/lib/posVoidSale";
 import { printVoidSlip } from "@/lib/voidSlip";
@@ -78,6 +79,9 @@ export default function POSRegister() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [amountTendered, setAmountTendered] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  // Tenders applied to the sale in progress. One entry = a normal sale, more = split.
+  const [tenders, setTenders] = useState([]);
+  const [giftCardMode, setGiftCardMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [selectedCat, setSelectedCat] = useState("All");
@@ -967,6 +971,7 @@ export default function POSRegister() {
 
   const clearSaleState = () => {
     setCart([]); setPaymentOpen(false); setAmountTendered("");
+    setTenders([]); setGiftCardMode(false);
     setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
   };
 
@@ -977,15 +982,22 @@ export default function POSRegister() {
       toast({ title: "Missing Serial Number", description: `${missingSerials.name} requires a serial number for each unit.`, variant: "destructive" });
       return;
     }
+    if (!isSettled(amountDue, tenders)) {
+      toast({ title: "Balance Still Due", description: `$${balanceDue(amountDue, tenders).toFixed(2)} remains — apply another tender.`, variant: "destructive" });
+      return;
+    }
     const txId = "TX-" + Date.now().toString(36).toUpperCase();
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const tendered = parseFloat(amountTendered || total);
-    const changeDue = paymentMethod === "cash" ? Math.max(0, parseFloat(amountTendered || 0) - amountDue) : 0;
+    // The primary tender is what every existing report reads; the tenders array
+    // carries the full split breakdown alongside it.
+    const method = primaryTender(tenders);
+    const tendered = appliedTotal(tenders);
+    const changeDue = changeFrom(amountDue, tenders);
     const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
     const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
     const receiptBase = {
       txId, operator, registerId, cart, subtotal, tax, total,
-      paymentMethod, amountTendered: tendered, changeDue,
+      paymentMethod: method, amountTendered: tendered, changeDue, tenders,
       loyaltyAppliedAmount, rewardsEarned, taxExempt: taxExemptProfile,
     };
 
@@ -1003,12 +1015,12 @@ export default function POSRegister() {
 
     // Offline: queue the sale on the relay instead of writing to the cloud.
     if (isOffline) {
-      if (!OFFLINE_TENDERS.includes(paymentMethod)) {
+      if (!tendersAllowed(tenders, OFFLINE_TENDERS)) {
         toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
         return;
       }
       try {
-        await submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod, amountTendered: tendered, changeDue, taxExemptId: taxExemptAppliedId });
+        await submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod: method, amountTendered: tendered, changeDue, tenders, taxExemptId: taxExemptAppliedId });
       } catch (e) {
         toast({ title: "Sale Not Saved", description: "The local relay rejected the sale. Get a manager.", variant: "destructive" });
         return;
@@ -1027,7 +1039,7 @@ export default function POSRegister() {
         txId, operator, registerId,
         storeId: sessionStorage.getItem("pos_store_id") || "",
         cart, products, subtotal, tax, total,
-        paymentMethod, amountTendered: tendered, changeDue,
+        paymentMethod: method, amountTendered: tendered, changeDue, tenders,
         trainingMode, taxExemptId: taxExemptAppliedId,
         loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
       });
@@ -1073,6 +1085,7 @@ export default function POSRegister() {
 
   const closeGiftCardResult = () => {
     setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError("");
+    setGiftCardMode(false);
     if (giftCardResult?.approved) setPaymentOpen(false);
   };
 
@@ -1086,6 +1099,7 @@ export default function POSRegister() {
     const receiptBase = {
       txId, operator, registerId, cart, subtotal, tax, total,
       paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0,
+      tenders: [{ method: "giftcard", amount: chargeAmount, reference: giftCardResult.card.card_number }],
       loyaltyAppliedAmount, rewardsEarned, taxExempt: taxExemptProfile,
     };
     const clearSale = () => {
@@ -1495,11 +1509,14 @@ export default function POSRegister() {
         amountDue={amountDue}
         loyaltyAppliedAmount={loyaltyAppliedAmount}
         loyaltyMember={loyaltyMember}
-        paymentMethod={paymentMethod}
-        setPaymentMethod={setPaymentMethod}
         allowedTenders={isOffline ? OFFLINE_TENDERS : null}
+        tenders={tenders}
+        onAddTender={(t) => setTenders(prev => [...prev, t])}
+        onRemoveTender={(i) => setTenders(prev => prev.filter((_, idx) => idx !== i))}
         amountTendered={amountTendered}
         setAmountTendered={setAmountTendered}
+        giftCardMode={giftCardMode}
+        setGiftCardMode={setGiftCardMode}
         giftCardNumber={giftCardNumber}
         setGiftCardNumber={setGiftCardNumber}
         giftCardAmount={giftCardAmount}
@@ -1507,7 +1524,8 @@ export default function POSRegister() {
         giftCardError={giftCardError}
         giftCardValidating={giftCardValidating}
         onOpenLoyaltySignup={() => setLoyaltySignupOpen(true)}
-        onSubmit={() => { if (paymentMethod === "giftcard") validateGiftCardTender(); else completeSale(); }}
+        onSubmit={completeSale}
+        onSubmitGiftCard={validateGiftCardTender}
       />
 
       {/* Override Authorization Dialog */}

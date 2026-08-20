@@ -136,14 +136,17 @@ export function buildReceiptTokens(r) {
   if (r.rewards_applied > 0) {
     push("line", amountRow("REWARDS TEND", signed(r.rewards_applied)));
   }
-  const tender = String(r.payment_method || "cash").toUpperCase().replace("_", " ");
-  push(
-    "line",
-    amountRow(
-      `${tender} TEND`,
-      signed(r.payment_method === "cash" ? r.amount_tendered : r.total - (r.rewards_applied || 0))
-    )
-  );
+  // A split sale prints one TEND line per tender, in the order they were applied.
+  const tenderRows = (r.tenders || []).length
+    ? r.tenders.map((t) => ({ method: t.method, amount: t.amount }))
+    : [{
+        method: r.payment_method || "cash",
+        amount: r.payment_method === "cash" ? r.amount_tendered : r.total - (r.rewards_applied || 0),
+      }];
+  for (const tr of tenderRows) {
+    const tender = String(tr.method || "cash").toUpperCase().replace("_", " ");
+    push("line", amountRow(`${tender} TEND`, signed(tr.amount)));
+  }
   push("line", amountRow("CHANGE DUE", money(r.change_due)));
   push("blank");
 

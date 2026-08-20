@@ -4,7 +4,7 @@ import { recordSerializedSales } from "@/lib/serialUtils";
 // Shared shape of every receipt the POS shows/prints after a sale.
 export function buildReceipt({
   txId, operator, registerId, cart, subtotal, tax, total,
-  paymentMethod, amountTendered, changeDue,
+  paymentMethod, amountTendered, changeDue, tenders = [],
   loyaltyAppliedAmount = 0, rewardsEarned = 0, loyaltyMember = null,
   newBalance = null, taxExempt = null,
 }) {
@@ -16,6 +16,7 @@ export function buildReceipt({
     paymentMethod,
     amountTendered,
     changeDue,
+    tenders,
     rewardsApplied: loyaltyAppliedAmount,
     rewardsEarned,
     loyaltyMember: loyaltyMember
@@ -56,7 +57,7 @@ async function applyLoyalty(loyaltyMember, loyaltyAppliedAmount, rewardsEarned) 
 // Returns the member's new rewards balance (or null).
 export async function commitSaleTransaction({
   txId, operator, registerId, storeId, cart, products,
-  subtotal, tax, total, paymentMethod, amountTendered, changeDue,
+  subtotal, tax, total, paymentMethod, amountTendered, changeDue, tenders = [],
   trainingMode = false, taxExemptId = "", loyaltyMember = null,
   loyaltyAppliedAmount = 0, rewardsEarned = 0, giftCardNumber = null,
 }) {
@@ -76,6 +77,10 @@ export async function commitSaleTransaction({
     })),
     subtotal, tax, total,
     payment_method: paymentMethod,
+    // Full breakdown of a split sale. payment_method above stays the primary
+    // tender so existing reports and roll-ups read one value as before.
+    tenders: tenders.length ? tenders : [{ method: paymentMethod, amount: amountTendered }],
+    split_tender: tenders.length > 1,
     status: "completed",
     amount_tendered: amountTendered,
     change_due: changeDue,

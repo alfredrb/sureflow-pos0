@@ -66,7 +66,23 @@ export default function POSReceiptDialog({ receiptData, taxExempt, storeConfig, 
                 </>
               )}
             </div>
-            {receiptData.paymentMethod === "cash" && (
+            {/* Split sales list every tender applied; a single tender keeps the classic view. */}
+            {(receiptData.tenders || []).length > 1 ? (
+              <div className="border-t pt-2 space-y-1 text-xs">
+                {receiptData.tenders.map((t, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span className="uppercase">{String(t.method).replace("_", " ")}:</span>
+                    <span>${Number(t.amount).toFixed(2)}</span>
+                  </div>
+                ))}
+                {receiptData.changeDue > 0 && (
+                  <div className="flex justify-between font-bold">
+                    <span>Change:</span>
+                    <span>${receiptData.changeDue.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            ) : receiptData.paymentMethod === "cash" && (
               <div className="border-t pt-2 space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span>Tendered:</span>
@@ -119,6 +135,7 @@ export default function POSReceiptDialog({ receiptData, taxExempt, storeConfig, 
               tax={receiptData.tax}
               total={receiptData.total}
               paymentMethod={receiptData.paymentMethod}
+              tenders={receiptData.tenders || []}
               amountTendered={receiptData.amountTendered}
               changeDue={receiptData.changeDue}
               taxExempt={taxExempt}

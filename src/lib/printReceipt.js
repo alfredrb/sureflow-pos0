@@ -14,7 +14,12 @@ export function buildReceiptPayload(p) {
     cash_slip: p.cashSlip || null,
     // Maintenance notice slips (pre/post scheduled POS maintenance) — no line items.
     notice: p.notice || null,
-    open_drawer: p.openDrawer ?? p.paymentMethod === "cash",
+    // A split sale opens the drawer if ANY of its tenders was cash.
+    open_drawer:
+      p.openDrawer ??
+      ((p.tenders || []).length
+        ? p.tenders.some((t) => t.method === "cash")
+        : p.paymentMethod === "cash"),
     transaction_id: p.transactionId,
     // barcode (CODE128) or qr — set in the Receipt Customizer.
     code_format: p.storeConfig?.transaction_code_format || "barcode",
@@ -45,6 +50,8 @@ export function buildReceiptPayload(p) {
     tax: p.tax,
     total: p.total,
     payment_method: p.paymentMethod,
+    // Full split breakdown — the formatter prints one TEND line per tender.
+    tenders: p.tenders || [],
     amount_tendered: p.paymentMethod === "cash" ? p.amountTendered : p.total,
     change_due: p.changeDue || 0,
     rewards_applied: p.rewardsApplied || 0,

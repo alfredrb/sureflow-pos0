@@ -5,7 +5,7 @@ import { queueOfflineSale } from "@/lib/relayClient";
  * cloud (idempotent on transaction_id) as soon as the connection returns.
  * Offline sales are cash/check only and are flagged offline_capture in the cloud.
  */
-export async function submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod, amountTendered, changeDue, taxExemptId }) {
+export async function submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod, amountTendered, changeDue, tenders = [], taxExemptId }) {
   return queueOfflineSale({
     transaction_id: txId,
     operator_id: operator?.operator_id || "",
@@ -17,6 +17,8 @@ export async function submitOfflineSale({ txId, operator, registerId, cart, subt
     })),
     subtotal, tax, total,
     payment_method: paymentMethod,
+    tenders: tenders.length ? tenders : [{ method: paymentMethod, amount: amountTendered }],
+    split_tender: tenders.length > 1,
     status: "completed",
     amount_tendered: amountTendered,
     change_due: changeDue,
