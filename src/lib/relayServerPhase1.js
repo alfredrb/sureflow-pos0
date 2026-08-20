@@ -190,7 +190,7 @@ router.post("/drawer", async (req, res) => {
 // Diagnostic test print used by the Infrastructure Command Center.
 router.post("/print-test", async (req, res) => {
   try {
-    await printer.testPrint((req.body || {}).printer_ip);
+    await printer.testPrint((req.body || {}).printer_ip, (req.body || {}).station);
     res.json({ ok: true, printers: printer.printers });
   } catch (e) {
     res.status(502).json({ error: e.message });

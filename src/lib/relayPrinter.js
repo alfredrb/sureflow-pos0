@@ -5,6 +5,10 @@
 export const RELAY_PRINTER_CODE = `// printer.js — raw ESC/POS printing + cash drawer kick (Epson TM-H6000IV)
 const net = require("net");
 
+// Bumped whenever this file changes. The test print shows it, so a technician can
+// confirm the relay is actually running the current printer.js and not a stale copy.
+const BUILD = "printer-build 3 (slip station)";
+
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 const WIDTH = Number(process.env.RECEIPT_WIDTH || 42); // chars on 80mm paper
@@ -225,8 +229,15 @@ module.exports = {
   printReceipt: (receipt) => sendRaw(resolvePrinter(receipt.printer_ip),
     receipt.station === "slip" ? buildSlip(receipt) : buildReceipt(receipt)),
   openDrawer: (ip) => sendRaw(resolvePrinter(ip), INIT + KICK),
-  testPrint: (ip) => sendRaw(resolvePrinter(ip), INIT + ALIGN_C + BOLD_ON + "SUREFLOW TEST PRINT\\n" + BOLD_OFF +
-    new Date().toLocaleString() + "\\n" + (process.env.STORE_ID || "") + "\\n\\n\\n" + CUT),
+  // station:"slip" sends the same test to the front slip slot — the fastest way to
+  // prove whether the slip station itself responds, separate from receipt layout.
+  testPrint: (ip, station) => {
+    const body = BOLD_ON + "SUREFLOW TEST PRINT\\n" + BOLD_OFF + BUILD + "\\n" +
+      new Date().toLocaleString() + "\\n" + (process.env.STORE_ID || "") + "\\n";
+    return sendRaw(resolvePrinter(ip), station === "slip"
+      ? INIT + SEL_SLIP + SEL_SLIP_CMD + WAIT_INSERT + ALIGN_C + body + EJECT + SEL_RECEIPT + SEL_RECEIPT_CMD
+      : INIT + ALIGN_C + body + "\\n\\n" + CUT);
+  },
   printers: PRINTER_IPS,
 };
 `;
