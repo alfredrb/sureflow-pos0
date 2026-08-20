@@ -60,6 +60,7 @@ import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
 import { commitCashVoid } from "@/lib/posVoidSale";
 import { printVoidSlip } from "@/lib/voidSlip";
 import { logAuditEvent } from "@/lib/auditLogger";
+import { useKeyClick } from "@/hooks/useKeyClick";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -163,6 +164,9 @@ export default function POSRegister() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isOffline, pendingCount, catalogStale, refresh: refreshConnectivity } = useOfflineMode();
+
+  // 4690-style keypad buzzer — a click on every keystroke and screen touch.
+  useKeyClick();
 
   // Phase 3 — report this lane's health to the store relay for live telemetry.
   useRegisterHeartbeat({

@@ -9,6 +9,7 @@ import VersionLogDialog from "@/components/VersionLogDialog";
 import POSVersionButton from "@/components/POSVersionButton";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 import { usePinpadKeys } from "@/hooks/usePinpadKeys";
+import { useKeyClick } from "@/hooks/useKeyClick";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -227,6 +228,8 @@ export default function POSLogin() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [loginMode, step, operatorId, pin, loading, showConfig, conflict, lunchLockout, showShiftLookup, showTimeClock]);
+
+  useKeyClick();
 
   // Every secondary pinpad on this screen also takes the physical keyboard.
   // Only one is ever on screen at a time, so they never share a keystroke.
