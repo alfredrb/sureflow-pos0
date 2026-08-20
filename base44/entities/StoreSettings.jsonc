@@ -76,6 +76,11 @@
       "default": true,
       "description": "Allow admins to remotely log out operators"
     },
+    "pos_key_paging_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "When true, each POS function-key tab has two pages of nine slots and the last slot of the grid holds the Next Page / Previous Page key. When false, paging is off and every tab shows a single page using all nine slots."
+    },
     "loyalty_points_percentage": {
       "type": "number",
       "default": 5,

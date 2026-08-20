@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Hash } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Hash, ChevronRight, ChevronLeft } from "lucide-react";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "abort_transaction", "void_cash_transaction", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -23,18 +24,33 @@ function getKeysForSection(sectionId, functionKeys) {
   }
 }
 
+// Slots a page can give to function keys: 9 total, minus the page-navigation
+// slot (when paging is enabled) and minus the Action Code key on Advance page 1.
+function pageCapacity(sectionId, page, paging) {
+  return 9 - (paging ? 1 : 0) - (sectionId === "advance" && page === 0 ? 1 : 0);
+}
+
 export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode }) {
   const [activeSection, setActiveSection] = useState("sale");
+  const [page, setPage] = useState(0);
+  const [paging, setPaging] = useState(true);
 
-  // The Advance tab gives one of its nine slots to the Action Code key.
-  const maxKeys = activeSection === "advance" ? 8 : 9;
-  const visibleKeys = getKeysForSection(activeSection, functionKeys);
-  const gridSlots = [...visibleKeys.slice(0, maxKeys)];
-  while (gridSlots.length < maxKeys) gridSlots.push(null);
+  useEffect(() => {
+    base44.entities.StoreSettings.list().then(list => {
+      if (list.length > 0 && list[0].pos_key_paging_enabled === false) setPaging(false);
+    });
+  }, []);
+
+  const sectionKeys = getKeysForSection(activeSection, functionKeys);
+  const firstCap = pageCapacity(activeSection, 0, paging);
+  const start = page === 0 ? 0 : firstCap;
+  const cap = pageCapacity(activeSection, page, paging);
+  const gridSlots = [...sectionKeys.slice(start, start + cap)];
+  while (gridSlots.length < cap) gridSlots.push(null);
 
   const handleSectionClick = (sectionId) => {
     if (sectionId === "item_list") onOpenItemList();
-    else setActiveSection(sectionId);
+    else { setActiveSection(sectionId); setPage(0); }
   };
 
   return (
@@ -43,11 +59,12 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
       <div className="flex-1 p-3 flex flex-col">
         <p className="text-blue-300/30 text-[10px] uppercase tracking-widest mb-2">
           {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
+          {paging && <span className="ml-1 text-blue-300/50">— Page {page + 1} of 2</span>}
         </p>
         <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
           {/* Touchscreen Action Code key — lives on the Advance tab so operators
               without the physical keyboard key can still enter numeric codes. */}
-          {activeSection === "advance" && (
+          {activeSection === "advance" && page === 0 && (
             <button
               onClick={onActionCode}
               className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg bg-slate-700"
@@ -76,6 +93,16 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
               <div key={`empty-${idx}`} className="rounded-xl border border-blue-500/5 bg-[#111638]/50" />
             )
           ))}
+          {/* Page navigation always sits in the last slot of the grid */}
+          {paging && (
+            <button
+              onClick={() => setPage(page === 0 ? 1 : 0)}
+              className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg bg-blue-800"
+            >
+              {page === 0 ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+              <span className="text-center leading-tight">{page === 0 ? "Next Page" : "Previous Page"}</span>
+            </button>
+          )}
         </div>
       </div>
 

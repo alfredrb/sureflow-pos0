@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import FunctionKeyGridViewer from "@/components/functionkeys/FunctionKeyGridViewer";
 
 const actions = [
   { value: "void_item", label: "Void Item" },
@@ -39,12 +40,6 @@ function getRequiredRole(fk) {
   return "none";
 }
 
-const SECTION_TABS = [
-  { id: "sale", label: "Sale", positions: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
-  { id: "non_sale", label: "Non-Sale", positions: [10, 11, 12, 13, 14, 15, 16, 17, 18] },
-  { id: "misc", label: "Misc", positions: [19, 20, 21, 22, 23, 24, 25, 26, 27] },
-];
-
 export default function AdminFunctionKeys() {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,10 +47,22 @@ export default function AdminFunctionKeys() {
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState({ label: "", action: "none", color: "#374151", requires_role: "none", key_number: 1 });
   const [gridView, setGridView] = useState(false);
+  const [settings, setSettings] = useState(null);
   const { toast } = useToast();
 
   const load = async () => { setKeys((await base44.entities.FunctionKey.list("key_number")).sort((a, b) => a.key_number - b.key_number)); setLoading(false); };
   useEffect(() => { load(); }, []);
+  useEffect(() => { base44.entities.StoreSettings.list().then(list => setSettings(list[0] || null)); }, []);
+
+  const togglePaging = async (enabled) => {
+    if (!settings) {
+      toast({ title: "Store settings not found", description: "Save store settings first.", variant: "destructive" });
+      return;
+    }
+    await base44.entities.StoreSettings.update(settings.id, { pos_key_paging_enabled: enabled });
+    setSettings({ ...settings, pos_key_paging_enabled: enabled });
+    toast({ title: enabled ? "Page navigation key enabled" : "Page navigation key disabled" });
+  };
   useRealtimeSync("FunctionKey", load, { intervalMs: 20000 });
 
   const openEdit = (fk) => {
@@ -168,32 +175,12 @@ export default function AdminFunctionKeys() {
       )}
 
       {gridView && (
-        <div className="space-y-6">
-          {SECTION_TABS.map(tab => {
-            const tabKeys = keys.filter(fk => tab.positions.includes(fk.key_number));
-            return (
-              <div key={tab.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">{tab.label} Functions (3×3 Grid)</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {tab.positions.map(pos => {
-                    const fk = tabKeys.find(k => k.key_number === pos);
-                    return (
-                      <button
-                        key={pos}
-                        onClick={() => fk && openEdit(fk)}
-                        className="aspect-square rounded-xl text-white font-bold text-sm uppercase tracking-wider transition-all hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-3 shadow-lg"
-                        style={{ backgroundColor: fk?.color || "#374151" }}
-                      >
-                        <span className="text-[10px] opacity-70">F{pos}</span>
-                        <span className="text-center text-xs leading-tight">{fk?.label || "—"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <FunctionKeyGridViewer
+          keys={keys}
+          pagingEnabled={settings?.pos_key_paging_enabled !== false}
+          onTogglePaging={togglePaging}
+          onEditKey={openEdit}
+        />
       )}
 
       <Dialog open={!!editing} onOpenChange={() => { setEditing(null); setIsCreating(false); }}>
@@ -202,7 +189,7 @@ export default function AdminFunctionKeys() {
            <div className="space-y-4">
              <div>
                <label className="text-sm font-medium text-gray-700 mb-1 block">Key Number</label>
-               <Input type="number" min="1" max="27" value={form.key_number} onChange={e => setForm({ ...form, key_number: parseInt(e.target.value) || 1 })} />
+               <Input type="number" min="1" max="72" value={form.key_number} onChange={e => setForm({ ...form, key_number: parseInt(e.target.value) || 1 })} />
              </div>
              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Label</label><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} /></div>
              <div>
