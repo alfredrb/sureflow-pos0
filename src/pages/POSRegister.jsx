@@ -515,7 +515,11 @@ export default function POSRegister() {
       case "void_item":
         if (cart.length > 0) { const voided = cart[cart.length - 1]; removeFromCart(voided.sku); writeLog("void", `Item voided: ${voided.name}`); }
         break;
-      case "subtotal": break;
+      // 4690 flow: Subtotal totals the sale and opens the tender screen.
+      case "subtotal":
+        if (cart.length === 0) { toast({ title: "Nothing To Total", description: "Add items to the sale first.", variant: "destructive" }); break; }
+        setPaymentOpen(true);
+        break;
       case "quantity": setQtyDialog(true); break;
       case "no_sale": kickDrawer(); writeLog("no_sale", "No Sale — cash drawer opened"); break;
       case "cash_management": setCashMgmtDialog(true); break;
