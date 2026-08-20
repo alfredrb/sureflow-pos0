@@ -9,7 +9,7 @@ export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect
 
   // Rows 1-4 are the 4x4 function block; row 5 lives on the numeric pad.
   const blockSlots = slots.filter((s) => s.row <= 4);
-  const numpadSlot = slots.find((s) => s.row === 5);
+  const numpadSlots = slots.filter((s) => s.row === 5);
 
   return (
     <div className="flex flex-wrap items-start gap-4">
@@ -42,7 +42,7 @@ export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect
         "CTRL" + Action Code → F10 (silent alarm)
       </div>
     </div>
-      <KeyboardNumpad slot={numpadSlot} selectedId={selectedId} onSelect={onSelect} />
+      <KeyboardNumpad slots={numpadSlots} selectedId={selectedId} onSelect={onSelect} />
     </div>
   );
 }

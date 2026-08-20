@@ -22,7 +22,7 @@ export default function CheckRegisterTable({ checks, onSetStatus, busyId }) {
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-blue-500/10 text-left text-blue-300/60">
+          <tr className="border-b border-blue-500/20 bg-[#0a0e27] text-left text-[11px] font-semibold uppercase tracking-wide text-blue-100">
             <th className="px-3 py-2 font-medium">Check #</th>
             <th className="px-3 py-2 font-medium">Writer</th>
             <th className="px-3 py-2 font-medium">Routing / Acct</th>
