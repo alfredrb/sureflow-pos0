@@ -1,15 +1,21 @@
 import React from "react";
 import { Lock } from "lucide-react";
+import KeyboardNumpad from "@/components/keyboard/KeyboardNumpad";
 
 // Visual 4x4 function-key block. Each cell is a physical keycap the admin clicks
 // to reassign. Yellow caps mirror the real hardware.
 export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect }) {
   const labelFor = (n) => functionKeys.find((k) => k.key_number === n)?.label;
 
+  // Rows 1-4 are the 4x4 function block; row 5 lives on the numeric pad.
+  const blockSlots = slots.filter((s) => s.row <= 4);
+  const numpadSlot = slots.find((s) => s.row === 5);
+
   return (
+    <div className="flex flex-wrap items-start gap-4">
     <div className="inline-block bg-gray-800 p-3 rounded-xl">
       <div className="grid grid-cols-4 gap-2">
-        {slots.map((s) => {
+        {blockSlots.map((s) => {
           const fnLabel = labelFor(s.function_key_number);
           const selected = selectedId === s.slot_id;
           return (
@@ -35,6 +41,8 @@ export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect
       <div className="mt-3 inline-block rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">
         "CTRL" + Action Code → F10 (silent alarm)
       </div>
+    </div>
+      <KeyboardNumpad slot={numpadSlot} selectedId={selectedId} onSelect={onSelect} />
     </div>
   );
 }

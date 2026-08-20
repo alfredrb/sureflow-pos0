@@ -1,4 +1,4 @@
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, ClipboardCheck, PackageX, TrendingDown, Scale, MessageSquare, Hash, BookOpen } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, ClipboardCheck, PackageX, TrendingDown, Scale, MessageSquare, Hash, BookOpen, Banknote } from "lucide-react";
 
 export const adminNavGroups = [
   {
@@ -35,6 +35,7 @@ export const adminNavGroups = [
       { label: "Tax Exempt", path: "/admin/tax-exempt", icon: ShieldCheck },
       { label: "Loyalty Members", path: "/admin/loyalty-members", icon: Award },
       { label: "Gift Cards", path: "/admin/gift-cards", icon: CreditCard },
+      { label: "Cheque Register", path: "/admin/check-register", icon: Banknote },
       { label: "Inventory Reconciliation", path: "/admin/inventory-reconciliation", icon: ClipboardCheck },
       { label: "Claims", path: "/admin/claims", icon: PackageX },
       { label: "Profit Loss", path: "/admin/profit-loss", icon: TrendingDown },

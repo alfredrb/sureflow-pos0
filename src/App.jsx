@@ -65,6 +65,7 @@ import EmployeeTrainingCenter from '@/pages/EmployeeTrainingCenter';
 import AdminPOSFeedback from '@/pages/AdminPOSFeedback';
 import AdminTechnicalDocs from '@/pages/AdminTechnicalDocs';
 import AdminKeyboardMapper from '@/pages/AdminKeyboardMapper';
+import AdminCheckRegister from '@/pages/AdminCheckRegister';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -147,6 +148,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/pos-feedback" element={<AdminPOSFeedback />} />
           <Route path="/admin/technical-docs" element={<AdminTechnicalDocs />} />
           <Route path="/admin/keyboard-mapper" element={<AdminKeyboardMapper />} />
+          <Route path="/admin/check-register" element={<AdminCheckRegister />} />
         </Route>
       </Route>
 
