@@ -22,13 +22,15 @@ const round = (n) => +Number(n || 0).toFixed(2);
 export const appliedTotal = (tenders = []) =>
   round(tenders.reduce((s, t) => s + Number(t.amount || 0), 0));
 
+// The amount due is always compared at cent precision — the raw total carries
+// sub-cent float dust, which otherwise turns exact change into a 1¢ discrepancy.
 // What is still owed. Never negative — an overpayment is change, not a balance.
 export const balanceDue = (amountDue, tenders = []) =>
-  Math.max(0, round(Number(amountDue || 0) - appliedTotal(tenders)));
+  Math.max(0, round(round(amountDue) - appliedTotal(tenders)));
 
 // Cash is the only tender the customer can overpay, so it is the only source of change.
 export const changeFrom = (amountDue, tenders = []) =>
-  Math.max(0, round(appliedTotal(tenders) - Number(amountDue || 0)));
+  Math.max(0, round(appliedTotal(tenders) - round(amountDue)));
 
 export const canOverTender = (m) => m === "cash";
 
