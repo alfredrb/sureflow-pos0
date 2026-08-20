@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, ChevronDown, WifiOff, Pencil, Check, X } from "lucide-react";
+import { Building2, ChevronDown, WifiOff, Pencil, Check, X, ShieldAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import VMHealthCard from "@/components/infrastructure/VMHealthCard";
@@ -15,7 +15,14 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
   const [urlDraft, setUrlDraft] = useState(store.relay_url || "");
 
   const reachable = relay?.status === "ok";
-  const unreachable = relay?.status === "unreachable" || (relay?.status === "no_url");
+  // "blocked" = the browser refused the call because this portal is HTTPS and the
+  // relay is plain HTTP. Live panels still can't be filled, but the relay itself
+  // may be perfectly healthy — the sync card is the reliable signal in that case.
+  const blocked = relay?.status === "blocked";
+  const unreachable = blocked || relay?.status === "unreachable" || (relay?.status === "no_url");
+  const statusLabel = blocked
+    ? "Not Reachable From Browser"
+    : relay?.status === "no_url" ? "No Relay URL" : "Relay Unreachable";
   const relayRegisters = relay?.data?.registers || [];
 
   const saveUrl = () => {
@@ -45,8 +52,8 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Relay Online
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-600">
-              <WifiOff className="w-3.5 h-3.5" /> {relay?.status === "no_url" ? "No Relay URL" : "Relay Unreachable"}
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${blocked ? "bg-amber-50 text-amber-700" : "bg-gray-200 text-gray-600"}`}>
+              {blocked ? <ShieldAlert className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />} {statusLabel}
             </span>
           )}
         </div>
@@ -70,6 +77,14 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
 
       {open && (
         <div className="px-5 pb-5 space-y-4">
+          {blocked && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+              This portal is served over HTTPS, so your browser blocks direct calls to the relay's plain
+              <span className="font-mono"> http:// </span>address. The live VM, printer and hardware panels stay empty
+              until the relay is reached over HTTPS or the portal is opened from inside the store network. The relay
+              may still be perfectly healthy — check the Sync Health card below, which reports through the cloud.
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <VMHealthCard vmStats={relay?.data?.vm_stats} unreachable={unreachable} onRebootClick={() => onRebootClick(store)} />
             <PrinterStatusCard printers={relay?.data?.printers} unreachable={unreachable} />

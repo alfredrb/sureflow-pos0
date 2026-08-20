@@ -16,8 +16,17 @@ async function fetchRelayStatus(url) {
   }
 }
 
+// The cloud portal is served over HTTPS, so a browser refuses to fetch a plain
+// http:// relay address and the request fails before it ever leaves the machine.
+// That is a browser restriction, not a dead relay, so it gets its own status —
+// reporting it as "unreachable" made healthy stores look down.
+function isMixedContentBlocked(url) {
+  if (typeof window === "undefined") return false;
+  return window.location.protocol === "https:" && /^http:\/\//i.test(url);
+}
+
 // Polls every store's relay_url on an interval. Returns per-store relay state:
-// { [store_number]: { status: 'ok'|'unreachable'|'no_url', data, lastPoll, lastOk } }
+// { [store_number]: { status: 'ok'|'unreachable'|'blocked'|'no_url', data, lastPoll, lastOk } }
 export function useRelayPolling(stores) {
   const [relayData, setRelayData] = useState({});
   const storesRef = useRef(stores);
@@ -31,6 +40,10 @@ export function useRelayPolling(stores) {
         const now = new Date().toISOString();
         if (!s.relay_url) {
           setRelayData((prev) => ({ ...prev, [key]: { status: "no_url", data: null, lastPoll: now, lastOk: prev[key]?.lastOk || null } }));
+          return;
+        }
+        if (isMixedContentBlocked(s.relay_url)) {
+          setRelayData((prev) => ({ ...prev, [key]: { status: "blocked", data: prev[key]?.data || null, lastPoll: now, lastOk: prev[key]?.lastOk || null } }));
           return;
         }
         try {
