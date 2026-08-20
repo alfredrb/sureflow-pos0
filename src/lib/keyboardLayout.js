@@ -24,7 +24,11 @@ const CAPS = [
 // The POS depends on both, so their slots are locked in the editor.
 export const RESERVED_KEYCODES = ["f9", "f10"];
 
-export const KEYCODE_OPTIONS = Array.from({ length: 16 }, (_, i) => `f${i + 1}`);
+export const KEYCODE_OPTIONS = [...Array.from({ length: 16 }, (_, i) => `f${i + 1}`), "backspace"];
+
+// The blank keycap directly under CTRL on the numeric pad. Mapped to backspace so
+// it deletes the last digit on every POS pinpad.
+const NUMPAD_CLEAR_CAP = "CLEAR (UNDER CTRL)";
 
 export function buildDefaultSlots() {
   const slots = [];
@@ -42,6 +46,16 @@ export function buildDefaultSlots() {
         locked: isActionCode,
       });
     });
+  });
+  slots.push({
+    slot_id: "np1",
+    row: 5,
+    col: 1,
+    cap_label: NUMPAD_CLEAR_CAP,
+    scancode: "",
+    keycode: "backspace",
+    function_key_number: null,
+    locked: false,
   });
   return slots;
 }
