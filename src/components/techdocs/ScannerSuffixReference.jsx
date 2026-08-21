@@ -1,5 +1,5 @@
 import React from "react";
-import { ScanLine, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ScanLine, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import CodeBlock from "@/components/techdocs/CodeBlock";
 
 // Why the scanner must send its own Enter, and how to program it.
@@ -72,6 +72,39 @@ export default function ScannerSuffixReference() {
             </div>
           ))}
         </div>
+        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+          <p className="text-xs font-bold text-blue-900">Where to get the three barcodes</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-blue-800">
+            Print them from Zebra's own documents — never from a photocopy, a phone screen or a re-drawn copy. A
+            configuration barcode that decodes even slightly wrong writes a different parameter into the scanner, and
+            recovering means a full factory-default reset and re-programming of the gun.
+          </p>
+          <div className="mt-2 space-y-1.5">
+            <a
+              href="https://support.zebra.com/article/How-dodr-every-scan-with-the-laser-scanners-when-attached-via-USB-or-Keyboard-Wedge"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-start gap-1.5 text-[11px] font-semibold text-blue-700 hover:underline"
+            >
+              <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>Zebra KB 000011457 — the three Enter-suffix barcodes on one page (all scanners)</span>
+            </a>
+            <a
+              href="https://sool.sk/wp-content/uploads/2023/09/ds4308-prg-en.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-start gap-1.5 text-[11px] font-semibold text-blue-700 hover:underline"
+            >
+              <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>DS4308 Product Reference Guide (PDF) — Keyboard Wedge / USB chapter and the ASCII value tables</span>
+            </a>
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-blue-800">
+            Print the KB page once at 100% scale (no "fit to page" shrinking), laminate it, and keep it in the lane
+            toolkit — provisioning a replacement gun is then three scans at the register.
+          </p>
+        </div>
+
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <p className="text-xs leading-relaxed text-amber-800">
