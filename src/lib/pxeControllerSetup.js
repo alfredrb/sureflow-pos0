@@ -54,7 +54,7 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
     xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
     ca-certificates curl iproute2 iputils-ping sudo \\
-    ser2net setserial \\
+    ser2net setserial socat \\
     plymouth plymouth-themes beep \$EXTRA
   # System-level boot progress bar instead of a wall of kernel text. The theme
   # files are installed separately; -R rebuilds the initramfs so the splash is
@@ -225,6 +225,36 @@ import {
   BRIDGE_SER2NET_CONFIG,
   BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/laneSerialBridge";
+import {
+  PRINTER_BRIDGE_PORT,
+  PRINTER_BRIDGE_UDEV_RULES,
+  PRINTER_BRIDGE_SYSTEMD_UNIT,
+} from "@/lib/lanePrinterBridge";
+
+const LANE_PRINTER_BRIDGE_STEP = {
+  step_id: "pxe_printer_bridge",
+  label: "Publish the lane's USB printer to the relay (single-cable lane)",
+  instructions: [
+    "A USB-attached receipt printer (Epson TM-H6000IV with a UB-U06 board) has no LAN address, so the relay cannot open a socket to it. socat inside the image publishes the printer's character device as TCP 9100 on the lane's own IP, and the relay's existing write reaches it unchanged.",
+    `Port ${PRINTER_BRIDGE_PORT} is the port the relay already prints to, so no relay configuration changes at all — set the register's Printer IP to the LANE's LAN IP and choose the USB transport on the Registers page.`,
+    "Keep socat BIDIRECTIONAL (its default). Printing is one-way, but ESC/POS realtime paper status (DLE EOT) and the cheque-station MICR read both need the printer's reply to come back up the same socket. A one-way pipe prints perfectly and then silently breaks paper status and cheque reading.",
+    "usblp creates /dev/usb/lp0 for the UB-U06. Minimal debootstrap roots blacklist it in favour of CUPS' libusb backend, so force it back on — with no device the bridge restarts forever.",
+    "Key the bridge on the udev symlink /dev/sureflow-printer, never on the lp number: /dev/usb/lp0 is assigned in enumeration order and any other USB printer-class device on the lane could claim it.",
+    "Leave the printer's embedded Ethernet cabled and live at the same time. The printer serves both interfaces concurrently, so the same physical unit is its own fallback — flip the register's Printer IP to the printer's Ethernet address to recover without a site visit.",
+    "The drawer kick (ESC p) and cheque endorsement (FS a family) are executed by the printer's own controller, so both are transport-agnostic and need no bridge-specific work.",
+  ],
+  commands: [
+    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends socat usbutils; done",
+    "# Force usblp on so the UB-U06 gets a character device\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V /bin/bash -c 'echo usblp > /etc/modules-load.d/sureflow-usblp.conf; rm -f /etc/modprobe.d/*usblp*blacklist* 2>/dev/null || true'; done",
+    "# Drop the udev rule and unit into both images, then enable\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V systemctl enable sureflow-printer-bridge; done",
+    `# On a booted lane — prove the device and the listener\nlsusb | grep -i epson\nls -l /dev/usb/lp0 /dev/sureflow-printer\nss -lntp | grep ${PRINTER_BRIDGE_PORT}`,
+    `# From the relay VM — prove the RETURN direction (paper status)\nprintf '\\x10\\x04\\x01' | nc -w2 <lane_ip> ${PRINTER_BRIDGE_PORT} | od -c`,
+  ],
+  codeFiles: [
+    { name: "61-sureflow-printer.rules", code: PRINTER_BRIDGE_UDEV_RULES },
+    { name: "sureflow-printer-bridge.service", code: PRINTER_BRIDGE_SYSTEMD_UNIT },
+  ],
+};
 
 const LANE_SERIAL_BRIDGE_STEP = {
   step_id: "pxe_serial_bridge",
@@ -352,6 +382,7 @@ export const PXE_CONTROLLER_STEPS = [
     codeFiles: [{ name: "10-ibm-surepoint.conf", code: IBM_PERIPHERALS }],
   },
   LANE_SERIAL_BRIDGE_STEP,
+  LANE_PRINTER_BRIDGE_STEP,
   BOOT_SPLASH_STEP,
   {
     step_id: "pxe_ha_failover",

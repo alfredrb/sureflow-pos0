@@ -107,7 +107,20 @@
     },
     "printer_ip": {
       "type": "string",
-      "description": "Static LAN IP of this register's receipt printer (e.g. 192.168.1.60). The POS sends raw ESC/POS receipts and the cash-drawer kick to this address through the store's Local Relay VM on port 9100. Blank = the relay uses the first printer in its PRINTER_IPS list."
+      "description": "Address the relay sends this lane's receipts and cash-drawer kick to on port 9100. Ethernet transport = the printer's own LAN IP (e.g. 192.168.1.60). USB transport = the LANE's own LAN IP, because the lane's socat bridge publishes the USB printer on port 9100. Blank = the relay uses the first printer in its PRINTER_IPS list."
+    },
+    "printer_transport": {
+      "type": "string",
+      "enum": [
+        "ethernet",
+        "usb_bridge"
+      ],
+      "default": "ethernet",
+      "description": "How the relay reaches this lane's receipt printer. ethernet = the printer's own embedded network interface; usb_bridge = the printer is USB-attached to the lane (Epson UB-U06) and published on the lane's IP by the socat printer bridge, giving a single uplink cable per lane. The relay code is identical either way \u2014 only printer_ip changes."
+    },
+    "printer_fallback_ip": {
+      "type": "string",
+      "description": "The printer's embedded Ethernet IP, kept cabled and live at the same time as USB (the TM-H6000IV serves both interfaces concurrently). If the lane's USB bridge or the lane itself fails, an admin pastes this into printer_ip to recover instantly with no hardware swap or site visit."
     },
     "scanner_model": {
       "type": "string",

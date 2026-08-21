@@ -14,7 +14,7 @@ export default function PrinterStatusCard({ printers, unreachable }) {
     <div className={`bg-white border border-gray-100 rounded-2xl p-5 ${unreachable ? "opacity-50" : ""}`}>
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><Printer className="w-4 h-4 text-blue-600" /></div>
-        <p className="text-sm font-semibold text-gray-900">Network Printers</p>
+        <p className="text-sm font-semibold text-gray-900">Printers</p>
       </div>
       {list.length === 0 ? (
         <p className="text-xs text-gray-400 py-4 text-center">
@@ -29,7 +29,10 @@ export default function PrinterStatusCard({ printers, unreachable }) {
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-gray-900 truncate">{p.model || "Epson TM-H6000IV"}</p>
-                    <p className="text-[11px] font-mono text-gray-400">{p.ip || "—"}</p>
+                    <p className="text-[11px] font-mono text-gray-400">
+                      {p.ip || "—"}
+                      {p.bridged && <span className="ml-1.5 font-sans text-[10px] font-medium text-blue-600">USB bridge · lane IP</span>}
+                    </p>
                   </div>
                   <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${p.reachable ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${p.reachable ? "bg-emerald-500" : "bg-red-500"}`} />
