@@ -40,11 +40,14 @@ export default function CheckReaderReference() {
           Epson TM-H6000IV cheque flow, using the cheque-station command family only:
           <span className="font-mono text-xs"> FS a 0 n </span>(read MICR — sent on its own, with no
           <span className="font-mono text-xs"> ESC f </span>or paper-select in front of it, since any other command drops the
-          printer out of MICR mode), <span className="font-mono text-xs">FS a 1</span> to load the cheque to the print position for the
-          <span className="font-semibold"> FOR DEPOSIT ONLY</span> endorsement, then <span className="font-mono text-xs">FS a 2</span> to eject.
+          printer out of MICR mode), then <span className="font-mono text-xs">FS a 2</span> to eject the sheet UNPRINTED so the operator can
+          turn it over. The <span className="font-semibold">FOR DEPOSIT ONLY</span> endorsement prints on the second pass —
+          <span className="font-mono text-xs"> ESC c 0 4</span> + <span className="font-mono text-xs">ESC f</span> waits for the reversed
+          cheque, prints the legend on the BACK, then <span className="font-mono text-xs">FS a 2</span> ejects it. There is no endorsement
+          (E/P) unit on this fleet, so the slip station only ever reaches the face — a single pass would print on the front of the cheque.
           Selecting Check at tender arms the reader automatically and prompts the operator to insert the cheque; a failed or dirty
           read falls back to manual keying, flagged on the cheque record.
-          The module logs <span className="font-mono text-xs">check-reader-build 4</span> — an older build stamp means the previous
+          The module logs <span className="font-mono text-xs">check-reader-build 5</span> — an older build stamp means the previous
           copy is still deployed on the relay.
         </p>
       </div>
