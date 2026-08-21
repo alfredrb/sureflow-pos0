@@ -23,7 +23,7 @@ import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { recordSerializedSales, verifySerialInStock } from "@/lib/serialUtils";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
-import { fetchCatalog, queueOfflineSale, forceRelaySync, fetchLocalIp } from "@/lib/relayClient";
+import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { submitOfflineSale } from "@/lib/offlineSale";
 import { kickDrawer } from "@/lib/drawerKick";
@@ -351,16 +351,11 @@ export default function POSRegister() {
           setPinpadConfig({ pinpad_model: regs[0].pinpad_model || "", pinpad_ip: regs[0].pinpad_ip || "" });
           setPoleConfig({ pole_display_model: regs[0].pole_display_model || "", pole_display_ip: regs[0].pole_display_ip || "", printer_ip: regs[0].printer_ip || "" });
           setRegisterPaused(regs[0].paused || false);
-          // Auto-detect this lane's LAN IP from the store relay (not a public-IP
-          // service — that returns the store's WAN address for every register).
-          try {
-            const { ip } = await fetchLocalIp();
-            if (ip && ip !== regs[0].ip_address) {
-              await base44.entities.Register.update(regs[0].id, { ip_address: ip });
-            }
-          } catch (e) {
-            console.error("Could not detect lane IP from the relay:", e);
-          }
+          // NOTE: no IP auto-detection. The lane's identity is register_id, taken from
+          // the PXE kernel command line. Across the PXE VLAN the relay only ever sees
+          // the controller's NAT address, so "detecting" a lane IP stamped the same
+          // wrong value (the controller's) onto every register. ip_address is now
+          // provisioned per register instead.
         }
         const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
         setCategories(cats);
