@@ -164,9 +164,21 @@ MENU COLOR SEL     7;37;40 #ff000000 #ffdddddd
 // having to composite alpha on every spinner frame.
 const SPLASH_ASSET_FETCH = `#!/bin/bash
 # /root/sureflow-fetch-splash-assets.sh — run on the PXE CONTROLLER.
+#
+# Two things this script MUST do beyond downloading, both learned the hard way:
+#
+#  1. Convert to real PNG. The asset URLs end in .png but serve JPEG data.
+#     Plymouth decodes PNG only — a JPEG makes every Image() call return null,
+#     the sprites are silently skipped, and the lane boots to the status text on
+#     a bare background with no artwork at all.
+#  2. Resize. Plymouth places sprites from each image's own pixel dimensions and
+#     does not scale logo.png or dot.png. A full-size dot.png renders as one
+#     screen-filling blue disc (eight of them stacked), which is what the lanes
+#     showed before these steps existed.
 set -eux
 DEST=/root/sureflow-splash
 mkdir -p "$DEST"
+command -v convert >/dev/null || apt-get install -y imagemagick
 
 # background.png — wave artwork. Any resolution: the theme scales it to whatever mode
 # the panel came up in, so the same file serves the legacy fbdev lanes and the modern ones.
@@ -183,8 +195,19 @@ curl -fL -o "$DEST/logo.png" \\
 curl -fL -o "$DEST/dot.png" \\
   https://media.base44.com/images/public/6a42d5b340732607e237e3b7/69cfd8544_generated_image.png
 
-# Sanity check — a truncated download shows up here as a tiny or 0-byte file.
-file "$DEST"/*.png
+# --- Normalize: force real PNG, then size each asset for the theme ---------
+# background.png is scaled by the script at runtime, so 1024x768 simply matches
+# the mode the legacy fbdev lanes come up in. logo.png and dot.png are NOT
+# scaled by the script — these sizes are the ones the layout expects.
+convert "$DEST/background.png" -strip -background "#131920" -flatten -resize 1024x768! "$DEST/background.tmp.png"
+convert "$DEST/logo.png"       -strip -background "#131920" -flatten -resize 320x      "$DEST/logo.tmp.png"
+convert "$DEST/dot.png"        -strip -background "#131920" -flatten -resize 20x20!    "$DEST/dot.tmp.png"
+for f in background logo dot; do mv -f "$DEST/$f.tmp.png" "$DEST/$f.png"; done
+
+# Sanity check — every file must report PNG magic (89 50 4e 47) and a sane size.
+# A truncated download shows up here as a tiny or 0-byte file.
+for f in background logo dot; do od -An -tx1 -N 8 "$DEST/$f.png"; done
+identify "$DEST"/*.png
 ls -l "$DEST"
 `;
 
