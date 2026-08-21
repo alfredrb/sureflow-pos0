@@ -1,13 +1,21 @@
 // Relay-side cheque reader module, delivered as copyable code in the Technical
 // Documentation. Drives the Epson TM-H6000IV cheque station over TCP 9100:
-// MICR read (E-13B), endorsement / franking print on the back of the cheque, and
-// cheque ejection. Unlike printing, a MICR read needs the socket held open so the
-// printer's response can be parsed, which is why this is its own module.
+// MICR read (E-13B), endorsement print on the back of the cheque, and ejection.
+// Unlike printing, a MICR read needs the socket held open so the printer's
+// response can be parsed, which is why this is its own module.
+//
+// TWO-PASS ENDORSEMENT (build 5). The fleet's printers have no endorsement (E/P)
+// unit — the self-test capability report confirmed it. The slip station is the
+// only station fitted and it prints the FACE of the sheet, so the previous
+// single-insertion "frank" was printing the legend on the FRONT of the cheque,
+// over the payee and amount. That is corrected here: the cheque is ejected after
+// the MICR read, the operator turns it over and reinserts it, and the endorsement
+// is printed on that second pass — so the legend lands on the back, as intended.
 
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 4";
+const BUILD = "check-reader-build 5 (two-pass endorsement)";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -97,16 +105,18 @@ function readMicr(ip, timeoutMs = 45000) {
   });
 }
 
-// Endorsement / franking legend printed on the BACK of the cheque, then eject.
-function buildFranking(c) {
+// Endorsement legend for the BACK of the cheque — printed on the SECOND pass,
+// after the operator has turned the sheet over and reinserted it.
+function buildEndorsement(c) {
   const w = 40;
   const ctr = (s) => {
     const t = String(s == null ? "" : s).slice(0, w);
     return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
-  // The cheque is still in the printer from the read, so load it to the print
-  // starting position with FS a 1 instead of waiting for a fresh sheet (ESC f).
-  let o = SEL_SLIP + LOAD_CHECK + ALIGN_L;
+  // The cheque was ejected after the MICR read so the operator could reverse it,
+  // so this pass WAITS for the reinserted sheet (ESC f) rather than loading the
+  // one already inside (FS a 1) — there is nothing inside at this point.
+  let o = SEL_SLIP + WAIT_INSERT + ALIGN_L;
   o += ctr(BOLD_ON + "FOR DEPOSIT ONLY" + BOLD_OFF);
   o += ctr(String(c.store_name || "STORE").toUpperCase());
   o += ctr("ST# " + (c.store_number || "0000") + "  REG# " + (c.register_id || "00"));
@@ -121,8 +131,12 @@ function buildFranking(c) {
 
 module.exports = {
   readMicr,
-  frankCheck: (c) => sendRaw(resolvePrinter(c.printer_ip), buildFranking(c)),
-  // Release a cheque without franking it (declined tender, aborted read).
+  // Second pass: waits ~30s for the REVERSED cheque, prints the endorsement on the
+  // back, then ejects. Called only after the POS has prompted the operator to turn
+  // the cheque over.
+  frankCheck: (c) => sendRaw(resolvePrinter(c.printer_ip), buildEndorsement(c)),
+  // Release a cheque without printing anything (after the read, declined tender,
+  // aborted read). This is what hands the sheet back for reversing.
   ejectCheck: (ip) => sendRaw(resolvePrinter(ip), EJECT_CHECK + SEL_RECEIPT),
   BUILD,
 };
@@ -143,7 +157,9 @@ app.post("/api/check/read", async (req, res) => {
   }
 });
 
-// Print the endorsement legend on the back of the cheque and eject it.
+// SECOND PASS. Waits for the operator to reinsert the cheque REVERSED, prints the
+// endorsement on the back, then ejects. The printer has no endorsement (E/P) unit,
+// so the back can only be reached by physically turning the sheet over.
 app.post("/api/check/frank", async (req, res) => {
   try {
     await checkReader.frankCheck(req.body || {});
@@ -153,7 +169,8 @@ app.post("/api/check/frank", async (req, res) => {
   }
 });
 
-// Release a cheque without franking (declined / aborted).
+// Release the cheque unprinted — used after the MICR read so the operator can turn
+// it over, and for declined / aborted tenders.
 app.post("/api/check/eject", async (req, res) => {
   try {
     await checkReader.ejectCheck(req.body.printer_ip);

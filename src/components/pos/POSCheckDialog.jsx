@@ -9,12 +9,16 @@ import { parseMicr, validateCheck, last4 } from "@/lib/checkMicr";
 import { findActiveBlock, blockReasonLabel } from "@/lib/checkBlockList";
 import { hasPinpad, promptOnPinpad, captureSignatureOnPinpad, cancelPinpad, idlePinpad } from "@/lib/pinpadFlow";
 import POSPinpadPrompt from "@/components/pos/POSPinpadPrompt";
+import POSCheckReinsertStep from "@/components/pos/POSCheckReinsertStep";
 
 // 4690 cheque tender: insert the cheque, the TM-H6000 reads the MICR line, the
-// operator confirms the numbers, the register franks the back "FOR DEPOSIT ONLY"
-// and ejects it. A failed read drops straight into manual entry.
+// operator confirms the numbers, then the cheque is ejected, turned over and
+// reinserted so "FOR DEPOSIT ONLY" prints on the BACK. The second pass exists
+// because these printers have no endorsement unit — the slip station prints the
+// face, so a single pass would put the legend on the front of the cheque.
+// A failed read drops straight into manual entry.
 export default function POSCheckDialog({ open, onOpenChange, amount, context = {}, onAccept }) {
-  const [step, setStep] = useState("insert");   // insert | reading | review | signature | franking
+  const [step, setStep] = useState("insert");   // insert | reading | review | signature | reinsert | franking
   const [fields, setFields] = useState({ routing: "", account: "", check_number: "", customer_name: "", customer_id: "" });
   const [micrRaw, setMicrRaw] = useState("");
   const [method, setMethod] = useState("micr_read");
@@ -100,18 +104,29 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
       setError(`CHEQUE REFUSED — writer is on the block list (${blockReasonLabel(block.reason)}). Take another tender.`);
       return;
     }
-    // Signature first (when the lane has a pinpad), then frank and record.
+    // Signature first (when the lane has a pinpad), then hand the cheque back to
+    // the operator to reverse it for the endorsement pass.
     if (hasPinpad(context)) {
       setStep("signature");
       const sig = await runSignature();
-      finalize(sig);
+      toReinsert(sig);
       return;
     }
-    finalize({ skipped: "No pinpad configured on this lane" });
+    toReinsert({ skipped: "No pinpad configured on this lane" });
   };
 
-  const finalize = async (signature = {}) => {
-    setStep("franking");
+  // Eject the cheque so the operator can turn it over. Nothing has been printed on
+  // it yet — the endorsement belongs on the back, which needs the second pass.
+  const sigRef = React.useRef({});
+  const toReinsert = async (signature = {}) => {
+    sigRef.current = signature;
+    setStep("reinsert");
+    try { await ejectCheck(context.printer_ip); } catch (e) { /* nothing loaded */ }
+  };
+
+  const finalize = async (endorse) => {
+    const signature = sigRef.current || {};
+    if (endorse) setStep("franking");
     const record = {
       check_number: fields.check_number,
       routing_number: fields.routing,
@@ -135,6 +150,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
     };
     let franked = false;
     try {
+      if (!endorse) throw new Error("Endorsement skipped by operator");
       await frankCheck({
         printer_ip: context.printer_ip, store_name: context.store_name, store_number: context.store_number,
         register_id: context.register_id, operator_pin: context.operator_pin, operator_name: context.operator_name,
@@ -142,7 +158,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
         account_last4: last4(fields.account), amount, date: new Date().toLocaleString(),
       });
       franked = true;
-    } catch (e) { /* endorsement can be re-printed; the tender still stands */ }
+    } catch (e) { /* endorsement can be re-printed by hand; the tender still stands */ }
 
     const saved = await base44.entities.CheckPayment.create({
       ...record, franked, franked_at: franked ? new Date().toISOString() : undefined,
@@ -236,7 +252,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
                 className="flex-1 h-10 border-red-500/30 text-red-300 hover:bg-red-500/10 text-xs">Refuse Cheque</Button>
               <Button onClick={accept} disabled={!!blocked || checking}
                 className="flex-1 h-10 bg-green-600 hover:bg-green-500 font-bold text-xs gap-1 disabled:opacity-40">
-                <ShieldCheck className="w-4 h-4" /> {checking ? "Checking..." : blocked ? "Blocked" : "Accept & Frank"}
+                <ShieldCheck className="w-4 h-4" /> {checking ? "Checking..." : blocked ? "Blocked" : "Accept Cheque"}
               </Button>
             </div>
           </div>
@@ -246,13 +262,17 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
           <POSPinpadPrompt
             title="CUSTOMER IS SIGNING ON THE PINPAD"
             detail="The signature is stored against this cheque so the back office can verify it later."
-            onSkip={() => { cancelPinpad(context); finalize({ skipped: "Operator bypassed the signature prompt" }); }}
-            skipLabel="Skip Signature — Accept & Frank"
+            onSkip={() => { cancelPinpad(context); toReinsert({ skipped: "Operator bypassed the signature prompt" }); }}
+            skipLabel="Skip Signature — Continue"
           />
         )}
 
+        {step === "reinsert" && (
+          <POSCheckReinsertStep onEndorse={() => finalize(true)} onSkip={() => finalize(false)} />
+        )}
+
         {step === "franking" && (
-          <p className="text-amber-300 text-xs text-center py-6 animate-pulse">Printing endorsement — leave the cheque in the slot...</p>
+          <p className="text-amber-300 text-xs text-center py-6 animate-pulse">Printing endorsement on the back — leave the cheque in the slot...</p>
         )}
       </DialogContent>
     </Dialog>

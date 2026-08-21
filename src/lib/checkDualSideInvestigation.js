@@ -59,10 +59,11 @@ export const RESOLUTION = {
     },
   ],
   next_steps: [
-    "Confirm on a scrap cheque exactly where the current legend lands on the face, and photograph it for the record.",
-    "Decide whether to suppress or relocate the face legend immediately, ahead of building the two-pass flow.",
-    "Run the same self-test on every other lane's printer — the E/P is a per-unit factory option, so a sister lane may still have it.",
-    "Then build the guided two-pass reinsert flow as the fleet-wide default, since it works with or without the option.",
+    "DONE — the face legend is suppressed. The cheque is now ejected unprinted after the MICR read, so nothing is printed on the front.",
+    "DONE — the guided two-pass reinsert flow is live (check-reader build 5): read, eject, TURN THE CHEQUE OVER prompt, endorse the back, eject.",
+    "Verify at the lane on a scrap cheque that the legend now lands on the back and the front is clean.",
+    "Run the same self-test on every other lane's printer — the E/P is a per-unit factory option, so a sister lane may still have one.",
+    "Deploy the updated checkReader.js to each store relay; lanes keep the old single-pass behaviour until the relay is updated.",
   ],
 };
 
@@ -118,12 +119,14 @@ export const SOURCE_REFERENCES = [
   { label: "IBM 4800-C41 manual", url: "https://www.manualslib.com/manual/377421/Ibm-4800-C41.html" },
 ];
 
+// The corrected two-pass sequence now running at the lane (check-reader build 5).
 export const CURRENT_FLOW = [
-  { cmd: "FS a 0 (1C 61 30 30)", detail: "Wait for the cheque, read the E-13B MICR line, keep the sheet loaded." },
-  { cmd: "FS a 1 (1C 61 31)", detail: "Load the cheque to the print starting position — no fresh-sheet wait needed." },
-  { cmd: "ESC c 0 4", detail: "Select the slip station. Per Epson this is a FACE-printing station — the back needs the separate E/P mechanism." },
-  { cmd: "text + LF", detail: "Impact-print the FOR DEPOSIT ONLY legend. Which physical side this lands on is exactly what the capture confirms." },
-  { cmd: "FS a 2 (1C 61 32)", detail: "Eject the cheque. Only one side was printed — hence the manual reinsertion the store is doing." },
+  { cmd: "FS a 0 (1C 61 30 30)", detail: "PASS 1 — wait for the cheque face-up, read the E-13B MICR line." },
+  { cmd: "FS a 2 (1C 61 32)", detail: "Eject the cheque unprinted, so the operator can turn it over. Nothing is printed on the face any more." },
+  { cmd: "— operator turns the cheque over —", detail: "The POS shows the TURN THE CHEQUE OVER prompt and waits for the operator to reinsert it face-down." },
+  { cmd: "ESC c 0 4 + ESC f", detail: "PASS 2 — select the slip station and wait ~30s for the reversed sheet. FS a 1 is wrong here: nothing is loaded." },
+  { cmd: "text + LF", detail: "Impact-print the FOR DEPOSIT ONLY legend — now landing on the BACK of the cheque, which is where it was laid out for." },
+  { cmd: "FS a 2 (1C 61 32)", detail: "Eject the endorsed cheque and return the printer to the receipt roll." },
 ];
 
 // What the technician now needs to establish — narrowed by the vendor findings.
