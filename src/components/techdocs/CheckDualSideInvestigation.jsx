@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { logAuditEvent } from "@/lib/auditLogger";
-import { CURRENT_FLOW, CAPTURE_STEPS, DECISION_GATE } from "@/lib/checkDualSideInvestigation";
+import VendorFindingsPanel from "@/components/techdocs/VendorFindingsPanel";
+import { CURRENT_FLOW, CAPTURE_STEPS, DECISION_GATE, VENDOR_FINDINGS, SOURCE_REFERENCES } from "@/lib/checkDualSideInvestigation";
 
 const OUTCOMES = [
-  { value: "go", label: "GO — second head confirmed, commands captured" },
-  { value: "no_go", label: "NO-GO — single impact head, use two-pass reinsert" },
-  { value: "inconclusive", label: "INCONCLUSIVE — keep the profile reserved" },
+  { value: "go", label: "GO — endorsement (E/P) option fitted, frames captured" },
+  { value: "no_go", label: "NO-GO — standard model, face printing only" },
+  { value: "mixed", label: "MIXED FLEET — E/P on some lanes only" },
 ];
 
 export default function CheckDualSideInvestigation() {
@@ -55,23 +56,26 @@ export default function CheckDualSideInvestigation() {
         </div>
         <div className="space-y-2 text-xs leading-relaxed text-gray-600">
           <p>
-            A cheque tender is one insertion today, and it prints only the <strong>back</strong> — the endorsement legend.
-            The front (the cheque face) is never printed in that pass, which is why the store reinserts the cheque by hand.
+            A cheque tender is one insertion today and prints one side only, which is why the store reinserts the cheque by
+            hand. Epson's manuals now answer the architecture: the <strong>slip station prints the face</strong>, and
+            printing the <strong>back</strong> requires the separate <strong>endorsement (E/P) mechanism</strong> — a second
+            impact head that is a <strong>factory-installed option</strong>.
           </p>
           <p>
-            The question is whether this unit has a <strong>second impact head</strong> addressing the opposite side of the
-            sheet. Standard ESC/POS exposes only the <span className="font-mono">FS a</span> cheque-station family, which
-            prints the endorsement side; there is no documented command in that family that selects a front-facing head.
-            So the honest position is the same one taken for the reserved IBM/ADX pole displays: capture from the live unit
-            first, decide second.
+            So there is no hidden command to find. The remaining question is per-unit hardware: does this lane's printer
+            carry the E/P option? The self-test sheet and the two ribbon bays answer that in minutes, and because the
+            option varies unit by unit, the honest expectation is a mixed fleet — handled per register, exactly like the
+            pole displays.
           </p>
         </div>
       </div>
 
+      <VendorFindingsPanel findings={VENDOR_FINDINGS} sources={SOURCE_REFERENCES} />
+
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
         <div className="border-b border-gray-100 p-4">
           <p className="text-sm font-semibold text-gray-900">What the lane does today</p>
-          <p className="mt-0.5 text-[11px] text-gray-400">One insertion, back only — the current relay cheque sequence</p>
+          <p className="mt-0.5 text-[11px] text-gray-400">One insertion, one side — the current relay cheque sequence</p>
         </div>
         <ol className="divide-y divide-gray-100">
           {CURRENT_FLOW.map((f) => (
@@ -144,7 +148,7 @@ export default function CheckDualSideInvestigation() {
               value={findings}
               onChange={(e) => setFindings(e.target.value)}
               rows={4}
-              placeholder="Self-test sheet stations, ESC c 0 n values accepted, captured byte sequences, two-pass timing…"
+              placeholder="Self-test station list, E/P option present?, which side the current legend printed on, captured frames, two-pass timing…"
               className="text-sm"
             />
           </div>

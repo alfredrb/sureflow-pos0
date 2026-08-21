@@ -1,83 +1,149 @@
-// Check dual-side printing — bounded investigation, not a delivered feature.
+// Cheque dual-side printing — investigation, now anchored to Epson's own manuals
+// rather than to inference. Still gated: what the vendor documents is the model
+// FAMILY, and what a given fleet unit has is a factory option to be confirmed.
 //
-// Today a cheque tender is ONE insertion: FS a 0 (read the MICR on the front
-// bottom edge, keep the cheque loaded) → FS a 1 (load to print position) → impact
-// print the endorsement on the BACK → FS a 2 (eject). The FRONT of the cheque is
-// never printed in that pass, which is the reinsertion the store is doing by hand.
+// The vendor's own model breakdown (TM-H6000V User's Manual, "Applicable Models
+// and Features") settles the architecture question:
 //
-// The open question is whether the TM-H6000IV in this fleet has a SECOND impact
-// head addressing the opposite side of the sheet. Standard ESC/POS exposes only
-// the FS a family, which prints the endorsement side — there is no documented
-// command in that family that selects a front-facing head. So this is the same
-// situation as the reserved IBM/ADX pole profiles: capture from the live unit
-// first, decide second. Nothing ships until the go/no-go is recorded.
+//   Standard model  — prints on the FACE of roll/slip paper.
+//                     Models with the endorsement printer (factory-installed
+//                     option) can print ALSO on the BACK of slip paper.
+//   Validation model — prints on the FACE of roll/slip/validation paper.
+//
+// So dual-side is a HARDWARE OPTION, not a hidden command: the slip station
+// prints the face, and a separate endorsement mechanism (E/P) — a second impact
+// head — prints the back. Epson documents the E/P as driving endorsement print
+// "as part of a sequence that is automatically processed: MICR reading, ..." so on
+// an E/P-equipped unit a single insertion legitimately covers both sides.
+//
+// This reframes the open question from "does a secret front-print command exist?"
+// to "does THIS unit carry the E/P option, and is our sequence addressing it?" —
+// which the self-test sheet and the ribbon bays answer in minutes.
+
+export const VENDOR_FINDINGS = [
+  {
+    finding: "Dual-side is a factory option, not a command discovery",
+    detail:
+      "Epson splits the line into a standard model that prints the FACE of roll/slip paper, and a variant with the " +
+      "endorsement printer option that can print ALSO on the BACK of slip paper. There is nothing to reverse-engineer: " +
+      "if the option is absent, no command sequence will produce back-side print.",
+    source: "TM-H6000V User's Manual — Applicable Models and Features",
+  },
+  {
+    finding: "The endorsement mechanism is a genuine second impact head",
+    detail:
+      "The E/P is documented as its own print mechanism, and third-party service references describe it plainly as a " +
+      "second impact print head. That is the physical thing the earlier capture step was trying to establish by eye.",
+    source: "TM-H6000II Technical Reference Guide — E/P mechanism",
+  },
+  {
+    finding: "MICR read and endorsement are one automatic sequence",
+    detail:
+      "Epson describes the E/P as printing the endorsement as part of a sequence the printer processes automatically " +
+      "beginning with the MICR read. On an E/P unit the single-insertion flow is the vendor's intended design, not a " +
+      "trick — which is what makes a GO outcome low-risk.",
+    source: "TM-H6000II Technical Reference Guide — E/P mechanism",
+  },
+  {
+    finding: "Two ribbon bays, two mechanisms — a visual tell",
+    detail:
+      "On the H6000V the ribbon cartridge for ENDORSEMENT printing is installed under the receipt unit, while the ribbon " +
+      "for SLIP/VALIDATION printing is installed under the front cover. Two separately documented ribbon locations means " +
+      "two mechanisms, and their presence is checkable without powering the unit.",
+    source: "TM-H6000V User's Manual — Part Names and Functions",
+  },
+  {
+    finding: "Our current sequence may be printing the endorsement on the FACE",
+    detail:
+      "Because the slip station is the FACE printer, ESC c 0 4 followed by text prints the legend on the front of the " +
+      "cheque, not the back — the back requires the E/P station. This is the leading explanation for the long-standing " +
+      "off-centre franking legend: the legend is landing on a side, and in a position, it was never laid out for. " +
+      "Confirm on a scrap cheque before changing any relay code.",
+    source: "Inference from the model/station split above — verify at the unit",
+  },
+];
+
+export const SOURCE_REFERENCES = [
+  { label: "TM-H6000V Technical Reference Guide (Rev. B)", url: "https://files.support.epson.com/pdf/pos/bulk/tm-h6000v_trg_en_revb.pdf" },
+  { label: "TM-H6000V User's Manual", url: "https://files.support.epson.com/pdf/pos/bulk/tm-h6000v_um_en_01.pdf" },
+  { label: "Epson TM-H6000V support and manuals index", url: "https://epson.com/Support/Point-of-Sale/OmniLink-Printers/Epson-TM-H6000V-Series/s/SPT_C31CG62032#manuals" },
+  { label: "TM-H6000II Technical Reference Guide (E/P mechanism detail)", url: "http://www.i-o.cz/user/upload/TMH-6000-II%20Technical%20Reference.pdf" },
+  { label: "IBM SurePOS 700 Series manual", url: "https://www.manualslib.com/manual/1923709/Ibm-Surepos-700-Series.html" },
+  { label: "IBM 4800-C41 manual", url: "https://www.manualslib.com/manual/377421/Ibm-4800-C41.html" },
+];
 
 export const CURRENT_FLOW = [
   { cmd: "FS a 0 (1C 61 30 30)", detail: "Wait for the cheque, read the E-13B MICR line, keep the sheet loaded." },
   { cmd: "FS a 1 (1C 61 31)", detail: "Load the cheque to the print starting position — no fresh-sheet wait needed." },
-  { cmd: "ESC c 0 4", detail: "Select the cheque / slip station as the paper source (SLIP_PAPER=4)." },
-  { cmd: "text + LF", detail: "Impact-print the FOR DEPOSIT ONLY endorsement legend on the BACK of the cheque." },
-  { cmd: "FS a 2 (1C 61 32)", detail: "Eject the cheque. The front was never printed — hence the manual reinsertion." },
+  { cmd: "ESC c 0 4", detail: "Select the slip station. Per Epson this is a FACE-printing station — the back needs the separate E/P mechanism." },
+  { cmd: "text + LF", detail: "Impact-print the FOR DEPOSIT ONLY legend. Which physical side this lands on is exactly what the capture confirms." },
+  { cmd: "FS a 2 (1C 61 32)", detail: "Eject the cheque. Only one side was printed — hence the manual reinsertion the store is doing." },
 ];
 
-// What the technician is actually trying to establish at the unit.
+// What the technician now needs to establish — narrowed by the vendor findings.
 export const CAPTURE_STEPS = [
-  {
-    step: "Establish what the second ribbon spot physically is",
-    detail:
-      "Open the rear cover with the printer powered off and look for a second ribbon cartridge seated against a " +
-      "print head, versus an empty option bay or the thermal head housing. A ribbon with no head behind it is not a " +
-      "print station. Photograph it and record the exact model string from the bottom label — TM-H6000IV variants " +
-      "differ, and the answer for one unit is not the answer for the fleet.",
-  },
   {
     step: "Read the printer's own capability report",
     detail:
-      "Hold FEED while powering on to print the self-test / configuration sheet. It lists the installed interfaces and " +
-      "stations. If a second slip or endorsement station exists, it is named there — this is the cheapest single piece " +
-      "of evidence and it settles most of the question.",
+      "Hold FEED while powering on to print the self-test / configuration sheet. It names the installed stations and " +
+      "interfaces, so it states directly whether the endorsement mechanism is fitted. Cheapest possible evidence, and " +
+      "it now answers the whole architectural question — do this one first.",
   },
   {
-    step: "Enumerate the paper sources the firmware will accept",
+    step: "Confirm the model string and the E/P option on the label",
     detail:
-      "ESC c 0 n selects the paper source. n=3 is the receipt roll and n=4 is the cheque/slip station in the current " +
-      "build. Sweep the remaining values one at a time with a cheque loaded and record which are accepted, which are " +
-      "ignored, and which make the printer eject. An accepted value that prints on the FRONT is the finding that " +
-      "unlocks single-pass dual-side.",
+      "Record the exact model string from the bottom label. The E/P is a factory-installed option, so it varies unit by " +
+      "unit within the same fleet — the answer for one lane is explicitly not the answer for the fleet. Log which lanes " +
+      "have it before planning any rollout.",
   },
   {
-    step: "Capture the bytes rather than trusting the manual",
+    step: "Check both ribbon bays physically",
     detail:
-      "If a vendor utility or the ePOS SDK can print on the front, run it against the unit and capture the frames the " +
-      "same way the pole capture helper does — a socat tap in front of the printer, then od -c the stream. Recording " +
-      "the real byte sequence is what turns a reserved profile into a supported one.",
+      "Powered off, open the receipt unit (endorsement ribbon location) and the front cover (slip/validation ribbon " +
+      "location). A seated cartridge against a head in the receipt-unit bay is the E/P; an empty bay means this unit " +
+      "prints the face only. Photograph both for the fleet record.",
   },
   {
-    step: "Time the two-pass fallback so there is a baseline to compare against",
+    step: "Establish which SIDE our current legend actually prints on",
     detail:
-      "Regardless of the outcome, time a guided reinsert flow at the lane: endorse the back, eject, prompt 'reinsert " +
-      "face-up', print the front. If the added seconds are acceptable at the register, a no-go on the second head " +
-      "costs the store very little — which is what makes this safe to gate.",
+      "Run one cheque tender on a scrap cheque and look at the paper. If the legend is on the FACE, the off-centre " +
+      "franking issue is a station problem rather than a layout problem, and the fix is to address the E/P — not to " +
+      "nudge the margins again.",
+  },
+  {
+    step: "Capture the bytes for the endorsement station",
+    detail:
+      "On an E/P unit, drive endorsement print with a vendor utility or the ePOS SDK and tap the stream the same way the " +
+      "pole capture helper does — a socat tap in front of the printer, then od -c. Recording the real frames is what " +
+      "turns a reserved profile into a supported one.",
+  },
+  {
+    step: "Time the two-pass fallback anyway",
+    detail:
+      "Time a guided reinsert flow at the lane: print one side, eject, prompt to reinsert, print the other. This is the " +
+      "path every non-E/P unit takes permanently, and a mixed fleet will need it regardless of what the best lanes can do.",
   },
 ];
 
 export const DECISION_GATE = [
   {
-    outcome: "GO — a real second head, and its command set was captured",
+    outcome: "GO — the E/P option is fitted and its frames were captured",
     detail:
-      "Add a front-face profile to the cheque module the same way pinpad and pole models are added: a captured command " +
-      "profile keyed by model, not new branching in the POS. One insertion then prints the face and the endorsement.",
+      "Add an endorsement-station profile to the cheque module the same way pinpad and pole models are added: a captured " +
+      "command profile keyed by model, not new branching in the POS. One insertion then prints the face and the back, " +
+      "which is Epson's documented design for these units.",
   },
   {
-    outcome: "NO-GO — single impact head",
+    outcome: "NO-GO — standard model, face printing only",
     detail:
-      "Commit the guided two-pass reinsert flow instead: the relay endorses the back, ejects, the POS prompts the " +
-      "operator to reinsert face-up, then the front prints. Same hardware, one extra prompt, no protocol risk.",
+      "No command will produce back-side print on this hardware, so commit the guided two-pass reinsert flow: print, " +
+      "eject, prompt the operator to reinsert, print the other side. Same hardware, one extra prompt, no protocol risk.",
   },
   {
-    outcome: "INCONCLUSIVE — a head may exist but the protocol is undocumented",
+    outcome: "MIXED FLEET — some lanes have the E/P, some do not",
     detail:
-      "Keep the profile RESERVED, exactly like the IBM/ADX pole displays. A reserved profile is skipped silently at " +
-      "the lane rather than half-working, and the fleet keeps the two-pass flow until frames are captured.",
+      "The likeliest real-world outcome given it is a factory option. Treat it exactly like the pole displays: the " +
+      "capability is per-register hardware profile, E/P lanes take the single-insertion path, and every other lane keeps " +
+      "the two-pass flow. Never assume the option chain-wide.",
   },
 ];
