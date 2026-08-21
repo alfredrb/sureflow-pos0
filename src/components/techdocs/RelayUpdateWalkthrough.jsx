@@ -4,7 +4,7 @@ import CodeBlock from "@/components/techdocs/CodeBlock";
 import { RELAY_CHECK_READER_CODE, RELAY_CHECK_ROUTES_CODE } from "@/lib/relayCheckReader";
 import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE } from "@/lib/relayPinpad";
 import { RELAY_POLE_CODE, RELAY_POLE_ROUTES_CODE } from "@/lib/relayPoleDisplay";
-import { RELAY_SERVER_WITH_CHECKS_CODE } from "@/lib/relayServerWithChecks";
+import { RELAY_SERVER_COMPLETE_CODE, RELAY_SERVER_COMPLETE_VERIFY } from "@/lib/relayServerComplete";
 import { PRINTER_BRIDGE_UDEV_RULES, PRINTER_BRIDGE_SYSTEMD_UNIT, PRINTER_BRIDGE_BUILD_STEPS, LANE_BRIDGE_PORT_MAP } from "@/lib/lanePrinterBridge";
 import { BRIDGE_UDEV_RULES, BRIDGE_SER2NET_CONFIG, BRIDGE_SYSTEMD_UNIT, BRIDGE_BUILD_STEPS } from "@/lib/laneSerialBridge";
 import { RELAY_LANE_REBOOT_CODE, RELAY_LANE_REBOOT_ROUTES_CODE, LANE_REBOOT_AGENT_CODE, LANE_REBOOT_AGENT_UNIT, LANE_REBOOT_AGENT_BUILD_STEPS, LANE_REBOOT_VERIFY } from "@/lib/relayLaneReboot";
@@ -69,14 +69,14 @@ CLOUD_API_KEY=<paste from Infrastructure Command Center>`,
   {
     title: "Patch server.js with the new routes",
     blurb:
-      "Mount these AFTER the existing /api routes and BEFORE the static POS build and the SPA catch-all — the catch-all swallows anything registered below it. If patching by hand feels risky, paste the complete server.js at the bottom of this step instead; it already has all three route groups in place.",
+      "Mount these AFTER the existing /api routes and BEFORE the static POS build and the SPA catch-all — the catch-all swallows anything registered below it, and a swallowed route returns the POS index.html instead of JSON, which looks exactly like a missing endpoint. Easiest path: skip the three patches and drop in the COMPLETE server.js, which already has the cheque, pinpad, pole AND lane-reboot routes mounted in the correct order. Every module it requires must exist on disk first (step 3 plus laneReboot.js from step 8) or the relay will not boot.",
     blocks: [
+      { title: "Complete server.js — RECOMMENDED, replaces all three patches below", filename: "/opt/sureflow-relay/server.js", code: RELAY_SERVER_COMPLETE_CODE },
       { title: "Cheque routes — read, frank (second pass), eject", filename: "server.js (patch)", code: RELAY_CHECK_ROUTES_CODE },
       { title: "Pinpad routes", filename: "server.js (patch)", code: RELAY_PINPAD_ROUTES_CODE },
       { title: "Pole display routes", filename: "server.js (patch)", code: RELAY_POLE_ROUTES_CODE },
-      { title: "Complete server.js — use INSTEAD of the three patches above", filename: "/opt/sureflow-relay/server.js", code: RELAY_SERVER_WITH_CHECKS_CODE },
     ],
-    after: `node --check /opt/sureflow-relay/server.js   # syntax gate before restarting`,
+    after: RELAY_SERVER_COMPLETE_VERIFY,
   },
   {
     title: "Restart and confirm the build stamps",
@@ -134,7 +134,7 @@ Pole model / IP   : epson_dmd110 -> leave IP blank (routed via the printer)
       "The lanes sit on the isolated PXE VLAN behind the controller's NAT, so nothing can open a connection INTO a lane — no SSH, no HTTP — and the relay only ever sees the controller's address, which is why IP detection reports 10.0.40.10 instead of the lane. So the direction is reversed: the relay holds a queue of pending reboots keyed by REGISTER ID (the identity the lane reads from its own kernel command line), and a small agent on the lane polls for it outbound, which is the direction that always works. The same agent listens on the lane's loopback so the POS button reboots instantly without touching the network at all.",
     blocks: [
       { title: "Relay — pending reboot queue", filename: "/opt/sureflow-relay/laneReboot.js", code: RELAY_LANE_REBOOT_CODE },
-      { title: "Relay — queue + claim routes", filename: "server.js (patch)", code: RELAY_LANE_REBOOT_ROUTES_CODE },
+      { title: "Relay — queue + claim routes (already included in the complete server.js in step 4)", filename: "server.js (patch)", code: RELAY_LANE_REBOOT_ROUTES_CODE },
       { title: "Lane agent — loopback endpoint + outbound poll", filename: "/usr/local/bin/sureflow-lane-agent", code: LANE_REBOOT_AGENT_CODE },
       { title: "Lane agent — systemd unit", filename: "/etc/systemd/system/sureflow-lane-agent.service", code: LANE_REBOOT_AGENT_UNIT },
       { title: "Lane agent — image build steps", filename: "PXE controller (chroot)", code: LANE_REBOOT_AGENT_BUILD_STEPS },
