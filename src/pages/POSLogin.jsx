@@ -175,22 +175,25 @@ export default function POSLogin() {
 
   const handleSelectRegister = async (reg) => {
     setConfigLoading(true);
-    try {
-      const updatedIp = detectedIp || reg.ip_address || "—";
-      await base44.entities.Register.update(reg.id, {
-        status: "online",
-        ip_address: detectedIp || reg.ip_address
-      });
-      setRegisterNum(reg.register_id);
-      setRegisterIp(updatedIp);
-      sessionStorage.setItem("pos_register_num", reg.register_id);
-      sessionStorage.setItem("pos_register_ip", updatedIp);
-      setShowConfig(false);
-      toast({ title: "Register Set", description: `${reg.register_id} — IP: ${updatedIp}` });
-    } catch {
-      toast({ title: "Error", description: "Could not update register", variant: "destructive" });
-    }
+    const updatedIp = detectedIp || reg.ip_address || "—";
+    // Claim the register locally FIRST. The lane's own session is not always
+    // permitted to write the Register record (status / IP are admin-owned fields),
+    // and a rejected write used to abort the whole selection — leaving the picker
+    // open and the lane with no register. Identity is a local decision; the
+    // status/IP write is best-effort telemetry on top of it.
+    setRegisterNum(reg.register_id);
+    setRegisterIp(updatedIp);
+    sessionStorage.setItem("pos_register_num", reg.register_id);
+    sessionStorage.setItem("pos_register_ip", updatedIp);
+    if (reg.store_id) sessionStorage.setItem("pos_store_id", reg.store_id);
+    await base44.entities.Register.update(reg.id, {
+      status: "online",
+      ip_address: detectedIp || reg.ip_address
+    }).catch(() => {});
     setConfigLoading(false);
+    setForceConfig(false);
+    setShowConfig(false);
+    toast({ title: "Register Set", description: `${reg.register_id} — IP: ${updatedIp}` });
   };
 
   const pinInputRef = React.useRef(null);
