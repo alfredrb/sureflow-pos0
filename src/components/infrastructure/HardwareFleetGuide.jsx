@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Cpu, ChevronDown, ChevronRight } from "lucide-react";
 import SetupStepDetail from "@/components/infrastructure/SetupStepDetail";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
+import HardwareDocReferences from "@/components/infrastructure/HardwareDocReferences";
 import { HARDWARE_FLEET_STEPS } from "@/lib/hardwareFleetGuide";
 
 // Reference build sheet for a lane's physical hardware: terminal generations,
@@ -45,6 +46,7 @@ export default function HardwareFleetGuide() {
             </div>
           ))}
           </div>
+          <HardwareDocReferences />
         </div>
       )}
     </div>

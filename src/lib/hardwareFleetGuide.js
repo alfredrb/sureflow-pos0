@@ -42,6 +42,37 @@ const CHROMIUM_SERIAL_POLICY = `// /etc/chromium/policies/managed/sureflow-seria
 }
 `;
 
+// Vendor service documentation for the fleet. Kept here so a technician chasing a
+// port, connector or quirk has the authoritative manual to hand instead of
+// somebody's recollection of it.
+export const HARDWARE_DOC_REFERENCES = [
+  {
+    label: "IBM SurePOS 700 Series — Hardware Service Guide (SA27-4329-04, 2007)",
+    covers: "746/786 board layout, powered-serial and powered-USB blocks, FRU removal, POST and error codes.",
+    url: "https://sharktastica.co.uk/resources/docs/pdf/IBM_SA27-4329-04_SurePOS-700x_2007_IBM.pdf",
+  },
+  {
+    label: "IBM 4900-7x3/x84 — Service Guide (1R1003844, 2014)",
+    covers: "Later IBM-branded 4900 terminal generation — cabling, powered ports and serviceable parts.",
+    url: "https://sharktastica.co.uk/resources/docs/pdf/IBM_1R1003844-7x3-x84_4900-7x3-x84-v69_2014_dokumen-tips.pdf",
+  },
+  {
+    label: "Toshiba 4900-xx5 — Service Guide (1R1003844-xx5, 2014)",
+    covers: "Post-acquisition Toshiba 4900 revision. Use this for the Toshiba-badged units and the 24V powered-USB pole.",
+    url: "https://sharktastica.co.uk/resources/docs/pdf/Toshiba_1R1003844-xx5_4900-xx5_2014_manualzz.pdf",
+  },
+  {
+    label: "IBM SurePOS 700 Series — user manual mirror",
+    covers: "Operator-level reference for the same terminal family.",
+    url: "https://www.manualslib.com/manual/1923709/Ibm-Surepos-700-Series.html",
+  },
+  {
+    label: "IBM 4800-C41 — manual",
+    covers: "Compact terminal variant occasionally found in older lanes.",
+    url: "https://www.manualslib.com/manual/377421/Ibm-4800-C41.html",
+  },
+];
+
 export const HARDWARE_FLEET_STEPS = [
   {
     step_id: "hw_terminals",
