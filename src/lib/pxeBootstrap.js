@@ -7,14 +7,16 @@ const BOOT_IMAGES = {
     kernel: "debian-legacy/vmlinuz",
     initrd: "debian-legacy/initrd.img",
     nfsroot: "/srv/nfs/sureflow-legacy",
-    extra: "nomodeset i8042.nomux=1 i8042.reset",
+    // quiet splash hands the screen to Plymouth's progress bar. Plymouth falls
+    // back to the text console on failure, and ESC shows the messages live.
+    extra: "nomodeset i8042.nomux=1 i8042.reset quiet splash",
   },
   pxe_debian_modern: {
     label: "PXE Debian — Modern (Elo EPS00E2 class)",
     kernel: "debian-modern/vmlinuz",
     initrd: "debian-modern/initrd.img",
     nfsroot: "/srv/nfs/sureflow-modern",
-    extra: "quiet",
+    extra: "quiet splash",
   },
 };
 

@@ -53,7 +53,16 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
   apt-get install -y --no-install-recommends \\
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
     xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
-    ca-certificates curl iproute2 iputils-ping sudo \$EXTRA
+    ca-certificates curl iproute2 iputils-ping sudo \\
+    plymouth plymouth-themes beep \$EXTRA
+  # System-level boot progress bar instead of a wall of kernel text. The theme
+  # files are installed separately; -R rebuilds the initramfs so the splash is
+  # present from the first second of boot.
+  plymouth-set-default-theme -R sureflow || plymouth-set-default-theme -R spinner
+  # Motherboard beeper for pre-POS feedback (boot OK / boot failed). Minimal
+  # debootstrap roots blacklist pcspkr, so force it back on.
+  echo pcspkr > /etc/modules-load.d/sureflow-pcspkr.conf
+  rm -f /etc/modprobe.d/*pcspkr*blacklist* 2>/dev/null || true
   # Xorg runs as the unprivileged 'sureflow' user via startx. Debian's Xwrapper
   # denies it the VT unless this file grants root rights — without it every start
   # dies with "xf86OpenConsole: Cannot open virtual console (Permission denied)"
@@ -208,6 +217,8 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="04b3", ENV{SUREFLOW_TOUCH}="1"
 #   stty -F /dev/sureflow-linedisplay 9600 cs8 -cstopb -parenb raw
 `;
 
+import { BOOT_SPLASH_STEP } from "@/lib/pxeBootSplash";
+
 export const PXE_CONTROLLER_STEPS = [
   {
     step_id: "pxe_network_design",
@@ -309,6 +320,7 @@ export const PXE_CONTROLLER_STEPS = [
     ],
     codeFiles: [{ name: "10-ibm-surepoint.conf", code: IBM_PERIPHERALS }],
   },
+  BOOT_SPLASH_STEP,
   {
     step_id: "pxe_ha_failover",
     label: "Add controller high availability (failover pair)",
