@@ -1,7 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PINPAD_MODEL_OPTIONS, pinpadProfile } from "@/lib/pinpadProfiles";
+import { PINPAD_MODEL_OPTIONS, pinpadProfile, pinpadSupportsLaneBridge } from "@/lib/pinpadProfiles";
 
 // Customer-facing pinpad on this lane. The model chooses the command profile the
 // store relay uses to drive the pad, so a new model is a profile entry rather than
@@ -35,6 +35,12 @@ export default function PinpadProfileSection({ form, setForm }) {
             <label className="mb-1 block text-sm font-medium text-gray-700">Pinpad IP Address</label>
             <Input value={form.pinpad_ip || ""} onChange={e => set("pinpad_ip")(e.target.value)}
               placeholder="192.168.1.70" className="font-mono text-sm" />
+            {pinpadSupportsLaneBridge(form.pinpad_model) && (
+              <p className="mt-1 text-[11px] leading-snug text-cyan-700">
+                USB pad — enter the LANE's own LAN IP. The lane's serial bridge publishes it on port 12000. Ethernet pad
+                — enter the pad's own IP.
+              </p>
+            )}
           </div>
         </div>
         <div>

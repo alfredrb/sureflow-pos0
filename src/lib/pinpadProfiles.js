@@ -12,12 +12,17 @@ export const PINPAD_PROFILES = {
     vendor: "Ingenico",
     supported: true,
     transport: "tcp",
+    // A USB iSC250 is driven over the lane's ser2net bridge: its USB-CDC framing is
+    // byte-identical to its Ethernet framing, so the relay sends the SAME frames to
+    // lane_ip:12000 and the bridge hands them to the pad. No relay or POS change.
+    transports: ["tcp", "lane_serial_bridge"],
     port: 12000,
     // Which customer-facing flows this pad can serve.
     capabilities: ["display", "cart_mirror", "signature", "numeric_entry", "rating", "confirm"],
     notes:
-      "Ethernet or USB. Signature capture is the pad's documented use case and returns a bitmap the relay converts to PNG. " +
-      "Set the pad's COM setting to the interface in use (2-6-3-4 on the pad, then Enter, then +).",
+      "Ethernet or USB — identical frames either way. For a USB pad, the lane's serial bridge publishes it as " +
+      "lane_ip:12000, so set the pinpad IP to the LANE's own LAN IP. Signature capture returns a bitmap the relay " +
+      "converts to PNG. Set the pad's COM setting to the interface in use (2-6-3-4 on the pad, then Enter, then +).",
   },
   lane_7000: {
     key: "lane_7000",
@@ -57,6 +62,11 @@ export function pinpadLabel(model) {
 export function pinpadReady(context) {
   const p = pinpadProfile(context?.pinpad_model);
   return !!(p && p.supported && context?.pinpad_ip);
+}
+
+// Whether this pad model can be driven over the lane's USB serial bridge.
+export function pinpadSupportsLaneBridge(model) {
+  return !!pinpadProfile(model)?.transports?.includes("lane_serial_bridge");
 }
 
 export function pinpadSupports(context, capability) {

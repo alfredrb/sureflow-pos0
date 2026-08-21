@@ -54,6 +54,7 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
     xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
     ca-certificates curl iproute2 iputils-ping sudo \\
+    ser2net setserial \\
     plymouth plymouth-themes beep \$EXTRA
   # System-level boot progress bar instead of a wall of kernel text. The theme
   # files are installed separately; -R rebuilds the initramfs so the splash is
@@ -218,6 +219,36 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="04b3", ENV{SUREFLOW_TOUCH}="1"
 `;
 
 import { BOOT_SPLASH_STEP } from "@/lib/pxeBootSplash";
+import {
+  BRIDGE_PORTS,
+  BRIDGE_UDEV_RULES,
+  BRIDGE_SER2NET_CONFIG,
+  BRIDGE_SYSTEMD_UNIT,
+} from "@/lib/laneSerialBridge";
+
+const LANE_SERIAL_BRIDGE_STEP = {
+  step_id: "pxe_serial_bridge",
+  label: "Publish USB peripherals to the relay (lane serial bridge)",
+  instructions: [
+    "USB-attached customer peripherals — the Ingenico iSC250 pinpad and USB pole displays — have no LAN address, so the relay cannot open a socket to them. ser2net inside the image publishes each USB serial device as a TCP port on the lane's own IP, and the relay's existing socket write reaches the device unchanged.",
+    `Fixed ports, so no relay configuration changes: pinpad on ${BRIDGE_PORTS.pinpad}, pole display on ${BRIDGE_PORTS.pole}. The register's Pinpad IP / Pole Display IP then point at the LANE's LAN IP instead of a peripheral IP.`,
+    "Key the bridge on udev symlinks (/dev/sureflow-pinpad, /dev/sureflow-pole), never on ttyUSB numbers — enumeration order changes between boots and the bridge would silently attach to the wrong device.",
+    "Confirm each peripheral is genuinely a serial device before relying on this: a device that appears only under /dev/hidraw* is raw HID and cannot be bridged.",
+    "RS-485 chain poles (IBM/Toshiba on the 4610/4820 device chain) need no bridge — the printer is already their TCP-to-RS-485 bridge, so those frames go to printer_ip:9100 with the pole's chain address encoded. A mixed fleet is fine; the transport is chosen per lane by the pole model.",
+    "Baud matters: the pinpad runs 115200 8N1 and most 2×20 poles run 9600 8N1. A wrong baud shows garbage glyphs rather than silence.",
+  ],
+  commands: [
+    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends ser2net setserial; done",
+    "# Drop the udev rules, ser2net config and unit into both images, then enable\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V systemctl enable sureflow-serial-bridge; done",
+    `# On a booted lane — prove the bridge is listening\nls -l /dev/sureflow-pinpad /dev/sureflow-pole\nss -lntp | grep -E '${BRIDGE_PORTS.pinpad}|${BRIDGE_PORTS.pole}'`,
+    `# From the relay VM — prove the path\nprintf '' | nc -w2 <lane_ip> ${BRIDGE_PORTS.pinpad}`,
+  ],
+  codeFiles: [
+    { name: "60-sureflow-serial.rules", code: BRIDGE_UDEV_RULES },
+    { name: "/etc/ser2net.yaml", code: BRIDGE_SER2NET_CONFIG },
+    { name: "sureflow-serial-bridge.service", code: BRIDGE_SYSTEMD_UNIT },
+  ],
+};
 
 export const PXE_CONTROLLER_STEPS = [
   {
@@ -320,6 +351,7 @@ export const PXE_CONTROLLER_STEPS = [
     ],
     codeFiles: [{ name: "10-ibm-surepoint.conf", code: IBM_PERIPHERALS }],
   },
+  LANE_SERIAL_BRIDGE_STEP,
   BOOT_SPLASH_STEP,
   {
     step_id: "pxe_ha_failover",

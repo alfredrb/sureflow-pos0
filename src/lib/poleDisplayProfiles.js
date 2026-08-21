@@ -53,6 +53,24 @@ export const POLE_DISPLAY_PROFILES = {
       "Toshiba-badged 2×20 VFD on the 4610/4820 RS-485 device chain — same command family as the IBM pole, kept as a " +
       "separate profile so the hardware audit shows what is actually fitted. Profile reserved pending captured frames.",
   },
+  toshiba_usb_2x20: {
+    key: "toshiba_usb_2x20",
+    label: "Toshiba 2×20 Pole (USB)",
+    vendor: "Toshiba",
+    // Reserved until its IBM/ADX frames are captured — but the TRANSPORT is
+    // solved: the pole's USB port is a serial device on the lane, and the lane's
+    // ser2net bridge publishes it as lane_ip:9101 so the relay can write to it
+    // exactly like a network pole. Set the pole IP to the LANE's own LAN IP.
+    supported: false,
+    transport: "lane_serial_bridge",
+    port: 9101,
+    columns: 20,
+    rows: 2,
+    notes:
+      "2×20 VFD on a USB (USB-serial) port, reached through the lane's serial bridge at lane_ip:9101 — set the pole " +
+      "IP to the LANE's LAN IP, not the printer. Same IBM/ADX command family as the chain poles, so it needs the same " +
+      "captured frames; run the pole frame-capture helper against the bridge port, then enable the profile.",
+  },
   logic_ld9900: {
     key: "logic_ld9900",
     label: "Logic Controls LD9900",
@@ -93,4 +111,10 @@ export function poleReady(context) {
   const p = poleProfile(context?.pole_display_model);
   if (!p || !p.supported) return false;
   return !!(context?.pole_display_ip || p.transport === "printer_passthrough");
+}
+
+// True when the pole is a USB device published by the lane's ser2net bridge — the
+// address the relay writes to is then the LANE's own IP, never the printer's.
+export function poleUsesLaneBridge(model) {
+  return poleProfile(model)?.transport === "lane_serial_bridge";
 }

@@ -1,7 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { POLE_MODEL_OPTIONS, poleProfile } from "@/lib/poleDisplayProfiles";
+import { POLE_MODEL_OPTIONS, poleProfile, poleUsesLaneBridge } from "@/lib/poleDisplayProfiles";
 
 // Customer pole display (line display) on this lane. The model chooses the
 // command profile the store relay uses, so a new pole is a profile entry rather
@@ -34,7 +34,13 @@ export default function PoleDisplaySection({ form, setForm }) {
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Pole Display IP</label>
             <Input value={form.pole_display_ip || ""} onChange={e => set("pole_display_ip")(e.target.value)}
-              placeholder="Blank for DM-D110 (via printer)" className="font-mono text-sm" />
+              placeholder={poleUsesLaneBridge(form.pole_display_model) ? "This lane's own LAN IP" : "Blank for DM-D110 (via printer)"}
+              className="font-mono text-sm" />
+            {poleUsesLaneBridge(form.pole_display_model) && (
+              <p className="mt-1 text-[11px] leading-snug text-cyan-700">
+                USB pole — enter the LANE's own LAN IP. The lane's serial bridge publishes it on port 9101.
+              </p>
+            )}
           </div>
         </div>
         <div>

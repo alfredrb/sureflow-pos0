@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
@@ -10,6 +10,7 @@ import HardwareFleetGuide from "@/components/infrastructure/HardwareFleetGuide";
 import RelayDeploymentReference from "@/components/techdocs/RelayDeploymentReference";
 import CheckReaderReference from "@/components/techdocs/CheckReaderReference";
 import CheckStationDiagnostics from "@/components/techdocs/CheckStationDiagnostics";
+import LaneSerialBridgeReference from "@/components/techdocs/LaneSerialBridgeReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
@@ -19,6 +20,7 @@ const SECTIONS = [
   { id: "check", label: "Cheque Station", icon: FileText, blurb: "MICR reading, endorsement franking, relay cheque routes and hardware diagnostics." },
   { id: "pinpad", label: "Customer Pinpad", icon: PenLine, blurb: "Ingenico signature capture, customer prompts, cart mirror, rating and relay pinpad routes." },
   { id: "poledisplay", label: "Pole Display", icon: Tv, blurb: "Customer line display: item/total mirror, amount due, change, and the relay pole module (DM-D110 via the printer)." },
+  { id: "bridge", label: "Lane Serial Bridge", icon: Usb, blurb: "USB pinpads and poles published as TCP ports on the lane so the relay can drive them." },
   { id: "library", label: "Driver Library", icon: Boxes, blurb: "Per-model driver profiles applied to the diskless image at build time." },
 ];
 
@@ -74,6 +76,7 @@ export default function AdminTechnicalDocs() {
           {active === "check" && <CheckStationDiagnostics />}
           {active === "pinpad" && <PinpadReference />}
           {active === "poledisplay" && <PoleDisplayReference />}
+          {active === "bridge" && <LaneSerialBridgeReference />}
           {active === "library" && <HardwareLibraryPanel />}
         </div>
       </div>

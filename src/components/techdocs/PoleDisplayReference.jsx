@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Check, Copy, Tv } from "lucide-react";
 import { POLE_DISPLAY_PROFILES } from "@/lib/poleDisplayProfiles";
 import { RELAY_POLE_CODE, RELAY_POLE_ROUTES_CODE, RELAY_POLE_ENV_CODE } from "@/lib/relayPoleDisplay";
+import PoleFrameCapturePanel from "@/components/techdocs/PoleFrameCapturePanel";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -52,6 +53,11 @@ export default function PoleDisplayReference() {
           The relay selects it through the printer with ESC = 2, writes both lines, then reselects the printer with
           ESC = 1 so receipts keep printing. Leave the pole IP blank on the register; the printer IP carries the traffic.
         </p>
+        <p className="mt-2 rounded-lg border border-cyan-200 bg-cyan-50 p-2 text-xs text-cyan-700">
+          Three transports, chosen per lane by the model: <b>printer pass-through</b> (DM-D110, via the printer),
+          <b> printer chain RS-485</b> (IBM/Toshiba 4610/4820 poles, also via the printer but addressed on the chain),
+          and <b>lane serial bridge</b> (USB poles — set the pole IP to the LANE's own LAN IP).
+        </p>
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white p-5">
@@ -96,6 +102,8 @@ export default function PoleDisplayReference() {
         note="Port plus the idle welcome message (20 columns per line)."
         code={RELAY_POLE_ENV_CODE}
       />
+
+      <PoleFrameCapturePanel />
     </div>
   );
 }

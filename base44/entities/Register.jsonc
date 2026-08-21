@@ -137,11 +137,11 @@
         "lane_7000"
       ],
       "default": "",
-      "description": "Customer-facing Ingenico pinpad attached to this lane. Selects the command profile the relay uses to drive it: isc250 = Ingenico iSC Touch 250 (supported today), lane_7000 = Ingenico Lane/7000 (profile reserved for a future rollout). Blank = no pinpad on this lane, and every pinpad prompt is skipped silently."
+      "description": "Customer-facing Ingenico pinpad attached to this lane. Selects the command profile the relay uses to drive it: isc250 = Ingenico iSC Touch 250 (supported today, over Ethernet or USB \u2014 a USB pad is reached through the lane's serial bridge on port 12000), lane_7000 = Ingenico Lane/7000 (profile reserved for a future rollout). Blank = no pinpad on this lane, and every pinpad prompt is skipped silently."
     },
     "pinpad_ip": {
       "type": "string",
-      "description": "Static LAN IP of this lane's Ingenico pinpad (e.g. 192.168.1.70). The POS drives signature capture, customer prompts, gift-card entry, the cart mirror and the rating screen through the store's Local Relay VM on this address."
+      "description": "LAN IP the relay drives this lane's pinpad on. Ethernet pad = the pad's own IP (e.g. 192.168.1.70). USB pad = the LANE's own LAN IP, because the lane's ser2net serial bridge publishes the pad on port 12000. Drives signature capture, customer prompts, gift-card entry, the cart mirror and the rating screen."
     },
     "pinpad_serial": {
       "type": "string",
@@ -154,14 +154,15 @@
         "epson_dmd110",
         "ibm_4610_2x20",
         "toshiba_4820_2x20",
+        "toshiba_usb_2x20",
         "logic_ld9900"
       ],
       "default": "",
-      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile the relay uses: epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer (supported today); ibm_4610_2x20 / toshiba_4820_2x20 = IBM and Toshiba 2x20 poles on the 4610/4820 RS-485 device chain, which answer on a chain address with the IBM/ADX display command set rather than Epson peripheral select (profiles reserved until the frames are captured from a live unit); logic_ld9900 = Logic Controls LD9900 over a serial-device server (profile reserved). Blank or a reserved profile = the lane behaves as if no pole is fitted and every display update is skipped silently."
+      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile and transport the relay uses: epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer (supported today); ibm_4610_2x20 / toshiba_4820_2x20 = IBM and Toshiba 2x20 poles on the 4610/4820 RS-485 device chain, written to the printer with the pole's chain address encoded; toshiba_usb_2x20 = Toshiba 2x20 pole on a USB port, reached through the lane's ser2net serial bridge on port 9101. The three IBM/ADX profiles stay reserved until their frames are captured from a live unit with the pole capture helper. logic_ld9900 = Logic Controls LD9900 over a serial-device server (profile reserved). Blank or a reserved profile = the lane behaves as if no pole is fitted and every display update is skipped silently."
     },
     "pole_display_ip": {
       "type": "string",
-      "description": "LAN IP the relay writes pole display frames to. For the DM-D110 and the IBM / Toshiba chain poles leave this blank \u2014 they hang off the receipt printer and the relay routes through printer_ip. Only set for displays with their own network address (serial-device server)."
+      "description": "LAN IP the relay writes pole display frames to. Leave blank for the DM-D110 and the IBM / Toshiba RS-485 chain poles \u2014 they hang off the receipt printer and the relay routes through printer_ip. Set it to the LANE's own LAN IP for a USB pole (the lane's serial bridge publishes it on port 9101), or to the device's own address for a pole on a serial-device server."
     },
     "pole_display_serial": {
       "type": "string",
