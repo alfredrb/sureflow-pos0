@@ -20,6 +20,52 @@
 // to "does THIS unit carry the E/P option, and is our sequence addressing it?" —
 // which the self-test sheet and the ribbon bays answer in minutes.
 
+// RESOLVED at the unit: the capability report printed by the self-test shows the
+// endorsement unit is NOT installed. That closes the investigation as a NO-GO for
+// this printer — and, because the E/P is the only mechanism that reaches the back
+// of the sheet, it forces one further conclusion about the franking legend.
+export const RESOLUTION = {
+  outcome: "NO-GO — endorsement unit not installed",
+  summary:
+    "The printer's own capability report lists no endorsement unit. There is no second impact head, so no command " +
+    "sequence can print the back of a cheque on this hardware. Single-insertion dual-side printing is off the table.",
+  consequences: [
+    {
+      point: "The franking legend has been printing on the FACE of the cheque all along",
+      detail:
+        "With no E/P fitted, the slip station is the only station that can print — and it prints the face. So the " +
+        "FOR DEPOSIT ONLY legend has never been an endorsement on the back; it has been overprinting the front of the " +
+        "cheque, on top of the payee and amount area. This is no longer a hypothesis: it is the only physical possibility.",
+    },
+    {
+      point: "That explains the off-centre franking legend outright",
+      detail:
+        "The long-standing 'franking legend is off-centre' issue was never a margin bug. The legend was laid out for the " +
+        "back of the sheet and is landing on the front, so no amount of nudging the offsets will make it correct — it is " +
+        "in the wrong place because it is on the wrong side.",
+    },
+    {
+      point: "Overprinting the face may make the cheque unacceptable to the bank",
+      detail:
+        "Printing over the payee, amount or signature area of a cheque can render it non-negotiable. Treat this as the " +
+        "urgent half of the finding: confirm with a deposited cheque what the current legend actually obscures before " +
+        "the next deposit run, and consider suppressing the legend until the placement is corrected.",
+    },
+    {
+      point: "The endorsement has to move to a two-pass reinsert flow",
+      detail:
+        "To endorse the back on this hardware the operator must physically turn the cheque over and reinsert it. That is " +
+        "the guided flow the NO-GO branch already anticipated: print, eject, prompt to reinsert reversed, print, eject.",
+    },
+  ],
+  next_steps: [
+    "Confirm on a scrap cheque exactly where the current legend lands on the face, and photograph it for the record.",
+    "Decide whether to suppress or relocate the face legend immediately, ahead of building the two-pass flow.",
+    "Run the same self-test on every other lane's printer — the E/P is a per-unit factory option, so a sister lane may still have it.",
+    "Then build the guided two-pass reinsert flow as the fleet-wide default, since it works with or without the option.",
+  ],
+};
+
 export const VENDOR_FINDINGS = [
   {
     finding: "Dual-side is a factory option, not a command discovery",

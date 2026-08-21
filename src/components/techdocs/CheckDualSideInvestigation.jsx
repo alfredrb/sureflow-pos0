@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { logAuditEvent } from "@/lib/auditLogger";
 import VendorFindingsPanel from "@/components/techdocs/VendorFindingsPanel";
+import CheckDualSideResolution from "@/components/techdocs/CheckDualSideResolution";
 import { CURRENT_FLOW, CAPTURE_STEPS, DECISION_GATE, VENDOR_FINDINGS, SOURCE_REFERENCES } from "@/lib/checkDualSideInvestigation";
 
 const OUTCOMES = [
@@ -51,7 +52,7 @@ export default function CheckDualSideInvestigation() {
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">Cheque Dual-Side Printing</p>
-            <p className="text-[11px] text-gray-400">Bounded investigation · go/no-go gate · nothing ships before the decision</p>
+            <p className="text-[11px] text-gray-400">Investigation closed · NO-GO · endorsement unit not installed on the inspected lane</p>
           </div>
         </div>
         <div className="space-y-2 text-xs leading-relaxed text-gray-600">
@@ -62,13 +63,13 @@ export default function CheckDualSideInvestigation() {
             impact head that is a <strong>factory-installed option</strong>.
           </p>
           <p>
-            So there is no hidden command to find. The remaining question is per-unit hardware: does this lane's printer
-            carry the E/P option? The self-test sheet and the two ribbon bays answer that in minutes, and because the
-            option varies unit by unit, the honest expectation is a mixed fleet — handled per register, exactly like the
-            pole displays.
+            The inspected lane's capability report shows that option is <strong>not installed</strong>, which closes the
+            question for this printer and carries a consequence for the existing franking legend — see below.
           </p>
         </div>
       </div>
+
+      <CheckDualSideResolution />
 
       <VendorFindingsPanel findings={VENDOR_FINDINGS} sources={SOURCE_REFERENCES} />
 
