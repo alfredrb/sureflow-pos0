@@ -22,6 +22,13 @@ const capture = () => {
   try { href = decodeURIComponent(href); } catch { /* keep raw */ }
   const match = href.match(/register_id=([\w-]+)/);
   if (match && match[1]) window.localStorage.setItem(KEY, match[1]);
+
+  // The lane's store relay address, passed on the same boot URL (&relay=http://…).
+  // A cloud-served lane cannot reach its relay through window.location.origin, and
+  // the kiosk browser has DevTools disabled, so the boot URL is the only way to set
+  // it. Persisted like the register so it survives reboots.
+  const relay = href.match(/[?&]relay=(https?:\/\/[^&\s]+)/);
+  if (relay && relay[1]) window.localStorage.setItem("relay_base_url", relay[1].replace(/\/$/, ""));
 };
 
 capture();

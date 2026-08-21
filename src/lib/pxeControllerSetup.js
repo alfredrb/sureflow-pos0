@@ -164,6 +164,13 @@ else
   URL="\${RELAY:-http://10.0.40.10:3000}/kiosk"
 fi
 [ -n "\$REGISTER_ID" ] && URL="\$URL?register_id=\$REGISTER_ID"
+# A cloud-served lane cannot find its relay from the page origin, and the kiosk
+# browser has DevTools disabled, so the relay address is handed over on the boot
+# URL and the app persists it. Without this the lane has no relay for printing,
+# the drawer kick or offline sale queueing.
+if [ -n "\$POS_URL" ] && [ -n "\$RELAY" ]; then
+  case "\$URL" in *\\?*) URL="\$URL&relay=\$RELAY" ;; *) URL="\$URL?relay=\$RELAY" ;; esac
+fi
 
 # Minimal window manager so Chromium can go fullscreen cleanly.
 openbox &
