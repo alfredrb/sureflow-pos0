@@ -227,7 +227,13 @@ app.listen(PORT, () => {
 });
 `;
 
-export const RELAY_SERVER_COMPLETE_VERIFY = `# 1. Syntax gate BEFORE restarting — never restart on an unparseable file.
+export const RELAY_SERVER_COMPLETE_VERIFY = `# 0. Load the relay token into your shell. systemd reads it from .env, but your
+#    login shell does not have it — without this the token-gated curls below return
+#    {"error":"Invalid or missing relay token"} and look like a broken relay.
+export RELAY_ACCESS_TOKEN=$(grep -E '^RELAY_ACCESS_TOKEN=' /opt/sureflow-relay/.env | cut -d= -f2-)
+echo "\${RELAY_ACCESS_TOKEN:?token not found in .env}"
+
+# 1. Syntax gate BEFORE restarting — never restart on an unparseable file.
 node --check /opt/sureflow-relay/server.js
 
 # 2. Every module this server.js requires must exist, or it dies on boot.

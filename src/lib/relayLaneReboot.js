@@ -168,9 +168,15 @@ WantedBy=multi-user.target
 
 export const LANE_REBOOT_AGENT_BUILD_STEPS = `# Install the lane agent into the diskless image (run on the PXE CONTROLLER).
 # Node is needed inside the image — it is a ~30MB addition to the root.
-ROOT=/srv/nfs/sureflow-legacy
 
-sudo chroot $ROOT /bin/bash -eux <<'CHROOT'
+# Set ROOT and PROVE it before chrooting. An unset ROOT makes the next command
+# collapse to "chroot apt-get ...", which fails with the confusing
+# "cannot change root directory to 'apt-get'". ROOT also does NOT survive a new
+# shell or a sudo -i, so re-run this line in every session.
+ROOT=/srv/nfs/sureflow-legacy
+ls -d "$ROOT" || { echo "ROOT is wrong or unset — stop here"; }
+
+sudo chroot "$ROOT" /bin/bash -eux <<'CHROOT'
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y --no-install-recommends nodejs
@@ -178,15 +184,22 @@ sudo chroot $ROOT /bin/bash -eux <<'CHROOT'
 CHROOT
 
 # Paste the agent and its unit in (see the two blocks above), then:
-sudo chmod +x $ROOT/usr/local/bin/sureflow-lane-agent
-sudo chroot $ROOT systemctl enable sureflow-lane-agent
+sudo chmod +x "$ROOT/usr/local/bin/sureflow-lane-agent"
+sudo chroot "$ROOT" systemctl enable sureflow-lane-agent
 
 # Republish the boot files so the lanes pick up the new root.
-sudo cp $ROOT/boot/vmlinuz-*   /srv/tftp/debian-legacy/vmlinuz
-sudo cp $ROOT/boot/initrd.img-* /srv/tftp/debian-legacy/initrd.img
+sudo cp "$ROOT"/boot/vmlinuz-*    /srv/tftp/debian-legacy/vmlinuz
+sudo cp "$ROOT"/boot/initrd.img-* /srv/tftp/debian-legacy/initrd.img
 `;
 
-export const LANE_REBOOT_VERIFY = `# ON THE LANE — is the agent up and does it know who it is?
+export const LANE_REBOOT_VERIFY = `# FIRST, ON THE RELAY — load the token into your shell.
+# It lives in the .env that systemd reads; a login shell does NOT have it, so every
+# curl below would send an empty header and come back
+# {"error":"Invalid or missing relay token"} even though the relay is perfectly fine.
+export RELAY_ACCESS_TOKEN=$(grep -E '^RELAY_ACCESS_TOKEN=' /opt/sureflow-relay/.env | cut -d= -f2-)
+echo "\${RELAY_ACCESS_TOKEN:?token not found in .env}"
+
+# ON THE LANE — is the agent up and does it know who it is?
 systemctl status sureflow-lane-agent --no-pager
 curl -s http://127.0.0.1:3099/health
 # expect: {"ok":true,"register_id":"REG-005","relay":"http://10.0.25.100:3000"}
