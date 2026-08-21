@@ -596,6 +596,15 @@ export default function POSLogin() {
                     <p className="text-yellow-400/70 text-[10px]">Could not auto-detect IP — existing register IP will be kept</p>
                   </div>
                 )}
+                {/* Diagnostic for PXE lanes: shows whether this terminal captured a
+                    boot identity at all. "none" means the register_id never reached
+                    the app, so the problem is the kiosk URL, not the POS. */}
+                <div className="bg-[#0a0e27] border border-blue-500/10 rounded-lg px-3 py-2">
+                  <p className="text-blue-300/40 text-[10px] uppercase tracking-wider">Lane Boot Identity</p>
+                  <p className={`font-mono text-sm ${getLaneRegisterId() ? "text-blue-200" : "text-amber-400"}`}>
+                    {getLaneRegisterId() || "none — no register_id on the boot URL"}
+                  </p>
+                </div>
                 <p className="text-blue-300/50 text-xs">Select a register:</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {availableRegisters.length === 0 && (
