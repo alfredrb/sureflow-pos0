@@ -7,9 +7,12 @@ const BOOT_IMAGES = {
     kernel: "debian-legacy/vmlinuz",
     initrd: "debian-legacy/initrd.img",
     nfsroot: "/srv/nfs/sureflow-legacy",
-    // quiet splash hands the screen to Plymouth's progress bar. Plymouth falls
-    // back to the text console on failure, and ESC shows the messages live.
-    extra: "nomodeset i8042.nomux=1 i8042.reset quiet splash",
+    // quiet splash hands the screen to Plymouth. Plymouth falls back to the text
+    // console on failure, and ESC shows the messages live.
+    // NO nomodeset: it stops i915 from initialising KMS, so there is no DRM device
+    // and Plymouth renders nothing but its flat fallback field — the "grey splash".
+    // The panel is driven by i915 KMS, with video= pinning the mode for the 4:3 lanes.
+    extra: "i8042.nomux=1 i8042.reset video=1024x768 quiet splash",
   },
   pxe_debian_modern: {
     label: "PXE Debian — Modern (Elo EPS00E2 class)",
