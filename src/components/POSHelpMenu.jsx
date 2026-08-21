@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power } from "lucide-react";
+import RebootCountdownOverlay from "@/components/pos/RebootCountdownOverlay";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
 import VersionLogDialog from "@/components/VersionLogDialog";
@@ -10,6 +11,7 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
   const [guideOpen, setGuideOpen] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [rebootOpen, setRebootOpen] = useState(false);
   const [version, setVersion] = useState(VERSION_FALLBACK);
   const holdTimer = useRef(null);
   const holdTriggered = useRef(false);
@@ -49,6 +51,9 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           <button onClick={() => window.location.reload()} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             <RefreshCw className="w-4 h-4" /> Refresh POS Screen
           </button>
+          <button onClick={() => { setRebootOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-red-600 transition-colors border-b border-red-500/10">
+            <Power className="w-4 h-4" /> Reboot Lane
+          </button>
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM
           </button>
@@ -85,6 +90,11 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
 
       <VersionLogDialog open={versionOpen} onOpenChange={setVersionOpen} />
       <POSFeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} operator={operator} />
+      <RebootCountdownOverlay
+        open={rebootOpen}
+        onClose={() => setRebootOpen(false)}
+        registerId={sessionStorage.getItem("pos_register_num") || ""}
+      />
     </div>
   );
 }

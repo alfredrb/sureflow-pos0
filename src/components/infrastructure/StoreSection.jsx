@@ -111,6 +111,7 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
                       relayRegister={relayRegisters.find((rr) => rr.register_id === r.register_id)}
                       relayLive={reachable}
                       onOverride={onOverride}
+                      relayBase={store.relay_url || ""}
                     />
                   ))}
                 </div>

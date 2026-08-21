@@ -139,3 +139,9 @@ export const relayBackupNow = (base = "") =>
 
 export const relaySelfUpdate = (base = "") =>
   relayFetch("/ops/self-update", { method: "POST" }, 20000, base);
+
+// Reboot a lane TERMINAL (not the relay VM). The relay does the actual reboot over
+// SSH. Pass lane_ip to target a named lane from the admin portal; omit it and the
+// relay reboots whichever lane made the call — which is how the on-lane POS uses it.
+export const rebootLane = (payload = {}, base = "") =>
+  relayFetch("/lane/reboot", { method: "POST", body: JSON.stringify(payload) }, 20000, base);

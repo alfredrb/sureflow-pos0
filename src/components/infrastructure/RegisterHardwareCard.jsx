@@ -1,6 +1,7 @@
 import React from "react";
 import { Monitor, Printer, ScanLine, Wallet, Wifi, WifiOff, Wrench } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import LaneRebootButton from "@/components/infrastructure/LaneRebootButton";
 
 const STATUS_META = {
   online: { label: "Online", icon: Wifi, color: "text-emerald-600", bg: "bg-emerald-50", dot: "bg-emerald-500" },
@@ -35,7 +36,7 @@ function HardwareRow({ icon: Icon, label, liveValue, manualValue, relayLive, onO
 
 // One register's hardware block. Live values come from the relay poll (matched by
 // register_id); the manual dropdowns remain as fallback when the relay is offline.
-export default function RegisterHardwareCard({ register, relayRegister, relayLive, onOverride }) {
+export default function RegisterHardwareCard({ register, relayRegister, relayLive, onOverride, relayBase }) {
   const sm = STATUS_META[register.status] || STATUS_META.offline;
   return (
     <div className="border border-gray-100 rounded-xl px-3 py-2.5 space-y-2">
@@ -61,6 +62,9 @@ export default function RegisterHardwareCard({ register, relayRegister, relayLiv
         <HardwareRow icon={Printer} label="Printer" liveValue={relayRegister?.printer_status} manualValue={register.printer_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "printer_status", v)} />
         <HardwareRow icon={ScanLine} label="Scanner" liveValue={relayRegister?.scanner_status} manualValue={register.scanner_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "scanner_status", v)} />
         <HardwareRow icon={Wallet} label="Drawer" liveValue={relayRegister?.cash_drawer_status} manualValue={register.cash_drawer_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "cash_drawer_status", v)} />
+      </div>
+      <div className="flex justify-end pt-0.5 border-t border-gray-50">
+        <LaneRebootButton register={register} relayBase={relayBase} disabled={!relayBase} />
       </div>
     </div>
   );

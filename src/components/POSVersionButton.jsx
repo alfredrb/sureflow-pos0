@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Calendar, Clock, LayoutDashboard, Lock } from "lucide-react";
+import { Calendar, Clock, LayoutDashboard, Lock, Power } from "lucide-react";
+import RebootCountdownOverlay from "@/components/pos/RebootCountdownOverlay";
 
 /**
  * POS version button that behaves like the normal version trigger on click,
@@ -15,6 +16,7 @@ export default function POSVersionButton({
   onConfig,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rebootOpen, setRebootOpen] = useState(false);
   const holdTimer = useRef(null);
   const holdTriggered = useRef(false);
   const HOLD_MS = 450;
@@ -53,6 +55,7 @@ export default function POSVersionButton({
     { icon: <Clock className="w-3.5 h-3.5" />, label: "Clock In/Out", action: onShowTimeClock },
     { icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Admin", action: onAdmin },
     { icon: <Lock className="w-3.5 h-3.5" />, label: "Configuration", action: onConfig },
+    { icon: <Power className="w-3.5 h-3.5" />, label: "Reboot Lane", action: () => setRebootOpen(true) },
   ];
 
   return (
@@ -86,6 +89,12 @@ export default function POSVersionButton({
           </div>
         </>
       )}
+
+      <RebootCountdownOverlay
+        open={rebootOpen}
+        onClose={() => setRebootOpen(false)}
+        registerId={sessionStorage.getItem("pos_register_num") || ""}
+      />
     </div>
   );
 }
