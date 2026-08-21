@@ -14,11 +14,14 @@ const KEY = "sureflow_lane_register";
 
 const capture = () => {
   if (typeof window === "undefined") return;
-  const fromUrl = new URLSearchParams(window.location.search).get("register_id");
-  if (fromUrl) {
-    const clean = fromUrl.replace(/[^\w-]/g, "");
-    if (clean) window.localStorage.setItem(KEY, clean);
-  }
+  // Read it off the WHOLE url, decoded — not just the top-level query string. A
+  // platform auth redirect folds the original address into its own parameter
+  // (…/login?next=%2Fpos%2Flogin%3Fregister_id%3DREG-005), so the value is still
+  // present but nested, and URLSearchParams on window.location.search misses it.
+  let href = window.location.href;
+  try { href = decodeURIComponent(href); } catch { /* keep raw */ }
+  const match = href.match(/register_id=([\w-]+)/);
+  if (match && match[1]) window.localStorage.setItem(KEY, match[1]);
 };
 
 capture();
