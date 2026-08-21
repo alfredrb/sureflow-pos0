@@ -153,6 +153,41 @@ MENU COLOR TITLE   1;36;44 #ffffffff #00000000
 MENU COLOR SEL     7;37;40 #ff000000 #ffdddddd
 `;
 
+// The three approved SureFlow Clean assets. Run this once on the PXE controller,
+// then install them into both image roots. Plymouth reads plain PNGs from the theme
+// directory — nothing is compiled, so replacing an asset is just a file copy plus an
+// initramfs rebuild.
+//
+// The wordmark and the dot are supplied on a SOLID #131920 field rather than with an
+// alpha channel: both sit on empty flat background in the lower area of the artwork,
+// so the opaque field is invisible in place, and it avoids the legacy fbdev path
+// having to composite alpha on every spinner frame.
+const SPLASH_ASSET_FETCH = `#!/bin/bash
+# /root/sureflow-fetch-splash-assets.sh — run on the PXE CONTROLLER.
+set -eux
+DEST=/root/sureflow-splash
+mkdir -p "$DEST"
+
+# background.png — wave artwork. Any resolution: the theme scales it to whatever mode
+# the panel came up in, so the same file serves the legacy fbdev lanes and the modern ones.
+curl -fL -o "$DEST/background.png" \\
+  https://media.base44.com/images/public/6a42d5b340732607e237e3b7/3911a938a_generated_image.png
+
+# logo.png — "SureFlow POS" wordmark, drawn bottom-right.
+curl -fL -o "$DEST/logo.png" \\
+  https://media.base44.com/images/public/6a42d5b340732607e237e3b7/835258157_generated_image.png
+
+# dot.png — one muted-blue disc, reused for all eight cyclone spinner dots.
+# Keep it small (roughly 16-24px square). If the spinner looks oversized on a lane,
+# shrink THIS file rather than editing the script.
+curl -fL -o "$DEST/dot.png" \\
+  https://media.base44.com/images/public/6a42d5b340732607e237e3b7/69cfd8544_generated_image.png
+
+# Sanity check — a truncated download shows up here as a tiny or 0-byte file.
+file "$DEST"/*.png
+ls -l "$DEST"
+`;
+
 export const BOOT_SPLASH_STEP = {
   step_id: "pxe_boot_splash",
   label: "Add the SureFlow boot splash and system beeper",
@@ -173,8 +208,10 @@ export const BOOT_SPLASH_STEP = {
     "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends plymouth plymouth-themes beep; done",
     "# Install the SureFlow theme (files below) and select it",
     "for V in legacy modern; do sudo install -d /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow; done",
+    "# Fetch the three approved SureFlow Clean assets onto the controller (see the asset block below)",
+    "sudo bash /root/sureflow-fetch-splash-assets.sh",
     "# Drop in the three image assets — without background.png the splash falls back to a flat gradient",
-    "for V in legacy modern; do sudo install -m 644 background.png logo.png dot.png /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow/; done",
+    "for V in legacy modern; do sudo install -m 644 /root/sureflow-splash/{background.png,logo.png,dot.png} /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow/; done",
     "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V plymouth-set-default-theme -R sureflow; done",
     "# The splash must be in the initramfs or the first seconds stay black",
     "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V update-initramfs -u -k all; done",
@@ -186,6 +223,7 @@ export const BOOT_SPLASH_STEP = {
     "sudo sureflow-build-image legacy && sudo sureflow-build-image modern",
   ],
   codeFiles: [
+    { name: "fetch splash assets", code: SPLASH_ASSET_FETCH },
     { name: "sureflow.plymouth", code: PLYMOUTH_THEME },
     { name: "sureflow.script", code: PLYMOUTH_SCRIPT },
     { name: "sureflow-beep", code: BEEP_SCRIPT },
@@ -197,7 +235,8 @@ export const BOOT_SPLASH_STEP = {
     "Screen black instead of the splash? The initramfs was not rebuilt after the theme install, or the framebuffer came up late — run update-initramfs -u -k all in the chroot and confirm 'splash' is on the lane's cmdline (cat /proc/cmdline).",
     "Dark gradient but no artwork? background.png did not make it into the theme directory inside the image — the theme is working, the asset is missing.",
     "Spinner frozen while the boot clearly continues? The framebuffer is not taking refresh callbacks on that panel. Boot is unaffected, but the lane loses its 'alive' cue, so note the model and use the chime as the ready signal there.",
-    "Bar shows but no beep? Check the speaker exists: ls /dev/input/by-path | grep pcspkr on the lane. Nothing listed means the board has no beeper header — use the panel's own speaker or accept a silent boot.",
+    "Spinner dots too large or too small for the panel? Resize dot.png and reinstall it — the script places the dots from the image's own dimensions, so nothing else has to change.",
+    "Splash shows but no beep? Check the speaker exists: ls /dev/input/by-path | grep pcspkr on the lane. Nothing listed means the board has no beeper header — use the panel's own speaker or accept a silent boot.",
     "Press ESC during boot to fall back to the kernel messages without changing the image — the fastest way to debug a slow lane with the splash still installed.",
   ],
 };
