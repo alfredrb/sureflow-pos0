@@ -97,6 +97,11 @@ export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles =
       `sureflow.printer_ip=${reg.printer_ip || ""}`,
       `sureflow.scanner_if=${reg.scanner_interface || "usb_hid"}`,
       `sureflow.relay=${(relayUrl || "").trim().replace(/\/+$/, "") || `http://${controllerIp}:3000`}`,
+      // The CLOUD POS address the kiosk browser opens. The lane appends
+      // /pos/login?register_id=... to it, which is how the terminal selects its own
+      // register with no on-screen picker. Required — the relay-served origin cannot
+      // complete the platform login.
+      `sureflow.pos_url=${typeof window !== "undefined" ? window.location.origin : ""}`,
     ].filter(Boolean).join(" ")}`,
   ].join("\n");
 }

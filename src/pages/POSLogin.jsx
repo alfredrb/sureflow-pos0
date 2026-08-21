@@ -12,6 +12,7 @@ import { useKeyClick } from "@/hooks/useKeyClick";
 import POSCredentialPinpad from "@/components/pos/POSCredentialPinpad";
 import ShiftLookupDialog from "@/components/pos/ShiftLookupDialog";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES, CONFIG_ROLES } from "@/lib/operatorAuth";
+import { getLaneRegisterId, clearLaneRegisterId } from "@/lib/laneIdentity";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -69,10 +70,10 @@ export default function POSLogin() {
     // from the kernel command line, so the lane selects its own register with no
     // on-screen config step.
     const currentReg = sessionStorage.getItem("pos_register_num");
-    const bootReg = new URLSearchParams(window.location.search).get("register_id")
-      || sessionStorage.getItem("pos_boot_register");
+    // Captured at app boot by laneIdentity and persisted, so it survives the auth
+    // redirect, a kiosk browser restart and a terminal reboot.
+    const bootReg = getLaneRegisterId();
     if (bootReg) {
-      sessionStorage.setItem("pos_boot_register", bootReg);
       base44.entities.Register.filter({ register_id: bootReg }).then(results => {
         if (results.length > 0) {
           const reg = results[0];
@@ -85,6 +86,8 @@ export default function POSLogin() {
             sessionStorage.setItem("pos_register_ip", reg.ip_address);
           }
         } else {
+          // Bad boot identity — drop it so the lane does not retry it forever.
+          clearLaneRegisterId();
           toast({ title: "Register Not Found", description: `Boot identity "${bootReg}" does not match any register. Please select one.`, variant: "destructive" });
           openForcedConfig();
         }

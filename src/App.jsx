@@ -7,6 +7,9 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
+// Captures a PXE lane's register_id off the boot URL before routing or any auth
+// redirect can strip the query string.
+import '@/lib/laneIdentity';
 
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';

@@ -138,10 +138,15 @@ cat "\$OUT"
 
 const SUREFLOW_KIOSK_SH = `#!/bin/bash
 # /usr/local/bin/sureflow-kiosk (inside the image)
-# Launched by startx from sureflow-kiosk.service. Opens the relay's /kiosk route,
-# which redirects straight to the POS LOGIN screen — the Home page is never shown
-# on a lane. The register_id from the kernel command line rides along so the
-# login screen selects this lane's register automatically.
+# Launched by startx from sureflow-kiosk.service. Opens the POS LOGIN screen with
+# this lane's register_id on the URL, so the login screen selects its own register
+# automatically and the on-screen picker never appears.
+#
+# WHICH URL: sureflow.pos_url (the CLOUD app address) is used when present, because
+# the platform login rejects the relay-served origin — a lane pointed at the relay's
+# /kiosk lands on a login the POS cannot complete, and with no register_id ever
+# reaching the app it falls back to the picker on every boot. The relay's /kiosk is
+# kept only as the fallback for a store serving the POS build locally.
 #
 # systemd's Environment= values are NOT reliably propagated through startx, so the
 # kernel command line is parsed here directly — the one source of truth the PXE
@@ -149,10 +154,15 @@ const SUREFLOW_KIOSK_SH = `#!/bin/bash
 for arg in \$(cat /proc/cmdline); do
   case "\$arg" in
     sureflow.relay=*)       RELAY="\${arg#*=}" ;;
+    sureflow.pos_url=*)     POS_URL="\${arg#*=}" ;;
     sureflow.register_id=*) REGISTER_ID="\${arg#*=}" ;;
   esac
 done
-URL="\${RELAY:-http://10.0.40.10:3000}/kiosk"
+if [ -n "\$POS_URL" ]; then
+  URL="\${POS_URL%/}/pos/login"
+else
+  URL="\${RELAY:-http://10.0.40.10:3000}/kiosk"
+fi
 [ -n "\$REGISTER_ID" ] && URL="\$URL?register_id=\$REGISTER_ID"
 
 # Minimal window manager so Chromium can go fullscreen cleanly.
