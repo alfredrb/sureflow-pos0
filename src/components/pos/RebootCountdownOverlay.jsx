@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Power, Loader2, AlertTriangle } from "lucide-react";
-import { rebootLane } from "@/lib/relayClient";
+import { rebootThisLane, rebootLane } from "@/lib/relayClient";
 
 // Full-screen 5-second countdown before the lane reboots. Cancel aborts it; on zero
 // the relay is asked to reboot this lane and the kiosk goes down with it.
@@ -20,10 +20,15 @@ export default function RebootCountdownOverlay({ open, onClose, registerId }) {
     if (!open || phase !== "counting") return;
     if (seconds <= 0) {
       setPhase("sending");
-      rebootLane({ register_id: registerId, requested_by: "POS" }).catch((e) => {
-        setPhase("failed");
-        setError(e.message || "The relay could not reboot this lane.");
-      });
+      // The lane agent on this terminal's own loopback reboots instantly. If it is not
+      // running, fall back to the relay queue — the agent picks that up on its next
+      // poll, so the reboot still happens, just a few seconds later.
+      rebootThisLane(registerId)
+        .catch(() => rebootLane({ register_id: registerId, requested_by: "POS" }))
+        .catch((e) => {
+          setPhase("failed");
+          setError(e.message || "Could not reach the lane agent or the relay.");
+        });
       return;
     }
     const t = setTimeout(() => setSeconds((s) => s - 1), 1000);

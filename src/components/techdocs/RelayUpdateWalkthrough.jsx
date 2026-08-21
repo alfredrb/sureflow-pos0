@@ -7,7 +7,7 @@ import { RELAY_POLE_CODE, RELAY_POLE_ROUTES_CODE } from "@/lib/relayPoleDisplay"
 import { RELAY_SERVER_WITH_CHECKS_CODE } from "@/lib/relayServerWithChecks";
 import { PRINTER_BRIDGE_UDEV_RULES, PRINTER_BRIDGE_SYSTEMD_UNIT, PRINTER_BRIDGE_BUILD_STEPS, LANE_BRIDGE_PORT_MAP } from "@/lib/lanePrinterBridge";
 import { BRIDGE_UDEV_RULES, BRIDGE_SER2NET_CONFIG, BRIDGE_SYSTEMD_UNIT, BRIDGE_BUILD_STEPS } from "@/lib/laneSerialBridge";
-import { RELAY_LANE_REBOOT_CODE, RELAY_LANE_REBOOT_ROUTES_CODE, RELAY_LANE_REBOOT_KEY_SETUP, RELAY_LANE_REBOOT_ENV } from "@/lib/relayLaneReboot";
+import { RELAY_LANE_REBOOT_CODE, RELAY_LANE_REBOOT_ROUTES_CODE, LANE_REBOOT_AGENT_CODE, LANE_REBOOT_AGENT_UNIT, LANE_REBOOT_AGENT_BUILD_STEPS, LANE_REBOOT_VERIFY } from "@/lib/relayLaneReboot";
 
 // Ordered upgrade walkthrough for an ALREADY-BUILT relay. This is not the first
 // build (that is Relay Deployment) — it is the sequence for pushing everything
@@ -131,21 +131,17 @@ Pole model / IP   : epson_dmd110 -> leave IP blank (routed via the printer)
   {
     title: "Enable lane reboot (POS Help menu + remote reboot)",
     blurb:
-      "A browser cannot reboot its own machine, so the relay does it over SSH as the 'sureflow' user — which the diskless image already grants NOPASSWD sudo. Generate the key once per relay and add the public key to the image so the whole fleet trusts it. With no lane_ip in the body the relay reboots whichever lane called it, which is how the on-lane POS button works; the admin portal passes the lane's IP to target a named register.",
+      "The lanes sit on the isolated PXE VLAN behind the controller's NAT, so nothing can open a connection INTO a lane — no SSH, no HTTP — and the relay only ever sees the controller's address, which is why IP detection reports 10.0.40.10 instead of the lane. So the direction is reversed: the relay holds a queue of pending reboots keyed by REGISTER ID (the identity the lane reads from its own kernel command line), and a small agent on the lane polls for it outbound, which is the direction that always works. The same agent listens on the lane's loopback so the POS button reboots instantly without touching the network at all.",
     blocks: [
-      { title: "SSH key — one-time setup (relay + image)", filename: "relay shell / PXE controller", code: RELAY_LANE_REBOOT_KEY_SETUP },
-      { title: "Environment values", filename: "/opt/sureflow-relay/.env", code: RELAY_LANE_REBOOT_ENV },
-      { title: "Lane reboot module", filename: "/opt/sureflow-relay/laneReboot.js", code: RELAY_LANE_REBOOT_CODE },
-      { title: "Lane reboot route", filename: "server.js (patch)", code: RELAY_LANE_REBOOT_ROUTES_CODE },
+      { title: "Relay — pending reboot queue", filename: "/opt/sureflow-relay/laneReboot.js", code: RELAY_LANE_REBOOT_CODE },
+      { title: "Relay — queue + claim routes", filename: "server.js (patch)", code: RELAY_LANE_REBOOT_ROUTES_CODE },
+      { title: "Lane agent — loopback endpoint + outbound poll", filename: "/usr/local/bin/sureflow-lane-agent", code: LANE_REBOOT_AGENT_CODE },
+      { title: "Lane agent — systemd unit", filename: "/etc/systemd/system/sureflow-lane-agent.service", code: LANE_REBOOT_AGENT_UNIT },
+      { title: "Lane agent — image build steps", filename: "PXE controller (chroot)", code: LANE_REBOOT_AGENT_BUILD_STEPS },
+      { title: "Verify both directions", filename: "lane + relay shell", code: LANE_REBOOT_VERIFY },
     ],
     after: `sudo systemctl restart sureflow-relay
-journalctl -u sureflow-relay -n 20 --no-pager | grep -i lane-reboot   # expect: lane-reboot-build 1
-
-# reboot a named lane by hand before trusting the UI
-curl -s -X POST http://localhost:3000/lane/reboot \\
-  -H 'Content-Type: application/json' \\
-  -H "X-Relay-Token: $RELAY_ACCESS_TOKEN" \\
-  -d '{"lane_ip":"10.0.40.21","register_id":"REG-005","requested_by":"curl"}'
+journalctl -u sureflow-relay -n 20 --no-pager | grep -i lane-reboot   # expect: lane-reboot-build 2
 
 # POS: HELP -> Reboot Lane, or hold the version line on the login screen -> Reboot Lane.
 # Admin: Infrastructure Command Center -> Register Hardware -> Reboot Lane.`,

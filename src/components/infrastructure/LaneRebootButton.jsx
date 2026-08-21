@@ -16,15 +16,12 @@ export default function LaneRebootButton({ register, relayBase, disabled }) {
   const confirm = async () => {
     setSubmitting(true);
     try {
-      await rebootLane(
-        { register_id: register.register_id, lane_ip: register.ip_address, requested_by: "Admin" },
-        relayBase
-      );
-      toast({ title: "Reboot Issued", description: `${register.register_id} is rebooting — it will return online shortly.` });
+      await rebootLane({ register_id: register.register_id, requested_by: "Admin" }, relayBase);
+      toast({ title: "Reboot Queued", description: `${register.register_id} will pick up the reboot within about 10 seconds.` });
       await logAuditEvent({
         action: "Rebooted Lane",
         category: "system",
-        description: `Remotely rebooted lane ${register.register_id}${register.ip_address ? ` (${register.ip_address})` : ""} from the Infrastructure Command Center.`,
+        description: `Queued a remote reboot for lane ${register.register_id} from the Infrastructure Command Center.`,
         page: "/admin/hardware",
       });
       setOpen(false);
@@ -51,9 +48,10 @@ export default function LaneRebootButton({ register, relayBase, disabled }) {
               <Power className="w-5 h-5" /> Reboot {register.register_id}
             </DialogTitle>
             <DialogDescription>
-              This reboots the lane terminal itself, not the relay. Any transaction in progress at this
-              register is lost, and the lane is unusable for about a minute while it PXE boots back to the
-              POS login screen.
+              This reboots the lane terminal itself, not the relay. The reboot is queued on the store relay
+              and the lane collects it within about 10 seconds. Any transaction in progress at this register
+              is lost, and the lane is unusable for about a minute while it PXE boots back to the POS login
+              screen.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

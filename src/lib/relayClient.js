@@ -140,8 +140,27 @@ export const relayBackupNow = (base = "") =>
 export const relaySelfUpdate = (base = "") =>
   relayFetch("/ops/self-update", { method: "POST" }, 20000, base);
 
-// Reboot a lane TERMINAL (not the relay VM). The relay does the actual reboot over
-// SSH. Pass lane_ip to target a named lane from the admin portal; omit it and the
-// relay reboots whichever lane made the call — which is how the on-lane POS uses it.
+// Reboot a lane TERMINAL (not the relay VM).
+//
+// The lanes sit on the isolated PXE VLAN behind the controller's NAT, so NOTHING can
+// open a connection to them — not the relay, not the portal. Both paths below work
+// around that, and neither one ever uses a lane IP (the relay only ever sees the
+// controller's address anyway).
+
+// Admin path: queue the reboot on the store relay, keyed by register_id. The lane's
+// own agent polls for it and reboots itself within ~10 seconds.
 export const rebootLane = (payload = {}, base = "") =>
-  relayFetch("/lane/reboot", { method: "POST", body: JSON.stringify(payload) }, 20000, base);
+  relayFetch("/lane/reboot", { method: "POST", body: JSON.stringify(payload) }, 15000, base);
+
+// On-lane path: the POS talks to the lane agent on its own loopback, so the reboot is
+// immediate and needs no network at all. Only ever succeeds when running on a lane.
+export async function rebootThisLane(registerId) {
+  const res = await fetch("http://127.0.0.1:3099/reboot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ register_id: registerId || "" }),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error(`Lane agent returned HTTP ${res.status}`);
+  return res.json();
+}
