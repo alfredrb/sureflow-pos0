@@ -32,6 +32,13 @@ async function relayFetch(path, options = {}, timeoutMs = 5000, base = "") {
     },
     signal: AbortSignal.timeout(timeoutMs),
   });
+  // A lane that loads the POS from the CLOUD has the cloud app as its origin, and a
+  // single-page app answers ANY unknown path with index.html at status 200. Without
+  // this content-type guard that HTML parsed into an empty object, which looked like
+  // a relay replying "online: false" and put every lane into OFFLINE MODE.
+  // No JSON body = there is no relay at this address.
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) throw new Error("No relay at this address");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
