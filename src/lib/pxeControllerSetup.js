@@ -184,7 +184,9 @@ exec chromium \\
   --disable-session-crashed-bubble --disable-translate \\
   --check-for-update-interval=31536000 \\
   --overscroll-history-navigation=0 \\
-  --force-device-scale-factor=0.8
+  --force-device-scale-factor=0.8 \\
+  \`[ -n "\$RELAY" ] && echo --unsafely-treat-insecure-origin-as-secure="\$RELAY"\` \\
+  --allow-running-insecure-content
 `;
 
 const KEEPALIVED_CONF = `# /etc/keepalived/keepalived.conf — controller A (MASTER)
@@ -367,6 +369,7 @@ export const PXE_CONTROLLER_STEPS = [
       "sureflow-boot-env converts those args into /run/sureflow.env, which the kiosk service reads to point the POS at this store's relay as the correct register.",
       "sureflow-kiosk (the Chromium launcher) parses the kernel command line itself and opens the relay's /kiosk route with the lane's register_id — the relay redirects straight to the POS login with the register pre-selected, so a booted lane never shows the Home screen or an on-screen register picker.",
       "The launcher carries --force-device-scale-factor=0.8 as the temporary fix for 12-inch IBM monitors clipping the POS layout — drop the flag when the POS is natively responsive.",
+      "MIXED CONTENT: the cloud POS is served over https and the store relay speaks plain http, so Chromium blocks every relay call by default — the lane shows OFFLINE MODE even though the relay is healthy and reachable by curl. --allow-running-insecure-content plus --unsafely-treat-insecure-origin-as-secure=<relay url> is what permits it. This only ever runs on a kiosk lane on an isolated VLAN; do not carry these flags onto a general-purpose browser.",
       "Peripheral rules (IBM 3AA01194300 hwdb scancodes, RS-232 / USB-OCIA scanner symlinks) are generated per register on the Registers page — install them into the image, then run systemd-hwdb update && udevadm trigger inside the chroot.",
     ],
     commands: [
