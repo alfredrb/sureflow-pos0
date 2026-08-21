@@ -20,7 +20,11 @@ const { execSync, exec } = require("child_process");
 
 // Core relay modules (from the original build)
 const apiRouter = require("./api");
-const { startSync } = require("./sync");
+// sync.js exports start() — aliased here because the boot hook below calls
+// startSync(). Importing the wrong name made the relay throw
+// "startSync is not a function" the moment it began listening, which killed the
+// sync worker and left every lane showing OFFLINE MODE.
+const { start: startSync } = require("./sync");
 const { requireRelayToken, tokenConfigured } = require("./auth");
 const { printerTelemetry, recordHeartbeat, liveRegisters } = require("./telemetry");
 
