@@ -22,53 +22,77 @@ ScriptFile=/usr/share/plymouth/themes/sureflow/sureflow.script
 `;
 
 const PLYMOUTH_SCRIPT = `# /usr/share/plymouth/themes/sureflow/sureflow.script (inside the image)
-# Centred wordmark with a real progress bar underneath. Plymouth drives
-# progress_callback from actual boot milestones, so the bar reflects the boot
-# rather than a timer.
+# SureFlow Clean splash. 4690-style: the wave artwork fills the screen, the
+# wordmark sits bottom-right, and a cyclone spinner with a fixed status line
+# sits in the lower third. No progress bar — the spinner is the only motion,
+# which is what an operator reads as "working, don't touch it".
 
-Window.SetBackgroundTopColor(0.04, 0.05, 0.15);
-Window.SetBackgroundBottomColor(0.02, 0.03, 0.09);
+# background.png is the wave artwork, scaled to whatever mode the panel came up
+# in (the legacy fbdev path is often 1024x768, so never assume native).
+bg.image = Image("background.png").Scale(Window.GetWidth(), Window.GetHeight());
+bg.sprite = Sprite(bg.image);
+bg.sprite.SetX(0);
+bg.sprite.SetY(0);
+bg.sprite.SetZ(-100);
 
+# Flat fallback so a missing asset still gives a dark screen, not a black one.
+Window.SetBackgroundTopColor(0.075, 0.098, 0.125);
+Window.SetBackgroundBottomColor(0.055, 0.070, 0.094);
+
+# Wordmark, bottom-right.
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
-logo.sprite.SetX(Window.GetWidth() / 2 - logo.image.GetWidth() / 2);
-logo.sprite.SetY(Window.GetHeight() / 2 - logo.image.GetHeight());
+logo.sprite.SetX(Window.GetWidth() - logo.image.GetWidth() - Window.GetWidth() * 0.06);
+logo.sprite.SetY(Window.GetHeight() - logo.image.GetHeight() - Window.GetHeight() * 0.07);
 
-bar.width = Window.GetWidth() * 0.5;
-bar.height = 6;
-bar.x = Window.GetWidth() / 2 - bar.width / 2;
-bar.y = Window.GetHeight() / 2 + 40;
+# --- Cyclone spinner -------------------------------------------------------
+# Eight dots on a ring, each fading in turn, so the ring reads as rotating.
+# dot.png is a single small muted-blue disc — one asset, scaled per dot.
+spinner.count = 8;
+spinner.radius = Window.GetHeight() * 0.035;
+spinner.x = Window.GetWidth() / 2;
+spinner.y = Window.GetHeight() * 0.79;
+spinner.dot = Image("dot.png");
 
-# Track (dim) and fill (blue) are drawn as flat 1px images scaled to size.
-track.image = Image("track.png").Scale(bar.width, bar.height);
-track.sprite = Sprite(track.image);
-track.sprite.SetX(bar.x);
-track.sprite.SetY(bar.y);
-
-fill.base = Image("fill.png");
-fill.sprite = Sprite();
-fill.sprite.SetX(bar.x);
-fill.sprite.SetY(bar.y);
-
-fun progress_callback(duration, progress) {
-    w = bar.width * progress;
-    if (w < 1) w = 1;
-    fill.sprite.SetImage(fill.base.Scale(w, bar.height));
+for (i = 0; i < spinner.count; i++) {
+    angle = (i / spinner.count) * 2 * 3.14159265;
+    spinner.sprite[i] = Sprite(spinner.dot);
+    spinner.sprite[i].SetX(spinner.x + spinner.radius * Math.Sin(angle) - spinner.dot.GetWidth() / 2);
+    spinner.sprite[i].SetY(spinner.y - spinner.radius * Math.Cos(angle) - spinner.dot.GetHeight() / 2);
+    spinner.sprite[i].SetOpacity(0.15);
 }
-Plymouth.SetBootProgressFunction(progress_callback);
 
+# Refresh fires ~50x/sec. Advancing the lead dot every 6th frame gives roughly
+# one revolution per second — brisk enough to look alive, slow enough not to blur
+# on the low-refresh legacy framebuffer.
+spinner.frame = 0;
+spinner.lead = 0;
+fun refresh_callback() {
+    spinner.frame++;
+    if (spinner.frame < 6) return;
+    spinner.frame = 0;
+    spinner.lead = (spinner.lead + 1) % spinner.count;
+    for (i = 0; i < spinner.count; i++) {
+        # Distance behind the lead dot, wrapped — the comet tail.
+        d = spinner.lead - i;
+        if (d < 0) d = d + spinner.count;
+        spinner.sprite[i].SetOpacity(1.0 - (d * 0.11));
+    }
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# --- Status line -----------------------------------------------------------
+# Deliberately fixed. The 4690 says one thing for the whole boot, and streaming
+# systemd unit names at a cashier only invites support calls. ESC still drops to
+# the kernel log when a technician actually needs the detail.
 status.sprite = Sprite();
-status.sprite.SetY(bar.y + 24);
 fun set_status(text) {
-    img = Image.Text(text, 0.7, 0.75, 0.85);
+    img = Image.Text(text, 0.878, 0.878, 0.878);
     status.sprite.SetImage(img);
     status.sprite.SetX(Window.GetWidth() / 2 - img.GetWidth() / 2);
+    status.sprite.SetY(spinner.y + spinner.radius + Window.GetHeight() * 0.045);
 }
-set_status("Starting lane...");
-
-# systemd hands each unit description here — this is the "what's loaded" line.
-fun update_status_callback(text) { set_status(text); }
-Plymouth.SetUpdateStatusFunction(update_status_callback);
+set_status("Terminal is being initialized");
 `;
 
 const BEEP_SCRIPT = `#!/bin/bash
@@ -83,7 +107,7 @@ DEV=/dev/input/by-path/platform-pcspkr-event-spkr
 tone() { /usr/bin/beep -e "\$DEV" -f "\$1" -l "\$2" 2>/dev/null || true; }
 
 case "\${1:-ok}" in
-  ok)        tone 880 90;  tone 1320 140 ;;   # rising two-tone: lane reached the POS
+  ok)        tone 800 700; tone 1200 700 ;;   # long rising two-tone: lane reached the POS
   fail)      tone 320 260; tone 240 400 ;;    # falling: boot failed, see the console
   attention) tone 1000 120; tone 1000 120 ;;  # double blip: technician attention
 esac
@@ -131,13 +155,15 @@ MENU COLOR SEL     7;37;40 #ff000000 #ffdddddd
 
 export const BOOT_SPLASH_STEP = {
   step_id: "pxe_boot_splash",
-  label: "Add the boot progress screen and system beeper",
+  label: "Add the SureFlow boot splash and system beeper",
   instructions: [
-    "Plymouth is the system-level progress bar. It draws on the framebuffer from early initramfs through the NFS root mount and systemd targets, then hands the screen to the kiosk — so a lane shows a branded bar instead of kernel text for the whole boot.",
-    "The bar is driven by real boot milestones, not a timer: Plymouth calls the theme's progress_callback as units come up, and the status line under the bar shows each unit's description — that is the 'what's loaded' readout.",
-    "Both boot entries now pass 'quiet splash' so the text scroll stays behind the splash. On a failure Plymouth drops to the text console by itself, so diagnostics are never lost — press ESC on a lane to see the messages live.",
-    "Plymouth needs the framebuffer early, which is why the legacy (SurePOS 700) entry keeps nomodeset and the fbdev driver — the splash renders at the console resolution rather than the panel's native mode there, which is expected and still readable.",
-    "The motherboard speaker (pcspkr) covers the pre-POS phase, the one window where the POS cannot make a sound. It is a beeper: single square-wave tones, no audio playback. sureflow-beep plays a rising two-tone when the lane reaches the POS and a falling tone when the kiosk fails, so a dead lane is audible from the floor.",
+    "Plymouth owns the boot screen. It draws on the framebuffer from early initramfs through the NFS root mount and systemd targets, then hands the screen to the kiosk — so a lane shows the branded SureFlow splash instead of kernel text for the whole boot.",
+    "The splash is the 4690 pattern: the wave artwork fills the screen, the SureFlow POS wordmark sits bottom-right, and a cyclone spinner over the line 'Terminal is being initialized' sits in the lower third. There is deliberately no progress bar and no streaming unit names — the spinner is the single 'working, don't touch it' cue an operator needs.",
+    "Because the status line is fixed, ESC is now the technician's readout: press it on a lane to drop to the live kernel messages without changing the image. Keep that in the tech's habits — it is the only way to see where a slow boot is actually stuck.",
+    "Both boot entries pass 'quiet splash' so the text scroll stays behind the splash. On a failure Plymouth drops to the text console by itself, so diagnostics are never lost.",
+    "Plymouth needs the framebuffer early, which is why the legacy (SurePOS 700) entry keeps nomodeset and the fbdev driver — the splash renders at the console resolution rather than the panel's native mode there, which is expected. The theme scales the artwork to whatever mode came up, so it fills a 4:3 panel either way.",
+    "Three image assets live in the theme directory: background.png (the wave artwork, any resolution — it is scaled at runtime), logo.png (the wordmark) and dot.png (one small muted-blue disc, reused for all eight spinner dots). A missing background.png leaves the flat dark gradient rather than a black screen.",
+    "The motherboard speaker (pcspkr) covers the pre-POS phase, the one window where the POS cannot make a sound. It is a beeper: single square-wave tones, no audio playback. sureflow-beep plays a long rising two-tone (800Hz then 1200Hz, ~0.7s each) when the lane reaches the POS and a falling tone when the kiosk fails, so a ready lane and a dead lane are both audible from the floor.",
     "In-app sounds stay in the browser — the PC speaker is only for 'is the hardware alive'. Keep the two separate so a muted terminal still reports boot failures.",
     "Confirm the beeper exists per model before relying on it: the SurePOS 700 has the same onboard speaker IBM drove for 4690 alerts, but many modern boards (Elo EPS00E2 class) dropped the header. Where it is absent the beep calls fail silently and boot is unaffected.",
     "Drop the theme, script and beep helper into the driver-library/build path rather than hand-editing a live image — the read-only NFS root means a lane cannot keep its own copy, and a rebuild would lose it.",
@@ -147,6 +173,8 @@ export const BOOT_SPLASH_STEP = {
     "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends plymouth plymouth-themes beep; done",
     "# Install the SureFlow theme (files below) and select it",
     "for V in legacy modern; do sudo install -d /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow; done",
+    "# Drop in the three image assets — without background.png the splash falls back to a flat gradient",
+    "for V in legacy modern; do sudo install -m 644 background.png logo.png dot.png /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow/; done",
     "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V plymouth-set-default-theme -R sureflow; done",
     "# The splash must be in the initramfs or the first seconds stay black",
     "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V update-initramfs -u -k all; done",
@@ -165,8 +193,10 @@ export const BOOT_SPLASH_STEP = {
     { name: "pxelinux splash (optional)", code: PXE_SPLASH_MENU },
   ],
   postInstructions: [
-    "Reboot a lane: expect the pxelinux handoff, then the SureFlow bar filling through the boot with unit names underneath, then the POS — and a rising two-tone chime as it lands.",
+    "Reboot a lane: expect the pxelinux handoff, then the SureFlow splash — wave artwork, wordmark bottom-right, spinner turning over 'Terminal is being initialized' — then the POS, and a long rising two-tone chime as it lands.",
     "Screen black instead of the splash? The initramfs was not rebuilt after the theme install, or the framebuffer came up late — run update-initramfs -u -k all in the chroot and confirm 'splash' is on the lane's cmdline (cat /proc/cmdline).",
+    "Dark gradient but no artwork? background.png did not make it into the theme directory inside the image — the theme is working, the asset is missing.",
+    "Spinner frozen while the boot clearly continues? The framebuffer is not taking refresh callbacks on that panel. Boot is unaffected, but the lane loses its 'alive' cue, so note the model and use the chime as the ready signal there.",
     "Bar shows but no beep? Check the speaker exists: ls /dev/input/by-path | grep pcspkr on the lane. Nothing listed means the board has no beeper header — use the panel's own speaker or accept a silent boot.",
     "Press ESC during boot to fall back to the kernel messages without changing the image — the fastest way to debug a slow lane with the splash still installed.",
   ],
