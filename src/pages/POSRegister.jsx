@@ -20,7 +20,6 @@ import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
-import { recordSerializedSales, verifySerialInStock } from "@/lib/serialUtils";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
@@ -35,10 +34,9 @@ import POSGiftCardResultDialog from "@/components/pos/POSGiftCardResultDialog";
 import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
-import { printRecallSlip, printRobberySlip } from "@/lib/incidentSlips";
-import { printRegisterReadingSlip } from "@/lib/registerReadingSlip";
-import { printTransferSlip } from "@/lib/transferSlip";
-import { makeTransferId, createTransferRecord, claimTransferRecord } from "@/lib/posTransfer";
+import { printRobberySlip } from "@/lib/incidentSlips";
+import usePosCart from "@/hooks/usePosCart";
+import usePosParkedSales from "@/hooks/usePosParkedSales";
 import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog";
 import POSTransferDialog from "@/components/pos/POSTransferDialog";
 import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
@@ -57,18 +55,13 @@ import { resolveActionCode, needsOverrideFor } from "@/lib/actionCodeDispatch";
 import useActionCodeBuffer from "@/hooks/useActionCodeBuffer";
 import POSPriceCheckDialog from "@/components/pos/POSPriceCheckDialog";
 import POSResumeDialog from "@/components/pos/POSResumeDialog";
-import { printSuspendSlip } from "@/lib/suspendSlip";
 import { usePosAnnouncements } from "@/hooks/usePosAnnouncements";
 import { usePosLunchState } from "@/hooks/usePosLunchState";
-import { makeSuspendId, createSuspendRecord, claimSuspendRecord } from "@/lib/posSuspend";
 import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
 import { buildReceipt, commitSaleTransaction, lookupGiftCardTender, commitGiftCardSale } from "@/lib/posSaleCommit";
 import { appliedTotal, balanceDue, changeFrom, isSettled, primaryTender, tendersAllowed } from "@/lib/tenderSplit";
 import useFunctionKeyboard from "@/hooks/useFunctionKeyboard";
 import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
-import { commitCashVoid } from "@/lib/posVoidSale";
-import { printVoidSlip } from "@/lib/voidSlip";
-import { logAuditEvent } from "@/lib/auditLogger";
 import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
 import { collectSaleRating } from "@/lib/pinpadFlow";
@@ -95,7 +88,6 @@ export default function POSRegister() {
   const [percentOpen, setPercentOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [voidCashOpen, setVoidCashOpen] = useState(false);
-  const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [amountTendered, setAmountTendered] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -200,6 +192,17 @@ export default function POSRegister() {
   const { toast, toasts } = useToast();
   const { isOffline, pendingCount, catalogStale, refresh: refreshConnectivity } = useOfflineMode();
 
+  // Cart state and item entry (discount pricing, serials, recalls, ID checks)
+  // live in usePosCart so this page stays focused on orchestration.
+  const {
+    cart, setCart, addToCart, addByCode, commitAddToCart, captureSerialForAdd,
+    removeFromCart, updateQty, subtotal, tax, total,
+  } = usePosCart({
+    products, discounts, taxExemptAppliedId, operator, toast,
+    setIdVerify, setSerialCapture,
+    closeItemList: () => { setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); },
+  });
+
   // 4690-style keypad buzzer — a click on every keystroke and screen touch.
   useKeyClick();
 
@@ -256,18 +259,6 @@ export default function POSRegister() {
       }
     }
   }, [receiptData]);
-
-  // Get applicable discounts
-  const getApplicableDiscounts = (productCategory) => {
-    const now = new Date();
-    return discounts.filter(d => {
-      if (!d.active) return false;
-      if (d.start_date && new Date(d.start_date) > now) return false;
-      if (d.end_date && new Date(d.end_date) < now) return false;
-      if (d.categories.length > 0 && !d.categories.includes(productCategory)) return false;
-      return true;
-    });
-  };
 
   const writeLog = (eventType, detail, extra = {}) => {
     const op = operator || JSON.parse(sessionStorage.getItem("pos_operator") || "{}");
@@ -400,92 +391,6 @@ export default function POSRegister() {
     }, 500);
   };
 
-  const commitAddToCart = (product) => {
-    setCart(prev => {
-      const applicableDiscounts = getApplicableDiscounts(product.category);
-      const bestDiscount = applicableDiscounts.length > 0 ? applicableDiscounts[0] : null;
-      const discountedPrice = bestDiscount ? product.price * (1 - bestDiscount.percentage / 100) : product.price;
-      const existing = prev.find(i => i.sku === product.sku);
-      if (existing) return prev.map(i => i.sku === product.sku ? { ...i, qty: i.qty + 1, total: (i.qty + 1) * discountedPrice, discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price } : i);
-      return [...prev, { sku: product.sku, name: product.name, price: discountedPrice, qty: 1, total: discountedPrice, tax_rate: taxExemptAppliedId ? 0 : (product.tax_rate || 0), discount_type: bestDiscount?.name || null, discount_percentage: bestDiscount?.percentage || 0, original_price: product.price }];
-    });
-  };
-
-  // Serialized items carry an array of serial numbers (one per unit). qty always equals serial_numbers.length.
-  const commitSerializedAdd = (product, serial) => {
-    setCart(prev => {
-      const existing = prev.find(i => i.sku === product.sku && i.serialized);
-      if (existing) {
-        return prev.map(i => i === existing ? {
-          ...i,
-          serial_numbers: [...(i.serial_numbers || []), serial],
-          qty: (i.serial_numbers || []).length + 1,
-          total: +(((i.serial_numbers || []).length + 1) * i.price).toFixed(2)
-        } : i);
-      }
-      return [...prev, { sku: product.sku, name: product.name, price: product.price, qty: 1, total: product.price, tax_rate: taxExemptAppliedId ? 0 : (product.tax_rate || 0), serialized: true, serial_numbers: [serial] }];
-    });
-  };
-
-  const captureSerialForAdd = (product) => {
-    setSerialCapture({
-      product,
-      needed: 1,
-      onDone: async (serials) => {
-        const sn = serials[0];
-        if (cart.some(i => i.sku === product.sku && (i.serial_numbers || []).includes(sn))) {
-          toast({ title: "Duplicate Serial", description: "That serial is already in this transaction.", variant: "destructive" });
-          return;
-        }
-        const check = await verifySerialInStock(product.sku, sn);
-        if (!check.ok) {
-          toast({ title: "Serial Not Verified", description: check.reason, variant: "destructive" });
-          return;
-        }
-        commitSerializedAdd(product, sn);
-        setItemListOpen(false); setItemSearch(""); setSelectedCat("All");
-      }
-    });
-  };
-
-  const addToCart = (product) => {
-    if (product.recalled) {
-      toast({ title: "Item Recalled", description: `${product.name} has been recalled and cannot be sold. Please give the item to a manager.`, variant: "destructive" });
-      printRecallSlip(product, operator).catch(() => {});
-      return false;
-    }
-    if (product.loss_blocked) {
-      toast({ title: "Sale Blocked", description: `${product.name} has been blocked from sale due to excessive return loss. See Claims Audit in the LP Workbench.`, variant: "destructive" });
-      return false;
-    }
-    if (product.release_date && new Date(product.release_date) > new Date()) {
-      toast({ title: "Not Yet Available", description: `${product.name} cannot be sold until ${new Date(product.release_date).toLocaleString()}.`, variant: "destructive" });
-      return false;
-    }
-    if (product.id_required === "18" || product.id_required === "21") {
-      setIdVerify({ product, age: parseInt(product.id_required) });
-      return false;
-    }
-    if (product.serialized) {
-      captureSerialForAdd(product);
-      return false;
-    }
-    commitAddToCart(product);
-    return true;
-  };
-
-  // Scanned or keyed UPC / SKU entry — runs the same path as the item list picker.
-  const addByCode = (code) => {
-    const key = code.trim().toLowerCase();
-    const product = products.find(p => (p.barcode || "").toLowerCase() === key)
-      || products.find(p => (p.sku || "").toLowerCase() === key);
-    if (!product) {
-      toast({ title: "Item Not Found", description: `No item matches "${code}".`, variant: "destructive" });
-      return;
-    }
-    addToCart(product);
-  };
-
   const handleIDVerified = () => {
     const p = idVerify?.product;
     const age = idVerify?.age;
@@ -507,58 +412,19 @@ export default function POSRegister() {
     }
   };
 
-  const removeFromCart = (sku) => setCart(prev => prev.filter(i => i.sku !== sku));
-
-  const updateQty = (sku, delta) => {
-    const item = cart.find(i => i.sku === sku);
-    if (!item) return;
-    if (item.serialized) {
-      if (delta > 0) {
-        const prod = products.find(p => p.sku === sku);
-        setSerialCapture({
-          product: prod || { name: item.name, sku },
-          needed: 1,
-          onDone: async (serials) => {
-            const sn = serials[0];
-            if (cart.some(i => i.sku === sku && (i.serial_numbers || []).includes(sn))) {
-              toast({ title: "Duplicate Serial", description: "That serial is already in this transaction.", variant: "destructive" });
-              return;
-            }
-            const check = await verifySerialInStock(sku, sn);
-            if (!check.ok) {
-              toast({ title: "Serial Not Verified", description: check.reason, variant: "destructive" });
-              return;
-            }
-            setCart(prev => prev.map(j => (j.sku === sku && j.serialized) ? {
-              ...j,
-              serial_numbers: [...(j.serial_numbers || []), sn],
-              qty: (j.serial_numbers || []).length + 1,
-              total: +(((j.serial_numbers || []).length + 1) * j.price).toFixed(2)
-            } : j));
-          }
-        });
-      } else {
-        setCart(prev => prev.map(j => {
-          if (j.sku !== sku || !j.serialized) return j;
-          const ns = (j.serial_numbers || []).slice(0, -1);
-          if (ns.length === 0) return null;
-          return { ...j, serial_numbers: ns, qty: ns.length, total: +(ns.length * j.price).toFixed(2) };
-        }).filter(Boolean));
-      }
-      return;
-    }
-    setCart(prev => prev.map(i => {
-      if (i.sku !== sku) return i;
-      const newQty = Math.max(0, i.qty + delta);
-      if (newQty === 0) return null;
-      return { ...i, qty: newQty, total: newQty * i.price };
-    }).filter(Boolean));
-  };
-
-  const subtotal = cart.reduce((s, i) => s + i.total, 0);
-  const tax = cart.reduce((s, i) => s + (i.total * (i.tax_rate / 100)), 0);
-  const total = subtotal + tax;
   const amountDue = Math.max(0, total - loyaltyAppliedAmount);
+
+  // Suspend / transfer / percent-off / cash-void / register-reading handlers.
+  const {
+    applyPercentOff, transferSaleOut, retrieveTransfer,
+    suspendTransaction, resumeSuspended, handleCashVoid, printReading,
+  } = usePosParkedSales({
+    cart, setCart, operator, subtotal, tax, total, trainingMode,
+    taxExemptAppliedId, setTaxExemptAppliedId, setTaxExemptProfile,
+    loyaltyMember, setLoyaltyMember, setLoyaltyAppliedAmount,
+    setPercentOpen, setTransferOpen, setResumeOpen, setVoidCashOpen, setReadingOpen,
+    writeLog, toast, loadData,
+  });
   const receiptTaxExempt = receiptData?.taxExempt || taxExemptProfile;
 
   // Customer-facing pinpad: mirrors the sale as it is rung up, and is the shared
@@ -672,168 +538,6 @@ export default function POSRegister() {
     document.body.classList.toggle("pos-inline-toasts", inlineToasts);
     return () => document.body.classList.remove("pos-inline-toasts");
   }, [inlineToasts]);
-
-  // ── Percentage markdown across the whole sale (AC 300-305) ─────────────────
-  const applyPercentOff = (pct) => {
-    const factor = 1 - pct / 100;
-    setCart(prev => prev.map(item => {
-      const base = item.original_price ?? item.price;
-      const price = +(base * factor).toFixed(2);
-      return { ...item, price, total: +(price * item.qty).toFixed(2), original_price: base, discount_type: `${pct}% Off Sale`, discount_percentage: pct };
-    }));
-    setPercentOpen(false);
-    writeLog("override", `${pct}% taken off the whole sale`);
-    toast({ title: `${pct}% Off Applied`, description: "Every line on the sale was marked down." });
-  };
-
-  // ── Lane-to-lane transaction transfer (AC 850 / 851) ───────────────────────
-  // Moves the sale in progress off this lane so another register picks it straight
-  // back up — a dead scanner, a drawer out of change, a lane closing with a queue.
-  const transferSaleOut = async () => {
-    if (cart.length === 0) {
-      toast({ title: "Nothing To Transfer", description: "Add items to the sale first.", variant: "destructive" });
-      return;
-    }
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const transferId = makeTransferId();
-    const itemCount = cart.reduce((s, i) => s + i.qty, 0);
-    try {
-      await createTransferRecord({
-        transferId,
-        storeId: sessionStorage.getItem("pos_store_id") || "",
-        registerId, operator, cart,
-        subtotal, tax, total, itemCount,
-        taxExemptId: taxExemptAppliedId,
-        loyaltyMember, trainingMode,
-      });
-    } catch (e) {
-      toast({ title: "Transfer Failed", description: "The sale could not be transferred. Get a manager.", variant: "destructive" });
-      return;
-    }
-    printTransferSlip({ transferId, items: cart, total, itemCount, registerId, operator }).catch(() => {});
-    writeLog("override", `Sale transferred out — ${transferId} · ${itemCount} item(s) · $${total.toFixed(2)}`);
-    toast({ title: "Sale Transferred", description: `${transferId} — retrieve it on the receiving lane with AC 851.` });
-    setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-  };
-
-  const retrieveTransfer = async (rec) => {
-    if (cart.length > 0) {
-      toast({ title: "Sale In Progress", description: "Finish or abort the current sale before retrieving a transfer.", variant: "destructive" });
-      return;
-    }
-    if (!!rec.training_mode !== trainingMode) {
-      toast({ title: "Cannot Retrieve", description: rec.training_mode ? "That transfer was created in training mode." : "Exit training mode to retrieve a live sale.", variant: "destructive" });
-      return;
-    }
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    try {
-      await claimTransferRecord(rec, { registerId, operator });
-    } catch (e) {
-      toast({ title: "Retrieve Failed", description: "The transfer could not be claimed. Try again.", variant: "destructive" });
-      return;
-    }
-    setCart(rec.items || []);
-    if (rec.tax_exempt_id) setTaxExemptAppliedId(rec.tax_exempt_id);
-    setTransferOpen(false);
-    writeLog("override", `Transferred sale retrieved — ${rec.suspend_id} (from ${rec.register_id}, ${rec.operator_name})`);
-    toast({ title: "Sale Retrieved", description: `${rec.suspend_id} — ${rec.item_count} item(s) restored. Carry on ringing.` });
-  };
-
-  // ── Suspend / resume ───────────────────────────────────────────────────────
-  // Parks the current cart under a suspend number and prints a barcoded slip.
-  // Any lane in the same store can scan that slip to pull the items back.
-  const suspendTransaction = async () => {
-    if (cart.length === 0) {
-      toast({ title: "Nothing To Suspend", description: "Add items to the sale first.", variant: "destructive" });
-      return;
-    }
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const suspendId = makeSuspendId();
-    const itemCount = cart.reduce((s, i) => s + i.qty, 0);
-    try {
-      await createSuspendRecord({
-        suspendId,
-        storeId: sessionStorage.getItem("pos_store_id") || "",
-        registerId, operator, cart,
-        subtotal, tax, total, itemCount,
-        taxExemptId: taxExemptAppliedId,
-        loyaltyMember, trainingMode,
-      });
-    } catch (e) {
-      toast({ title: "Suspend Failed", description: "The sale could not be suspended. Get a manager.", variant: "destructive" });
-      return;
-    }
-    printSuspendSlip({ suspendId, items: cart, total, itemCount, registerId, operator }).catch(() => {});
-    writeLog("override", `Transaction suspended — ${suspendId} · ${itemCount} item(s) · $${total.toFixed(2)}`);
-    toast({ title: "Sale Suspended", description: `${suspendId} — give the printed slip to the customer.` });
-    setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-  };
-
-  // Manager-approved void of a completed cash sale: out of the books, stock back
-  // on hand, rewards reversed, drawer overage flagged, slip printed.
-  const handleCashVoid = async (tx, manager, reason) => {
-    await commitCashVoid({ tx, operator, manager, reason });
-    setVoidCashOpen(false);
-    printVoidSlip({ tx, manager, operator, reason }).catch(() => {});
-    writeLog("void", `Cash transaction voided — ${tx.transaction_id} · $${Number(tx.total || 0).toFixed(2)} · approved by ${manager.full_name}${reason ? ` · ${reason}` : ""}`, {
-      transaction_id: tx.transaction_id,
-      transaction_total: tx.total,
-      override_operator_id: manager.operator_id,
-      override_operator_name: manager.full_name,
-      override_action: "Void Cash Transaction",
-    });
-    logAuditEvent({
-      action: "Voided Cash Transaction",
-      category: "register",
-      description: `${tx.transaction_id} ($${Number(tx.total || 0).toFixed(2)}) voided on ${tx.register_id} by ${operator?.full_name}, approved by ${manager.full_name}. Stock restored, rewards reversed, drawer overage flagged.${reason ? ` Reason: ${reason}` : ""}`,
-      page: "/pos/register",
-      actor: manager,
-    });
-    toast({ title: "Transaction Voided", description: `${tx.transaction_id} — return $${Number(tx.total || 0).toFixed(2)} to the customer.` });
-    loadData();
-  };
-
-  const resumeSuspended = async (rec) => {
-    if (cart.length > 0) {
-      toast({ title: "Sale In Progress", description: "Finish or void the current sale before resuming a suspend.", variant: "destructive" });
-      return;
-    }
-    if (!!rec.training_mode !== trainingMode) {
-      toast({ title: "Cannot Resume", description: rec.training_mode ? "This suspend was created in training mode." : "Exit training mode to resume a live sale.", variant: "destructive" });
-      return;
-    }
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    try {
-      await claimSuspendRecord(rec, { registerId, operator });
-    } catch (e) {
-      toast({ title: "Resume Failed", description: "The suspend could not be claimed. Try again.", variant: "destructive" });
-      return;
-    }
-    setCart(rec.items || []);
-    if (rec.tax_exempt_id) setTaxExemptAppliedId(rec.tax_exempt_id);
-    setResumeOpen(false);
-    writeLog("override", `Suspended sale resumed — ${rec.suspend_id} (suspended on ${rec.register_id} by ${rec.operator_name})`);
-    toast({ title: "Sale Resumed", description: `${rec.suspend_id} — ${rec.item_count} item(s) restored.` });
-  };
-
-  // AC 3 — print the reading slip for the register the operator keyed.
-  const printReading = async (entered) => {
-    setReadingOpen(false);
-    try {
-      const r = await printRegisterReadingSlip(entered, operator);
-      toast({ title: "Reading Printed", description: `${r.registerId} — SOD, current and EOD totals sent to the printer.` });
-      writeLog("register_change", `Register reading slip printed for ${r.registerId} (AC 3)`);
-      logAuditEvent({
-        action: "Register Reading Slip",
-        category: "register",
-        description: `${operator?.full_name} printed a register reading for ${r.registerId} — SOD cash $${r.sod.startingCash.toFixed(2)}, current net $${r.current.net.toFixed(2)}, EOD ${r.eod.consolidated ? `net $${r.eod.net.toFixed(2)}` : "not consolidated"}.`,
-        page: "/pos/register",
-        actor: operator,
-      });
-    } catch (e) {
-      toast({ title: "Reading Failed", description: "That register could not be read. Check the register number.", variant: "destructive" });
-    }
-  };
 
   const openPriceEdit = (sku) => {
     const item = cart.find(i => i.sku === sku);
