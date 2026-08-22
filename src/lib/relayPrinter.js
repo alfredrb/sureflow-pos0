@@ -7,7 +7,7 @@ const net = require("net");
 
 // Bumped whenever this file changes. The test print shows it, so a technician can
 // confirm the relay is actually running the current printer.js and not a stale copy.
-const BUILD = "printer-build 5 (slip paper 4, no sensor cmd)";
+const BUILD = "printer-build 6 (slip paper 2 — ESC c 0 is a bitfield)";
 
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
@@ -22,13 +22,15 @@ const CUT = GS + "V\\x42\\x00";
 // Slip station (front insert slot) — used for chits and for printing a receipt on a
 // blank sheet when the receipt roll is out. 40 columns, impact, no cutter.
 const SLIP_WIDTH = Number(process.env.SLIP_WIDTH || 40);
-// ESC c 0 n selects which sheet prints. On the TM-H6000 family n=4 is the slip /
-// cheque station (verified on hardware) and n=3 returns to the 80mm receipt roll.
+// ESC c 0 n selects the print station, and n is a BITFIELD: bit0 (1) = receipt roll,
+// bit1 (2) = slip / cheque station. The slip station is therefore n=2. n=4 sets an
+// undefined bit and is silently ignored, leaving the job on the roll — that was the
+// real cause of slip work printing out of the top of the printer.
 // Do NOT also send ESC c 1 n — that is the paper-END SENSOR select and it cancels
 // the slip selection, sending the job back to the roll.
-const SLIP_PAPER = Number(process.env.SLIP_PAPER || 4);
+const SLIP_PAPER = Number(process.env.SLIP_PAPER || 2);
 const SEL_SLIP = ESC + "c0" + String.fromCharCode(SLIP_PAPER);
-const SEL_RECEIPT = ESC + "c0\\x03";           // ESC c 0 3 — back to the receipt roll
+const SEL_RECEIPT = ESC + "c0\\x01";           // ESC c 0 1 — back to the receipt roll
 // ESC f t1 t2 — t1 is the insertion WAIT time (seconds), t2 the detection wait.
 // t1 must be non-zero or the printer gives up instantly and never waits for the sheet.
 const WAIT_INSERT = ESC + "f\\x1e\\x0a";       // wait ~30s for the operator to insert paper

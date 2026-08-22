@@ -15,7 +15,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 6 (endorsement uses the proven slip sequence)";
+const BUILD = "check-reader-build 7 (slip paper 2 — ESC c 0 is a bitfield)";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -23,10 +23,13 @@ const ESC = "\\x1b", FS = "\\x1c", GS = "\\x1d";
 const INIT = ESC + "@";
 const ALIGN_L = ESC + "a0", ALIGN_C = ESC + "a1";
 const BOLD_ON = ESC + "E1", BOLD_OFF = ESC + "E0";
-// Paper source select. 4 = cheque / slip station on the H6000 family, 3 = receipt roll.
-const SLIP_PAPER = Number(process.env.SLIP_PAPER || 4);
+// ESC c 0 n selects the print station, and n is a BITFIELD, not a station number:
+// bit0 (1) = receipt roll, bit1 (2) = slip / cheque station. So the slip station is
+// n=2. n=4 sets an undefined bit, which the printer silently ignores — it stays on
+// the roll, which is exactly why the endorsement kept coming out of the top.
+const SLIP_PAPER = Number(process.env.SLIP_PAPER || 2);
 const SEL_SLIP = ESC + "c0" + String.fromCharCode(SLIP_PAPER);
-const SEL_RECEIPT = ESC + "c0\\x03";
+const SEL_RECEIPT = ESC + "c0\\x01";
 const WAIT_INSERT = ESC + "f\\x1e\\x0a";   // wait ~30s for the sheet
 const EJECT = "\\x0c";                      // FF — print and eject the cheque
 
