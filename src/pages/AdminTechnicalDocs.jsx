@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
@@ -16,6 +16,7 @@ import CheckDualSideInvestigation from "@/components/techdocs/CheckDualSideInves
 import RelayUpdateWalkthrough from "@/components/techdocs/RelayUpdateWalkthrough";
 import ScannerSuffixReference from "@/components/techdocs/ScannerSuffixReference";
 import IBMScancodeReference from "@/components/techdocs/IBMScancodeReference";
+import KeyturnMsrReference from "@/components/techdocs/KeyturnMsrReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
@@ -30,6 +31,7 @@ const SECTIONS = [
   { id: "printerbridge", label: "USB Printer Bridge", icon: Printer, blurb: "Single-cable lane: the USB receipt printer published on the lane's IP, with the printer's Ethernet live as fallback." },
   { id: "scanner", label: "Barcode Scanner", icon: ScanLine, blurb: "Auto-Enter suffix programming so a scan rings the item up without a key press." },
   { id: "keyboard", label: "POS Keyboard Scan Codes", icon: BookOpen, blurb: "Official IBM GC30-3623 scan-code tables for the ANPOS keyboard family, mapped to the remapper workflow." },
+  { id: "keyturnmsr", label: "Keyturn & MSR", icon: KeyRound, blurb: "The barrel lock (SOD gating, no scancode) and the magstripe reader — why neither belongs in the key remapper." },
   { id: "library", label: "Driver Library", icon: Boxes, blurb: "Per-model driver profiles applied to the diskless image at build time." },
 ];
 
@@ -91,6 +93,7 @@ export default function AdminTechnicalDocs() {
           {active === "bridge" && <LaneSerialBridgeReference />}
           {active === "scanner" && <ScannerSuffixReference />}
           {active === "keyboard" && <IBMScancodeReference />}
+          {active === "keyturnmsr" && <KeyturnMsrReference />}
           {active === "library" && <HardwareLibraryPanel />}
         </div>
       </div>
