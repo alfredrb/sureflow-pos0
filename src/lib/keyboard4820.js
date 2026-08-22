@@ -9,12 +9,15 @@ export const KEYBOARD_MODEL_4820 = "IBM 4820 SurePoint";
 export const VENDOR_ID_4820 = "04B3";
 export const PRODUCT_ID_4820 = "4673";
 
-// [cap label, captured scancode]
+// [cap label, captured scancode, default keycode]
+// Every slot ships with a distinct keycode so the generated hwdb map is complete
+// the moment the layout is selected. F9 belongs to ACTION CODE and F10 to the
+// Ctrl+Action Code alarm, so neither is handed to another cap.
 const CAPS_4820 = [
-  [["VENDOR COUPON", "70029"], ["QTY", "7003a"], ["PS MERC RETURN", "7003b"], ["ITEM INQUIRY (S1)", "7003c"]],
-  [["Walmart Pay", "70047"], ["SHOP CARD", "7003d"], ["PRICE OVER", "7003e"], ["ERROR CORRECT (S2)", "7003f"]],
-  [["CHECK", "7001f"], ["CREDIT DEBIT EBT", "70020"], ["TRANS DISC", "70021"], ["VOID ITEM", "70041"]],
-  [["CASH", "7001e"], ["TOTAL", "70057"], ["ACTION CODE", "70044"], ["ABORT TRANS.", "70045"]],
+  [["VENDOR COUPON", "70029", "f1"], ["QTY", "7003a", "f2"], ["PS MERC RETURN", "7003b", "f3"], ["ITEM INQUIRY (S1)", "7003c", "f4"]],
+  [["Walmart Pay", "70047", "f5"], ["SHOP CARD", "7003d", "f6"], ["PRICE OVER", "7003e", "f7"], ["ERROR CORRECT (S2)", "7003f", "f8"]],
+  [["CHECK", "7001f", "f11"], ["CREDIT DEBIT EBT", "70020", "f12"], ["TRANS DISC", "70021", "f13"], ["VOID ITEM", "70041", "f14"]],
+  [["CASH", "7001e", "f15"], ["TOTAL", "70057", "f16"], ["ACTION CODE", "70044", "f9"], ["ABORT TRANS.", "70045", "f17"]],
 ];
 
 // The stray scancode seen once during capture. Believed to be a slide-off ghost
@@ -26,7 +29,7 @@ export const SPARE_SLOT_ID_4820 = "spare_70042";
 export function build4820DefaultSlots() {
   const slots = [];
   CAPS_4820.forEach((row, r) => {
-    row.forEach(([cap, scancode], c) => {
+    row.forEach(([cap, scancode, keycode], c) => {
       const isActionCode = cap === "ACTION CODE";
       slots.push({
         slot_id: `r${r + 1}c${c + 1}`,
@@ -36,7 +39,7 @@ export function build4820DefaultSlots() {
         scancode,
         // ACTION CODE reports F11 natively and must be remapped to f9, which is
         // what the POS Action Code dialog listens for.
-        keycode: isActionCode ? "f9" : "",
+        keycode,
         function_key_number: null,
         locked: isActionCode,
       });

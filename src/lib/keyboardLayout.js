@@ -63,7 +63,7 @@ const CAPS = [
 // The POS depends on both, so their slots are locked in the editor.
 export const RESERVED_KEYCODES = ["f9", "f10"];
 
-export const KEYCODE_OPTIONS = [...Array.from({ length: 16 }, (_, i) => `f${i + 1}`), "backspace", "enter"];
+export const KEYCODE_OPTIONS = [...Array.from({ length: 24 }, (_, i) => `f${i + 1}`), "backspace", "enter"];
 
 // The blank keycap directly under CTRL on the numeric pad. Mapped to backspace so
 // it deletes the last digit on every POS pinpad.
