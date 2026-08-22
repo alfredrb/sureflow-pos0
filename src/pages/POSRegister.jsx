@@ -37,6 +37,10 @@ import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
 import { printRecallSlip, printRobberySlip } from "@/lib/incidentSlips";
 import { printConfigSlip } from "@/lib/configSlip";
+import { printRegisterReadingSlip } from "@/lib/registerReadingSlip";
+import { showEodSummary } from "@/lib/eodPadSummary";
+import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
+import PinpadMirrorTile from "@/components/pos/PinpadMirrorTile";
 import POSSupervisorOverrideDialog from "@/components/pos/POSSupervisorOverrideDialog";
 import POSRemoteOverrideStatus from "@/components/pos/POSRemoteOverrideStatus";
 import POSSwitchGuardDialog from "@/components/pos/POSSwitchGuardDialog";
@@ -84,6 +88,8 @@ export default function POSRegister() {
   // Virtual CSM key — while set, CSM-level actions run without a per-action PIN.
   const [csmApproval, setCsmApproval] = useState(null); // { operator_id, name, role }
   const [resumeOpen, setResumeOpen] = useState(false);
+  // AC 3 — "REGISTER?" prompt for the register reading slip.
+  const [readingOpen, setReadingOpen] = useState(false);
   const [voidCashOpen, setVoidCashOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -641,6 +647,20 @@ export default function POSRegister() {
       case "loyalty_lookup": setLoyaltyLookupOpen(true); break;
       case "export_cash": setExportCashDialog(true); break;
       case "csm_help": requestCSM(); break;
+      // AC 3 — take a reading for any register: SOD, live current, EOD by tender.
+      case "register_tender_reading":
+        setReadingOpen(true);
+        break;
+      // AC 401 — store-wide EOD summary on the customer pad, plus a printed copy.
+      case "eod_summary":
+        showEodSummary(pinpadContext, operator)
+          .then((report) => {
+            if (!report) { toast({ title: "Not Consolidated", description: "Today's end of day has not been consolidated yet.", variant: "destructive" }); return; }
+            toast({ title: "EOD Summary", description: "Shown on the customer pad and sent to the printer." });
+          })
+          .catch(() => toast({ title: "Summary Failed", description: "The end of day summary could not be produced.", variant: "destructive" }));
+        writeLog("register_change", "End of day summary displayed and printed (AC 401)");
+        break;
       case "print_config":
         printConfigSlip(operator)
           .then(() => toast({ title: "Configuration Printed", description: "Technician configuration slip sent to the printer." }))
@@ -853,6 +873,25 @@ export default function POSRegister() {
     setResumeOpen(false);
     writeLog("override", `Suspended sale resumed — ${rec.suspend_id} (suspended on ${rec.register_id} by ${rec.operator_name})`);
     toast({ title: "Sale Resumed", description: `${rec.suspend_id} — ${rec.item_count} item(s) restored.` });
+  };
+
+  // AC 3 — print the reading slip for the register the operator keyed.
+  const printReading = async (entered) => {
+    setReadingOpen(false);
+    try {
+      const r = await printRegisterReadingSlip(entered, operator);
+      toast({ title: "Reading Printed", description: `${r.registerId} — SOD, current and EOD totals sent to the printer.` });
+      writeLog("register_change", `Register reading slip printed for ${r.registerId} (AC 3)`);
+      logAuditEvent({
+        action: "Register Reading Slip",
+        category: "register",
+        description: `${operator?.full_name} printed a register reading for ${r.registerId} — SOD cash $${r.sod.startingCash.toFixed(2)}, current net $${r.current.net.toFixed(2)}, EOD ${r.eod.consolidated ? `net $${r.eod.net.toFixed(2)}` : "not consolidated"}.`,
+        page: "/pos/register",
+        actor: operator,
+      });
+    } catch (e) {
+      toast({ title: "Reading Failed", description: "That register could not be read. Check the register number.", variant: "destructive" });
+    }
   };
 
   const openPriceEdit = (sku) => {
@@ -1611,6 +1650,11 @@ export default function POSRegister() {
             <POSTechnicianPanel operator={operator} loadData={loadData} writeLog={writeLog} toast={toast} registerFeatures={registerFeatures} onUpdateFeatures={handleUpdateFeatures} />
           )}
         </div>
+
+        {/* What the customer is seeing on the lane's pinpad (hidden with no pad) */}
+        {posMode !== "diagnostics" && (
+          <PinpadMirrorTile pinpadContext={pinpadContext} cart={cart} subtotal={subtotal} tax={tax} total={total} />
+        )}
       </div>
 
       {/* Item List Dialog */}
@@ -1832,6 +1876,14 @@ export default function POSRegister() {
         operator={operator}
         shiftStart={sessionStorage.getItem("pos_shift_start")}
         onConfirmed={handleCashVoid}
+      />
+
+      {/* AC 3 — "REGISTER?" prompt, then the reading slip prints */}
+      <POSRegisterReadingDialog
+        open={readingOpen}
+        onClose={() => setReadingOpen(false)}
+        defaultRegisterId={sessionStorage.getItem("pos_register_num") || ""}
+        onSubmit={printReading}
       />
 
       {/* Price inquiry — look up an item's price without adding it to the sale */}

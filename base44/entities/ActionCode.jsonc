@@ -43,10 +43,12 @@
         "supervisor_override",
         "csm_approval",
         "print_config",
+        "register_tender_reading",
+        "eod_summary",
         "none"
       ],
       "default": "none",
-      "description": "POS function this code dispatches to. Mirrors the FunctionKey action set plus POS-level actions reachable only by code. abort_transaction clears the in-progress sale before tender (formerly void_transaction, which is kept as a legacy alias). void_cash_transaction pulls a COMPLETED cash sale back out of the books \u2014 manager approval, current shift only, cash tender only. csm_approval turns the lane's virtual CSM key on/off \u2014 while on, CSM-level actions run without a per-action PIN. print_config prints the lane's configuration / hardware profile slip for technicians."
+      "description": "POS function this code dispatches to. Mirrors the FunctionKey action set plus POS-level actions reachable only by code. abort_transaction clears the in-progress sale before tender (formerly void_transaction, which is kept as a legacy alias). void_cash_transaction pulls a COMPLETED cash sale back out of the books \u2014 manager approval, current shift only, cash tender only. csm_approval turns the lane's virtual CSM key on/off \u2014 while on, CSM-level actions run without a per-action PIN. print_config prints the lane's configuration / hardware profile slip for technicians. register_tender_reading prompts for a register and prints that register's reading slip \u2014 SOD opening balances, the live current running totals and the consolidated EOD figures, broken down by tender. eod_summary shows the store's consolidated end-of-day summary on the lane's customer pinpad and prints it for the record."
     },
     "requires_role": {
       "type": "string",

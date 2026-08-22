@@ -11,7 +11,8 @@ export const ACTION_CODE_SEED = [
   { code: 1,   label: "Void Previous Transaction", action: "void_cash_transaction", requires_role: "manager", status: "active",      notes: "AC_VOID_PREVIOUS_TRANS — pulls a completed CASH sale back out of the books. Current shift only, manager approval, void slip prints." },
   { code: 13,  label: "Abort Transaction",         action: "abort_transaction",    requires_role: "none",    status: "active",      notes: "Clears the in-progress sale before tender (formerly mapped to void_transaction)" },
   { code: 2,   label: "Void Item",                 action: "void_item",            requires_role: "none",    status: "active",      notes: "Voids the last item on the sale" },
-  { code: 3,   label: "Quantity Entry",            action: "quantity",             requires_role: "none",    status: "active",      notes: "Sets quantity on the last item" },
+  { code: 3,   label: "Register Reading",          action: "register_tender_reading", requires_role: "manager", status: "active",   notes: "AC — Select Register, key the register number, Enter. Prints that register's SOD opening balances, live current totals and consolidated EOD figures, broken down by tender." },
+  { code: 14,  label: "Quantity Entry",            action: "quantity",             requires_role: "none",    status: "active",      notes: "Sets quantity on the last item (was code 3 before the register reading slip took that number)" },
   { code: 4,   label: "Tax Exempt",                action: "tax_exempt",           requires_role: "csm",     status: "active",      notes: "AC_TAX_EXEMPT" },
   { code: 5,   label: "Price Override",            action: "price_override",       requires_role: "csm",     status: "active",      notes: "Toggles price override mode" },
   { code: 6,   label: "Price Inquiry",             action: "price_check",          requires_role: "none",    status: "active",      notes: "AC_PRICE_INQUIRY" },
@@ -30,7 +31,8 @@ export const ACTION_CODE_SEED = [
   { code: 244, label: "Dump Register",             action: "export_cash",          requires_role: "manager", status: "active",      notes: "AC_DUMP_REGISTER — cash history export" },
   { code: 250, label: "No Sale (Open Drawer)",     action: "no_sale",              requires_role: "none",    status: "active",      notes: "AC_CSM_NOSALE — code number varies by store" },
   { code: 251, label: "Cash Changer Function",     action: "cash_management",      requires_role: "csm",     status: "active",      notes: "AC_PROCESS_CASHCHGR_FUNCTION" },
-  { code: 402, label: "Print POS Configuration", action: "print_config",        requires_role: "none",    status: "active",      notes: "Prints this lane's configuration, features and hardware profile for technicians" },
+  { code: 401, label: "End Of Day Summary",        action: "eod_summary",          requires_role: "csm",     status: "active",      notes: "Shows the store's consolidated EOD summary on the lane's customer pinpad and prints it for the record. Only available once the midnight consolidation has run." },
+  { code: 402, label: "Print POS Configuration", action: "print_config",        requires_role: "none",      status: "active",      notes: "Prints this lane's configuration, features and hardware profile for technicians" },
   { code: 911, label: "Report Robbery",            action: "report_robbery",       requires_role: "none",    status: "active",      notes: "Emergency — logs alert and pauses the lane" },
 
   // ── Known codes whose SureFlow function is not built yet ───────────────────
