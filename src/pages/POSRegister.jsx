@@ -24,7 +24,6 @@ import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
-import { submitOfflineSale } from "@/lib/offlineSale";
 import { executeFunctionKeyAction } from "@/lib/posFunctionKeyExec";
 import { savePosReceiptContext } from "@/lib/posReceiptContext";
 import POSTransactionSummary from "@/components/pos/POSTransactionSummary";
@@ -34,7 +33,6 @@ import POSGiftCardResultDialog from "@/components/pos/POSGiftCardResultDialog";
 import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
-import { printRobberySlip } from "@/lib/incidentSlips";
 import usePosCart from "@/hooks/usePosCart";
 import usePosParkedSales from "@/hooks/usePosParkedSales";
 import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog";
@@ -57,17 +55,17 @@ import POSPriceCheckDialog from "@/components/pos/POSPriceCheckDialog";
 import POSResumeDialog from "@/components/pos/POSResumeDialog";
 import { usePosAnnouncements } from "@/hooks/usePosAnnouncements";
 import { usePosLunchState } from "@/hooks/usePosLunchState";
-import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
-import { buildReceipt, commitSaleTransaction, lookupGiftCardTender, commitGiftCardSale } from "@/lib/posSaleCommit";
-import { appliedTotal, balanceDue, changeFrom, isSettled, primaryTender, tendersAllowed } from "@/lib/tenderSplit";
 import useFunctionKeyboard from "@/hooks/useFunctionKeyboard";
 import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
 import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
-import { collectSaleRating } from "@/lib/pinpadFlow";
 import usePinpadCartMirror from "@/hooks/usePinpadCartMirror";
 import usePoleDisplayMirror from "@/hooks/usePoleDisplayMirror";
-import { showTotalDueOnPole, showChangeOnPole } from "@/lib/poleDisplayFlow";
+import { showTotalDueOnPole } from "@/lib/poleDisplayFlow";
+import usePosSaleCompletion from "@/hooks/usePosSaleCompletion";
+import usePosSupervisorOverride from "@/hooks/usePosSupervisorOverride";
+import usePosSecurity from "@/hooks/usePosSecurity";
+import usePosDiagnostics from "@/hooks/usePosDiagnostics";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -89,15 +87,11 @@ export default function POSRegister() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [voidCashOpen, setVoidCashOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const [amountTendered, setAmountTendered] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  // Tenders applied to the sale in progress. One entry = a normal sale, more = split.
-  const [tenders, setTenders] = useState([]);
   // A tender key press waiting for the tender screen to commit it.
   const [tenderKeyRequest, setTenderKeyRequest] = useState(null); // { method, seq }
   // The lane's physical key map — scancode/keycode slots for this keyboard model.
   const [keyboardSlots, setKeyboardSlots] = useState([]);
-  const [giftCardMode, setGiftCardMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
   const [selectedCat, setSelectedCat] = useState("All");
@@ -119,15 +113,10 @@ export default function POSRegister() {
   const [supOverrideError, setSupOverrideError] = useState("");
   const [supOverrideUserId, setSupOverrideUserId] = useState("");
   const [pendingFunctionKey, setPendingFunctionKey] = useState(null);
-  // Remote override
-  const [remoteRequestSent, setRemoteRequestSent] = useState(null); // { requestId, action }
-  const [remotePolling, setRemotePolling] = useState(false);
-  const remotePollingRef = React.useRef(null);
   // Returns / Exchange register their Look Up Transaction handler here so the
   // operator prompt line can drive it with the keypad.
   const panelLookupRef = React.useRef(null);
   const registerPanelLookup = React.useCallback((fn) => { panelLookupRef.current = fn; }, []);
-  const [remoteResultDialog, setRemoteResultDialog] = useState(null); // { approved, action, by, note }
   // Top-level mode: "sale" | "returns" | "cs" | "diagnostics"
   const [posMode, setPosMode] = useState("sale");
   // Preview data from returns/exchange panels shown in the left panel
@@ -151,21 +140,8 @@ export default function POSRegister() {
   const [remoteLogout, setRemoteLogout] = useState({ requested: false, reason: "" });
   const [remoteLogoutDialog, setRemoteLogoutDialog] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
-  const [robberyDialog, setRobberyDialog] = useState(false);
-  const [calculatedRobberyAmount, setCalculatedRobberyAmount] = useState(0);
-  const [robberyLoading, setRobberyLoading] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
   const [trainingLocked, setTrainingLocked] = useState(false);
-  const [trainingModeDialog, setTrainingModeDialog] = useState(false);
-  const [trainingModeId, setTrainingModeId] = useState("");
-  const [trainingModePin, setTrainingModePin] = useState("");
-  const [trainingModeError, setTrainingModeError] = useState("");
-  const [giftCardPaymentDialog, setGiftCardPaymentDialog] = useState(false);
-  const [giftCardNumber, setGiftCardNumber] = useState("");
-  const [giftCardAmount, setGiftCardAmount] = useState("");
-  const [giftCardValidating, setGiftCardValidating] = useState(false);
-  const [giftCardError, setGiftCardError] = useState("");
-  const [giftCardResult, setGiftCardResult] = useState(null); // { approved: bool, card: {...}, message: string }
   const [taxExemptDialog, setTaxExemptDialog] = useState(false);
   const [taxExemptAppliedId, setTaxExemptAppliedId] = useState("");
   const [taxExemptProfile, setTaxExemptProfile] = useState(null);
@@ -181,11 +157,6 @@ export default function POSRegister() {
   const [lunchOverridePin, setLunchOverridePin] = useState("");
   const [lunchOverrideError, setLunchOverrideError] = useState("");
   const [lunchOverrideApplied, setLunchOverrideApplied] = useState(false);
-  const [diagnosticsMode, setDiagnosticsMode] = useState(false);
-  const [diagOverrideDialog, setDiagOverrideDialog] = useState(false);
-  const [diagOverrideId, setDiagOverrideId] = useState("");
-  const [diagOverridePin, setDiagOverridePin] = useState("");
-  const [diagOverrideError, setDiagOverrideError] = useState("");
   const loadDataDebounceRef = React.useRef(null);
   const [relaySyncing, setRelaySyncing] = useState(false);
   const navigate = useNavigate();
@@ -427,6 +398,21 @@ export default function POSRegister() {
   });
   const receiptTaxExempt = receiptData?.taxExempt || taxExemptProfile;
 
+  // Robbery reporting + CSM help paging.
+  const {
+    robberyDialog, setRobberyDialog, calculatedRobberyAmount, setCalculatedRobberyAmount,
+    robberyLoading, requestCSM, calculateStolenAmount, confirmRobbery,
+  } = usePosSecurity({ operator, setRegisterPaused, setHelpMenuOpen, writeLog, toast });
+
+  // Diagnostics mode + training-mode authorization.
+  const {
+    diagnosticsMode, requestDiagnostics, authorizeDiagnostics, exitDiagnostics, enableTrainingMode,
+    trainingModeDialog, setTrainingModeDialog, trainingModeId, setTrainingModeId,
+    trainingModePin, setTrainingModePin, trainingModeError, setTrainingModeError,
+    diagOverrideDialog, setDiagOverrideDialog, diagOverrideId, setDiagOverrideId,
+    diagOverridePin, setDiagOverridePin, diagOverrideError, setDiagOverrideError,
+  } = usePosDiagnostics({ posMode, setPosMode, setSidePreview, setTrainingMode, writeLog, toast });
+
   // Customer-facing pinpad: mirrors the sale as it is rung up, and is the shared
   // context for signature capture, gift-card entry, amount approval and the rating.
   const pinpadContext = usePinpadCartMirror({
@@ -441,6 +427,21 @@ export default function POSRegister() {
     poleConfig,
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
     cart, total,
+  });
+
+  // Sale completion: split tenders, gift cards, training/offline paths, receipts.
+  const {
+    tenders, setTenders, amountTendered, setAmountTendered,
+    giftCardMode, setGiftCardMode, giftCardNumber, setGiftCardNumber,
+    giftCardAmount, setGiftCardAmount, giftCardError, giftCardValidating, giftCardResult,
+    completeSale, validateGiftCardTender, closeGiftCardResult, completeGiftCardSale,
+  } = usePosSaleCompletion({
+    cart, setCart, products, operator, subtotal, tax, total, amountDue,
+    storeConfig, trainingMode, isOffline, offlineTenders: OFFLINE_TENDERS, refreshConnectivity,
+    taxExemptAppliedId, setTaxExemptAppliedId, taxExemptProfile,
+    loyaltyMember, setLoyaltyMember, loyaltyAppliedAmount, setLoyaltyAppliedAmount,
+    setPaymentOpen, setReceiptData, setLastReceipt,
+    poleContext, pinpadContext, writeLog, toast, loadData,
   });
 
   // Tender screen — the pole switches to AMOUNT DUE while payment is taken.
@@ -463,6 +464,17 @@ export default function POSRegister() {
     diagnosticsMode, trainingMode, trainingLocked, setTrainingMode, setTrainingModeDialog,
     requestDiagnostics, setPosMode, setSidePreview, registerFeatures,
     suspendTransaction, setResumeOpen,
+  });
+
+  // Supervisor PIN overrides + remote (Remote Workstation) override requests.
+  const {
+    remoteRequestSent, remoteResultDialog, setRemoteResultDialog,
+    handleSupOverrideSubmit, cancelRemoteOverride, sendRemoteOverrideRequest,
+  } = usePosSupervisorOverride({
+    operator, pendingFunctionKey, setPendingFunctionKey,
+    setSupOverrideDialog, supOverrideUserId, setSupOverrideUserId,
+    supOverridePin, setSupOverridePin, setSupOverrideError,
+    setCsmApproval, executeFunctionKey, writeLog, toast,
   });
 
   // ── Action codes ───────────────────────────────────────────────────────────
@@ -587,111 +599,9 @@ export default function POSRegister() {
     enabled: !supOverrideDialog && !actionCodeOpen && !registerPaused,
   });
 
-  const handleSupOverrideSubmit = async () => {
-    setSupOverrideError("");
-    if (!supOverrideUserId.trim() || !supOverridePin.trim()) {
-      setSupOverrideError("Enter supervisor User ID and PIN");
-      return;
-    }
-    const ops = await base44.entities.Operator.filter({ operator_id: supOverrideUserId.trim(), pin: supOverridePin });
-    const requiredRole = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
-    const roleOk = (o) => requiredRole === "manager" ? o.role === "manager" : (o.role === "csm" || o.role === "manager");
-    const sup = ops.find(o => roleOk(o) && o.pos_access !== false);
-    if (!sup) {
-      const blocked = ops.find(o => roleOk(o));
-      setSupOverrideError(blocked ? "This supervisor's POS access is disabled" : (requiredRole === "manager" ? "Invalid credentials — Manager required" : "Invalid credentials — CSM or Manager required"));
-      return;
-    }
-    setSupOverrideDialog(false);
-    setSupOverridePin("");
-    setSupOverrideUserId("");
-    // Turning the virtual CSM key on, rather than running a single action.
-    if (pendingFunctionKey?.action === "csm_approval") {
-      setCsmApproval({ operator_id: sup.operator_id, name: sup.full_name, role: sup.role });
-      setPendingFunctionKey(null);
-      writeLog("override", `CSM key approval enabled by ${sup.full_name} — CSM-level actions run without a per-action PIN until the sale completes`, {
-        override_operator_id: sup.operator_id,
-        override_operator_name: sup.full_name,
-        override_action: "Enable CSM Key Approval",
-      });
-      toast({ title: "CSM Approved", description: `${sup.full_name} turned the CSM key — ends when this sale completes.` });
-      return;
-    }
-    toast({ title: "Override Granted", description: `${sup.full_name} authorized the action` });
-    if (pendingFunctionKey) {
-      writeLog("override", `Override for "${pendingFunctionKey.label}" authorized by ${sup.full_name}`, {
-        override_operator_id: sup.operator_id,
-        override_operator_name: sup.full_name,
-        override_action: pendingFunctionKey.label
-      });
-      executeFunctionKey(pendingFunctionKey);
-      setPendingFunctionKey(null);
-    }
-  };
-
-  const cancelRemoteOverride = () => {
-    if (typeof remotePollingRef.current === "function") remotePollingRef.current();
-    setRemotePolling(false);
-    setRemoteRequestSent(null);
-    setPendingFunctionKey(null);
-  };
-
-  const sendRemoteOverrideRequest = async () => {
-    if (!pendingFunctionKey) return;
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const req = await base44.entities.OverrideRequest.create({
-      register_id: registerId,
-      action: pendingFunctionKey.label,
-      requested_by_operator_id: operator?.operator_id || "",
-      requested_by_operator_name: operator?.full_name || "",
-      status: "pending"
-    });
-    setRemoteRequestSent({ requestId: req.id, action: pendingFunctionKey.label });
-    setSupOverrideDialog(false);
-    setSupOverridePin("");
-    // Listen for realtime approval/decline instead of polling
-    setRemotePolling(true);
-    const stopRemoteWatch = () => {
-      if (typeof remotePollingRef.current === "function") remotePollingRef.current();
-      remotePollingRef.current = null;
-      setRemotePolling(false);
-    };
-    const checkOverride = async () => {
-      invalidateEntity("OverrideRequest");
-      const updated = await base44.entities.OverrideRequest.filter({ id: req.id });
-      if (updated.length === 0) return;
-      const r = updated[0];
-      if (r.status === "approved") {
-        stopRemoteWatch();
-        setRemoteRequestSent(null);
-        writeLog("override", `Remote override for "${r.action}" approved by ${r.approved_by_operator_name}`, {
-          override_operator_id: r.approved_by_operator_id,
-          override_operator_name: r.approved_by_operator_name,
-          override_action: r.action
-        });
-        executeFunctionKey(pendingFunctionKey);
-        setPendingFunctionKey(null);
-        setRemoteResultDialog({ approved: true, action: r.action, by: r.approved_by_operator_name, note: r.note || "" });
-      } else if (r.status === "declined" || r.status === "expired") {
-        stopRemoteWatch();
-        setRemoteRequestSent(null);
-        setPendingFunctionKey(null);
-        setRemoteResultDialog({ approved: false, action: r.action, by: r.approved_by_operator_name || null, note: r.note || "", expired: r.status === "expired" });
-      }
-    };
-    remotePollingRef.current = base44.entities.OverrideRequest.subscribe(() => checkOverride());
-    checkOverride();
-    // Auto-cancel after 5 minutes
-    setTimeout(() => {
-      stopRemoteWatch();
-      setRemoteRequestSent(null);
-    }, 5 * 60 * 1000);
-  };
-
-  // Cleanup realtime watch and debounce on unmount
+  // Cleanup the loadData debounce on unmount
   useEffect(() => {
     return () => {
-      if (typeof remotePollingRef.current === "function") remotePollingRef.current();
       if (loadDataDebounceRef.current) clearTimeout(loadDataDebounceRef.current);
     };
   }, []);
@@ -763,184 +673,6 @@ export default function POSRegister() {
     toast({ title: amt > 0 ? "Rewards Applied" : "Loyalty Member Linked", description: `${member.name} — ${member.loyalty_id}${amt > 0 ? ` (-$${amt.toFixed(2)})` : ""}` });
   };
 
-  const clearSaleState = () => {
-    setCart([]); setPaymentOpen(false); setAmountTendered("");
-    setTenders([]); setGiftCardMode(false);
-    setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
-  };
-
-  const completeSale = async () => {
-    if (cart.length === 0) return;
-    const missingSerials = cart.find(i => i.serialized && !(i.serial_numbers && i.serial_numbers.length === i.qty));
-    if (missingSerials) {
-      toast({ title: "Missing Serial Number", description: `${missingSerials.name} requires a serial number for each unit.`, variant: "destructive" });
-      return;
-    }
-    if (!isSettled(amountDue, tenders)) {
-      toast({ title: "Balance Still Due", description: `$${balanceDue(amountDue, tenders).toFixed(2)} remains — apply another tender.`, variant: "destructive" });
-      return;
-    }
-    const txId = "TX-" + Date.now().toString(36).toUpperCase();
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    // The primary tender is what every existing report reads; the tenders array
-    // carries the full split breakdown alongside it.
-    const method = primaryTender(tenders);
-    const tendered = appliedTotal(tenders);
-    const changeDue = changeFrom(amountDue, tenders);
-    const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
-    const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
-    const receiptBase = {
-      txId, operator, registerId, cart, subtotal, tax, total,
-      paymentMethod: method, amountTendered: tendered, changeDue, tenders,
-      loyaltyAppliedAmount, rewardsEarned, taxExempt: taxExemptProfile,
-    };
-
-    // Training mode: simulate the sale without recording anything — no transaction log
-    // entry, no stock changes, no register log. Only show a receipt for practice.
-    if (trainingMode) {
-      const practiceBalance = loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
-      const practice = buildReceipt({ ...receiptBase, loyaltyMember, newBalance: practiceBalance });
-      toast({ title: "Training Sale Complete", description: `${txId} — Change: $${changeDue.toFixed(2)} (not recorded)` });
-      showChangeOnPole(poleContext, { total, change: changeDue });
-      setReceiptData(practice);
-      setLastReceipt(practice);
-      clearSaleState();
-      return;
-    }
-
-    // Offline: queue the sale on the relay instead of writing to the cloud.
-    if (isOffline) {
-      if (!tendersAllowed(tenders, OFFLINE_TENDERS)) {
-        toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
-        return;
-      }
-      try {
-        await submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod: method, amountTendered: tendered, changeDue, tenders, taxExemptId: taxExemptAppliedId });
-      } catch (e) {
-        toast({ title: "Sale Not Saved", description: "The local relay rejected the sale. Get a manager.", variant: "destructive" });
-        return;
-      }
-      const offlineReceipt = buildReceipt({ ...receiptBase, loyaltyAppliedAmount: 0, rewardsEarned: 0, loyaltyMember: null });
-      toast({ title: "Sale Saved Offline", description: `${txId} — will upload when the connection returns.` });
-      showChangeOnPole(poleContext, { total, change: changeDue });
-      setReceiptData(offlineReceipt);
-      setLastReceipt(offlineReceipt);
-      clearSaleState();
-      refreshConnectivity();
-      return;
-    }
-
-    try {
-      const newBalance = await commitSaleTransaction({
-        txId, operator, registerId,
-        storeId: sessionStorage.getItem("pos_store_id") || "",
-        cart, products, subtotal, tax, total,
-        paymentMethod: method, amountTendered: tendered, changeDue, tenders,
-        trainingMode, taxExemptId: taxExemptAppliedId,
-        loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
-      });
-      toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
-      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, {
-        transaction_id: txId,
-        transaction_total: total,
-        items: cart.map(item => ({
-          sku: item.sku, name: item.name, qty: item.qty, price: item.price, total: item.total,
-          tax_rate: item.tax_rate,
-          discount_type: item.discount_type || null,
-          discount_percentage: item.discount_percentage || 0,
-          original_price: item.original_price || item.price,
-        })),
-      });
-      const receipt = buildReceipt({ ...receiptBase, loyaltyMember, newBalance });
-      setReceiptData(receipt);
-      setLastReceipt(receipt);
-      clearSaleState();
-      showChangeOnPole(poleContext, { total, change: changeDue });
-      // Rating screen runs on the customer pad while the operator hands over the
-      // receipt — it stores itself against the sale and never blocks the lane.
-      collectSaleRating(pinpadContext, txId);
-      loadData();
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
-    }
-  };
-
-  // Validate a gift-card tender before completing the sale.
-  const validateGiftCardTender = async () => {
-    if (!giftCardNumber.trim() || !giftCardAmount.trim()) {
-      setGiftCardError("Please enter gift card number and amount");
-      return;
-    }
-    setGiftCardValidating(true);
-    setGiftCardError("");
-    try {
-      const { error, result } = await lookupGiftCardTender(giftCardNumber, giftCardAmount);
-      if (error) setGiftCardError(error);
-      else setGiftCardResult(result);
-    } catch (e) {
-      setGiftCardError("Error validating gift card");
-    }
-    setGiftCardValidating(false);
-  };
-
-  const closeGiftCardResult = () => {
-    setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount(""); setGiftCardError("");
-    setGiftCardMode(false);
-    if (giftCardResult?.approved) setPaymentOpen(false);
-  };
-
-  // Complete the sale using an approved gift-card tender.
-  const completeGiftCardSale = async () => {
-    const txId = "TX-" + Date.now().toString(36).toUpperCase();
-    const chargeAmount = giftCardResult.chargeAmount;
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const loyaltyPct = storeConfig?.loyalty_points_percentage ?? 5;
-    const rewardsEarned = loyaltyMember ? +(subtotal * (loyaltyPct / 100)).toFixed(2) : 0;
-    const receiptBase = {
-      txId, operator, registerId, cart, subtotal, tax, total,
-      paymentMethod: "giftcard", amountTendered: chargeAmount, changeDue: 0,
-      tenders: [{ method: "giftcard", amount: chargeAmount, reference: giftCardResult.card.card_number }],
-      loyaltyAppliedAmount, rewardsEarned, taxExempt: taxExemptProfile,
-    };
-    const clearSale = () => {
-      clearSaleState();
-      setGiftCardResult(null); setGiftCardNumber(""); setGiftCardAmount("");
-    };
-
-    // Training mode: no balance deduction, no transaction, no stock change.
-    if (trainingMode) {
-      const practiceBalance = loyaltyMember ? +(loyaltyMember.rewards_balance - loyaltyAppliedAmount + rewardsEarned).toFixed(2) : null;
-      const practice = buildReceipt({ ...receiptBase, loyaltyMember, newBalance: practiceBalance });
-      toast({ title: "Training Sale Complete", description: `${txId} — Paid with gift card (not recorded)` });
-      setReceiptData(practice);
-      setLastReceipt(practice);
-      clearSale();
-      return;
-    }
-
-    try {
-      const newBalance = await commitGiftCardSale({
-        card: giftCardResult.card, chargeAmount,
-        txId, operator, registerId,
-        storeId: sessionStorage.getItem("pos_store_id") || "",
-        cart, products, subtotal, tax, total,
-        trainingMode, taxExemptId: taxExemptAppliedId,
-        loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
-      });
-      toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
-      writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });
-      const receipt = buildReceipt({ ...receiptBase, loyaltyMember, newBalance });
-      setReceiptData(receipt);
-      setLastReceipt(receipt);
-      clearSale();
-      showChangeOnPole(poleContext, { total, change: 0 });
-      collectSaleRating(pinpadContext, txId);
-      loadData();
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to process gift card sale", variant: "destructive" });
-    }
-  };
-
   // The virtual CSM key turns itself back off as soon as a sale completes, so a
   // supervisor walking away can't leave the lane authorized.
   useEffect(() => {
@@ -998,52 +730,6 @@ export default function POSRegister() {
     }
   };
 
-  const requestDiagnostics = () => {
-    setDiagOverrideId(""); setDiagOverridePin(""); setDiagOverrideError("");
-    setDiagOverrideDialog(true);
-  };
-
-  const authorizeDiagnostics = async () => {
-    setDiagOverrideError("");
-    try {
-      const res = await verifyOperatorCredentials(diagOverrideId, diagOverridePin, { roles: SUPERVISOR_ROLES });
-      if (!res.ok) { setDiagOverrideError(res.error); return; }
-      const sup = res.operator;
-      setDiagnosticsMode(true);
-      setTrainingMode(true);
-      setPosMode("diagnostics");
-      setSidePreview(null);
-      setDiagOverrideDialog(false);
-      setDiagOverrideId(""); setDiagOverridePin("");
-      toast({ title: "Diagnostics Mode Enabled", description: `${sup.full_name} authorized — Training Mode active` });
-      writeLog("override", `Diagnostics mode enabled — authorized by ${sup.full_name}`, {
-        override_operator_id: sup.operator_id,
-        override_operator_name: sup.full_name,
-        override_action: "Enable Diagnostics Mode",
-      });
-    } catch (e) {
-      setDiagOverrideError("Authorization failed — try again");
-    }
-  };
-
-  const enableTrainingMode = async () => {
-    setTrainingModeError("");
-    const res = await verifyOperatorCredentials(trainingModeId, trainingModePin, { roles: SUPERVISOR_ROLES });
-    if (!res.ok) { setTrainingModeError(res.error); return; }
-    setTrainingMode(true);
-    setTrainingModeDialog(false);
-    setTrainingModeId(""); setTrainingModePin("");
-    toast({ title: "Training Mode Enabled", description: "Transactions will not be recorded" });
-  };
-
-  const exitDiagnostics = () => {
-    setDiagnosticsMode(false);
-    setTrainingMode(false);
-    if (posMode === "diagnostics") setPosMode("sale");
-    toast({ title: "Diagnostics Exited", description: "Normal operations resumed" });
-    writeLog("override", "Diagnostics mode exited — normal operations resumed", { override_action: "Exit Diagnostics Mode" });
-  };
-
   // Auto-dismiss the "scheduled lunch" info dialog once lunch is overdue so it
   // doesn't linger behind the lockout and freeze the lockout's controls.
   useEffect(() => {
@@ -1068,69 +754,6 @@ export default function POSRegister() {
     const matchCat = selectedCat === "All" || p.category === selectedCat;
     return matchSearch && matchCat;
   });
-
-  const requestCSM = async () => {
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    try {
-      await base44.entities.OverrideRequest.create({
-        register_id: registerId,
-        action: "Help Needed",
-        requested_by_operator_id: operator?.operator_id || "",
-        requested_by_operator_name: operator?.full_name || "",
-        status: "pending"
-      });
-      writeLog("override", `CSM Help Requested — ${operator?.full_name || "Unknown operator"}`);
-      toast({ title: "Help Request Sent", description: "CSM has been notified", variant: "default" });
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to send help request", variant: "destructive" });
-    }
-    setHelpMenuOpen(false);
-  };
-
-  const calculateStolenAmount = async () => {
-    setRobberyLoading(true);
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    const registerName = sessionStorage.getItem("pos_register_name") || "REG-001";
-    try {
-      // Alert first — the drawer figure is worked out afterwards.
-      await raiseRobberyAlert({ registerId, registerName, operator });
-      setCalculatedRobberyAmount(await computeExpectedDrawerCash(registerId));
-      setRobberyDialog(true);
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to calculate amount", variant: "destructive" });
-    }
-    setRobberyLoading(false);
-  };
-
-  const confirmRobbery = async () => {
-    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-    try {
-      await base44.entities.Robbery.create({
-        register_id: registerId,
-        register_name: sessionStorage.getItem("pos_register_name") || "REG-001",
-        operator_id: operator?.operator_id || "",
-        operator_name: operator?.full_name || "",
-        amount_stolen: calculatedRobberyAmount,
-        report_date: new Date().toISOString().split("T")[0]
-      });
-      
-      // Pause the register
-      const regs = await base44.entities.Register.filter({ register_id: registerId });
-      if (regs.length > 0) {
-        await base44.entities.Register.update(regs[0].id, { paused: true });
-        setRegisterPaused(true);
-      }
-      
-      writeLog("robbery", `Robbery reported — $${calculatedRobberyAmount.toFixed(2)} stolen (calculated) — Register paused`);
-      printRobberySlip({ amount: calculatedRobberyAmount, registerId, operator }).catch(() => {});
-      toast({ title: "Robbery Reported", description: "Register paused for security", variant: "default" });
-      setCalculatedRobberyAmount(0);
-      setRobberyDialog(false);
-      setHelpMenuOpen(false);
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to report robbery", variant: "destructive" });
-    }
-  };
 
   // Build mode buttons dynamically based on enabled features
   const modeTabs = [
