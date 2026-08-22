@@ -83,6 +83,13 @@ app.use("/api", apiRouter);
 // After /api (so they sit beside /api/print) and well before the static POS build
 // and SPA catch-all further down, which would otherwise swallow the requests.
 
+// Deployment check. If this returns the POS index.html instead of JSON, the cheque
+// routes are NOT mounted on this relay — every endorsement request is being answered
+// by the SPA catch-all and never reaches the printer.
+app.get("/api/check/build", (req, res) => {
+  res.json({ build: checkReader.BUILD, slip_paper: checkReader.SLIP_PAPER });
+});
+
 // Blocking read: the printer waits for the operator to insert the cheque, so the POS
 // calls this with a long client timeout while showing an "insert cheque" prompt.
 app.post("/api/check/read", async (req, res) => {
