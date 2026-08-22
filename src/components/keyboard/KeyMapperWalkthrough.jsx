@@ -15,6 +15,11 @@ const STEPS = [
     code: "sudo evtest",
   },
   {
+    title: "\"evtest: command not found\"? Install it into the image",
+    body: "The diskless root is a minimal Debian build, so evtest is not present on older images — and the NFS root is read-only, so it cannot be installed from the lane. Add it to both images on the PXE controller, then reboot the lane and run the capture again. The image builder now installs evtest and kbd by default, so a rebuilt image already has both. If you cannot rebuild right now, the kbd package's showkey prints the same scancodes from a plain console (press Ctrl+C to exit; it exits on its own after 10 idle seconds).",
+    code: "# On the CONTROLLER — add the capture tools to both images\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends evtest kbd; done\n\n# On the LANE, as an alternative to evtest\nsudo showkey --scancodes",
+  },
+  {
     title: "Enter each scancode into its slot",
     body: "Click a key in the grid to open the slot editor, then type the scancode you captured for that physical keycap. The amber 'no captured scancodes' warning clears as soon as the first one is entered. The Action Code key is locked on purpose — the POS depends on it.",
   },

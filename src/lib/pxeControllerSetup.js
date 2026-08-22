@@ -54,6 +54,7 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
     linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
     xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
     ca-certificates curl iproute2 iputils-ping sudo \\
+    evtest kbd \\
     ser2net setserial socat \\
     plymouth plymouth-themes beep \$EXTRA
   # System-level boot progress bar instead of a wall of kernel text. The theme
