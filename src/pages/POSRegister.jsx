@@ -48,6 +48,7 @@ import POSSecurityDialogs from "@/components/pos/POSSecurityDialogs";
 import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
 import POSStatusLine from "@/components/pos/POSStatusLine";
+import POSSoftKeyboard from "@/components/pos/POSSoftKeyboard";
 import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
 import { resolveActionCode, needsOverrideFor } from "@/lib/actionCodeDispatch";
 import useActionCodeBuffer from "@/hooks/useActionCodeBuffer";
@@ -1195,6 +1196,10 @@ export default function POSRegister() {
         onOverride={handleLunchOverride}
         onLogout={logout}
       />
+
+      {/* On-screen QWERTY for lanes with no letter keys — only attaches to
+          fields flagged with data-softkeyboard. */}
+      <POSSoftKeyboard />
     </div>
   );
 }

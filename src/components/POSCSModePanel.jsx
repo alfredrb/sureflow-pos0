@@ -178,6 +178,7 @@ export default function CSModePanel({ operator, onAddGiftCard, toast }) {
                 value={balanceCheckNumber}
                 onChange={e => setBalanceCheckNumber(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleBalanceCheck()}
+                data-softkeyboard
                 className="bg-[#0a0e27] border-purple-500/20 text-white placeholder:text-blue-300/20"
                 autoFocus
               />
@@ -241,6 +242,7 @@ export default function CSModePanel({ operator, onAddGiftCard, toast }) {
             placeholder="Gift Card Number"
             value={cashOutNumber}
             onChange={e => setCashOutNumber(e.target.value)}
+            data-softkeyboard
             className="bg-[#0a0e27] border-red-500/20 text-white placeholder:text-blue-300/20"
           />
           <Input

@@ -248,7 +248,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
               ["customer_name", "Writer Name"], ["customer_id", "ID Presented"]].map(([k, label]) => (
               <div key={k}>
                 <label className="text-blue-300/60 text-[10px] mb-1 block">{label}</label>
-                <Input value={fields[k]} onChange={e => set(k, e.target.value)}
+                <Input value={fields[k]} onChange={e => set(k, e.target.value)} data-softkeyboard
                   className="bg-[#0a0e27] border-blue-500/10 text-white h-9 font-mono text-sm" />
               </div>
             ))}

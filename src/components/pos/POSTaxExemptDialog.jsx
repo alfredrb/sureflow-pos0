@@ -40,6 +40,7 @@ export default function POSTaxExemptDialog({ open, onClose, onConfirm, initialId
             value={idInput}
             onChange={e => setIdInput(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === "Enter" && doLookup()}
+            data-softkeyboard
             placeholder="TE-XXXXXXXX"
             className="bg-[#0a0e27] border-emerald-500/20 text-white font-mono placeholder:text-blue-300/20"
             autoFocus

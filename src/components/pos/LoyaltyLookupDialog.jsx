@@ -46,6 +46,7 @@ export default function LoyaltyLookupDialog({ open, onClose, onApply, onLink, ca
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === "Enter" && lookup()}
               autoFocus
+              data-softkeyboard
               placeholder="LY-XXXXXXXX"
               className="bg-[#0a0e27] border-sky-500/20 text-white placeholder:text-blue-300/20"
             />

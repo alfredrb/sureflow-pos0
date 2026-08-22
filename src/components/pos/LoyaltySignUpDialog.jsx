@@ -70,20 +70,20 @@ export default function LoyaltySignUpDialog({ open, onClose, operator, onCreated
           <div className="space-y-3">
             <div>
               <Label>Name *</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="bg-[#0a0e27] border-sky-500/20 text-white" autoFocus />
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="bg-[#0a0e27] border-sky-500/20 text-white" autoFocus data-softkeyboard />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="bg-[#0a0e27] border-sky-500/20 text-white" /></div>
-              <div><Label>Email</Label><Input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="bg-[#0a0e27] border-sky-500/20 text-white" /></div>
+              <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="bg-[#0a0e27] border-sky-500/20 text-white" data-softkeyboard /></div>
+              <div><Label>Email</Label><Input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="bg-[#0a0e27] border-sky-500/20 text-white" data-softkeyboard /></div>
             </div>
             <div>
               <Label>Address</Label>
-              <Input value={form.address_street} onChange={e => setForm(f => ({ ...f, address_street: e.target.value }))} placeholder="Street" className="bg-[#0a0e27] border-sky-500/20 text-white" />
+              <Input value={form.address_street} onChange={e => setForm(f => ({ ...f, address_street: e.target.value }))} placeholder="Street" className="bg-[#0a0e27] border-sky-500/20 text-white" data-softkeyboard />
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <Input value={form.address_city} onChange={e => setForm(f => ({ ...f, address_city: e.target.value }))} placeholder="City" className="bg-[#0a0e27] border-sky-500/20 text-white" />
-              <Input value={form.address_state} onChange={e => setForm(f => ({ ...f, address_state: e.target.value }))} placeholder="State" className="bg-[#0a0e27] border-sky-500/20 text-white" />
-              <Input value={form.address_zip} onChange={e => setForm(f => ({ ...f, address_zip: e.target.value }))} placeholder="ZIP" className="bg-[#0a0e27] border-sky-500/20 text-white" />
+              <Input value={form.address_city} onChange={e => setForm(f => ({ ...f, address_city: e.target.value }))} placeholder="City" className="bg-[#0a0e27] border-sky-500/20 text-white" data-softkeyboard />
+              <Input value={form.address_state} onChange={e => setForm(f => ({ ...f, address_state: e.target.value }))} placeholder="State" className="bg-[#0a0e27] border-sky-500/20 text-white" data-softkeyboard />
+              <Input value={form.address_zip} onChange={e => setForm(f => ({ ...f, address_zip: e.target.value }))} placeholder="ZIP" className="bg-[#0a0e27] border-sky-500/20 text-white" data-softkeyboard />
             </div>
             <Button onClick={submit} disabled={saving} className="w-full bg-sky-600 hover:bg-sky-500 text-white">
               {saving ? "Enrolling..." : "Enroll Member"}
