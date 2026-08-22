@@ -70,8 +70,15 @@ export default function POSTopBar({
           )}
         </button>
         {helpMenu}
-        <button onClick={onLogout} className="text-red-400/60 hover:text-red-400 transition-colors">
+        {/* Logout sits in the same bubble style as News so it is an easy target
+            on the 12-inch lane screens. */}
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0a0e27] border border-red-500/20 text-red-300/70 hover:text-red-300 hover:border-red-500/40 transition-colors text-[10px] font-bold uppercase tracking-wider"
+          title="Sign out of this register"
+        >
           <LogOut className="w-3.5 h-3.5" />
+          Logout
         </button>
       </div>
     </div>

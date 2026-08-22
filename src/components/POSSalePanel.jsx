@@ -33,7 +33,7 @@ function pageCapacity(sectionId, page, paging) {
   return 9 - (paging ? 1 : 0) - (sectionId === "advance" && page === 0 ? 1 : 0);
 }
 
-export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode }) {
+export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode, tenderUnlocked = false }) {
   const [activeSection, setActiveSection] = useState("sale");
   const [page, setPage] = useState(0);
   const [paging, setPaging] = useState(true);
@@ -63,6 +63,9 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
         <p className="text-blue-300/30 text-[10px] uppercase tracking-widest mb-2">
           {SECTION_TABS.find(t => t.id === activeSection)?.label} Functions
           {paging && <span className="ml-1 text-blue-300/50">— Page {page + 1} of 2</span>}
+          {activeSection === "tender" && !tenderUnlocked && (
+            <span className="ml-1 text-amber-400/70">— locked until Total is pressed</span>
+          )}
         </p>
         <div className="grid grid-cols-3 grid-rows-3 gap-2 flex-1">
           {/* Touchscreen Action Code key — lives on the Advance tab so operators
@@ -81,7 +84,8 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
               <button
                 key={fk.id}
                 onClick={() => onFunctionKey(fk)}
-                className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg"
+                disabled={TENDER_ACTION_LIST.includes(fk.action) && !tenderUnlocked}
+                className="rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 hover:brightness-110 border border-white/10 flex flex-col items-center justify-center gap-1 p-2 shadow-lg disabled:opacity-30 disabled:grayscale disabled:pointer-events-none"
                 style={{ backgroundColor: fk.color }}
               >
                 <span className="text-center leading-tight">{fk.label}</span>

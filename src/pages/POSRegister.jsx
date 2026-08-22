@@ -690,6 +690,8 @@ export default function POSRegister() {
       default:
         if (isTenderAction(fkey.action)) {
           if (cart.length === 0) { toast({ title: "Nothing To Tender", description: "Add items to the sale first.", variant: "destructive" }); break; }
+          // 4690 rule: tenders are locked out until the sale is totalled.
+          if (!paymentOpen) { toast({ title: "Press Total First", description: "Total the sale before selecting a tender.", variant: "destructive" }); break; }
           const method = tenderMethodFor(fkey.action);
           if (isOffline && !OFFLINE_TENDERS.includes(method)) {
             toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
@@ -1589,6 +1591,7 @@ export default function POSRegister() {
               onFunctionKey={handleFunctionKey}
               onOpenItemList={() => setItemListOpen(true)}
               onActionCode={() => setActionCodeOpen(true)}
+              tenderUnlocked={paymentOpen}
             />
           )}
 
