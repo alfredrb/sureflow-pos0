@@ -7,6 +7,7 @@ import { Keyboard, Save, AlertTriangle } from "lucide-react";
 import KeyboardGrid from "@/components/keyboard/KeyboardGrid";
 import KeySlotEditor from "@/components/keyboard/KeySlotEditor";
 import HwdbOutput from "@/components/keyboard/HwdbOutput";
+import KeyMapperWalkthrough from "@/components/keyboard/KeyMapperWalkthrough";
 import { DEFAULT_KEYBOARD_MODEL, buildDefaultSlots, duplicateKeycodes, isCalibrated } from "@/lib/keyboardLayout";
 
 export default function AdminKeyboardMapper() {
@@ -87,6 +88,8 @@ export default function AdminKeyboardMapper() {
           <Save className="mr-1 h-4 w-4" /> {saving ? "Saving…" : "Save Layout"}
         </Button>
       </div>
+
+      <KeyMapperWalkthrough />
 
       {!isCalibrated(layout.slots) && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
