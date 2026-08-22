@@ -4,7 +4,7 @@ import KeyboardNumpad from "@/components/keyboard/KeyboardNumpad";
 
 // Visual 4x4 function-key block. Each cell is a physical keycap the admin clicks
 // to reassign. Yellow caps mirror the real hardware.
-export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect }) {
+export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect, ctrlOverride = true }) {
   const labelFor = (n) => functionKeys.find((k) => k.key_number === n)?.label;
 
   // Rows 1-4 are the 4x4 function block; row 5 lives on the numeric pad;
@@ -12,6 +12,8 @@ export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect
   const blockSlots = slots.filter((s) => s.row <= 4);
   const numpadSlots = slots.filter((s) => s.row === 5);
   const systemSlots = slots.filter((s) => s.row === 6);
+  // Row 7 holds spare / ghost scancodes that are not standard hardware keys.
+  const spareSlots = slots.filter((s) => s.row === 7);
 
   return (
     <div className="flex flex-wrap items-start gap-4">
@@ -40,9 +42,11 @@ export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect
           );
         })}
       </div>
-      <div className="mt-3 inline-block rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">
-        "CTRL" + Action Code → F10 (silent alarm)
-      </div>
+      {ctrlOverride && (
+        <div className="mt-3 inline-block rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">
+          "CTRL" + Action Code → F10 (silent alarm)
+        </div>
+      )}
       {systemSlots.length > 0 && (
         <div className="mt-3">
           <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">System keys (ex-4690 S1/S2)</p>
@@ -63,6 +67,31 @@ export default function KeyboardGrid({ slots, functionKeys, selectedId, onSelect
                     {s.keycode ? s.keycode.toUpperCase() : "unmapped"}
                   </p>
                   <p className="text-[9px] leading-tight text-gray-500 truncate">{fnLabel || "no action"}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {spareSlots.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">Spare / unverified scancodes</p>
+          <div className="flex gap-2">
+            {spareSlots.map((s) => {
+              const selected = selectedId === s.slot_id;
+              return (
+                <button
+                  key={s.slot_id}
+                  onClick={() => onSelect(s.slot_id)}
+                  className={`w-28 h-16 rounded-md border-2 border-dashed px-2 py-1.5 text-left transition-all ${
+                    selected ? "border-blue-400 ring-2 ring-blue-300" : "border-gray-400/60"
+                  } bg-gray-200 hover:bg-gray-100`}
+                >
+                  <p className="text-[10px] font-bold uppercase leading-tight text-gray-700">{s.cap_label}</p>
+                  <p className="mt-1 text-[10px] font-mono text-gray-600">
+                    {s.keycode ? s.keycode.toUpperCase() : "unmapped"}
+                  </p>
+                  <p className="text-[9px] leading-tight text-gray-500">not a standard key</p>
                 </button>
               );
             })}

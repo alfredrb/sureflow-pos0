@@ -6,6 +6,29 @@
       "type": "string",
       "description": "Keyboard model this physical layout applies to (e.g. 'IBM 3AA01194300'). Matched against Register.keyboard_model, so one layout serves every register on that model."
     },
+    "model_type": {
+      "type": "string",
+      "enum": [
+        "ibm_3aa01194300",
+        "ibm_4820_surepoint",
+        "custom"
+      ],
+      "default": "ibm_3aa01194300",
+      "description": "Physical layout family. Drives which keycap set and slot structure the visual remapper shows: ibm_3aa01194300 = 4x4 block plus the separate S1/S2 system strip; ibm_4820_surepoint = single 4x4 block with S1 (ITEM INQUIRY) at r1c4 and S2 (ERROR CORRECT) at r2c4, plus a spare slot for the stray 70042 scancode."
+    },
+    "vendor_id": {
+      "type": "string",
+      "description": "USB vendor ID in plain hex (e.g. '04B3') used to build the hwdb match line. Blank = the legacy default 04B3:3025 is used."
+    },
+    "product_id": {
+      "type": "string",
+      "description": "USB product ID in plain hex (e.g. '4673' for the 4820, '3025' for the 3AA01194300). Blank = the legacy default is used."
+    },
+    "ctrl_override": {
+      "type": "boolean",
+      "default": true,
+      "description": "When true the generated hwdb map emits KEYBOARD_KEY_70029=leftctrl so Ctrl+Action Code keeps firing the silent robbery alarm. Off for the 4820, where 70029 is the VENDOR COUPON key and must not become a Ctrl modifier."
+    },
     "label": {
       "type": "string",
       "description": "Friendly name for this layout revision (e.g. 'Standard lane layout')."

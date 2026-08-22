@@ -12,7 +12,20 @@ import IBMKeyboardUtilityReference from "@/components/keyboard/IBMKeyboardUtilit
 import IBMKeyUtilityWalkthrough from "@/components/keyboard/IBMKeyUtilityWalkthrough";
 import SurePoint4820KeypadReference from "@/components/keyboard/SurePoint4820KeypadReference";
 import KeyMapperWalkthrough from "@/components/keyboard/KeyMapperWalkthrough";
-import { DEFAULT_KEYBOARD_MODEL, buildDefaultSlots, ensureSystemSlots, duplicateKeycodes, isCalibrated } from "@/lib/keyboardLayout";
+import KeyboardHardwareProfile from "@/components/keyboard/KeyboardHardwareProfile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DEFAULT_KEYBOARD_MODEL,
+  MODEL_TYPES,
+  MODEL_TYPE_3AA,
+  SPARE_SLOT_ID,
+  modelTypeConfig,
+  switchModelSlots,
+  buildDefaultSlots,
+  ensureSystemSlots,
+  duplicateKeycodes,
+  isCalibrated,
+} from "@/lib/keyboardLayout";
 
 export default function AdminKeyboardMapper() {
   const [layout, setLayout] = useState(null);
@@ -30,13 +43,23 @@ export default function AdminKeyboardMapper() {
       const existing = layouts.find((l) => l.active !== false);
       setFunctionKeys(keys.sort((a, b) => a.key_number - b.key_number));
       setLayout(
-        existing ? { ...existing, slots: ensureSystemSlots(existing.slots) } : {
-          keyboard_model: DEFAULT_KEYBOARD_MODEL,
-          label: "Standard lane layout",
-          slots: buildDefaultSlots(),
-          notes: "",
-          active: true,
-        }
+        existing
+          ? {
+              ...existing,
+              model_type: existing.model_type || MODEL_TYPE_3AA,
+              slots: ensureSystemSlots(existing.slots, existing.model_type || MODEL_TYPE_3AA),
+            }
+          : {
+              keyboard_model: DEFAULT_KEYBOARD_MODEL,
+              model_type: MODEL_TYPE_3AA,
+              vendor_id: "",
+              product_id: "",
+              ctrl_override: true,
+              label: "Standard lane layout",
+              slots: buildDefaultSlots(),
+              notes: "",
+              active: true,
+            }
       );
     })();
   }, []);
@@ -51,10 +74,30 @@ export default function AdminKeyboardMapper() {
   const updateSlot = (next) =>
     setLayout({ ...layout, slots: layout.slots.map((s) => (s.slot_id === next.slot_id ? next : s)) });
 
+  // Switching family rebuilds the slot structure, keeping captured scancodes for
+  // slots that exist in both layouts.
+  const changeModelType = (t) => {
+    const cfg = modelTypeConfig(t);
+    setSelectedId(null);
+    setLayout({
+      ...layout,
+      model_type: t,
+      keyboard_model: cfg.model || layout.keyboard_model,
+      vendor_id: cfg.vendor_id,
+      product_id: cfg.product_id,
+      ctrl_override: cfg.ctrl_override,
+      slots: switchModelSlots(t, layout.slots),
+    });
+  };
+
   const save = async () => {
     setSaving(true);
     const payload = {
       keyboard_model: layout.keyboard_model,
+      model_type: layout.model_type || MODEL_TYPE_3AA,
+      vendor_id: layout.vendor_id || "",
+      product_id: layout.product_id || "",
+      ctrl_override: layout.ctrl_override !== false,
       label: layout.label,
       slots: layout.slots,
       notes: layout.notes,
@@ -67,9 +110,16 @@ export default function AdminKeyboardMapper() {
     await logAuditEvent({
       action: "Updated Keyboard Key Map",
       category: "configuration",
-      description: `Saved the visual key remap for ${payload.keyboard_model}: ${
-        payload.slots.filter((s) => s.keycode).length
-      } of ${payload.slots.length} physical keys mapped.`,
+      description: `Saved the visual key remap for ${payload.keyboard_model} (layout family ${
+        payload.model_type
+      }): ${payload.slots.filter((s) => s.keycode).length} of ${payload.slots.length} slots mapped. ` +
+        `hwdb match ${(payload.vendor_id || "04B3").toUpperCase()}:${(payload.product_id || "3025").toUpperCase()}, ` +
+        `Ctrl override on 70029 ${payload.ctrl_override ? "enabled" : "disabled"}, ` +
+        `spare 70042 slot ${payload.slots.find((s) => s.slot_id === SPARE_SLOT_ID)?.keycode || "unmapped"}. ` +
+        `Assignments: ${payload.slots
+          .filter((s) => s.scancode && s.keycode)
+          .map((s) => `${s.cap_label}=${s.scancode}→${s.keycode}`)
+          .join(", ") || "none"}.`,
       page: "/admin/keyboard-mapper",
     });
     setSaving(false);
@@ -118,7 +168,19 @@ export default function AdminKeyboardMapper() {
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Physical Layout</label>
+          <Select value={layout.model_type || MODEL_TYPE_3AA} onValueChange={changeModelType}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MODEL_TYPES.map((m) => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-gray-400">Chooses the keycap set and slot structure.</p>
+        </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Keyboard Model</label>
           <Input
@@ -140,9 +202,11 @@ export default function AdminKeyboardMapper() {
           functionKeys={functionKeys}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          ctrlOverride={layout.ctrl_override !== false}
         />
         <div className="space-y-4">
           <KeySlotEditor slot={selected} functionKeys={functionKeys} onChange={updateSlot} />
+          <KeyboardHardwareProfile layout={layout} onChange={setLayout} />
           <ScancodeDecoder />
           <HwdbOutput layout={layout} />
         </div>
