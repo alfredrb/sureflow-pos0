@@ -19,6 +19,7 @@ export default function POSPaymentDialog({
   giftCardMode, setGiftCardMode,
   giftCardNumber, setGiftCardNumber, giftCardAmount, setGiftCardAmount, giftCardError, giftCardValidating,
   onOpenLoyaltySignup, onSubmit, onSubmitGiftCard, checkContext, pinpadContext,
+  tenderRequest, onTenderRequestHandled,
 }) {
   const pad = pinpadContext || {};
   // Customer-facing pinpad: keys the gift card number and confirms the amount due.
@@ -45,6 +46,15 @@ export default function POSPaymentDialog({
     onAddTender({ method, amount: amt });
     setAmountTendered("");
   };
+
+  // A physical tender key (CASH / CHECK / CREDIT…) commits through the same path
+  // as its on-screen twin, using whatever amount the operator keyed.
+  React.useEffect(() => {
+    if (!tenderRequest) return;
+    if (tenderRequest.method === "giftcard") setGiftCardMode(true);
+    else commit(tenderRequest.method);
+    onTenderRequestHandled?.();
+  }, [tenderRequest?.seq]);
 
   // Gift card number keyed by the customer on the pad instead of read aloud.
   const readGiftCardFromPad = async () => {

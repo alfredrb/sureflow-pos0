@@ -58,6 +58,8 @@ import { makeSuspendId, createSuspendRecord, claimSuspendRecord } from "@/lib/po
 import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
 import { buildReceipt, commitSaleTransaction, lookupGiftCardTender, commitGiftCardSale } from "@/lib/posSaleCommit";
 import { appliedTotal, balanceDue, changeFrom, isSettled, primaryTender, tendersAllowed } from "@/lib/tenderSplit";
+import { isTenderAction, tenderMethodFor } from "@/lib/tenderKeys";
+import useFunctionKeyboard from "@/hooks/useFunctionKeyboard";
 import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
 import { commitCashVoid } from "@/lib/posVoidSale";
 import { printVoidSlip } from "@/lib/voidSlip";
@@ -89,6 +91,10 @@ export default function POSRegister() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   // Tenders applied to the sale in progress. One entry = a normal sale, more = split.
   const [tenders, setTenders] = useState([]);
+  // A tender key press waiting for the tender screen to commit it.
+  const [tenderKeyRequest, setTenderKeyRequest] = useState(null); // { method, seq }
+  // The lane's physical key map — scancode/keycode slots for this keyboard model.
+  const [keyboardSlots, setKeyboardSlots] = useState([]);
   const [giftCardMode, setGiftCardMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
@@ -308,14 +314,20 @@ export default function POSRegister() {
     loadDataDebounceRef.current = setTimeout(async () => {
       try {
         const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
-        const [prods, fkeys, regs, discs, config, acodes] = await Promise.all([
+        const [prods, fkeys, regs, discs, config, acodes, layouts] = await Promise.all([
           base44.entities.Product.filter({ status: "active" }),
           base44.entities.FunctionKey.list("key_number"),
           base44.entities.Register.filter({ register_id: registerId }),
           base44.entities.DiscountType.list(),
           base44.entities.ReceiptConfig.list(),
-          base44.entities.ActionCode.list()
+          base44.entities.ActionCode.list(),
+          base44.entities.KeyboardLayout.list()
         ]);
+        // Physical key map for this lane's keyboard model, falling back to the
+        // one active layout when the register has no model recorded.
+        const active = (layouts || []).filter(l => l.active !== false);
+        const laneLayout = active.find(l => l.keyboard_model === regs[0]?.keyboard_model) || active[0];
+        setKeyboardSlots(laneLayout?.slots || []);
         setProducts(prods);
         setFunctionKeys(fkeys);
         setActionCodes(acodes);
@@ -672,7 +684,21 @@ export default function POSRegister() {
           toast({ title: "Item Repeated", description: `${last.name} — qty ${last.qty + 1}` });
         }
         break;
-      default: break;
+      // 4690 tender keys: TOTAL, key an amount (blank = full balance), then press
+      // CASH / CHECK / CREDIT… The tender screen commits it through the same path
+      // as its on-screen twin, so split tender and cheque handling are unchanged.
+      default:
+        if (isTenderAction(fkey.action)) {
+          if (cart.length === 0) { toast({ title: "Nothing To Tender", description: "Add items to the sale first.", variant: "destructive" }); break; }
+          const method = tenderMethodFor(fkey.action);
+          if (isOffline && !OFFLINE_TENDERS.includes(method)) {
+            toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
+            break;
+          }
+          setPaymentOpen(true);
+          setTenderKeyRequest({ method, seq: Date.now() });
+        }
+        break;
       }
       };
 
@@ -865,6 +891,15 @@ export default function POSRegister() {
     }
     executeFunctionKey(fkey);
   };
+
+  // Physical function-key block. Stays live while the tender screen is open so a
+  // tender key can commit the amount the operator just keyed.
+  useFunctionKeyboard({
+    slots: keyboardSlots,
+    functionKeys,
+    onFunctionKey: handleFunctionKey,
+    enabled: !supOverrideDialog && !actionCodeOpen && !registerPaused,
+  });
 
   const handleSupOverrideSubmit = async () => {
     setSupOverrideError("");
@@ -1612,6 +1647,8 @@ export default function POSRegister() {
         onOpenLoyaltySignup={() => setLoyaltySignupOpen(true)}
         onSubmit={completeSale}
         onSubmitGiftCard={validateGiftCardTender}
+        tenderRequest={tenderKeyRequest}
+        onTenderRequestHandled={() => setTenderKeyRequest(null)}
         pinpadContext={pinpadContext}
         checkContext={{
           ...pinpadContext,

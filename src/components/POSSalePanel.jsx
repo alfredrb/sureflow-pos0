@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Hash, ChevronRight, ChevronLeft } from "lucide-react";
+import { TENDER_ACTION_LIST } from "@/lib/tenderKeys";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "abort_transaction", "void_cash_transaction", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -8,6 +9,7 @@ const MISC_ACTIONS = ["price_check", "tax_exempt", "suspend", "resume", "none"];
 
 const SECTION_TABS = [
   { id: "sale", label: "Sale" },
+  { id: "tender", label: "Tender" },
   { id: "non_sale", label: "Non-Sale" },
   { id: "item_list", label: "Item List" },
   { id: "misc", label: "Misc" },
@@ -17,6 +19,7 @@ const SECTION_TABS = [
 function getKeysForSection(sectionId, functionKeys) {
   switch (sectionId) {
     case "sale": return functionKeys.filter(fk => SALE_ACTIONS.includes(fk.action));
+    case "tender": return functionKeys.filter(fk => TENDER_ACTION_LIST.includes(fk.action));
     case "non_sale": return functionKeys.filter(fk => NON_SALE_ACTIONS.includes(fk.action));
     case "misc": return functionKeys.filter(fk => MISC_ACTIONS.includes(fk.action));
     case "advance": return functionKeys.filter(fk => fk.requires_supervisor);
@@ -108,7 +111,7 @@ export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemLi
 
       {/* Section Menu */}
       <div className="flex-shrink-0 border-t border-blue-500/10 bg-[#111638]">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {SECTION_TABS.map(tab => (
             <button
               key={tab.id}

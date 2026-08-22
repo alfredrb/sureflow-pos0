@@ -20,6 +20,12 @@
         "price_check",
         "no_sale",
         "subtotal",
+        "tender_cash",
+        "tender_check",
+        "tender_credit",
+        "tender_debit",
+        "tender_store_credit",
+        "tender_giftcard",
         "tax_exempt",
         "price_override",
         "quantity",
@@ -31,7 +37,7 @@
         "none"
       ],
       "default": "none",
-      "description": "abort_transaction clears the in-progress sale before tender. void_cash_transaction pulls a COMPLETED cash sale back out of the books (manager approval, current shift only). void_transaction is the legacy name for abort_transaction and is kept so existing keys keep working."
+      "description": "abort_transaction clears the in-progress sale before tender. void_cash_transaction pulls a COMPLETED cash sale back out of the books (manager approval, current shift only). void_transaction is the legacy name for abort_transaction and is kept so existing keys keep working. The tender_* actions are the 4690 one-touch tender keys: subtotal totals the sale, the operator keys an amount (or nothing for the full balance), and a tender key commits that amount on that tender \u2014 under-tendering simply leaves a balance for the next tender key, which is how split tender happens. tender_check routes through the cheque station (MICR read + franking) and tender_giftcard opens the gift-card balance check."
     },
     "color": {
       "type": "string",
