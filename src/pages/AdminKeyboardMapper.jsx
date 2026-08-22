@@ -7,6 +7,7 @@ import { Keyboard, Save, AlertTriangle } from "lucide-react";
 import KeyboardGrid from "@/components/keyboard/KeyboardGrid";
 import KeySlotEditor from "@/components/keyboard/KeySlotEditor";
 import HwdbOutput from "@/components/keyboard/HwdbOutput";
+import ScancodeDecoder from "@/components/keyboard/ScancodeDecoder";
 import KeyMapperWalkthrough from "@/components/keyboard/KeyMapperWalkthrough";
 import { DEFAULT_KEYBOARD_MODEL, buildDefaultSlots, duplicateKeycodes, isCalibrated } from "@/lib/keyboardLayout";
 
@@ -133,6 +134,7 @@ export default function AdminKeyboardMapper() {
         />
         <div className="space-y-4">
           <KeySlotEditor slot={selected} functionKeys={functionKeys} onChange={updateSlot} />
+          <ScancodeDecoder />
           <HwdbOutput layout={layout} />
         </div>
       </div>
