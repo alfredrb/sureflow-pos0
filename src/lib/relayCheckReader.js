@@ -153,6 +153,13 @@ module.exports = {
 export const RELAY_CHECK_ROUTES_CODE = `// server.js — cheque station routes (mount next to /api/print)
 const checkReader = require("./checkReader");
 
+// Which checkReader.js the relay is actually running. The receipt test print only
+// reports printer.js's build, so a stale cheque module was invisible — this is how a
+// technician confirms the endorsement fix is deployed.
+app.get("/api/check/build", (req, res) => {
+  res.json({ build: checkReader.BUILD });
+});
+
 // Blocking read: the printer waits for the operator to insert the cheque, so the
 // POS calls this with a long client timeout and shows an "insert cheque" prompt.
 app.post("/api/check/read", async (req, res) => {
