@@ -15,7 +15,12 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 9 (slip paper 4 — confirmed on hardware)";
+const BUILD = "check-reader-build 10 (endorsement left indent)";
+// The cheque sits to the RIGHT of the slip station's origin, so column 0 falls off
+// the left edge of the sheet. Every endorsement line is indented by this many
+// characters. Tune per fleet with ENDORSE_INDENT in .env (NO inline comment — a
+// trailing "# ..." makes the value NaN).
+const ENDORSE_INDENT = Number(process.env.ENDORSE_INDENT || 6);
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -112,10 +117,10 @@ function readMicr(ip, timeoutMs = 45000) {
 // Endorsement legend for the BACK of the cheque — printed on the SECOND pass,
 // after the operator has turned the sheet over and reinserted it.
 function buildEndorsement(c) {
-  const w = 40;
+  const w = 40 - ENDORSE_INDENT;
   const ctr = (s) => {
     const t = String(s == null ? "" : s).slice(0, w);
-    return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
+    return " ".repeat(ENDORSE_INDENT + Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
   // The cheque was ejected after the MICR read so the operator could reverse it, so
   // this pass WAITS for the reinserted sheet (ESC f) rather than loading a cheque
