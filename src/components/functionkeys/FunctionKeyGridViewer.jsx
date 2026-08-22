@@ -1,6 +1,7 @@
 import React from "react";
 import { Hash, ChevronRight, ChevronLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { PAGING_TABS } from "@/lib/posKeyPaging";
 
 export const GRID_TABS = [
   { id: "sale", label: "Sale", pages: [[1, 2, 3, 4, 5, 6, 7, 8, 9], [28, 29, 30, 31, 32, 33, 34, 35, 36]] },
@@ -18,25 +19,32 @@ function ReservedTile({ icon, label, muted }) {
   );
 }
 
-export default function FunctionKeyGridViewer({ keys, pagingEnabled, onTogglePaging, onEditKey }) {
+export default function FunctionKeyGridViewer({ keys, pagingTabs = [], onTogglePagingTab, onEditKey }) {
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-gray-900">Page Navigation Key</p>
-          <p className="text-xs text-gray-500 mt-1">
-            Reserves the last slot of every tab for the Next Page / Previous Page key, giving each tab two pages. Turn it off to use all nine slots on a single page.
-          </p>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <p className="text-sm font-medium text-gray-900">Two-Page Tabs</p>
+        <p className="text-xs text-gray-500 mt-1 mb-4">
+          Pick which tabs get a second page. A paged tab gives up its last slot to the Next Page / Previous Page key; an unpaged tab uses all nine slots on a single page.
+        </p>
+        <div className="divide-y divide-gray-50">
+          {PAGING_TABS.map(tab => (
+            <div key={tab.id} className="flex items-center justify-between py-2.5">
+              <span className="text-sm text-gray-700">{tab.label}</span>
+              <Switch checked={pagingTabs.includes(tab.id)} onCheckedChange={v => onTogglePagingTab(tab.id, v)} />
+            </div>
+          ))}
         </div>
-        <Switch checked={pagingEnabled} onCheckedChange={onTogglePaging} />
       </div>
 
-      {GRID_TABS.map(tab => (
+      {GRID_TABS.map(tab => {
+        const paged = pagingTabs.includes(tab.id);
+        return (
         <div key={tab.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">{tab.label} Functions</h3>
-          <div className={`grid gap-6 ${pagingEnabled ? "md:grid-cols-2" : ""}`}>
-            {(pagingEnabled ? tab.pages : [tab.pages[0]]).map((positions, pageIdx) => {
-              const navSlot = pagingEnabled ? positions[positions.length - 1] : null;
+          <div className={`grid gap-6 ${paged ? "md:grid-cols-2" : ""}`}>
+            {(paged ? tab.pages : [tab.pages[0]]).map((positions, pageIdx) => {
+              const navSlot = paged ? positions[positions.length - 1] : null;
               const actionCodeSlot = tab.id === "advance" && pageIdx === 0 ? positions[0] : null;
               return (
                 <div key={pageIdx}>
@@ -76,7 +84,8 @@ export default function FunctionKeyGridViewer({ keys, pagingEnabled, onTogglePag
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -76,10 +76,17 @@
       "default": true,
       "description": "Allow admins to remotely log out operators"
     },
+    "pos_key_paging_tabs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Which POS function-key tabs get a second page (sale, tender, non_sale, misc, advance). A paged tab gives up its last slot to the Next Page / Previous Page key; an unpaged tab uses all nine slots on one page. Unset = fall back to the legacy store-wide pos_key_paging_enabled switch."
+    },
     "pos_key_paging_enabled": {
       "type": "boolean",
       "default": true,
-      "description": "When true, each POS function-key tab has two pages of nine slots and the last slot of the grid holds the Next Page / Previous Page key. When false, paging is off and every tab shows a single page using all nine slots."
+      "description": "Legacy store-wide paging switch, kept so existing stores keep their behavior. Only used when pos_key_paging_tabs has never been set \u2014 once tabs are chosen there, they win."
     },
     "loyalty_points_percentage": {
       "type": "number",

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import FunctionKeyGridViewer from "@/components/functionkeys/FunctionKeyGridViewer";
+import { resolvePagingTabs } from "@/lib/posKeyPaging";
 
 const actions = [
   { value: "void_item", label: "Void Item" },
@@ -61,14 +62,17 @@ export default function AdminFunctionKeys() {
   useEffect(() => { load(); }, []);
   useEffect(() => { base44.entities.StoreSettings.list().then(list => setSettings(list[0] || null)); }, []);
 
-  const togglePaging = async (enabled) => {
+  // Paging is chosen per tab — each tab can independently have one or two pages.
+  const togglePagingTab = async (tabId, enabled) => {
     if (!settings) {
       toast({ title: "Store settings not found", description: "Save store settings first.", variant: "destructive" });
       return;
     }
-    await base44.entities.StoreSettings.update(settings.id, { pos_key_paging_enabled: enabled });
-    setSettings({ ...settings, pos_key_paging_enabled: enabled });
-    toast({ title: enabled ? "Page navigation key enabled" : "Page navigation key disabled" });
+    const current = resolvePagingTabs(settings);
+    const next = enabled ? [...new Set([...current, tabId])] : current.filter(t => t !== tabId);
+    await base44.entities.StoreSettings.update(settings.id, { pos_key_paging_tabs: next });
+    setSettings({ ...settings, pos_key_paging_tabs: next });
+    toast({ title: `${tabId} tab set to ${enabled ? "two pages" : "one page"}` });
   };
   useRealtimeSync("FunctionKey", load, { intervalMs: 20000 });
 
@@ -184,8 +188,8 @@ export default function AdminFunctionKeys() {
       {gridView && (
         <FunctionKeyGridViewer
           keys={keys}
-          pagingEnabled={settings?.pos_key_paging_enabled !== false}
-          onTogglePaging={togglePaging}
+          pagingTabs={resolvePagingTabs(settings)}
+          onTogglePagingTab={togglePagingTab}
           onEditKey={openEdit}
         />
       )}

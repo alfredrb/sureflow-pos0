@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Hash, ChevronRight, ChevronLeft } from "lucide-react";
 import { TENDER_ACTION_LIST } from "@/lib/tenderKeys";
+import { resolvePagingTabs } from "@/lib/posKeyPaging";
 
 const SALE_ACTIONS = ["subtotal", "quantity", "discount_item", "discount_total", "price_override", "repeat_last"];
 const NON_SALE_ACTIONS = ["void_item", "abort_transaction", "void_cash_transaction", "void_transaction", "no_sale", "refund", "cash_management", "reprint_receipt", "request_cash_pickup", "request_cash_advance"];
@@ -36,14 +37,14 @@ function pageCapacity(sectionId, page, paging) {
 export default function POSSalePanel({ functionKeys, onFunctionKey, onOpenItemList, onActionCode, tenderUnlocked = false }) {
   const [activeSection, setActiveSection] = useState("sale");
   const [page, setPage] = useState(0);
-  const [paging, setPaging] = useState(true);
+  const [pagingTabs, setPagingTabs] = useState([]);
 
   useEffect(() => {
-    base44.entities.StoreSettings.list().then(list => {
-      if (list.length > 0 && list[0].pos_key_paging_enabled === false) setPaging(false);
-    });
+    base44.entities.StoreSettings.list().then(list => setPagingTabs(resolvePagingTabs(list[0])));
   }, []);
 
+  // Paging is per tab — a tab without it uses all nine slots on one page.
+  const paging = pagingTabs.includes(activeSection);
   const sectionKeys = getKeysForSection(activeSection, functionKeys);
   const firstCap = pageCapacity(activeSection, 0, paging);
   const start = page === 0 ? 0 : firstCap;

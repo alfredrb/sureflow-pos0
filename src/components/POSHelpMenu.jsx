@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy } from "lucide-react";
 import RebootCountdownOverlay from "@/components/pos/RebootCountdownOverlay";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
@@ -34,8 +34,14 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen(!open)} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors">
-        HELP
+      {/* Same bubble shape as News and Logout so the three header controls match. */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0a0e27] border border-red-500/20 text-red-300/70 hover:text-red-300 hover:border-red-500/40 transition-colors text-[10px] font-bold uppercase tracking-wider"
+        title="Help menu"
+      >
+        <LifeBuoy className="w-3.5 h-3.5" />
+        Help
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-[#111638] border border-red-500/30 rounded-lg shadow-lg z-50 min-w-[200px]">
