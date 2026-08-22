@@ -137,6 +137,10 @@ function buildEndorsement(c) {
 
 module.exports = {
   readMicr,
+  // Effective station value in use, so /api/check/build exposes it. A stale
+  // SLIP_PAPER in the relay's .env silently overrides the default in this file, and
+  // that is invisible from the printed output.
+  SLIP_PAPER,
   // Second pass: waits ~30s for the REVERSED cheque, prints the endorsement on the
   // back, then ejects. Called only after the POS has prompted the operator to turn
   // the cheque over.
@@ -156,7 +160,7 @@ const checkReader = require("./checkReader");
 // reports printer.js's build, so a stale cheque module was invisible — this is how a
 // technician confirms the endorsement fix is deployed.
 app.get("/api/check/build", (req, res) => {
-  res.json({ build: checkReader.BUILD });
+  res.json({ build: checkReader.BUILD, slip_paper: checkReader.SLIP_PAPER });
 });
 
 // Blocking read: the printer waits for the operator to insert the cheque, so the
