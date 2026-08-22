@@ -15,6 +15,7 @@ import LanePrinterBridgeReference from "@/components/techdocs/LanePrinterBridgeR
 import CheckDualSideInvestigation from "@/components/techdocs/CheckDualSideInvestigation";
 import RelayUpdateWalkthrough from "@/components/techdocs/RelayUpdateWalkthrough";
 import ScannerSuffixReference from "@/components/techdocs/ScannerSuffixReference";
+import IBMScancodeReference from "@/components/techdocs/IBMScancodeReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
@@ -28,6 +29,7 @@ const SECTIONS = [
   { id: "bridge", label: "Lane Serial Bridge", icon: Usb, blurb: "USB pinpads and poles published as TCP ports on the lane so the relay can drive them." },
   { id: "printerbridge", label: "USB Printer Bridge", icon: Printer, blurb: "Single-cable lane: the USB receipt printer published on the lane's IP, with the printer's Ethernet live as fallback." },
   { id: "scanner", label: "Barcode Scanner", icon: ScanLine, blurb: "Auto-Enter suffix programming so a scan rings the item up without a key press." },
+  { id: "keyboard", label: "POS Keyboard Scan Codes", icon: BookOpen, blurb: "Official IBM GC30-3623 scan-code tables for the ANPOS keyboard family, mapped to the remapper workflow." },
   { id: "library", label: "Driver Library", icon: Boxes, blurb: "Per-model driver profiles applied to the diskless image at build time." },
 ];
 
@@ -88,6 +90,7 @@ export default function AdminTechnicalDocs() {
           {active === "poledisplay" && <PoleDisplayReference />}
           {active === "bridge" && <LaneSerialBridgeReference />}
           {active === "scanner" && <ScannerSuffixReference />}
+          {active === "keyboard" && <IBMScancodeReference />}
           {active === "library" && <HardwareLibraryPanel />}
         </div>
       </div>
