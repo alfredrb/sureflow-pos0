@@ -15,7 +15,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 8 (endorsement via cheque station FS a 1 / FS a 2)";
+const BUILD = "check-reader-build 9 (slip paper 4 — confirmed on hardware)";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -23,11 +23,12 @@ const ESC = "\\x1b", FS = "\\x1c", GS = "\\x1d";
 const INIT = ESC + "@";
 const ALIGN_L = ESC + "a0", ALIGN_C = ESC + "a1";
 const BOLD_ON = ESC + "E1", BOLD_OFF = ESC + "E0";
-// ESC c 0 n selects the print station, and n is a BITFIELD, not a station number:
-// bit0 (1) = receipt roll, bit1 (2) = slip / cheque station. So the slip station is
-// n=2. n=4 sets an undefined bit, which the printer silently ignores — it stays on
-// the roll, which is exactly why the endorsement kept coming out of the top.
-const SLIP_PAPER = Number(process.env.SLIP_PAPER || 2);
+// ESC c 0 n selects the print station. PROVEN BY DIRECT PRINTER TEST on the fleet's
+// TM-H6000V: n=4 is the slip / cheque station and n=2 is silently ignored (the job
+// stays on the receipt roll). A raw "ESC @ / ESC c 0 4 / ESC f / text / FF" sent
+// straight to port 9100 printed on the inserted sheet; the same sequence with n=2
+// printed on the roll. Do not "correct" this to 2.
+const SLIP_PAPER = Number(process.env.SLIP_PAPER || 4);
 const SEL_SLIP = ESC + "c0" + String.fromCharCode(SLIP_PAPER);
 const SEL_RECEIPT = ESC + "c0\\x01";
 const WAIT_INSERT = ESC + "f\\x1e\\x0a";   // wait ~30s for the sheet
@@ -116,15 +117,12 @@ function buildEndorsement(c) {
     const t = String(s == null ? "" : s).slice(0, w);
     return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
-  // PROVEN ON HARDWARE: this unit ignores the ESC c 0 station select entirely — a
-  // plain slip test print with the same select-and-wait sequence still came out of
-  // the receipt roll on the top. So the slip path cannot be used at all here.
-  //
-  // The cheque station has its own command family that does NOT depend on ESC c 0:
-  // FS a 1 waits for the cheque to be inserted and loads it to the print start
-  // position, the text then prints on that sheet, and FS a 2 ejects it. ESC c 0 is
-  // still sent first as a no-op hint for units that do honour it.
-  let o = INIT + SEL_SLIP + LOAD_CHECK + ALIGN_L;
+  // The cheque was ejected after the MICR read so the operator could reverse it, so
+  // this pass WAITS for the reinserted sheet (ESC f) rather than loading a cheque
+  // that is already inside. This is byte-for-byte the sequence proven on the
+  // hardware: ESC @ first, then ESC c 0 4 (the slip station on this unit), then the
+  // insertion wait, and FF at the end to print and eject the sheet.
+  let o = INIT + SEL_SLIP + WAIT_INSERT + ALIGN_L;
   o += BOLD_ON + ctr("FOR DEPOSIT ONLY") + BOLD_OFF;
   o += ctr(String(c.store_name || "STORE").toUpperCase());
   o += ctr("ST# " + (c.store_number || "0000") + "  REG# " + (c.register_id || "00"));
@@ -133,7 +131,7 @@ function buildEndorsement(c) {
   if (c.transaction_id) o += ctr("TX " + c.transaction_id);
   o += ctr(c.date || new Date().toLocaleString());
   o += ctr("OP " + (c.operator_pin || "") + " " + String(c.operator_name || "").toUpperCase());
-  o += "\\n" + EJECT_CHECK + SEL_RECEIPT;
+  o += "\\n" + EJECT + SEL_RECEIPT;
   return o;
 }
 
