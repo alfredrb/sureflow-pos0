@@ -41,8 +41,8 @@ export default function ScancodeDecoder() {
           </p>
           {codes.length === 0 ? (
             <p className="mt-1 text-sm text-gray-500">
-              No usable scancodes in that paste — only release bytes or zeros. Press the keys again
-              while showkey is running.
+              No usable scancodes in that paste — nothing but zero bytes, which means no code reached
+              the console. Capture that key with <span className="font-mono">evtest</span> instead.
             </p>
           ) : (
             <ol className="mt-2 flex flex-wrap gap-2">
@@ -56,6 +56,14 @@ export default function ScancodeDecoder() {
                     <span className="font-sans text-[10px] text-gray-400">{i + 1}</span>
                     {c.code}
                     {c.extended && <span className="font-sans text-[10px] text-gray-400">ext</span>}
+                    {c.fromRelease && (
+                      <span
+                        className="font-sans text-[10px] text-amber-600"
+                        title="Only the release byte was captured — the press bit was stripped to recover this code"
+                      >
+                        rel
+                      </span>
+                    )}
                     {copied === c.code ? (
                       <Check className="h-3 w-3 text-green-600" />
                     ) : (
