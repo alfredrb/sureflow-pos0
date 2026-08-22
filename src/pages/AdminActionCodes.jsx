@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ACTION_LABELS } from "@/lib/actionCodeDispatch";
 import { ACTION_CODE_SEED } from "@/lib/actionCodeSeed";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+import ActionCodeReferenceTable from "@/components/actioncodes/ActionCodeReferenceTable";
 
 const STATUS = {
   active:      { label: "Active",      badge: "bg-emerald-100 text-emerald-700" },
@@ -27,9 +28,10 @@ const FILTERS = [
   { id: "active", label: "Active" },
   { id: "placeholder", label: "Placeholder" },
   { id: "inactive", label: "Inactive" },
+  { id: "reference", label: "4690 Reference Sheet" },
 ];
-const AUDIT_FIELDS = ["code", "label", "action", "requires_role", "status", "store_id", "notes"];
-const BLANK = { code: "", label: "", action: "none", requires_role: "none", status: "active", store_id: "", notes: "" };
+const AUDIT_FIELDS = ["code", "label", "action", "action_param", "requires_role", "status", "store_id", "notes"];
+const BLANK = { code: "", label: "", action: "none", action_param: "", requires_role: "none", status: "active", store_id: "", notes: "" };
 
 export default function AdminActionCodes() {
   const [codes, setCodes] = useState([]);
@@ -54,6 +56,7 @@ export default function AdminActionCodes() {
     setEditing(ac);
     setForm({
       code: String(ac.code), label: ac.label || "", action: ac.action || "none",
+      action_param: ac.action_param || "",
       requires_role: ac.requires_role || "none", status: ac.status || "active",
       store_id: ac.store_id || "", notes: ac.notes || "",
     });
@@ -147,7 +150,9 @@ export default function AdminActionCodes() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {filter === "reference" && <ActionCodeReferenceTable codes={codes} />}
+
+      <div className={filter === "reference" ? "hidden" : "bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"}>
         <div className="hidden md:grid grid-cols-[80px_1fr_1fr_110px_110px_80px] gap-4 px-5 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
           <span>Code</span><span>Label</span><span>Maps To</span><span>Role</span><span>Status</span><span></span>
         </div>
@@ -168,7 +173,10 @@ export default function AdminActionCodes() {
                   {ac.store_id && <p className="text-xs text-blue-600">Store {ac.store_id}</p>}
                   {ac.notes && <p className="text-xs text-gray-400 md:hidden">{ac.notes}</p>}
                 </div>
-                <span className="text-sm text-gray-500">{ACTION_LABELS[ac.action] || ac.action}</span>
+                <span className="text-sm text-gray-500">
+                  {ACTION_LABELS[ac.action] || ac.action}
+                  {ac.action_param ? <span className="text-gray-400"> · {ac.action_param}</span> : null}
+                </span>
                 <span className={`text-xs px-2 py-1 rounded-full w-fit font-medium ${rl.badge}`}>{rl.label}</span>
                 <span className={`text-xs px-2 py-1 rounded-full w-fit font-medium ${st.badge}`}>{st.label}</span>
                 <button onClick={() => openEdit(ac)} className="hidden md:block p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -229,6 +237,11 @@ export default function AdminActionCodes() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Action Value</label>
+              <Input value={form.action_param} onChange={e => setForm({ ...form, action_param: e.target.value })} placeholder="e.g. 10 for a 10% discount, NEED BAGS for a CSM call" />
+              <p className="text-xs text-gray-400 mt-1">Only used by actions that take a value — percent off, CSM need, age check.</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Notes</label>

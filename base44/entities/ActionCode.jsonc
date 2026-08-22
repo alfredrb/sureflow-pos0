@@ -19,6 +19,7 @@
         "void_transaction",
         "discount_item",
         "discount_total",
+        "discount_percent",
         "price_check",
         "no_sale",
         "subtotal",
@@ -28,14 +29,20 @@
         "repeat_last",
         "suspend",
         "resume",
+        "transfer_out",
+        "transfer_in",
         "refund",
         "reprint_receipt",
         "cash_management",
         "request_cash_pickup",
         "request_cash_advance",
+        "till_count",
         "training_mode",
         "diagnostics",
+        "print_test_slip",
         "csm_help",
+        "csm_need",
+        "age_verify",
         "report_robbery",
         "item_list",
         "loyalty_lookup",
@@ -48,7 +55,11 @@
         "none"
       ],
       "default": "none",
-      "description": "POS function this code dispatches to. Mirrors the FunctionKey action set plus POS-level actions reachable only by code. abort_transaction clears the in-progress sale before tender (formerly void_transaction, which is kept as a legacy alias). void_cash_transaction pulls a COMPLETED cash sale back out of the books \u2014 manager approval, current shift only, cash tender only. csm_approval turns the lane's virtual CSM key on/off \u2014 while on, CSM-level actions run without a per-action PIN. print_config prints the lane's configuration / hardware profile slip for technicians. register_tender_reading prompts for a register and prints that register's reading slip \u2014 SOD opening balances, the live current running totals and the consolidated EOD figures, broken down by tender. eod_summary shows the store's consolidated end-of-day summary on the lane's customer pinpad and prints it for the record."
+      "description": "POS function this code dispatches to. Mirrors the FunctionKey action set plus POS-level actions reachable only by code. abort_transaction clears the in-progress sale before tender (formerly void_transaction, which is kept as a legacy alias). void_cash_transaction pulls a COMPLETED cash sale back out of the books \u2014 manager approval, current shift only, cash tender only. csm_approval turns the lane's virtual CSM key on/off \u2014 while on, CSM-level actions run without a per-action PIN. print_config prints the lane's configuration / hardware profile slip for technicians. register_tender_reading prompts for a register and prints that register's reading slip \u2014 SOD opening balances, the live current running totals and the consolidated EOD figures, broken down by tender. eod_summary shows the store's consolidated end-of-day summary on the lane's customer pinpad and prints it for the record. discount_percent takes a percentage off the whole sale \u2014 a fixed percent from action_param, or prompts the operator when action_param is blank. csm_need pages the CSM with the specific need in action_param (NEED CHANGE, LONG LINES, NEED BAGS\u2026) instead of a generic help request. till_count prints the expected drawer contents so the operator can count against it mid-shift. print_test_slip prints a printer/station test pattern for technicians. age_verify opens a standalone ID check with the minimum age in action_param. transfer_out parks the live sale for pickup on another lane and prints a barcoded transfer slip; transfer_in pulls that sale onto this lane and carries on ringing it."
+    },
+    "action_param": {
+      "type": "string",
+      "description": "Optional value passed to the action, letting one action back many codes. discount_percent = the percentage (e.g. '10'; blank prompts the operator). csm_need = the need text shown to the CSM (e.g. 'NEED CHANGE'). age_verify = the minimum age ('18' or '21'). Ignored by actions that take no parameter."
     },
     "requires_role": {
       "type": "string",

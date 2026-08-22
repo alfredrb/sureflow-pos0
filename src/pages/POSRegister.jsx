@@ -38,6 +38,12 @@ import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
 import { printRecallSlip, printRobberySlip } from "@/lib/incidentSlips";
 import { printConfigSlip } from "@/lib/configSlip";
 import { printRegisterReadingSlip } from "@/lib/registerReadingSlip";
+import { printTillCountSlip } from "@/lib/tillCountSlip";
+import { printTestSlip } from "@/lib/testSlip";
+import { printTransferSlip } from "@/lib/transferSlip";
+import { makeTransferId, createTransferRecord, claimTransferRecord } from "@/lib/posTransfer";
+import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog";
+import POSTransferDialog from "@/components/pos/POSTransferDialog";
 import { showEodSummary } from "@/lib/eodPadSummary";
 import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
 import PinpadMirrorTile from "@/components/pos/PinpadMirrorTile";
@@ -90,6 +96,9 @@ export default function POSRegister() {
   const [resumeOpen, setResumeOpen] = useState(false);
   // AC 3 — "REGISTER?" prompt for the register reading slip.
   const [readingOpen, setReadingOpen] = useState(false);
+  // AC 300 — "Any Percent Off" prompt, and AC 851 — retrieve a transferred sale.
+  const [percentOpen, setPercentOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [voidCashOpen, setVoidCashOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -486,6 +495,12 @@ export default function POSRegister() {
     const p = idVerify?.product;
     const age = idVerify?.age;
     setIdVerify(null);
+    // Standalone age check (AC 801 / 270) — nothing is rung up, only recorded.
+    if (p?.verify_only) {
+      writeLog("override", `Standalone ID check passed (${age}+) by ${operator?.full_name || "operator"}`);
+      toast({ title: "ID Verified", description: `Customer confirmed ${age} or over.` });
+      return;
+    }
     if (p) {
       if (p.serialized) {
         captureSerialForAdd(p);
@@ -613,6 +628,51 @@ export default function POSRegister() {
       case "discount_total":
         setCart(prev => prev.map(item => ({ ...item, price: +(item.price * 0.9).toFixed(2), total: +(item.qty * item.price * 0.9).toFixed(2) })));
         break;
+      // Preset percentage markdowns (AC 301-305). A blank value is AC 300 — Any
+      // Percent Off — which prompts the operator for the figure first.
+      case "discount_percent": {
+        if (cart.length === 0) { toast({ title: "Nothing To Discount", description: "Add items to the sale first.", variant: "destructive" }); break; }
+        const pct = parseFloat(fkey.action_param);
+        if (isNaN(pct) || pct <= 0 || pct > 100) { setPercentOpen(true); break; }
+        applyPercentOff(pct);
+        break;
+      }
+      // Lane-to-lane hand-off of the sale in progress (AC 850 / 851).
+      case "transfer_out": transferSaleOut(); break;
+      case "transfer_in": setTransferOpen(true); break;
+      // Mid-shift drawer count against what the lane should be holding (AC 154).
+      case "till_count":
+        printTillCountSlip(sessionStorage.getItem("pos_register_num") || "REG-001", operator)
+          .then(r => toast({ title: "Till Count Printed", description: `Expected in drawer: $${r.current.expectedDrawer.toFixed(2)}` }))
+          .catch(() => toast({ title: "Print Failed", description: "The till count slip could not be printed.", variant: "destructive" }));
+        writeLog("register_change", "Till count slip printed (AC 154)");
+        break;
+      // Technician print pattern (AC 901).
+      case "print_test_slip":
+        printTestSlip(sessionStorage.getItem("pos_register_num") || "REG-001", operator)
+          .then(() => toast({ title: "Test Slip Printed", description: "Check all 40 columns are straight and the barcode scans." }))
+          .catch(() => toast({ title: "Print Failed", description: "The test slip could not be printed.", variant: "destructive" }));
+        break;
+      // Standalone ID check with no item attached (AC 801 / 270).
+      case "age_verify": {
+        const age = parseInt(fkey.action_param) || 21;
+        setIdVerify({ product: { name: `ID CHECK ${age}+`, verify_only: true }, age });
+        break;
+      }
+      // Pages the CSM with the specific need rather than a blanket help request.
+      case "csm_need": {
+        const need = (fkey.action_param || "NEEDS ASSISTANCE").toUpperCase();
+        base44.entities.OverrideRequest.create({
+          register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+          action: need,
+          requested_by_operator_id: operator?.operator_id || "",
+          requested_by_operator_name: operator?.full_name || "",
+          status: "pending",
+        }).catch(() => {});
+        writeLog("override", `CSM called — ${need} (requested by ${operator?.full_name || "operator"})`);
+        toast({ title: "CSM Notified", description: need });
+        break;
+      }
       case "price_override":
         setPriceOverrideActive(prev => !prev);
         writeLog("override", `Price Override mode ${priceOverrideActive ? "disabled" : "enabled"}`);
@@ -741,7 +801,7 @@ export default function POSRegister() {
     setActionCodeOpen(false);
     // Treat the resolved code as a function key so role gating, remote override
     // and the audit/register log all flow through the existing path.
-    const asKey = { label: `${match.label} (AC ${match.code})`, action: match.action, requires_role: match.requires_role || "none" };
+    const asKey = { label: `${match.label} (AC ${match.code})`, action: match.action, action_param: match.action_param || "", requires_role: match.requires_role || "none" };
     writeLog("override", `Action code ${match.code} entered — ${match.label}`);
     // CSM Key Approval — turning the virtual key off needs no credentials; turning
     // it on always prompts for CSM/Manager credentials, whoever the operator is.
@@ -797,6 +857,72 @@ export default function POSRegister() {
     document.body.classList.toggle("pos-inline-toasts", inlineToasts);
     return () => document.body.classList.remove("pos-inline-toasts");
   }, [inlineToasts]);
+
+  // ── Percentage markdown across the whole sale (AC 300-305) ─────────────────
+  const applyPercentOff = (pct) => {
+    const factor = 1 - pct / 100;
+    setCart(prev => prev.map(item => {
+      const base = item.original_price ?? item.price;
+      const price = +(base * factor).toFixed(2);
+      return { ...item, price, total: +(price * item.qty).toFixed(2), original_price: base, discount_type: `${pct}% Off Sale`, discount_percentage: pct };
+    }));
+    setPercentOpen(false);
+    writeLog("override", `${pct}% taken off the whole sale`);
+    toast({ title: `${pct}% Off Applied`, description: "Every line on the sale was marked down." });
+  };
+
+  // ── Lane-to-lane transaction transfer (AC 850 / 851) ───────────────────────
+  // Moves the sale in progress off this lane so another register picks it straight
+  // back up — a dead scanner, a drawer out of change, a lane closing with a queue.
+  const transferSaleOut = async () => {
+    if (cart.length === 0) {
+      toast({ title: "Nothing To Transfer", description: "Add items to the sale first.", variant: "destructive" });
+      return;
+    }
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const transferId = makeTransferId();
+    const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+    try {
+      await createTransferRecord({
+        transferId,
+        storeId: sessionStorage.getItem("pos_store_id") || "",
+        registerId, operator, cart,
+        subtotal, tax, total, itemCount,
+        taxExemptId: taxExemptAppliedId,
+        loyaltyMember, trainingMode,
+      });
+    } catch (e) {
+      toast({ title: "Transfer Failed", description: "The sale could not be transferred. Get a manager.", variant: "destructive" });
+      return;
+    }
+    printTransferSlip({ transferId, items: cart, total, itemCount, registerId, operator }).catch(() => {});
+    writeLog("override", `Sale transferred out — ${transferId} · ${itemCount} item(s) · $${total.toFixed(2)}`);
+    toast({ title: "Sale Transferred", description: `${transferId} — retrieve it on the receiving lane with AC 851.` });
+    setCart([]); setTaxExemptAppliedId(""); setTaxExemptProfile(null); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+  };
+
+  const retrieveTransfer = async (rec) => {
+    if (cart.length > 0) {
+      toast({ title: "Sale In Progress", description: "Finish or abort the current sale before retrieving a transfer.", variant: "destructive" });
+      return;
+    }
+    if (!!rec.training_mode !== trainingMode) {
+      toast({ title: "Cannot Retrieve", description: rec.training_mode ? "That transfer was created in training mode." : "Exit training mode to retrieve a live sale.", variant: "destructive" });
+      return;
+    }
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    try {
+      await claimTransferRecord(rec, { registerId, operator });
+    } catch (e) {
+      toast({ title: "Retrieve Failed", description: "The transfer could not be claimed. Try again.", variant: "destructive" });
+      return;
+    }
+    setCart(rec.items || []);
+    if (rec.tax_exempt_id) setTaxExemptAppliedId(rec.tax_exempt_id);
+    setTransferOpen(false);
+    writeLog("override", `Transferred sale retrieved — ${rec.suspend_id} (from ${rec.register_id}, ${rec.operator_name})`);
+    toast({ title: "Sale Retrieved", description: `${rec.suspend_id} — ${rec.item_count} item(s) restored. Carry on ringing.` });
+  };
 
   // ── Suspend / resume ───────────────────────────────────────────────────────
   // Parks the current cart under a suspend number and prints a barcoded slip.
@@ -1884,6 +2010,18 @@ export default function POSRegister() {
         onClose={() => setReadingOpen(false)}
         defaultRegisterId={sessionStorage.getItem("pos_register_num") || ""}
         onSubmit={printReading}
+      />
+
+      {/* AC 300 — key the percentage to take off the whole sale */}
+      <POSPercentDiscountDialog open={percentOpen} onClose={() => setPercentOpen(false)} onSubmit={applyPercentOff} />
+
+      {/* AC 851 — scan a transfer slip or pick the sale waiting to come over */}
+      <POSTransferDialog
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        storeId={sessionStorage.getItem("pos_store_id") || ""}
+        onRetrieve={retrieveTransfer}
+        toast={toast}
       />
 
       {/* Price inquiry — look up an item's price without adding it to the sale */}

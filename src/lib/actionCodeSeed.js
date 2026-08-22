@@ -35,8 +35,47 @@ export const ACTION_CODE_SEED = [
   { code: 402, label: "Print POS Configuration", action: "print_config",        requires_role: "none",      status: "active",      notes: "Prints this lane's configuration, features and hardware profile for technicians" },
   { code: 911, label: "Report Robbery",            action: "report_robbery",       requires_role: "none",    status: "active",      notes: "Emergency — logs alert and pauses the lane" },
 
+  // ── Preset percentage discounts (AC_ANY/10/20/30/40/50_PERCENT_OFF) ────────
+  { code: 300, label: "Any Percent Off",           action: "discount_percent", action_param: "",   requires_role: "manager", status: "active", notes: "AC_ANY_PERCENT_OFF — prompts the operator for the percentage, then takes it off every line" },
+  { code: 301, label: "10% Off Sale",              action: "discount_percent", action_param: "10", requires_role: "csm",     status: "active", notes: "AC_10_PERCENT_OFF" },
+  { code: 302, label: "20% Off Sale",              action: "discount_percent", action_param: "20", requires_role: "csm",     status: "active", notes: "AC_20_PERCENT_OFF" },
+  { code: 303, label: "30% Off Sale",              action: "discount_percent", action_param: "30", requires_role: "csm",     status: "active", notes: "AC_30_PERCENT_OFF" },
+  { code: 304, label: "40% Off Sale",              action: "discount_percent", action_param: "40", requires_role: "manager", status: "active", notes: "AC_40_PERCENT_OFF" },
+  { code: 305, label: "50% Off Sale",              action: "discount_percent", action_param: "50", requires_role: "manager", status: "active", notes: "AC_50_PERCENT_OFF" },
+
+  // ── Live lane-to-lane transaction transfer ────────────────────────────────
+  { code: 850, label: "Transfer Sale Out",         action: "transfer_out",     requires_role: "none",    status: "active", notes: "AC_INITIATE_TRANS_TRANSFER — parks the sale in progress for pickup on another lane and prints a barcoded transfer slip. Use when a lane fails mid-sale or is closing with a queue." },
+  { code: 851, label: "Retrieve Transferred Sale", action: "transfer_in",      requires_role: "none",    status: "active", notes: "AC_RETRIEVE_TRANS_TRANSFER — scan the transfer slip (or pick from the waiting list) to carry on ringing the sale on this lane." },
+
+  // ── Till handling ─────────────────────────────────────────────────────────
+  { code: 154, label: "Get Till Count",            action: "till_count",       requires_role: "none",    status: "active", notes: "AC_GET_TILL_COUNT — prints the expected drawer contents with count / over-short lines so the operator can count mid-shift." },
+  { code: 153, label: "Till Cash Lift",            action: "request_cash_pickup", requires_role: "none", status: "active", notes: "AC_TILL_CASH_LIFT — raises a cash pickup so a CSM can lift excess cash out of the drawer." },
+  { code: 150, label: "Till Swap Out",             action: "cash_management",  requires_role: "csm",     status: "active", notes: "AC_TILL_SWAP_OUT — opens cash management to swap this lane's till." },
+
+  // ── Standalone ID / age verification ──────────────────────────────────────
+  { code: 801, label: "Age Verification (21+)",    action: "age_verify", action_param: "21", requires_role: "none", status: "active", notes: "AC_AGE_VERIFICATION — standalone ID check, logged against the operator. Used at the door or for restricted goods rung on another lane." },
+  { code: 270, label: "Alcohol Age To Sell",       action: "age_verify", action_param: "18", requires_role: "none", status: "active", notes: "AC_ALCOHOL_AGE_TO_SELL — 18+ check for staff permitted to sell alcohol." },
+
+  // ── Granular CSM assistance calls (AC_CSM_NEED_* family) ──────────────────
+  { code: 203, label: "CSM — Need Change",         action: "csm_need", action_param: "NEED CHANGE",     requires_role: "none", status: "active", notes: "AC_CSM_NEED_CHANGE" },
+  { code: 205, label: "CSM — Need Break",          action: "csm_need", action_param: "NEED BREAK",      requires_role: "none", status: "active", notes: "AC_CSM_NEED_BREAK" },
+  { code: 206, label: "CSM — Need Receipt Tape",   action: "csm_need", action_param: "NEED RECEIPT TAPE", requires_role: "none", status: "active", notes: "AC_CSM_NEED_RECEIPTTAPE" },
+  { code: 208, label: "CSM — Need Cash Pickup",    action: "csm_need", action_param: "NEED CASH PICKUP", requires_role: "none", status: "active", notes: "AC_CSM_NEED_CASHPICKUP" },
+  { code: 210, label: "CSM — Need Cleanup",        action: "csm_need", action_param: "NEED CLEANUP",    requires_role: "none", status: "active", notes: "AC_CSM_NEED_CLEANUP" },
+  { code: 214, label: "CSM — Long Lines",          action: "csm_need", action_param: "LONG LINES",      requires_role: "none", status: "active", notes: "AC_CSM_LONG_LINES" },
+  { code: 216, label: "CSM — Emergency",           action: "csm_need", action_param: "EMERGENCY",       requires_role: "none", status: "active", notes: "AC_CSM_EMERGENCY — pages the CSM urgently; use 911 for a robbery." },
+  { code: 218, label: "CSM — Need Check Approval", action: "csm_need", action_param: "NEED CHECK APPROVAL", requires_role: "none", status: "active", notes: "AC_CSM_NEED_CHECK_APPROVAL" },
+  { code: 219, label: "CSM — Need Bags",           action: "csm_need", action_param: "NEED BAGS",       requires_role: "none", status: "active", notes: "AC_CSM_NEED_BAGS" },
+
+  // ── Technician print / station tests ──────────────────────────────────────
+  { code: 901, label: "Print Test Slip",           action: "print_test_slip",  requires_role: "none",    status: "active", notes: "AC_PRINT_TEST_SLIP — 40-column test pattern plus a scannable barcode to prove the receipt station." },
+
   // ── Known codes whose SureFlow function is not built yet ───────────────────
   { code: 8,   label: "Register Re-Entry Mode",    action: "none",                 requires_role: "manager", status: "placeholder", notes: "AC_REGISTER_REENTRY_MODE — not yet implemented" },
+  { code: 7,   label: "Reset Transaction Number",  action: "none",                 requires_role: "manager", status: "placeholder", notes: "AC_RESET_TRANSACTION_NUM — SureFlow transaction numbers are time-derived, so a counter reset is not yet meaningful" },
+  { code: 22,  label: "Over / Short Report",       action: "none",                 requires_role: "csm",     status: "placeholder", notes: "AC_OVER_SHORT_REPORT — lane-level over/short slip pending; use the Cash Reconciliation page today" },
+  { code: 23,  label: "Suspend Report",            action: "none",                 requires_role: "csm",     status: "placeholder", notes: "AC_SUSPEND_REPORT — printed list of the store's open suspends pending" },
+  { code: 907, label: "Capture Signature Test",    action: "none",                 requires_role: "none",    status: "placeholder", notes: "AC_CAPTURE_SIGNATURES — pinpad signature loop-back test pending" },
   { code: 30,  label: "Suspend Transaction",       action: "suspend",              requires_role: "none",    status: "placeholder", notes: "Suspend/resume not yet implemented at the POS" },
   { code: 31,  label: "Resume Transaction",        action: "resume",               requires_role: "none",    status: "placeholder", notes: "Suspend/resume not yet implemented at the POS" },
   { code: 40,  label: "Repeat Last Item",          action: "repeat_last",          requires_role: "none",    status: "placeholder", notes: "Not yet implemented at the POS" },
