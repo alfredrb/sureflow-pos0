@@ -455,6 +455,34 @@ export const PXE_CONTROLLER_STEPS = [
     ],
   },
   {
+    step_id: "pxe_relay_handover",
+    label: "Troubleshooting — Lane opens a Chromium print window instead of printing",
+    instructions: [
+      "SYMPTOM: the lane is ONLINE and sells normally, but committing a sale pops the browser's own print dialog. That dialog IS the fallback: the POS tries the relay first and only opens a print window when that call fails.",
+      "CONFIRM IT: on the lane open Configuration (hold the version button) and read RELAY ADDRESS. If it says 'not set — falling back to the page origin' and shows the cloud address, the lane never learned where its relay is, so every print went to the cloud origin, got HTML back, and fell through to the browser.",
+      "CAUSE: the relay address reaches the lane on the boot URL (&relay=…), put there by sureflow-kiosk from the sureflow.relay kernel argument. A lane still running the older kiosk script — or booting a pxelinux entry generated before sureflow.relay existed — passes register_id but no relay, which is exactly the split seen here (LANE BOOT IDENTITY populated, RELAY ADDRESS blank).",
+      "Both halves must be current, and it is not enough to fix only one: the pxelinux entry has to CARRY sureflow.relay, and the kiosk script has to APPEND it to the POS URL.",
+      "Regenerate the boot entry from the Registers page (open the register, press PXE) with the store's Relay URL filled in — left blank it falls back to the controller's own address, which is wrong whenever the relay is a separate VM on the backend VLAN.",
+      "The same kernel argument also builds Chromium's --unsafely-treat-insecure-origin-as-secure flag, so a missing sureflow.relay silently costs the mixed-content permission too. That is why setting the address by hand in the app is not a fix — https POS to http relay stays blocked without the flag.",
+      "Reboot the lane after both are in place; the address then persists across reboots on its own.",
+    ],
+    commands: [
+      "# On the CONTROLLER — refresh the kiosk launcher in both images",
+      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-legacy/usr/local/bin/sureflow-kiosk   # paste the current script",
+      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-kiosk",
+      "# Confirm the boot entry actually carries the relay",
+      "grep -o 'sureflow.relay=[^ ]*' /srv/tftp/pxelinux.cfg/01-*",
+      "# On the LANE after rebooting — both values must be present",
+      "grep -o 'sureflow\\.[a-z_]*=[^ ]*' /proc/cmdline",
+      "# Prove the relay itself answers from the lane",
+      "curl -s http://<relay_ip>:3000/api/connectivity",
+    ],
+    postInstructions: [
+      "Re-open Configuration on the lane: RELAY ADDRESS should now show the relay's http address, and TEST RELAY CONNECTION should report the relay reached.",
+      "Test print reaches the relay but nothing comes out of the printer? The handover is fixed and the problem has moved downstream — check the register's Printer IP and transport on the Registers page.",
+    ],
+  },
+  {
     step_id: "pxe_validate",
     label: "Validate a lane end to end",
     instructions: [
