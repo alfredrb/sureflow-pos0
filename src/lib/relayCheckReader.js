@@ -15,7 +15,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 7 (slip paper 2 — ESC c 0 is a bitfield)";
+const BUILD = "check-reader-build 8 (endorsement via cheque station FS a 1 / FS a 2)";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -116,17 +116,15 @@ function buildEndorsement(c) {
     const t = String(s == null ? "" : s).slice(0, w);
     return " ".repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t + "\\n";
   };
-  // The cheque was ejected after the MICR read so the operator could reverse it,
-  // so this pass WAITS for the reinserted sheet (ESC f) rather than loading the
-  // one already inside (FS a 1) — there is nothing inside at this point.
+  // PROVEN ON HARDWARE: this unit ignores the ESC c 0 station select entirely — a
+  // plain slip test print with the same select-and-wait sequence still came out of
+  // the receipt roll on the top. So the slip path cannot be used at all here.
   //
-  // The sequence below is byte-for-byte the one printer.js uses for a working slip
-  // chit: ESC @ FIRST, then the paper-source select, then the insertion wait. Without
-  // the leading ESC @ the printer is still in whatever state the MICR read left it in
-  // and it ignores the slip select, which is why the endorsement came out on the
-  // thermal roll. Ending with FF (print + eject the cut sheet) matches the slip path
-  // too — FS a 2 belongs to a cheque loaded by FS a 1, not to a sheet taken with ESC f.
-  let o = INIT + SEL_SLIP + WAIT_INSERT + ALIGN_L;
+  // The cheque station has its own command family that does NOT depend on ESC c 0:
+  // FS a 1 waits for the cheque to be inserted and loads it to the print start
+  // position, the text then prints on that sheet, and FS a 2 ejects it. ESC c 0 is
+  // still sent first as a no-op hint for units that do honour it.
+  let o = INIT + SEL_SLIP + LOAD_CHECK + ALIGN_L;
   o += BOLD_ON + ctr("FOR DEPOSIT ONLY") + BOLD_OFF;
   o += ctr(String(c.store_name || "STORE").toUpperCase());
   o += ctr("ST# " + (c.store_number || "0000") + "  REG# " + (c.register_id || "00"));
@@ -135,7 +133,7 @@ function buildEndorsement(c) {
   if (c.transaction_id) o += ctr("TX " + c.transaction_id);
   o += ctr(c.date || new Date().toLocaleString());
   o += ctr("OP " + (c.operator_pin || "") + " " + String(c.operator_name || "").toUpperCase());
-  o += "\\n" + EJECT + SEL_RECEIPT;
+  o += "\\n" + EJECT_CHECK + SEL_RECEIPT;
   return o;
 }
 
