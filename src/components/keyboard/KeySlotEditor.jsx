@@ -1,7 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { KEYCODE_OPTIONS, RESERVED_KEYCODES } from "@/lib/keyboardLayout";
+import { KEYCODE_OPTIONS, RESERVED_KEYCODES, normalizeScancode } from "@/lib/keyboardLayout";
 
 const NONE = "__none__";
 
@@ -42,11 +42,15 @@ export default function KeySlotEditor({ slot, functionKeys, onChange }) {
         <label className="mb-1 block text-sm font-medium text-gray-700">Hardware scancode</label>
         <Input
           value={slot.scancode || ""}
-          onChange={(e) => set("scancode")(e.target.value.trim())}
+          onChange={(e) => set("scancode")(normalizeScancode(e.target.value))}
           placeholder="70045"
           className="font-mono text-sm"
         />
-        <p className="mt-1 text-xs text-gray-400">Captured once per keyboard model with evtest.</p>
+        <p className="mt-1 text-xs text-gray-400">
+          Captured once per keyboard model. Paste it exactly as the tool printed it — a showkey
+          value like <span className="font-mono">0x3b</span> has its <span className="font-mono">0x</span> stripped
+          automatically, because hwdb takes the bare hex.
+        </p>
       </div>
 
       <div>

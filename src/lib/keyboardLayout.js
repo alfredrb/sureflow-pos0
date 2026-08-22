@@ -75,6 +75,12 @@ export function buildDefaultSlots() {
 
 export const isCalibrated = (slots = []) => slots.some((s) => s.scancode);
 
+// showkey --scancodes prints hex with a 0x prefix (0x3b); evtest prints the bare
+// HID value (70045). hwdb wants the bare hex either way, so the prefix is stripped
+// and the digits lowercased as the technician types.
+export const normalizeScancode = (v = "") =>
+  String(v).trim().replace(/^0x/i, "").toLowerCase();
+
 // Which keycodes are already taken by another slot — prevents two physical keys
 // firing the same POS action by accident.
 export function duplicateKeycodes(slots = []) {
