@@ -15,7 +15,7 @@
 export const RELAY_CHECK_READER_CODE = `// checkReader.js — MICR read + endorsement franking (Epson TM-H6000IV)
 const net = require("net");
 
-const BUILD = "check-reader-build 5 (two-pass endorsement)";
+const BUILD = "check-reader-build 6 (endorsement uses the proven slip sequence)";
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
 
@@ -116,8 +116,15 @@ function buildEndorsement(c) {
   // The cheque was ejected after the MICR read so the operator could reverse it,
   // so this pass WAITS for the reinserted sheet (ESC f) rather than loading the
   // one already inside (FS a 1) — there is nothing inside at this point.
-  let o = SEL_SLIP + WAIT_INSERT + ALIGN_L;
-  o += ctr(BOLD_ON + "FOR DEPOSIT ONLY" + BOLD_OFF);
+  //
+  // The sequence below is byte-for-byte the one printer.js uses for a working slip
+  // chit: ESC @ FIRST, then the paper-source select, then the insertion wait. Without
+  // the leading ESC @ the printer is still in whatever state the MICR read left it in
+  // and it ignores the slip select, which is why the endorsement came out on the
+  // thermal roll. Ending with FF (print + eject the cut sheet) matches the slip path
+  // too — FS a 2 belongs to a cheque loaded by FS a 1, not to a sheet taken with ESC f.
+  let o = INIT + SEL_SLIP + WAIT_INSERT + ALIGN_L;
+  o += BOLD_ON + ctr("FOR DEPOSIT ONLY") + BOLD_OFF;
   o += ctr(String(c.store_name || "STORE").toUpperCase());
   o += ctr("ST# " + (c.store_number || "0000") + "  REG# " + (c.register_id || "00"));
   o += ctr("CHK# " + (c.check_number || "") + "   $" + Number(c.amount || 0).toFixed(2));
@@ -125,7 +132,7 @@ function buildEndorsement(c) {
   if (c.transaction_id) o += ctr("TX " + c.transaction_id);
   o += ctr(c.date || new Date().toLocaleString());
   o += ctr("OP " + (c.operator_pin || "") + " " + String(c.operator_name || "").toUpperCase());
-  o += "\\n" + EJECT_CHECK + SEL_RECEIPT;
+  o += "\\n" + EJECT + SEL_RECEIPT;
   return o;
 }
 
