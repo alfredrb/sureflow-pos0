@@ -5,6 +5,8 @@ import { PAGING_TABS } from "@/lib/posKeyPaging";
 
 export const GRID_TABS = [
   { id: "sale", label: "Sale", pages: [[1, 2, 3, 4, 5, 6, 7, 8, 9], [28, 29, 30, 31, 32, 33, 34, 35, 36]] },
+  // Tender keys live on their own tab, in the same order as the POS panel.
+  { id: "tender", label: "Tender", pages: [[73, 74, 75, 76, 77, 78, 79, 80, 81], [82, 83, 84, 85, 86, 87, 88, 89, 90]] },
   { id: "non_sale", label: "Non-Sale", pages: [[10, 11, 12, 13, 14, 15, 16, 17, 18], [37, 38, 39, 40, 41, 42, 43, 44, 45]] },
   { id: "misc", label: "Misc", pages: [[19, 20, 21, 22, 23, 24, 25, 26, 27], [46, 47, 48, 49, 50, 51, 52, 53, 54]] },
   { id: "advance", label: "Advance", pages: [[55, 56, 57, 58, 59, 60, 61, 62, 63], [64, 65, 66, 67, 68, 69, 70, 71, 72]] },
