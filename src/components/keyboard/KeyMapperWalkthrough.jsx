@@ -25,7 +25,7 @@ const STEPS = [
   },
   {
     title: "Two sets of bytes, or a run of 0x00, for one key",
-    body: "showkey prints a press AND a release for every key, so one tap always produces two lines — take the FIRST set only; the release is the same code with the high bit set (0x3b then 0xbb). If the first set is itself two bytes (0xe0 0x4d) the key is an extended key: enter both bytes and the editor joins them into the single hwdb code e04d. If all you get is 0x00 0x00, that key produced nothing usable through the AT translation — it is not a plain AT key, so capture that one with evtest and use its HID value. Never enter 0x00; a zero code matches no key and silently does nothing.",
+    body: "showkey prints a press AND a release for every key, so one tap always produces two lines — take the FIRST set only; the release is the same code with the high bit set (0x3b then 0xbb). If the first set is itself two bytes (0xe0 0x4d) the key is an extended key: enter both bytes and the editor joins them into the single hwdb code e04d. A few keys legitimately emit longer sequences (Pause reports 0xe1 0x1d 0x45) — enter every byte of that press and it becomes one code. But a capture that is ALL zeros is not a code at all, whether it comes out as 0x00 0x00 or 0x00 0x00 0x00 0x00: no scancode reached the console driver, so the length tells you nothing and the editor discards it rather than writing a dead entry. Those keys are consumed by the keyboard controller before the AT translation, so capture them with evtest and use its HID value instead.",
   },
   {
     title: "showkey values are AT codes — confirm the device match",

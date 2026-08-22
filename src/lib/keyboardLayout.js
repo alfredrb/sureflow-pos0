@@ -80,9 +80,14 @@ export const isCalibrated = (slots = []) => slots.some((s) => s.scancode);
 // and the digits lowercased as the technician types. Extended keys come out of
 // showkey as a multi-byte sequence ("0xe0 0x4d") — the bytes are joined into the
 // single hwdb code (e04d).
-export const normalizeScancode = (v = "") =>
-  String(v).trim().split(/[\s,]+/).filter(Boolean)
+// An all-zero capture (0x00 0x00, or a longer run of them) means no scancode
+// reached the console driver at all — it is discarded rather than written into the
+// map, where a zero code would match no key and fail silently.
+export const normalizeScancode = (v = "") => {
+  const code = String(v).trim().split(/[\s,]+/).filter(Boolean)
     .map((b) => b.replace(/^0x/i, "").toLowerCase()).join("");
+  return /^0+$/.test(code) ? "" : code;
+};
 
 // Which keycodes are already taken by another slot — prevents two physical keys
 // firing the same POS action by accident.
