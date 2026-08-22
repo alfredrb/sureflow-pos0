@@ -18,8 +18,18 @@ const capture = () => {
   // platform auth redirect folds the original address into its own parameter
   // (…/login?next=%2Fpos%2Flogin%3Fregister_id%3DREG-005), so the value is still
   // present but nested, and URLSearchParams on window.location.search misses it.
+  // Decode REPEATEDLY, not once. A platform auth redirect can fold the address into
+  // its own parameter more than once, so the value arrives double-encoded
+  // (http%253A%252F%252F…). A single decode pass leaves http%3A%2F%2F, which still
+  // matched the loose register_id pattern below but failed the relay's URL pattern —
+  // that is exactly why a lane captured its register and never its relay address.
   let href = window.location.href;
-  try { href = decodeURIComponent(href); } catch { /* keep raw */ }
+  for (let i = 0; i < 3; i++) {
+    let next = href;
+    try { next = decodeURIComponent(href); } catch { break; }
+    if (next === href) break;
+    href = next;
+  }
   const match = href.match(/register_id=([\w-]+)/);
   if (match && match[1]) window.localStorage.setItem(KEY, match[1]);
 
@@ -27,8 +37,16 @@ const capture = () => {
   // A cloud-served lane cannot reach its relay through window.location.origin, and
   // the kiosk browser has DevTools disabled, so the boot URL is the only way to set
   // it. Persisted like the register so it survives reboots.
-  const relay = href.match(/[?&]relay=(https?:\/\/[^&\s]+)/);
-  if (relay && relay[1]) window.localStorage.setItem("relay_base_url", relay[1].replace(/\/$/, ""));
+  // Capture the raw value first and validate after decoding it, so a still-encoded
+  // address is accepted rather than silently ignored.
+  const relay = href.match(/[?&]relay=([^&\s]+)/);
+  if (relay && relay[1]) {
+    let url = relay[1];
+    try { url = decodeURIComponent(url); } catch { /* keep raw */ }
+    if (/^https?:\/\//.test(url)) {
+      window.localStorage.setItem("relay_base_url", url.replace(/\/+$/, ""));
+    }
+  }
 };
 
 capture();
