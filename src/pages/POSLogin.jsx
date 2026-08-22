@@ -13,6 +13,7 @@ import POSCredentialPinpad from "@/components/pos/POSCredentialPinpad";
 import ShiftLookupDialog from "@/components/pos/ShiftLookupDialog";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES, CONFIG_ROLES } from "@/lib/operatorAuth";
 import { getLaneRegisterId, clearLaneRegisterId } from "@/lib/laneIdentity";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -20,7 +21,9 @@ export default function POSLogin() {
   const [step, setStep] = useState("id");
   const [loading, setLoading] = useState(false);
   const [time, setTime] = useState(new Date());
-  const [online, setOnline] = useState(navigator.onLine);
+  // Proven by a real request — navigator.onLine is permanently false on a diskless
+  // lane, which is what pinned the indicator to OFFLINE.
+  const online = useNetworkStatus();
   const [registerNum, setRegisterNum] = useState(() => sessionStorage.getItem("pos_register_num") || "");
   const [registerIp, setRegisterIp] = useState(sessionStorage.getItem("pos_register_ip") || "—");
   const [showConfig, setShowConfig] = useState(false);
@@ -52,10 +55,6 @@ export default function POSLogin() {
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
     // Load operators for shift lookup
     base44.entities.Operator.list().then(ops => setOperators(ops)).catch(() => {});
     // Load active store announcements for the login screen
@@ -112,7 +111,7 @@ export default function POSLogin() {
         }
       }).catch(() => {});
     }
-    return () => { clearInterval(t); window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
+    return () => { clearInterval(t); };
   }, []);
 
   useEffect(() => { getLatestVersionString().then(setVersion).catch(() => {}); }, []);
