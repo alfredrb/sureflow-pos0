@@ -15,6 +15,7 @@ import { verifyOperatorCredentials, SUPERVISOR_ROLES, CONFIG_ROLES } from "@/lib
 import { getLaneRegisterId, clearLaneRegisterId } from "@/lib/laneIdentity";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import LaneRelayDiagnostic from "@/components/pos/LaneRelayDiagnostic";
+import { resolveRelayFromStore } from "@/lib/laneRelayResolve";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -80,6 +81,8 @@ export default function POSLogin() {
           base44.entities.Register.update(reg.id, { status: "online" }).catch(() => {});
           sessionStorage.setItem("pos_register_num", reg.register_id);
           if (reg.store_id) sessionStorage.setItem("pos_store_id", reg.store_id);
+          // Authoritative relay address — survives the auth redirect losing the boot URL.
+          resolveRelayFromStore(reg.store_id).catch(() => {});
           setRegisterNum(reg.register_id);
           if (reg.ip_address) {
             setRegisterIp(reg.ip_address);
@@ -101,6 +104,7 @@ export default function POSLogin() {
           openForcedConfig();
         } else {
           const reg = results[0];
+          resolveRelayFromStore(reg.store_id).catch(() => {});
           if (reg.ip_address) {
             setRegisterIp(reg.ip_address);
             sessionStorage.setItem("pos_register_ip", reg.ip_address);
