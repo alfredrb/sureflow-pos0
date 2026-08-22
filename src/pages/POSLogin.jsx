@@ -14,6 +14,7 @@ import ShiftLookupDialog from "@/components/pos/ShiftLookupDialog";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES, CONFIG_ROLES } from "@/lib/operatorAuth";
 import { getLaneRegisterId, clearLaneRegisterId } from "@/lib/laneIdentity";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import LaneRelayDiagnostic from "@/components/pos/LaneRelayDiagnostic";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -604,6 +605,7 @@ export default function POSLogin() {
                     {getLaneRegisterId() || "none — no register_id on the boot URL"}
                   </p>
                 </div>
+                <LaneRelayDiagnostic />
                 <p className="text-blue-300/50 text-xs">Select a register:</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {availableRegisters.length === 0 && (
