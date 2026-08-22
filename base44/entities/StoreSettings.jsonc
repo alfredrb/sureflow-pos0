@@ -76,6 +76,13 @@
       "default": true,
       "description": "Allow admins to remotely log out operators"
     },
+    "cs_service_cards": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Which Customer Service desk cards are available on the POS (gift_cards, loyalty, returns, checks, receipts, customer). Unset = every card shows; a store only opts cards out."
+    },
     "pos_key_paging_tabs": {
       "type": "array",
       "items": {

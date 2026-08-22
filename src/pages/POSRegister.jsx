@@ -11,7 +11,7 @@ import ExportCashHistory from "@/components/ExportCashHistory";
 import POSTaxExemptDialog from "@/components/pos/POSTaxExemptDialog";
 import POSHelpMenu from "@/components/POSHelpMenu";
 import POSTechnicianPanel from "@/components/POSTechnicianPanel";
-import POSCSModePanel from "@/components/POSCSModePanel";
+import CSServicePanel from "@/components/cs/CSServicePanel";
 import POSReturnsPanel from "@/components/POSReturnsPanel";
 import POSExchangePanel from "@/components/POSExchangePanel";
 import POSSalePanel from "@/components/POSSalePanel";
@@ -570,6 +570,27 @@ export default function POSRegister() {
     setPriceEditValue("");
   };
 
+  // Price match from the service desk — the competitor price becomes the item price.
+  const applyPriceMatch = (sku, matched) => {
+    setCart(prev => prev.map(i => i.sku === sku
+      ? { ...i, price: matched, total: +(matched * i.qty).toFixed(2), original_price: i.original_price ?? i.price, discount_type: "price_match" }
+      : i));
+  };
+
+  // Everything the cheque station / pinpad needs, shared by tender and the
+  // Customer Service check-cashing flow.
+  const laneCheckContext = {
+    ...pinpadContext,
+    store_name: storeConfig?.store_name || storeInfo?.store_name,
+    store_number: storeInfo?.store_number || sessionStorage.getItem("pos_store_id") || "",
+    store_id: sessionStorage.getItem("pos_store_id") || "",
+    register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
+    operator_id: operator?.operator_id || "",
+    operator_name: operator?.full_name || "",
+    operator_pin: operator?.pin || "",
+    training_mode: trainingMode,
+  };
+
   const handleFunctionKey = (fkey) => {
     const effectiveRole = fkey.requires_role || (fkey.requires_supervisor ? "csm" : "none");
     const needsOverride = needsOverrideFor(effectiveRole, operator?.role, !!csmApproval);
@@ -761,7 +782,7 @@ export default function POSRegister() {
     { id: "sale", label: "Sale", icon: ShoppingCart, activeColor: "bg-blue-600 text-white", inactiveColor: "bg-[#0a0e27] text-blue-300/50 border border-blue-500/10 hover:border-blue-500/30" },
     ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
     ...(registerFeatures.feature_exchange ? [{ id: "exchange", label: "Exchange", icon: ArrowLeftRight, activeColor: "bg-teal-600 text-white", inactiveColor: "bg-[#0a0e27] text-teal-300/50 border border-teal-500/10 hover:border-teal-500/30" }] : []),
-    ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "CS Mode", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
+    ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "Customer Service", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
     ...((operator?.role === "technician" || diagnosticsMode) ? [{ id: "diagnostics", label: "Diagnostics", icon: Wrench, activeColor: "bg-slate-600 text-white", inactiveColor: "bg-[#0a0e27] text-slate-300/50 border border-slate-500/10 hover:border-slate-500/30" }] : []),
   ];
 
@@ -912,7 +933,19 @@ export default function POSRegister() {
           )}
 
           {posMode === "cs" && (
-           <POSCSModePanel operator={operator} onAddGiftCard={(giftCard) => { setCart(prev => [...prev, giftCard]); }} toast={toast} />
+            <CSServicePanel
+              operator={operator}
+              products={products}
+              cart={cart}
+              lastReceipt={lastReceipt}
+              toast={toast}
+              loadData={loadData}
+              onAddGiftCard={(giftCard) => { setCart(prev => [...prev, giftCard]); }}
+              onPreviewChange={setSidePreview}
+              onApplyPriceMatch={applyPriceMatch}
+              pinpadContext={pinpadContext}
+              checkContext={laneCheckContext}
+            />
           )}
 
           {posMode === "diagnostics" && (
@@ -966,17 +999,7 @@ export default function POSRegister() {
         tenderRequest={tenderKeyRequest}
         onTenderRequestHandled={() => setTenderKeyRequest(null)}
         pinpadContext={pinpadContext}
-        checkContext={{
-          ...pinpadContext,
-          store_name: storeConfig?.store_name || storeInfo?.store_name,
-          store_number: storeInfo?.store_number || sessionStorage.getItem("pos_store_id") || "",
-          store_id: sessionStorage.getItem("pos_store_id") || "",
-          register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
-          operator_id: operator?.operator_id || "",
-          operator_name: operator?.full_name || "",
-          operator_pin: operator?.pin || "",
-          training_mode: trainingMode,
-        }}
+        checkContext={laneCheckContext}
       />
 
       {/* Override Authorization Dialog */}

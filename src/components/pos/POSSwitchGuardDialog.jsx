@@ -2,6 +2,8 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+const MODE_LABELS = { sale: "Sale", returns: "Returns", exchange: "Exchange", cs: "Customer Service", diagnostics: "Diagnostics" };
+
 // Warns the operator before leaving a mode that still has an active transaction.
 export default function POSSwitchGuardDialog({ open, currentMode, onStay, onSwitch }) {
   return (
@@ -12,7 +14,7 @@ export default function POSSwitchGuardDialog({ open, currentMode, onStay, onSwit
         </DialogHeader>
         <p className="text-blue-300/70 text-xs leading-relaxed">
           You have an active transaction in the{" "}
-          <span className="text-white font-bold capitalize">{currentMode}</span> tab.
+          <span className="text-white font-bold">{MODE_LABELS[currentMode] || currentMode}</span> tab.
           Switching tabs will not automatically cancel it, but you may lose unsaved progress.
         </p>
         <p className="text-blue-300/50 text-xs">Complete or cancel the current transaction before switching, or continue anyway.</p>

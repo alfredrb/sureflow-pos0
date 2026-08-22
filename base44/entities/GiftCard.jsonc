@@ -35,15 +35,28 @@
       "enum": [
         "active",
         "inactive",
-        "expired"
+        "expired",
+        "lost"
       ],
       "default": "active",
-      "description": "Card status"
+      "description": "Card status. lost = reported lost or stolen at the service desk; the balance was moved onto a replacement card and this number can no longer be tendered."
     },
     "expiration_date": {
       "type": "string",
       "format": "date",
       "description": "Optional expiration date"
+    },
+    "replaced_by_card_number": {
+      "type": "string",
+      "description": "Set on a lost/stolen card \u2014 the replacement card the remaining balance was transferred onto."
+    },
+    "replaces_card_number": {
+      "type": "string",
+      "description": "Set on a replacement card \u2014 the lost/stolen card whose balance was transferred over."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number that issued or last serviced this card."
     },
     "transactions": {
       "type": "array",
@@ -75,12 +88,19 @@
             "enum": [
               "sale",
               "redemption",
-              "refund"
+              "refund",
+              "reload",
+              "cash_out",
+              "lost_reissue"
             ],
-            "description": "Type of transaction"
+            "description": "Type of transaction. reload = value added at the service desk; cash_out = remaining balance paid out in cash with manager approval; lost_reissue = balance moved to or from a replacement card."
           },
           "remaining_balance": {
             "type": "number"
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional detail shown in the card history (replacement card number, approving manager, reason)."
           }
         }
       }

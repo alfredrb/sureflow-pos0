@@ -1,0 +1,84 @@
+{
+  "name": "RainCheck",
+  "type": "object",
+  "properties": {
+    "rain_check_id": {
+      "type": "string",
+      "description": "Rain check number printed as a CODE128 barcode on the slip (e.g. RC-1A2B3C). Scanning it at the register redeems the item at the guaranteed price."
+    },
+    "sku": {
+      "type": "string",
+      "description": "SKU of the out-of-stock advertised item."
+    },
+    "item_name": {
+      "type": "string"
+    },
+    "advertised_price": {
+      "type": "number",
+      "default": 0,
+      "description": "Advertised price guaranteed to the customer when the item comes back into stock."
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1,
+      "description": "Units the customer may buy at the guaranteed price."
+    },
+    "customer_name": {
+      "type": "string"
+    },
+    "customer_phone": {
+      "type": "string"
+    },
+    "expires_on": {
+      "type": "string",
+      "format": "date",
+      "description": "Last day the rain check may be redeemed."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "redeemed",
+        "expired",
+        "voided"
+      ],
+      "default": "open"
+    },
+    "redeemed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "redeemed_transaction_id": {
+      "type": "string"
+    },
+    "issued_by_operator_id": {
+      "type": "string"
+    },
+    "issued_by_operator_name": {
+      "type": "string"
+    },
+    "register_id": {
+      "type": "string"
+    },
+    "store_id": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "rain_check_id",
+    "item_name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
