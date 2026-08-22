@@ -10,6 +10,7 @@ import HwdbOutput from "@/components/keyboard/HwdbOutput";
 import ScancodeDecoder from "@/components/keyboard/ScancodeDecoder";
 import IBMKeyboardUtilityReference from "@/components/keyboard/IBMKeyboardUtilityReference";
 import IBMKeyUtilityWalkthrough from "@/components/keyboard/IBMKeyUtilityWalkthrough";
+import SurePoint4820KeypadReference from "@/components/keyboard/SurePoint4820KeypadReference";
 import KeyMapperWalkthrough from "@/components/keyboard/KeyMapperWalkthrough";
 import { DEFAULT_KEYBOARD_MODEL, buildDefaultSlots, ensureSystemSlots, duplicateKeycodes, isCalibrated } from "@/lib/keyboardLayout";
 
@@ -97,6 +98,8 @@ export default function AdminKeyboardMapper() {
       <IBMKeyboardUtilityReference />
 
       <IBMKeyUtilityWalkthrough />
+
+      <SurePoint4820KeypadReference />
 
       {!isCalibrated(layout.slots) && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
