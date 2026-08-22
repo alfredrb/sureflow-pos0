@@ -2,6 +2,8 @@
 // Produces fixed-column 42-char lines (80mm paper at font A) so the browser
 // fallback and the relay's raw ESC/POS output look identical.
 
+import { checkTenderLines } from "@/lib/checkReceiptLine";
+
 export const RECEIPT_WIDTH = 42;
 
 const money = (n) => Number(n || 0).toFixed(2);
@@ -148,6 +150,8 @@ export function buildReceiptTokens(r) {
     push("line", amountRow(`${tender} TEND`, signed(tr.amount)));
   }
   push("line", amountRow("CHANGE DUE", money(r.change_due)));
+  // Cheque reference (number + account last 4) under the tender block.
+  for (const l of checkTenderLines(r.tenders)) push("center", l);
   push("blank");
 
   const count = (r.items || []).reduce((s, i) => s + Number(i.qty || 0), 0);

@@ -7,7 +7,17 @@ const net = require("net");
 
 // Bumped whenever this file changes. The test print shows it, so a technician can
 // confirm the relay is actually running the current printer.js and not a stale copy.
-const BUILD = "printer-build 7 (slip paper 4 — confirmed on hardware)";
+const BUILD = "printer-build 8 (cheque reference on receipts)";
+
+// Cheque tender reference for the receipt: cheque number + account last 4 only.
+// The full routing/account number is deliberately NOT printed — that stays on the
+// CheckPayment record and on the cheque itself.
+function checkTenderLines(tenders) {
+  return (tenders || [])
+    .filter((t) => t.method === "check" && (t.reference || t.account_last4))
+    .map((t) => "CHK# " + (t.reference || "") +
+      (t.account_last4 ? "  ACCT ***" + t.account_last4 : ""));
+}
 
 const PRINTER_IPS = (process.env.PRINTER_IPS || "").split(",").filter(Boolean);
 const PORT = Number(process.env.PRINTER_PORT || 9100);
@@ -132,6 +142,7 @@ function buildReceipt(r) {
   o += amountRow(tender + " TEND", signed(r.payment_method === "cash"
     ? r.amount_tendered : (r.total || 0) - (r.rewards_applied || 0)));
   o += amountRow("CHANGE DUE", money(r.change_due));
+  for (const l of checkTenderLines(r.tenders)) o += center(l);
 
   const count = (r.items || []).reduce(function (s, i) { return s + Number(i.qty || 0); }, 0);
   o += "\\n" + ALIGN_C + "# ITEMS " + (r.doc_type === "return" ? "RETURNED " : "SOLD ") +
@@ -200,6 +211,7 @@ function buildSlip(r) {
     o += rowL(String(t.method || "cash").toUpperCase().replace("_", " ") + " TEND", money(t.amount));
   }
   o += rowL("CHANGE DUE", money(r.change_due));
+  for (const l of checkTenderLines(r.tenders)) o += ctr(l);
   o += "-".repeat(w) + "\\n";
   if (r.transaction_id) o += ctr("TX " + r.transaction_id);
   o += ctr(r.date || new Date().toLocaleString());

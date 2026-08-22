@@ -79,7 +79,11 @@ export async function commitSaleTransaction({
     payment_method: paymentMethod,
     // Full breakdown of a split sale. payment_method above stays the primary
     // tender so existing reports and roll-ups read one value as before.
-    tenders: tenders.length ? tenders : [{ method: paymentMethod, amount: amountTendered }],
+    // Only the schema's tender fields are stored — a cheque tender also carries
+    // account_last4 in memory for the receipt, which must not be persisted.
+    tenders: tenders.length
+      ? tenders.map((t) => ({ method: t.method, amount: t.amount, ...(t.reference ? { reference: t.reference } : {}) }))
+      : [{ method: paymentMethod, amount: amountTendered }],
     split_tender: tenders.length > 1,
     status: "completed",
     amount_tendered: amountTendered,

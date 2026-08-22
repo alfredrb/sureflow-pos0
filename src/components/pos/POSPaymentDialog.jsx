@@ -73,7 +73,7 @@ export default function POSPaymentDialog({
   const onCheckAccepted = (t) => {
     setCheckOpen(false);
     setAmountTendered("");
-    onAddTender({ method: "check", amount: t.amount, reference: t.reference });
+    onAddTender({ method: "check", amount: t.amount, reference: t.reference, account_last4: t.account_last4 });
   };
 
   return (

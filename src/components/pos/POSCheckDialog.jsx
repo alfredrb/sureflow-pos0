@@ -163,7 +163,12 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
     const saved = await base44.entities.CheckPayment.create({
       ...record, franked, franked_at: franked ? new Date().toISOString() : undefined,
     });
-    onAccept({ amount: Number(amount || 0), reference: fields.check_number, check_payment_id: saved.id, franked });
+    // account_last4 rides along on the tender so the receipt can print the cheque
+    // reference. It is intentionally not persisted on the Transaction.
+    onAccept({
+      amount: Number(amount || 0), reference: fields.check_number,
+      account_last4: last4(fields.account), check_payment_id: saved.id, franked,
+    });
     reset();
   };
 

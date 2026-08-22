@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import moment from "moment";
 import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
+import TransactionCheckDetails from "@/components/checks/TransactionCheckDetails";
 
 const STATUS_BADGE = {
   completed: { label: "Completed", cls: "bg-emerald-100 text-emerald-700" },
@@ -79,6 +80,7 @@ export default function TransactionDetailDialog({ tx, onClose }) {
                 ))}
               </div>
             </div>
+            <TransactionCheckDetails tx={tx} />
             <div className="space-y-1 text-sm border-t pt-3">
               <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>${(tx.subtotal || 0).toFixed(2)}</span></div>
               <div className="flex justify-between text-gray-500"><span>Tax</span><span>${(tx.tax || 0).toFixed(2)}</span></div>
