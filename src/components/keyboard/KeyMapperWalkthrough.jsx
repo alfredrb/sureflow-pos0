@@ -24,6 +24,10 @@ const STEPS = [
     body: "Click a key in the grid to open the slot editor, then type the scancode you captured for that physical keycap. Paste it exactly as the tool printed it — showkey reports hex with a 0x prefix (0x3b) and the editor strips the prefix for you, because hwdb takes the bare hex. The amber 'no captured scancodes' warning clears as soon as the first one is entered. The Action Code key is locked on purpose — the POS depends on it.",
   },
   {
+    title: "Two sets of bytes, or a run of 0x00, for one key",
+    body: "showkey prints a press AND a release for every key, so one tap always produces two lines — take the FIRST set only; the release is the same code with the high bit set (0x3b then 0xbb). If the first set is itself two bytes (0xe0 0x4d) the key is an extended key: enter both bytes and the editor joins them into the single hwdb code e04d. If all you get is 0x00 0x00, that key produced nothing usable through the AT translation — it is not a plain AT key, so capture that one with evtest and use its HID value. Never enter 0x00; a zero code matches no key and silently does nothing.",
+  },
+  {
     title: "showkey values are AT codes — confirm the device match",
     body: "showkey prints short AT set-1 codes (0x3b) while evtest prints the long USB HID value (70045). Both are valid hwdb keys, but they must match the device line at the top of the generated map: a short AT code applies to a keyboard presenting as PS/2 / AT, and the map's evdev:input:b0003v… line matches a USB device. If the keys still do nothing after the map is applied, run evtest once and use its values instead — that is the pairing the generated map is written for.",
   },
