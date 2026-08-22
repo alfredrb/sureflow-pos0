@@ -33,6 +33,35 @@ const NUMPAD_CLEAR_CAP = "CLEAR (UNDER CTRL)";
 // The double-height cap below CLEAR — the pad's ENTER key, used to submit pinpads.
 const NUMPAD_ENTER_CAP = "ENTER (DOUBLE KEY)";
 
+// S1 / S2 system keys. Under 4690 the OS used Ctrl+S1 / Ctrl+S2 for system-mode
+// functions — that behavior was software, not firmware, so on our lanes they are
+// two ordinary free keys with their own scancodes (see the ANPOS PS/2 table in
+// IBM GC30-3623-10 ch. 8). Mapped here like any other key; unassigned by default.
+const SYSTEM_KEYS = [
+  { slot_id: "s1", col: 1, cap_label: "S1" },
+  { slot_id: "s2", col: 2, cap_label: "S2" },
+];
+
+// Older saved layouts predate the S1/S2 slots — append them on load so the
+// editor always shows them without disturbing the technician's existing map.
+export function ensureSystemSlots(slots = []) {
+  const missing = SYSTEM_KEYS.filter((k) => !slots.some((s) => s.slot_id === k.slot_id));
+  if (!missing.length) return slots;
+  return [
+    ...slots,
+    ...missing.map((k) => ({
+      slot_id: k.slot_id,
+      row: 6,
+      col: k.col,
+      cap_label: k.cap_label,
+      scancode: "",
+      keycode: "",
+      function_key_number: null,
+      locked: false,
+    })),
+  ];
+}
+
 export function buildDefaultSlots() {
   const slots = [];
   CAPS.forEach((row, r) => {
@@ -70,7 +99,7 @@ export function buildDefaultSlots() {
     function_key_number: null,
     locked: false,
   });
-  return slots;
+  return ensureSystemSlots(slots);
 }
 
 export const isCalibrated = (slots = []) => slots.some((s) => s.scancode);

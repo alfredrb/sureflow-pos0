@@ -11,7 +11,7 @@ import ScancodeDecoder from "@/components/keyboard/ScancodeDecoder";
 import IBMKeyboardUtilityReference from "@/components/keyboard/IBMKeyboardUtilityReference";
 import IBMKeyUtilityWalkthrough from "@/components/keyboard/IBMKeyUtilityWalkthrough";
 import KeyMapperWalkthrough from "@/components/keyboard/KeyMapperWalkthrough";
-import { DEFAULT_KEYBOARD_MODEL, buildDefaultSlots, duplicateKeycodes, isCalibrated } from "@/lib/keyboardLayout";
+import { DEFAULT_KEYBOARD_MODEL, buildDefaultSlots, ensureSystemSlots, duplicateKeycodes, isCalibrated } from "@/lib/keyboardLayout";
 
 export default function AdminKeyboardMapper() {
   const [layout, setLayout] = useState(null);
@@ -29,7 +29,7 @@ export default function AdminKeyboardMapper() {
       const existing = layouts.find((l) => l.active !== false);
       setFunctionKeys(keys.sort((a, b) => a.key_number - b.key_number));
       setLayout(
-        existing || {
+        existing ? { ...existing, slots: ensureSystemSlots(existing.slots) } : {
           keyboard_model: DEFAULT_KEYBOARD_MODEL,
           label: "Standard lane layout",
           slots: buildDefaultSlots(),
