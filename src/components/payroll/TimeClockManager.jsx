@@ -256,7 +256,7 @@ export default function TimeClockManager({ operators }) {
                 <tr><td colSpan="6" className="text-center py-8 text-gray-400">No time entries in this range</td></tr>
               ) : entries.map(e => (
                 <tr key={e.id} className={`hover:bg-gray-50 ${e.adjusted ? "bg-amber-50/40" : ""}`}>
-                  <td className="px-4 py-3 font-medium text-gray-900">{e.operator_name}{e.adjusted && <span className="ml-2 text-[10px] text-amber-600 font-medium">adjusted</span>}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{e.operator_name}{e.auto_closing ? <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium" title={e.adjustment_note || "Auto clock-out"}>auto</span> : e.adjusted && <span className="ml-2 text-[10px] text-amber-600 font-medium">adjusted</span>}</td>
                   <td className="px-4 py-3 text-gray-600">{fmt(e.clock_in)}</td>
                   <td className="px-4 py-3 text-gray-600">{fmt(e.clock_out)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">{entryNetHours(e).toFixed(2)}</td>

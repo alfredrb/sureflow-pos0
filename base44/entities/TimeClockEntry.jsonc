@@ -87,6 +87,15 @@
       "type": "string",
       "description": "Reason for the manual adjustment."
     },
+    "auto_closing": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the nightly auto clock-out sweep closed this entry (the operator forgot to clock out). clock_out was set to the scheduled shift end, or midnight when no shift was scheduled."
+    },
+    "closing_reason": {
+      "type": "string",
+      "description": "Machine-readable reason for a system close (e.g. 'auto_clock_out_midnight'). Blank for normal operator clock-outs and manual manager entries."
+    },
     "source": {
       "type": "string",
       "enum": [
