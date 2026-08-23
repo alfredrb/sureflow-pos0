@@ -4,6 +4,18 @@ import { Input } from "@/components/ui/input";
 import { Search, List, X, PackageSearch } from "lucide-react";
 
 export default function POSItemList({ open, onOpenChange, filteredProducts, categories, selectedCat, setSelectedCat, itemSearch, setItemSearch, onAdd }) {
+  // Enter adds only on an exact SKU/barcode match — anything looser is a no-op
+  // and the operator taps the result instead.
+  const handleSearchKeyDown = (e) => {
+    if (e.key !== "Enter") return;
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return;
+    const matches = filteredProducts.filter(p =>
+      (p.sku || "").toLowerCase() === q || (p.barcode || "").toLowerCase() === q
+    );
+    if (matches.length === 1) onAdd(matches[0]);
+  };
+
   // Group filtered products by category (preserving first-seen order)
   const grouped = useMemo(() => {
     const order = [];
@@ -36,7 +48,9 @@ export default function POSItemList({ open, onOpenChange, filteredProducts, cate
               placeholder="Search by name or SKU…"
               value={itemSearch}
               onChange={e => setItemSearch(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
               className="pl-8 pr-8 bg-[#0a0e27] border-blue-500/10 text-white placeholder:text-blue-300/30 text-sm h-9"
+              data-softkeyboard=""
               autoFocus
             />
             {itemSearch && (
@@ -45,8 +59,8 @@ export default function POSItemList({ open, onOpenChange, filteredProducts, cate
               </button>
             )}
           </div>
-          {/* Category quick-filter pills */}
-          <div className="flex gap-1 overflow-x-auto pt-2 -mx-1 px-1">
+          {/* Category quick-filter pills — wrap so nothing clips on 12-inch displays */}
+          <div className="flex flex-wrap gap-1 pt-2 -mx-1 px-1 max-h-16 overflow-y-auto">
             {categories.map(cat => (
               <button key={cat} onClick={() => setSelectedCat(cat)}
                 className={`px-2.5 py-1 rounded-md text-[10px] font-medium whitespace-nowrap transition-colors flex-shrink-0 ${selectedCat === cat ? "bg-blue-600 text-white" : "bg-[#0a0e27] text-blue-300/50 hover:text-blue-200 border border-blue-500/10"}`}
