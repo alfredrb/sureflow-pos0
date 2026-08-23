@@ -68,6 +68,7 @@ import EmployeeTrainingCenter from '@/pages/EmployeeTrainingCenter';
 import AdminPOSFeedback from '@/pages/AdminPOSFeedback';
 import AdminTechnicalDocs from '@/pages/AdminTechnicalDocs';
 import AdminKeyboardMapper from '@/pages/AdminKeyboardMapper';
+import AdminKeyboardLabels from '@/pages/AdminKeyboardLabels';
 import AdminCheckRegister from '@/pages/AdminCheckRegister';
 import AdminCustomerService from '@/pages/AdminCustomerService';
 
@@ -152,6 +153,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/pos-feedback" element={<AdminPOSFeedback />} />
           <Route path="/admin/technical-docs" element={<AdminTechnicalDocs />} />
           <Route path="/admin/keyboard-mapper" element={<AdminKeyboardMapper />} />
+          <Route path="/admin/keyboard-labels" element={<AdminKeyboardLabels />} />
           <Route path="/admin/check-register" element={<AdminCheckRegister />} />
           <Route path="/admin/customer-service" element={<AdminCustomerService />} />
         </Route>

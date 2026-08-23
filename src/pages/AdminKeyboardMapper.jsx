@@ -3,7 +3,8 @@ import { base44 } from "@/api/data";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Keyboard, Save, AlertTriangle } from "lucide-react";
+import { Keyboard, Save, AlertTriangle, Tags } from "lucide-react";
+import { Link } from "react-router-dom";
 import KeyboardGrid from "@/components/keyboard/KeyboardGrid";
 import KeySlotEditor from "@/components/keyboard/KeySlotEditor";
 import HwdbOutput from "@/components/keyboard/HwdbOutput";
@@ -138,9 +139,14 @@ export default function AdminKeyboardMapper() {
             per keyboard model, so every register on that model picks it up on its next boot.
           </p>
         </div>
-        <Button onClick={save} disabled={saving}>
-          <Save className="mr-1 h-4 w-4" /> {saving ? "Saving…" : "Save Layout"}
-        </Button>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/admin/keyboard-labels"><Tags className="mr-1 h-4 w-4" /> Print Labels</Link>
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            <Save className="mr-1 h-4 w-4" /> {saving ? "Saving…" : "Save Layout"}
+          </Button>
+        </div>
       </div>
 
       <KeyMapperWalkthrough />

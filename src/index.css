@@ -97,6 +97,14 @@ body.pos-inline-toasts [data-toast-root] { display: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Keycap label sheet: print only the label blocks, at real keycap scale */
+@media print {
+  body * { visibility: hidden; }
+  #label-sheet, #label-sheet * { visibility: visible; }
+  #label-sheet { position: absolute; left: 0; top: 0; width: 100%; }
+  .break-after-page { break-after: page; page-break-after: always; }
+}
+
 /* Admin panel theme modes (applied to the admin content shell) */
 .theme-grayscale { filter: grayscale(100%); }
 .theme-dark { filter: invert(1) hue-rotate(180deg); }
