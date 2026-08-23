@@ -24,16 +24,6 @@ export default function POSSoftKeyboard() {
     return () => document.removeEventListener("focusin", onFocusIn, true);
   }, []);
 
-  // Radix dialogs close on any pointer-down outside their content — the keyboard
-  // is outside, so its taps must never reach the document listener.
-  useEffect(() => {
-    const el = boardRef.current;
-    if (!el) return;
-    const swallow = (e) => e.stopPropagation();
-    el.addEventListener("pointerdown", swallow, true);
-    return () => el.removeEventListener("pointerdown", swallow, true);
-  }, [target]);
-
   // Field went away with its dialog — drop the board.
   useEffect(() => {
     if (target && !document.body.contains(target)) setTarget(null);
@@ -64,7 +54,7 @@ export default function POSSoftKeyboard() {
         <button
           type="button"
           tabIndex={-1}
-          onPointerDown={e => { e.preventDefault(); setCollapsed(c => !c); }}
+          onPointerDown={e => { e.preventDefault(); e.stopPropagation(); setCollapsed(c => !c); }}
           className="mx-auto flex items-center gap-1.5 px-4 py-1 rounded-t-md bg-blue-600 text-white text-[10px] font-bold uppercase tracking-widest"
         >
           {collapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
