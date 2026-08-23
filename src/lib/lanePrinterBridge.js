@@ -146,4 +146,7 @@ export const LANE_BRIDGE_PORT_MAP = [
   { port: 9100, device: "USB receipt printer (UB-U06)", service: "sureflow-printer-bridge", transport: "socat" },
   { port: 9101, device: "USB pole display", service: "sureflow-serial-bridge", transport: "ser2net" },
   { port: 12000, device: "USB pinpad (Ingenico iSC250)", service: "sureflow-serial-bridge", transport: "ser2net" },
+  // Reserved: no lane has a USB drawer yet — the fleet's SDL drawers hang off the
+  // printer's DK port. The port is claimed here so it cannot be reused later.
+  { port: 9102, device: "USB cash drawer (reserved)", service: "sureflow-drawer-bridge", transport: "socat" },
 ];

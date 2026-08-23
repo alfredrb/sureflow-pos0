@@ -62,8 +62,17 @@ export const printReceiptViaRelay = (receipt, base = "") =>
   relayFetch("/api/print", { method: "POST", body: JSON.stringify(receipt) }, 10000, base);
 
 // Pop the cash drawer without printing (cash pickup, no-sale, till checkout).
+// This is the fleet standard: ESC p to the receipt printer, whose controller
+// fires the 24V pulse out its DK (RJ11/SDL) port.
 export const openCashDrawer = (printer_ip) =>
   relayFetch("/api/drawer", { method: "POST", body: JSON.stringify({ printer_ip }) }, 8000);
+
+// RESERVED — pop a native USB drawer bridged at the lane. The relay writes the
+// model's own open command straight to the lane's drawer bridge socket instead of
+// routing ESC p through the printer.
+// Payload: { drawer_ip, drawer_port, command_hex, transport_hint }.
+export const openUsbDrawer = (payload) =>
+  relayFetch("/api/drawer/usb", { method: "POST", body: JSON.stringify(payload) }, 8000);
 
 // Diagnostic test print from the Infrastructure Command Center.
 // station "slip" targets the front impact slot — the printer waits ~30s for a

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
@@ -12,6 +12,7 @@ import CheckReaderReference from "@/components/techdocs/CheckReaderReference";
 import CheckStationDiagnostics from "@/components/techdocs/CheckStationDiagnostics";
 import LaneSerialBridgeReference from "@/components/techdocs/LaneSerialBridgeReference";
 import LanePrinterBridgeReference from "@/components/techdocs/LanePrinterBridgeReference";
+import LaneDrawerBridgeReference from "@/components/techdocs/LaneDrawerBridgeReference";
 import CheckDualSideInvestigation from "@/components/techdocs/CheckDualSideInvestigation";
 import RelayUpdateWalkthrough from "@/components/techdocs/RelayUpdateWalkthrough";
 import ScannerSuffixReference from "@/components/techdocs/ScannerSuffixReference";
@@ -29,6 +30,7 @@ const SECTIONS = [
   { id: "poledisplay", label: "Pole Display", icon: Tv, blurb: "Customer line display: item/total mirror, amount due, change, and the relay pole module (DM-D110 via the printer)." },
   { id: "bridge", label: "Lane Serial Bridge", icon: Usb, blurb: "USB pinpads and poles published as TCP ports on the lane so the relay can drive them." },
   { id: "printerbridge", label: "USB Printer Bridge", icon: Printer, blurb: "Single-cable lane: the USB receipt printer published on the lane's IP, with the printer's Ethernet live as fallback." },
+  { id: "drawerbridge", label: "USB Drawer Bridge", icon: Archive, blurb: "Reserved contingency: a native USB cash drawer published on the lane, if the SDL drawer variant is ever discontinued." },
   { id: "scanner", label: "Barcode Scanner", icon: ScanLine, blurb: "Auto-Enter suffix programming so a scan rings the item up without a key press." },
   { id: "keyboard", label: "POS Keyboard Scan Codes", icon: BookOpen, blurb: "Official IBM GC30-3623 scan-code tables for the ANPOS keyboard family, mapped to the remapper workflow." },
   { id: "keyturnmsr", label: "Keyturn & MSR", icon: KeyRound, blurb: "The barrel lock (SOD gating, no scancode) and the magstripe reader — why neither belongs in the key remapper." },
@@ -88,6 +90,7 @@ export default function AdminTechnicalDocs() {
           {active === "check" && <CheckStationDiagnostics />}
           {active === "check" && <CheckDualSideInvestigation />}
           {active === "printerbridge" && <LanePrinterBridgeReference />}
+          {active === "drawerbridge" && <LaneDrawerBridgeReference />}
           {active === "pinpad" && <PinpadReference />}
           {active === "poledisplay" && <PoleDisplayReference />}
           {active === "bridge" && <LaneSerialBridgeReference />}

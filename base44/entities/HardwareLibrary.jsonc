@@ -21,7 +21,7 @@
         "other"
       ],
       "default": "other",
-      "description": "Class of peripheral this driver profile applies to. pinpad = customer-facing Ingenico signature / prompt device driven by the relay."
+      "description": "Class of peripheral this driver profile applies to. pinpad = customer-facing Ingenico signature / prompt device driven by the relay. cash_drawer = a drawer profile; when the drawer is fired through the printer's DK port no profile is needed, so these profiles exist for native USB drawers that need their own open command."
     },
     "vendor": {
       "type": "string",
@@ -62,6 +62,20 @@
     "pinpad_commands": {
       "type": "string",
       "description": "Command profile for this pinpad as JSON: the byte sequences / request shapes for clear screen, display text, multi-line cart display, signature capture, numeric input and the rating screen. The relay reads this instead of hard-coding one model's protocol."
+    },
+    "open_command": {
+      "type": "string",
+      "description": "Cash drawer open command as JSON (e.g. {\"open\":\"1B 70 00 19 FA\"}) or a bare hex byte string. Only used when device_type is cash_drawer and the register's drawer_transport is usb_direct \u2014 a drawer on the printer's DK port is fired by the printer's own ESC p and needs nothing here. Blank = the standard ESC p 0 25 250 pulse, which most drawers accept."
+    },
+    "drawer_transport_hint": {
+      "type": "string",
+      "enum": [
+        "",
+        "serial",
+        "hidraw"
+      ],
+      "default": "",
+      "description": "How a native USB drawer presents on the lane. serial = it appears as ttyUSB*/ttyACM* and the lane's socat drawer bridge writes to it directly. hidraw = it is a raw HID device and its open command may need an output-report prefix byte included in open_command. Blank = unknown / not a USB drawer."
     },
     "notes": {
       "type": "string",

@@ -1,27 +1,59 @@
-// Pops the cash drawer on this register's receipt printer via the Local Relay VM.
-// Silent by design: if the relay or printer is unreachable the operator opens the
+// Pops the cash drawer on this register via the Local Relay VM.
+// Silent by design: if the relay or drawer is unreachable the operator opens the
 // drawer manually — a failed kick must never block a cash flow.
+//
+// Two transports. printer_dk (the fleet standard) sends ESC p to the receipt
+// printer, whose controller fires the drawer's RJ11/SDL solenoid. usb_direct is
+// the RESERVED path for a native USB drawer bridged at the lane: the model's own
+// open command goes straight to the lane's drawer bridge socket.
 
 import { base44 } from "@/api/base44Client";
-import { openCashDrawer } from "@/lib/relayClient";
+import { openCashDrawer, openUsbDrawer } from "@/lib/relayClient";
+import { DRAWER_BRIDGE_PORT, drawerOpenHex } from "@/lib/drawerProfiles";
 
-let cachedIp;
+let cachedRegister;
 
-async function resolvePrinterIp() {
-  if (cachedIp !== undefined) return cachedIp;
+async function resolveRegister() {
+  if (cachedRegister !== undefined) return cachedRegister;
   try {
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
     const regs = await base44.entities.Register.filter({ register_id: registerId });
-    cachedIp = regs[0]?.printer_ip || "";
+    cachedRegister = regs[0] || null;
   } catch {
-    cachedIp = "";
+    cachedRegister = null;
   }
-  return cachedIp;
+  return cachedRegister;
+}
+
+// The drawer's open command lives in its HardwareLibrary profile, so a new USB
+// drawer model is a profile entry rather than a code change.
+async function resolveOpenHex(model) {
+  if (!model) return drawerOpenHex(null);
+  try {
+    const profiles = await base44.entities.HardwareLibrary.filter({ model, device_type: "cash_drawer" });
+    return drawerOpenHex(profiles[0]);
+  } catch {
+    return drawerOpenHex(null);
+  }
 }
 
 export async function kickDrawer() {
   try {
-    await openCashDrawer(await resolvePrinterIp());
+    const reg = await resolveRegister();
+
+    if (reg?.drawer_transport === "usb_direct") {
+      // Blank bridge IP = the lane's own address, matching the printer / pole /
+      // pinpad bridges.
+      await openUsbDrawer({
+        drawer_ip: reg.drawer_bridge_ip || reg.ip_address || "",
+        drawer_port: reg.drawer_bridge_port || DRAWER_BRIDGE_PORT,
+        command_hex: await resolveOpenHex(reg.drawer_model),
+        transport_hint: reg.drawer_transport_hint || "",
+      });
+      return true;
+    }
+
+    await openCashDrawer(reg?.printer_ip || "");
     return true;
   } catch (e) {
     console.warn("Cash drawer kick failed:", e.message);

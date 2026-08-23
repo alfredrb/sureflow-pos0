@@ -142,44 +142,27 @@
       "type": "string",
       "description": "Cash drawer serial number"
     },
-    "pinpad_model": {
+    "drawer_transport": {
       "type": "string",
       "enum": [
-        "",
-        "isc250",
-        "lane_7000"
+        "printer_dk",
+        "usb_direct"
       ],
-      "default": "",
-      "description": "Customer-facing Ingenico pinpad attached to this lane. Selects the command profile the relay uses to drive it: isc250 = Ingenico iSC Touch 250 (supported today, over Ethernet or USB \u2014 a USB pad is reached through the lane's serial bridge on port 12000), lane_7000 = Ingenico Lane/7000 (profile reserved for a future rollout). Blank = no pinpad on this lane, and every pinpad prompt is skipped silently."
+      "default": "printer_dk",
+      "description": "How this lane's cash drawer is fired. printer_dk = the fleet standard: the drawer hangs off the receipt printer's DK (RJ11/SDL) port and the printer's controller fires the 24V pulse when the POS sends ESC p to printer_ip \u2014 transport-agnostic, so it works with an Ethernet printer or a USB-bridged one. usb_direct = RESERVED: a native USB drawer plugged into the lane, published on the lane's drawer bridge port, driven by the drawer model's own open command. usb_direct exists so a discontinued SDL drawer can be replaced with its USB sibling without moving the whole fleet to off-brand RJ11 drawers; it requires the lane's drawer bridge in the image."
     },
-    "pinpad_ip": {
+    "drawer_bridge_ip": {
       "type": "string",
-      "description": "LAN IP the relay drives this lane's pinpad on. Ethernet pad = the pad's own IP (e.g. 192.168.1.70). USB pad = the LANE's own LAN IP, because the lane's ser2net serial bridge publishes the pad on port 12000. Drives signature capture, customer prompts, gift-card entry, the cart mirror and the rating screen."
+      "description": "Address the relay sends a USB drawer's open command to. Blank = the lane's own ip_address, matching how the USB printer, pole and pinpad bridges work. Only used when drawer_transport is usb_direct."
     },
-    "pinpad_serial": {
-      "type": "string",
-      "description": "Pinpad serial number, for the hardware audit."
+    "drawer_bridge_port": {
+      "type": "number",
+      "default": 9102,
+      "description": "TCP port the lane's USB drawer bridge listens on. Sits alongside the other lane bridges (9100 printer, 9101 pole, 12000 pinpad). Only used when drawer_transport is usb_direct."
     },
-    "pole_display_model": {
+    "drawer_model": {
       "type": "string",
-      "enum": [
-        "",
-        "epson_dmd110",
-        "ibm_4610_2x20",
-        "toshiba_4820_2x20",
-        "toshiba_usb_2x20",
-        "logic_ld9900"
-      ],
-      "default": "",
-      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile and transport the relay uses: epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer (supported today); ibm_4610_2x20 / toshiba_4820_2x20 = IBM and Toshiba 2x20 poles on the 4610/4820 RS-485 device chain, written to the printer with the pole's chain address encoded; toshiba_usb_2x20 = Toshiba 2x20 pole on a USB port, reached through the lane's ser2net serial bridge on port 9101. The three IBM/ADX profiles stay reserved until their frames are captured from a live unit with the pole capture helper. logic_ld9900 = Logic Controls LD9900 over a serial-device server (profile reserved). Blank or a reserved profile = the lane behaves as if no pole is fitted and every display update is skipped silently."
-    },
-    "pole_display_ip": {
-      "type": "string",
-      "description": "LAN IP the relay writes pole display frames to. Leave blank for the DM-D110 and the IBM / Toshiba RS-485 chain poles \u2014 they hang off the receipt printer and the relay routes through printer_ip. Set it to the LANE's own LAN IP for a USB pole (the lane's serial bridge publishes it on port 9101), or to the device's own address for a pole on a serial-device server."
-    },
-    "pole_display_serial": {
-      "type": "string",
-      "description": "Pole display serial number, for the hardware audit."
+      "description": "Native USB drawer model, matched against a HardwareLibrary cash_drawer profile to get its open command. Blank = the standard ESC p pulse. Only used when drawer_transport is usb_direct."
     },
     "terminal_model": {
       "type": "string",
@@ -218,13 +201,44 @@
       "default": "usb_hid",
       "description": "How the barcode scanner attaches to the terminal. usb_hid = keyboard-wedge (Zebra DS4308 default); rs232_serial / usb_ocia = legacy IBM interfaces requiring extra driver setup."
     },
-    "pxe_vlan": {
+    "pinpad_model": {
       "type": "string",
-      "description": "VLAN ID carrying PXE/diskless boot traffic for this terminal (isolated from general store traffic)."
+      "enum": [
+        "",
+        "isc250",
+        "lane_7000"
+      ],
+      "default": "",
+      "description": "Customer-facing Ingenico pinpad attached to this lane. Selects the command profile the relay uses to drive it: isc250 = Ingenico iSC Touch 250 (supported today, over Ethernet or USB \u2014 a USB pad is reached through the lane's serial bridge on port 12000), lane_7000 = Ingenico Lane/7000 (profile reserved for a future rollout). Blank = no pinpad on this lane, and every pinpad prompt is skipped silently."
     },
-    "backend_vlan": {
+    "pinpad_ip": {
       "type": "string",
-      "description": "VLAN ID carrying backend traffic (relay DB, sync, printing) for this terminal."
+      "description": "LAN IP the relay drives this lane's pinpad on. Ethernet pad = the pad's own IP (e.g. 192.168.1.70). USB pad = the LANE's own LAN IP, because the lane's ser2net serial bridge publishes the pad on port 12000. Drives signature capture, customer prompts, gift-card entry, the cart mirror and the rating screen."
+    },
+    "pinpad_serial": {
+      "type": "string",
+      "description": "Pinpad serial number, for the hardware audit."
+    },
+    "pole_display_model": {
+      "type": "string",
+      "enum": [
+        "",
+        "epson_dmd110",
+        "ibm_4610_2x20",
+        "toshiba_4820_2x20",
+        "toshiba_usb_2x20",
+        "logic_ld9900"
+      ],
+      "default": "",
+      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile and transport the relay uses: epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer (supported today); ibm_4610_2x20 / toshiba_4820_2x20 = IBM and Toshiba 2x20 poles on the 4610/4820 RS-485 device chain, written to the printer with the pole's chain address encoded; toshiba_usb_2x20 = Toshiba 2x20 pole on a USB port, reached through the lane's ser2net serial bridge on port 9101. The three IBM/ADX profiles stay reserved until their frames are captured from a live unit with the pole capture helper. logic_ld9900 = Logic Controls LD9900 over a serial-device server (profile reserved). Blank or a reserved profile = the lane behaves as if no pole is fitted and every display update is skipped silently."
+    },
+    "pole_display_ip": {
+      "type": "string",
+      "description": "LAN IP the relay writes pole display frames to. Leave blank for the DM-D110 and the IBM / Toshiba RS-485 chain poles \u2014 they hang off the receipt printer and the relay routes through printer_ip. Set it to the LANE's own LAN IP for a USB pole (the lane's serial bridge publishes it on port 9101), or to the device's own address for a pole on a serial-device server."
+    },
+    "pole_display_serial": {
+      "type": "string",
+      "description": "Pole display serial number, for the hardware audit."
     },
     "store_id": {
       "type": "string",
