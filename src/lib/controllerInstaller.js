@@ -10,6 +10,7 @@
 // That is why the wizard asks for two addresses rather than one.
 
 import { CONTROLLER_MENU_SCRIPT, CONTROLLER_MENU_PROFILE } from "@/lib/controllerMenu";
+import { LANE_IMAGE_BUILD_SCRIPT } from "@/lib/laneImageBuilder";
 
 // Repo the relay application is deployed from. The wizard clones its DEFAULT branch;
 // the Cloud-Pushed Updates system then reconciles the box onto the pinned release ref
@@ -46,6 +47,11 @@ export const CONTROLLER_INSTALL_STEPS = [
     step: "Let it build the controller and deploy the relay",
     detail:
       "It installs dnsmasq, nfs-kernel-server, node, git and (on an HA pair) drbd-utils + keepalived; lays down /srv/sureflow/{tftp,roots,relay}; clones the relay's default branch and runs npm install/build; writes the relay .env bound to the backend address with no inline comments; and installs the console menu. Ten to twenty minutes on a 5040 SFF.",
+  },
+  {
+    step: "Choose whether to build the lane images now",
+    detail:
+      "The wizard then offers to build the diskless lane roots: both variants, legacy only, modern only, or skip. A build is bootable end to end — Debian base, then the kiosk launcher, serial and printer bridges and lane agent, then this store's hardware profiles pulled from the cloud with the relay key. Allow 15-30 minutes PER VARIANT; it downloads a full Debian root over the backend VLAN. Skip it on a cutover night where an existing root can be rsynced from the old controller — the builder is installed either way and re-runnable from the console menu.",
   },
   {
     step: "Verify from the wizard's own summary screen",
@@ -223,6 +229,14 @@ ${CONTROLLER_MENU_PROFILE}
 SFPROFEOF
 chmod 644 /etc/profile.d/sureflow-menu.sh
 
+echo 93; echo "# Installing the lane image builder"
+# Installed unconditionally, even when the technician skips the build below — this is how
+# the fleet is patched later, from the console menu.
+cat >/usr/local/sbin/sureflow-build-lane-image <<'SFLANEIMGEOF'
+${LANE_IMAGE_BUILD_SCRIPT}
+SFLANEIMGEOF
+chmod 755 /usr/local/sbin/sureflow-build-lane-image
+
 echo 96; echo "# Enabling services"
 systemctl daemon-reload
 systemctl enable --now dnsmasq nfs-kernel-server >/dev/null 2>&1 || true
@@ -240,6 +254,35 @@ echo 100; echo "# Done"
 
 # shellcheck disable=SC1090
 . "$CONF"
+
+# --- optional: build the diskless lane images now -----------------------------
+# Deliberately OUTSIDE the gauge and deliberately optional. debootstrap pulls a full
+# Debian root per variant, so this turns a 20-minute install into an hour — worth it on a
+# new store, wrong on a cutover night where the old controller's root can just be rsynced
+# across. Skipping changes nothing else: the builder is installed either way.
+LANE_IMAGE_NOTE="\\n\\nLane images: skipped. Build them any time with 'sureflow-build-lane-image both' or Lanes > Build a lane image in the console menu."
+IMG=$(whiptail --title "Build the lane images now?" --menu \\
+"A lane image is the diskless root the terminals PXE boot. The builder makes it bootable\\nend to end: Debian base, then the kiosk / bridges / lane agent, then this store's\\nhardware profiles pulled from the cloud.\\n\\nAllow 15-30 MINUTES PER VARIANT — it downloads a full Debian root over the backend\\nVLAN. Only build the variants this store actually has.\\n\\nSkip if you are rsyncing an existing root from another controller." 22 74 4 \\
+  skip   "Skip for now (build later from the menu)" \\
+  both   "Both variants (legacy + modern)" \\
+  legacy "Legacy only — IBM SurePOS 700 class" \\
+  modern "Modern only — Elo EPS00E2 class" 3>&1 1>&2 2>&3) || IMG=skip
+
+if [ "$IMG" != "skip" ]; then
+  clear
+  echo "Building lane image(s): $IMG. This is slow — leave it running."
+  echo
+  if /usr/local/sbin/sureflow-build-lane-image "$IMG"; then
+    LANE_IMAGE_NOTE="\\n\\nLane images: built ($IMG). See /srv/sureflow/.lane-image-summary for the detail."
+  else
+    LANE_IMAGE_NOTE="\\n\\nLane images: the build reported PROBLEMS. Read /srv/sureflow/.lane-image-summary before you leave — a warning about skipped hardware profiles still leaves a bootable image, a failed debootstrap does not."
+  fi
+  echo
+  read -r -p "Press Enter for the install summary. " _
+  # shellcheck disable=SC1090
+  . "$CONF"
+fi
+
 SUMMARY=""
 for svc in dnsmasq nfs-kernel-server sureflow-relay keepalived; do
   if systemctl list-unit-files | grep -q "^\$svc"; then
@@ -251,7 +294,7 @@ CLONE_NOTE=""
 [ -f /srv/sureflow/.relay-clone-failed ] && CLONE_NOTE="\\n\\nWARNING: the relay clone failed. Check the repo URL and this box's internet route on the BACKEND VLAN, then re-run."
 
 whiptail --title "Install Summary — store $STORE_ID" --msgbox \\
-"Role: \$ROLE\\nPXE  (v40): \$PXE_IP  -> VIP \$PXE_VIP\\nBackend(v25): \$BACKEND_IP  -> VIP \$BACKEND_VIP\\nRelay ref: \${CURRENT_REF:-unknown}\$SUMMARY\\n\\nRelay health: \$HEALTH\$CLONE_NOTE\\n\\nNext: stage a lane root under /srv/sureflow/roots, then PXE boot one lane.\\n\\nSet this store's relay URL to http://\$BACKEND_VIP:3000 in the Infrastructure Command Center — the BACKEND address, never the PXE one.\\n\\nLog out and back in for the controller console menu." 22 74
+"Role: \$ROLE\\nPXE  (v40): \$PXE_IP  -> VIP \$PXE_VIP\\nBackend(v25): \$BACKEND_IP  -> VIP \$BACKEND_VIP\\nRelay ref: \${CURRENT_REF:-unknown}\$SUMMARY\\n\\nRelay health: \$HEALTH\$CLONE_NOTE\$LANE_IMAGE_NOTE\\n\\nNext: generate each lane's PXE entry on the Registers page (they are keyed to a MAC, so the builder never makes them), then PXE boot one lane.\\n\\nSet this store's relay URL to http://\$BACKEND_VIP:3000 in the Infrastructure Command Center — the BACKEND address, never the PXE one.\\n\\nLog out and back in for the controller console menu." 24 74
 `;
 
 export const CONTROLLER_INSTALL_FETCH = `# PREFERRED — the downloadable bundle (wizard + console menu + lane agent):
@@ -269,7 +312,11 @@ sudo /usr/local/sbin/sureflow-controller-install
 sudo /usr/local/sbin/sureflow-controller-install
 
 # After it finishes, the console menu is on every login (or run it directly):
-sureflow-menu`;
+sureflow-menu
+
+# Build or patch the diskless lane images at any time — same builder the wizard offers:
+sudo sureflow-build-lane-image both      # or: legacy | modern
+cat /srv/sureflow/.lane-image-summary    # what was built, and any warnings`;
 
 // Store-specific crib sheet shown next to the store picker, so a technician on site
 // is not reading values off a different store's card.

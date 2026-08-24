@@ -1,0 +1,384 @@
+// sureflow-build-lane-image — builds a FULLY BOOTABLE diskless lane root on the
+// controller itself, so a freshly installed box can PXE boot a lane end to end with no
+// manual image editing afterwards.
+//
+// Three layers, in order, and each one matters:
+//   1. BASE      debootstrap minimal Debian + the kiosk package set, initramfs for NFS root.
+//   2. FLEET     sureflow-kiosk, sureflow-boot-env, the serial + printer bridges and the
+//                lane agent. Without this layer a lane boots Debian but never opens the
+//                POS, cannot print over USB, and shows as "never seen" in the Lanes table.
+//   3. PROFILES  HardwareLibrary profiles pulled from the cloud with the store's relay API
+//                key, so this store's actual terminal families get their scancode maps and
+//                touch calibration baked in. Optional by necessity: a box with no key or no
+//                cloud route still produces a BOOTABLE image, and re-running layers the
+//                profiles in later.
+//
+// Paths are the combined installer's /srv/sureflow layout throughout — roots under
+// /srv/sureflow/roots/sureflow-<variant>, TFTP under /srv/sureflow/tftp. The older
+// /srv/nfs + /srv/tftp scheme is gone so only one layout lives on disk.
+//
+// NOT built here: per-lane pxelinux.cfg entries. Those are keyed to a MAC the controller
+// cannot know at build time and stay generated per register on the Registers page.
+
+import { SUREFLOW_KIOSK_SH, BOOT_ENV_SH, KIOSK_SERVICE } from "@/lib/pxeControllerSetup";
+import {
+  BRIDGE_UDEV_RULES,
+  BRIDGE_SER2NET_CONFIG,
+  BRIDGE_SYSTEMD_UNIT,
+} from "@/lib/laneSerialBridge";
+import {
+  PRINTER_BRIDGE_UDEV_RULES,
+  PRINTER_BRIDGE_SYSTEMD_UNIT,
+} from "@/lib/lanePrinterBridge";
+
+export const LANE_ROOTS_DIR = "/srv/sureflow/roots";
+export const LANE_TFTP_DIR = "/srv/sureflow/tftp";
+
+// Kernel/initrd only ever come from a built root, so the NFS exports are written by the
+// builder rather than the wizard — the wizard has nothing to export yet.
+const NFS_EXPORTS = `# /etc/exports — written by sureflow-build-lane-image
+# Read-only lane roots plus one writable overlay, exported to the PXE VLAN only.
+# A diskless lane has no local state, which is the whole resilience property: pulling
+# its power mid-sale costs the sale and nothing else.
+`;
+
+export const LANE_IMAGE_BUILD_SCRIPT = `#!/bin/bash
+# /usr/local/sbin/sureflow-build-lane-image
+# Builds a bootable diskless lane root: base + fleet layer + cloud hardware profiles.
+# Usage: sureflow-build-lane-image legacy|modern|both
+# Safe to re-run — that is how the fleet is patched. Lanes pick the new root up on their
+# next reboot (nightly maintenance window, or Lanes > Reboot from the console menu).
+set -uo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+[ "\$(id -u)" -eq 0 ] || { echo "Run with sudo."; exit 1; }
+
+WHICH="\${1:-}"
+case "\$WHICH" in
+  legacy|modern|both) ;;
+  *) echo "usage: sureflow-build-lane-image legacy|modern|both"; exit 1 ;;
+esac
+
+CONF=/etc/sureflow/controller.conf
+[ -r "\$CONF" ] || { echo "No \$CONF — run sureflow-controller-install first."; exit 1; }
+# shellcheck disable=SC1090
+. "\$CONF"
+
+ROOTS=${LANE_ROOTS_DIR}
+TFTP=${LANE_TFTP_DIR}
+AGENT_SRC=/srv/sureflow/lane-agent
+SUITE=bookworm
+CLOUD_SYNC_URL="\${CLOUD_SYNC_URL:-https://app.base44.com}"
+PXE_SUBNET="\${PXE_SUBNET:-10.0.40.0/24}"
+SUMMARY=/srv/sureflow/.lane-image-summary
+WARNINGS=""
+
+log() { echo "[\$(date +%H:%M:%S)] \$*"; }
+warn() { WARNINGS="\$WARNINGS
+  ! \$*"; log "WARNING: \$*"; }
+
+need() {
+  command -v "\$1" >/dev/null 2>&1 || {
+    log "Installing missing build tool: \$1"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "\$2" >/dev/null 2>&1
+  }
+}
+need debootstrap debootstrap
+need jq jq
+need curl curl
+
+# ---------------------------------------------------------------------------
+# LAYER 3 helper — pull this store's HardwareLibrary profiles from the cloud.
+# Writes nothing and returns non-zero when it cannot get them, so the caller can
+# carry on with a base+fleet image rather than aborting a 25-minute build.
+# ---------------------------------------------------------------------------
+fetch_profiles() { # fetch_profiles <variant> <outfile>
+  local variant="\$1" out="\$2" body
+  if [ -z "\${RELAY_KEY:-}" ]; then
+    warn "No relay API key in \$CONF — hardware profiles were SKIPPED for \$variant."
+    return 1
+  fi
+  body=\$(curl -s --max-time 25 -X POST "\$CLOUD_SYNC_URL/api/apps/functions/relaySync" \\
+    -H 'Content-Type: application/json' \\
+    -d "{\\"store_id\\":\\"\$STORE_ID\\",\\"api_key\\":\\"\$RELAY_KEY\\",\\"action\\":\\"hardware_profiles\\",\\"variant\\":\\"\$variant\\"}" 2>/dev/null)
+  if [ -z "\$body" ] || ! echo "\$body" | jq -e '.profiles' >/dev/null 2>&1; then
+    warn "Cloud unreachable or refused the key — hardware profiles were SKIPPED for \$variant. Re-run this build once the backend VLAN has a route."
+    return 1
+  fi
+  echo "\$body" > "\$out"
+  return 0
+}
+
+apply_profiles() { # apply_profiles <root> <variant> <profilefile>
+  local root="\$1" variant="\$2" pf="\$3" count pkgs mods rules xorg bargs
+  count=\$(jq -r '.profiles | length' "\$pf" 2>/dev/null || echo 0)
+  if [ "\$count" = "0" ]; then
+    warn "The cloud returned no hardware profiles for \$variant. Check that this store's registers have their models filled in on the Registers page."
+    return 0
+  fi
+  log "Applying \$count hardware profile(s) to the \$variant image"
+
+  # Extra Debian packages a device needs (touch calibration, input drivers).
+  pkgs=\$(jq -r '[.profiles[].packages // [] | .[]] | unique | join(" ")' "\$pf")
+  if [ -n "\$pkgs" ]; then
+    log "  packages: \$pkgs"
+    chroot "\$root" apt-get install -y --no-install-recommends \$pkgs >/dev/null 2>&1 \\
+      || warn "Some profile packages failed to install into the \$variant image: \$pkgs"
+  fi
+
+  # Kernel modules the device needs loaded (usbtouchscreen, atkbd, 8250...).
+  mods=\$(jq -r '[.profiles[].kernel_modules // [] | .[]] | unique | .[]' "\$pf")
+  if [ -n "\$mods" ]; then
+    printf '%s\\n' "\$mods" > "\$root/etc/modules-load.d/sureflow-profiles.conf"
+    log "  kernel modules: \$(echo \$mods | tr '\\n' ' ')"
+  fi
+
+  # udev / hwdb rules — scancode maps and stable device symlinks.
+  rules=\$(jq -r '[.profiles[] | select((.udev_rules // "") != "") | "# " + .model + "\\n" + .udev_rules] | join("\\n\\n")' "\$pf")
+  if [ -n "\$rules" ]; then
+    printf '%s\\n' "\$rules" > "\$root/etc/udev/rules.d/70-sureflow-profiles.rules"
+    # hwdb entries only take effect once the binary database is rebuilt.
+    chroot "\$root" systemd-hwdb update >/dev/null 2>&1 || true
+    log "  udev/hwdb rules written"
+  fi
+
+  # Xorg input snippets — the touch calibration matrix a read-only lane cannot save itself.
+  xorg=\$(jq -r '[.profiles[] | select((.xorg_config // "") != "") | "# " + .model + "\\n" + .xorg_config] | join("\\n\\n")' "\$pf")
+  if [ -n "\$xorg" ]; then
+    mkdir -p "\$root/etc/X11/xorg.conf.d"
+    printf '%s\\n' "\$xorg" > "\$root/etc/X11/xorg.conf.d/20-sureflow-profiles.conf"
+    log "  Xorg input config written"
+  fi
+
+  # Boot args cannot be baked into a root — they belong on the kernel command line, which
+  # the Registers page emits per lane. Publish them next to the kernel so the generator
+  # and the technician read the same values.
+  bargs=\$(jq -r '[.profiles[].boot_args // "" | select(. != "")] | unique | join(" ")' "\$pf")
+  if [ -n "\$bargs" ]; then
+    echo "\$bargs" > "\$TFTP/debian-\$variant/boot-args"
+    log "  boot args published: \$bargs"
+    warn "The \$variant image needs these kernel args: \$bargs — confirm the PXE entries generated on the Registers page carry them."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# LAYER 2 helper — the fleet layer. This is what turns a Debian root into a LANE.
+# ---------------------------------------------------------------------------
+apply_fleet_layer() { # apply_fleet_layer <root>
+  local root="\$1"
+
+  install -d -m 755 "\$root/usr/local/bin" "\$root/etc/systemd/system" "\$root/etc/udev/rules.d"
+
+  # The kiosk launcher and its identity shim. Between them a lane reads its register_id,
+  # store and relay address off the kernel command line and opens the POS — which is why
+  # one shared image serves every lane with no per-lane config inside it.
+  cat >"\$root/usr/local/bin/sureflow-kiosk" <<'SFKIOSK'
+${SUREFLOW_KIOSK_SH}
+SFKIOSK
+  chmod 755 "\$root/usr/local/bin/sureflow-kiosk"
+
+  cat >"\$root/usr/local/bin/sureflow-boot-env" <<'SFBOOTENV'
+${BOOT_ENV_SH}
+SFBOOTENV
+  chmod 755 "\$root/usr/local/bin/sureflow-boot-env"
+
+  cat >"\$root/etc/systemd/system/sureflow-kiosk.service" <<'SFKIOSKUNIT'
+${KIOSK_SERVICE}
+SFKIOSKUNIT
+
+  # Xorg runs as the unprivileged 'sureflow' user through startx. Without BOTH the
+  # setuid wrapper (xserver-xorg-legacy, in the package set) and this config, X can
+  # never take vt7 and the lane crash-loops to a text login.
+  install -d -m 755 "\$root/etc/X11"
+  printf 'allowed_users=anybody\\nneeds_root_rights=yes\\n' > "\$root/etc/X11/Xwrapper.config"
+
+  # Serial bridge — publishes a USB pinpad / pole display as TCP on the lane's own IP so
+  # the relay's existing socket write reaches a peripheral that has no LAN address.
+  cat >"\$root/etc/udev/rules.d/60-sureflow-serial.rules" <<'SFSERIALRULES'
+${BRIDGE_UDEV_RULES}
+SFSERIALRULES
+  cat >"\$root/etc/ser2net.yaml" <<'SFSER2NET'
+${BRIDGE_SER2NET_CONFIG}
+SFSER2NET
+  cat >"\$root/etc/systemd/system/sureflow-serial-bridge.service" <<'SFSERIALUNIT'
+${BRIDGE_SYSTEMD_UNIT}
+SFSERIALUNIT
+
+  # Printer bridge — same idea for a USB receipt printer, on the port the relay already
+  # prints to, so no relay configuration changes for a single-cable lane.
+  cat >"\$root/etc/udev/rules.d/61-sureflow-printer.rules" <<'SFPRINTRULES'
+${PRINTER_BRIDGE_UDEV_RULES}
+SFPRINTRULES
+  cat >"\$root/etc/systemd/system/sureflow-printer-bridge.service" <<'SFPRINTUNIT'
+${PRINTER_BRIDGE_SYSTEMD_UNIT}
+SFPRINTUNIT
+
+  # usblp gives the UB-U06 a character device. Minimal roots blacklist it in favour of
+  # CUPS' libusb backend, so force it back on or the printer bridge restarts forever.
+  echo usblp > "\$root/etc/modules-load.d/sureflow-usblp.conf"
+  rm -f "\$root"/etc/modprobe.d/*usblp*blacklist* 2>/dev/null
+
+  # The lane agent. Lanes sit on the isolated PXE VLAN and cannot be reached inbound, so
+  # the agent's outbound poll is the ONLY proof a lane is alive and the only way a remote
+  # reboot ever arrives. A root without it reads as "never seen" and cannot be rebooted.
+  if [ -f "\$AGENT_SRC/sureflow-lane-agent" ]; then
+    install -m 755 "\$AGENT_SRC/sureflow-lane-agent" "\$root/usr/local/bin/sureflow-lane-agent"
+    install -m 644 "\$AGENT_SRC/sureflow-lane-agent.service" "\$root/etc/systemd/system/sureflow-lane-agent.service"
+    chroot "\$root" systemctl enable sureflow-lane-agent >/dev/null 2>&1 || true
+  else
+    warn "Lane agent not found at \$AGENT_SRC — this image's lanes will show as 'never seen' and cannot be rebooted remotely. Re-run ./install from the controller tarball, then rebuild."
+  fi
+
+  chroot "\$root" systemctl enable sureflow-kiosk sureflow-serial-bridge sureflow-printer-bridge >/dev/null 2>&1 || true
+}
+
+# ---------------------------------------------------------------------------
+# LAYER 1 + orchestration
+# ---------------------------------------------------------------------------
+build_variant() {
+  local variant="\$1" root extra pf
+  root="\$ROOTS/sureflow-\$variant"
+
+  # Legacy = IBM SurePOS 700 class (fbdev, no KMS). Modern = Elo EPS00E2 class.
+  if [ "\$variant" = "legacy" ]; then extra="xserver-xorg-video-fbdev"; else extra="xserver-xorg-video-intel"; fi
+
+  log "=== Building the \$variant lane image at \$root ==="
+  if [ -d "\$root" ]; then
+    log "Existing root found — removing it so this is a clean, reproducible build."
+    rm -rf "\$root"
+  fi
+  install -d -m 755 "\$root" "\$TFTP/debian-\$variant"
+
+  log "[1/5] debootstrap \$SUITE (this is the slow part — 15 to 30 minutes)"
+  if ! debootstrap --arch=amd64 --variant=minbase "\$SUITE" "\$root" http://deb.debian.org/debian; then
+    warn "debootstrap FAILED for \$variant — no image was produced. Check this box's internet route on the BACKEND VLAN."
+    return 1
+  fi
+
+  log "[2/5] Installing the kiosk package set"
+  chroot "\$root" /bin/bash -s <<CHROOTEOF
+set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y --no-install-recommends \\
+  linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
+  xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
+  ca-certificates curl iproute2 iputils-ping sudo \\
+  evtest kbd ser2net setserial socat \\
+  plymouth plymouth-themes beep \$extra >/dev/null
+# Motherboard beeper for pre-POS boot feedback; minbase roots blacklist pcspkr.
+echo pcspkr > /etc/modules-load.d/sureflow-pcspkr.conf
+rm -f /etc/modprobe.d/*pcspkr*blacklist* 2>/dev/null || true
+# The kiosk user. Technicians log in as this account, so it needs sudo and the journal
+# groups — without them a lane cannot be diagnosed at all.
+id -u sureflow >/dev/null 2>&1 || useradd -m -s /bin/bash sureflow
+usermod -aG sudo,adm,systemd-journal,dialout,video,tty sureflow
+echo 'sureflow ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sureflow
+chmod 440 /etc/sudoers.d/sureflow
+echo 'ALL: kiosk' > /etc/sureflow-role
+CHROOTEOF
+  if [ \$? -ne 0 ]; then
+    warn "The package install failed inside the \$variant root — the image is incomplete."
+    return 1
+  fi
+
+  log "[3/5] Applying the fleet layer (kiosk, bridges, lane agent)"
+  apply_fleet_layer "\$root"
+
+  log "[4/5] Fetching this store's hardware profiles from the cloud"
+  pf=\$(mktemp)
+  if fetch_profiles "\$variant" "\$pf"; then apply_profiles "\$root" "\$variant" "\$pf"; fi
+  rm -f "\$pf"
+
+  log "[5/5] Rebuilding the initramfs for NFS root and publishing to TFTP"
+  # MODULES=most puts the NIC drivers in the initramfs; BOOT=nfs is what lets the kernel
+  # mount its root over the network at all.
+  printf 'MODULES=most\\nBOOT=nfs\\n' > "\$root/etc/initramfs-tools/conf.d/sureflow"
+  chroot "\$root" update-initramfs -u -k all >/dev/null 2>&1 || \\
+    chroot "\$root" update-initramfs -c -k all >/dev/null 2>&1 || \\
+    warn "Could not rebuild the initramfs for \$variant — the lane will not mount its NFS root."
+
+  if ! cp "\$root"/boot/vmlinuz-* "\$TFTP/debian-\$variant/vmlinuz" 2>/dev/null; then
+    warn "No kernel found in the \$variant root — nothing was published to TFTP."
+    return 1
+  fi
+  cp "\$root"/boot/initrd.img-* "\$TFTP/debian-\$variant/initrd.img" 2>/dev/null \\
+    || warn "No initrd found in the \$variant root."
+
+  log "=== \$variant image built and published to \$TFTP/debian-\$variant ==="
+  return 0
+}
+
+# --- exports: written here because only a built root is worth exporting ------
+write_exports() {
+  {
+    cat <<'SFEXPORTSHEAD'
+${NFS_EXPORTS}
+SFEXPORTSHEAD
+    for v in legacy modern; do
+      [ -d "\$ROOTS/sureflow-\$v" ] && echo "\$ROOTS/sureflow-\$v  \$PXE_SUBNET(ro,sync,no_subtree_check,no_root_squash)"
+    done
+    echo "/srv/sureflow/overlay  \$PXE_SUBNET(rw,sync,no_subtree_check,no_root_squash)"
+  } > /etc/exports
+  install -d -m 777 /srv/sureflow/overlay
+  exportfs -ra 2>/dev/null || true
+  systemctl restart nfs-kernel-server >/dev/null 2>&1 || true
+}
+
+BUILT=""
+FAILED=""
+case "\$WHICH" in
+  both)   VARIANTS="legacy modern" ;;
+  *)      VARIANTS="\$WHICH" ;;
+esac
+for v in \$VARIANTS; do
+  if build_variant "\$v"; then BUILT="\$BUILT \$v"; else FAILED="\$FAILED \$v"; fi
+done
+
+write_exports
+chown -R sureflow:sureflow /srv/sureflow 2>/dev/null || true
+
+# Remember what this box built so the menu and the wizard default to it next time.
+sed -i '/^LANE_IMAGE_VARIANT=/d' "\$CONF" 2>/dev/null
+echo "LANE_IMAGE_VARIANT=\$WHICH" >> "\$CONF"
+
+{
+  echo "Lane image build — store \${STORE_ID:-unknown} — \$(date)"
+  echo "Built:  \${BUILT:- none}"
+  [ -n "\$FAILED" ] && echo "FAILED:\$FAILED"
+  echo
+  echo "Published:"
+  for v in \$BUILT; do
+    echo "  \$TFTP/debian-\$v/vmlinuz + initrd.img"
+    [ -f "\$TFTP/debian-\$v/boot-args" ] && echo "    boot args: \$(cat "\$TFTP/debian-\$v/boot-args")"
+  done
+  if [ -n "\$WARNINGS" ]; then echo; echo "Warnings:\$WARNINGS"; fi
+  echo
+  echo "Next: generate each lane's PXE entry on the Registers page (open a register, press"
+  echo "PXE) — those are keyed to a MAC and are never built here. Then PXE boot one lane."
+} > "\$SUMMARY"
+
+# Record it centrally, best effort — a build is a fleet change and belongs in the audit trail.
+if [ -n "\${RELAY_KEY:-}" ]; then
+  curl -s --max-time 10 -X POST "\$CLOUD_SYNC_URL/api/apps/functions/relaySync" \\
+    -H 'Content-Type: application/json' \\
+    -d "{\\"store_id\\":\\"\$STORE_ID\\",\\"api_key\\":\\"\$RELAY_KEY\\",\\"action\\":\\"lanes\\",\\"op\\":\\"audit\\",\\"lane_action\\":\\"Built lane image(s):\${BUILT:- none}\\",\\"detail\\":\\"Ran sureflow-build-lane-image \$WHICH on the controller.\${FAILED:+ FAILED:\$FAILED}\\"}" >/dev/null 2>&1 || true
+fi
+
+echo
+cat "\$SUMMARY"
+[ -z "\$FAILED" ] || exit 1
+exit 0
+`;
+
+// Shown in the Technical Docs so a technician understands what the build produces before
+// spending half an hour on it.
+export const LANE_IMAGE_BUILD_NOTES = [
+  "Two variants cover the fleet: legacy for IBM SurePOS 700 class terminals (fbdev video, i8042 quirks) and modern for Elo EPS00E2 class hardware. Build only the ones the store actually has.",
+  "Budget 15 to 30 minutes per variant. debootstrap pulls a full Debian root over the BACKEND VLAN, which is the only side with an internet route — a box whose backend address is not up yet cannot build an image at all.",
+  "Re-running is how the fleet is patched. The build is destructive by design: the existing root is removed first, so every build is reproducible rather than an accumulation of hand edits. Lanes pick up the new root on their next reboot.",
+  "The cloud profile step is optional on purpose. With no relay API key or no cloud route the build still produces a bootable base + fleet image and says so on the summary; re-run once the route is up to layer the profiles in.",
+  "Hardware profiles come from this store's own registers: the models filled in on the Registers page decide which HardwareLibrary profiles are fetched. A register with blank models contributes nothing, which is the usual reason a build reports zero profiles.",
+  "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
+  "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
+];

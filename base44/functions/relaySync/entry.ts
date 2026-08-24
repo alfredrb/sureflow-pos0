@@ -27,7 +27,7 @@ export default async function (req: Request): Promise<Response> {
     const action = String(body.action || '').trim();
 
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
-    const ACTIONS = ['pull', 'push', 'update_result', 'operator_manage', 'lanes'];
+    const ACTIONS = ['pull', 'push', 'update_result', 'operator_manage', 'lanes', 'hardware_profiles'];
     if (!ACTIONS.includes(action)) {
       return Response.json({ error: `action must be one of: ${ACTIONS.join(', ')}` }, { status: 400 });
     }
@@ -256,6 +256,69 @@ export default async function (req: Request): Promise<Response> {
       }
 
       return Response.json({ error: "op must be 'list' or 'audit'" }, { status: 400 });
+    }
+
+    // ---------------- HARDWARE_PROFILES: driver profiles for a lane image build ----------------
+    // Called by sureflow-build-lane-image on the controller while it builds a diskless root.
+    // The profiles returned are decided by THIS STORE's own registers: a variant maps to a
+    // boot_profile, the registers on that profile name their hardware models, and those
+    // models are matched against the HardwareLibrary. That is what makes a built image
+    // specific to the terminals the store actually has rather than a generic superset.
+    if (action === 'hardware_profiles') {
+      const variant = String(body.variant || 'all').trim();
+      const BOOT_PROFILE: Record<string, string> = {
+        legacy: 'pxe_debian_legacy',
+        modern: 'pxe_debian_modern',
+      };
+      if (variant !== 'all' && !BOOT_PROFILE[variant]) {
+        return Response.json({ error: "variant must be 'legacy', 'modern' or 'all'" }, { status: 400 });
+      }
+
+      const registers = await db.Register.filter({ store_id: storeId });
+      const inScope =
+        variant === 'all'
+          ? registers
+          : registers.filter((r: any) => (r.boot_profile || '') === BOOT_PROFILE[variant]);
+
+      const MODEL_FIELDS = [
+        'terminal_model',
+        'keyboard_model',
+        'printer_model',
+        'scanner_model',
+        'cash_drawer_model',
+        'drawer_model',
+        'pinpad_model',
+        'pole_display_model',
+      ];
+      const models = new Set<string>();
+      for (const r of inScope) {
+        for (const f of MODEL_FIELDS) {
+          const v = String(r[f] || '').trim();
+          if (v) models.add(v);
+        }
+      }
+
+      const norm = (s: any) => String(s || '').trim().toLowerCase();
+      const wanted = new Set([...models].map(norm));
+      const library = await db.HardwareLibrary.list();
+      const matched = library.filter((p: any) => p.active !== false && wanted.has(norm(p.model)));
+
+      return Response.json({
+        ok: true,
+        variant,
+        registers_in_scope: inScope.length,
+        models: [...models],
+        profiles: matched.map((p: any) => ({
+          model: p.model,
+          device_type: p.device_type,
+          vendor: p.vendor || '',
+          packages: Array.isArray(p.packages) ? p.packages : [],
+          kernel_modules: Array.isArray(p.kernel_modules) ? p.kernel_modules : [],
+          boot_args: p.boot_args || '',
+          udev_rules: p.udev_rules || '',
+          xorg_config: p.xorg_config || '',
+        })),
+      });
     }
 
     // ---------------- PULL: send the store's catalog cache down ----------------

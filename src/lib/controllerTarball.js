@@ -8,6 +8,7 @@
 
 import { CONTROLLER_INSTALL_SCRIPT, buildStoreInstallSheet } from "@/lib/controllerInstaller";
 import { CONTROLLER_MENU_SCRIPT, CONTROLLER_MENU_PROFILE } from "@/lib/controllerMenu";
+import { LANE_IMAGE_BUILD_SCRIPT } from "@/lib/laneImageBuilder";
 import {
   LANE_REBOOT_AGENT_CODE,
   LANE_REBOOT_AGENT_UNIT,
@@ -111,6 +112,7 @@ install -d -m 755 /usr/local/sbin /usr/local/bin /etc/sureflow /srv/sureflow/lan
 install -m 755 "$HERE/sureflow-controller-install" /usr/local/sbin/sureflow-controller-install
 install -m 755 "$HERE/sureflow-menu"              /usr/local/bin/sureflow-menu
 install -m 644 "$HERE/sureflow-menu.sh"           /etc/profile.d/sureflow-menu.sh
+install -m 755 "$HERE/sureflow-build-lane-image"  /usr/local/sbin/sureflow-build-lane-image
 
 # The lane agent is NOT for this box — it is staged here so the same tarball can build a
 # lane root without a second download. See lane-agent/README-lane-agent.txt.
@@ -177,6 +179,7 @@ CONTENTS
   sureflow-controller-install    the guided wizard (installs to /usr/local/sbin)
   sureflow-menu                  the console menu (installs to /usr/local/bin)
   sureflow-menu.sh               login hook (installs to /etc/profile.d)
+  sureflow-build-lane-image      the lane image builder (installs to /usr/local/sbin)
   lane-agent/                    for the diskless lane root, NOT this box — see its README
 ${store ? "  controller.conf                pre-seeded answers for this store\n" : ""}
 ${
@@ -188,11 +191,40 @@ ${buildStoreInstallSheet(store)
   .join("\n")}
 `
     : ""
-}AFTER THE WIZARD
+}LANE IMAGES — THE WIZARD CAN BUILD THEM FOR YOU
+  Near the end the wizard asks: build the lane images now? (both / legacy / modern / skip)
+  A build is bootable end to end and needs no manual image editing afterwards:
+    1. Debian base root + the kiosk package set, initramfs set up for NFS root
+    2. the fleet layer — sureflow-kiosk, sureflow-boot-env, the serial and printer
+       bridges, and the lane agent staged from lane-agent/ in this bundle
+    3. this store's HardwareLibrary profiles, pulled from the cloud with the relay API
+       key: scancode maps, touch calibration, extra modules and packages
+
+  ALLOW 15-30 MINUTES PER VARIANT. It downloads a full Debian root over the BACKEND
+  VLAN, so that side must have an internet route. Only build the variants this store
+  actually has.
+
+  Choose 'skip' on a cutover night where an existing root can be rsynced from the old
+  controller — faster, and byte-identical to the lanes that were already working. The
+  builder is installed either way and is re-runnable at any time:
+
+    sudo sureflow-build-lane-image both       # or: legacy | modern
+    cat /srv/sureflow/.lane-image-summary     # what was built, and any warnings
+
+  or from the console menu: Lanes > Build a lane image. Re-running IS the fleet patch
+  path — the root is replaced rather than edited, so builds stay reproducible, and lanes
+  pick up the new root on their next reboot.
+
+  No relay API key yet, or no cloud route? The build still produces a BOOTABLE image and
+  says on its summary that the hardware profiles were skipped. Re-run once the route is
+  up to layer them in.
+
+AFTER THE WIZARD
   * Set this store's relay URL in the Infrastructure Command Center to the BACKEND
     address on port 3000 — never the PXE address, which the cloud cannot reach.
-  * Stage a lane root under /srv/sureflow/roots, installing the lane agent from
-    lane-agent/ into it, then PXE boot one lane.
+  * Generate each lane's PXE entry on the Registers page (open a register, press PXE).
+    These are keyed to the terminal's MAC, so the builder never creates them.
+  * PXE boot one lane and confirm it comes up as the right register.
   * Log out and back in for the console menu.
 `;
 }
@@ -208,6 +240,7 @@ export async function buildControllerTarball(store) {
     { name: `${dir}/sureflow-controller-install`, body: CONTROLLER_INSTALL_SCRIPT, mode: 0o755 },
     { name: `${dir}/sureflow-menu`, body: CONTROLLER_MENU_SCRIPT, mode: 0o755 },
     { name: `${dir}/sureflow-menu.sh`, body: CONTROLLER_MENU_PROFILE },
+    { name: `${dir}/sureflow-build-lane-image`, body: LANE_IMAGE_BUILD_SCRIPT, mode: 0o755 },
     { name: `${dir}/lane-agent/sureflow-lane-agent`, body: LANE_REBOOT_AGENT_CODE, mode: 0o755 },
     { name: `${dir}/lane-agent/sureflow-lane-agent.service`, body: LANE_REBOOT_AGENT_UNIT },
     { name: `${dir}/lane-agent/README-lane-agent.txt`, body: LANE_AGENT_README },

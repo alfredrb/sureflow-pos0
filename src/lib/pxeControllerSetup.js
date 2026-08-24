@@ -18,7 +18,7 @@ dhcp-option=option:dns-server,10.0.40.10
 
 # TFTP root holding pxelinux + the kernels/initrds
 enable-tftp
-tftp-root=/srv/tftp
+tftp-root=/srv/sureflow/tftp
 dhcp-boot=pxelinux.0
 
 # Per-terminal reservations are appended by the Registers page PXE generator:
@@ -27,9 +27,9 @@ dhcp-boot=pxelinux.0
 
 const NFS_EXPORTS = `# /etc/exports — read-only roots, per-terminal writable overlay
 # Exported to the PXE boot VLAN 40 subnet only.
-/srv/nfs/sureflow-legacy  10.0.40.0/24(ro,sync,no_subtree_check,no_root_squash)
-/srv/nfs/sureflow-modern  10.0.40.0/24(ro,sync,no_subtree_check,no_root_squash)
-/srv/nfs/overlay          10.0.40.0/24(rw,sync,no_subtree_check,no_root_squash)
+/srv/sureflow/roots/sureflow-legacy  10.0.40.0/24(ro,sync,no_subtree_check,no_root_squash)
+/srv/sureflow/roots/sureflow-modern  10.0.40.0/24(ro,sync,no_subtree_check,no_root_squash)
+/srv/sureflow/overlay          10.0.40.0/24(rw,sync,no_subtree_check,no_root_squash)
 `;
 
 const BUILD_IMAGE_SH = `#!/bin/bash
@@ -38,7 +38,7 @@ const BUILD_IMAGE_SH = `#!/bin/bash
 # Usage: sureflow-build-image legacy|modern
 set -e
 VARIANT="\${1:?usage: sureflow-build-image legacy|modern}"
-ROOT="/srv/nfs/sureflow-\$VARIANT"
+ROOT="/srv/sureflow/roots/sureflow-\$VARIANT"
 SUITE="bookworm"
 
 # Legacy (SurePOS 700 class) keeps the older i8042/no-KMS friendly package set.
@@ -92,13 +92,13 @@ chroot "\$ROOT" /bin/bash -eux <<CHROOT
 CHROOT
 
 # Publish kernel + initrd into the TFTP tree the boot entries point at.
-install -d /srv/tftp/debian-\$VARIANT
-cp "\$ROOT"/boot/vmlinuz-* /srv/tftp/debian-\$VARIANT/vmlinuz
-cp "\$ROOT"/boot/initrd.img-* /srv/tftp/debian-\$VARIANT/initrd.img
+install -d /srv/sureflow/tftp/debian-\$VARIANT
+cp "\$ROOT"/boot/vmlinuz-* /srv/sureflow/tftp/debian-\$VARIANT/vmlinuz
+cp "\$ROOT"/boot/initrd.img-* /srv/sureflow/tftp/debian-\$VARIANT/initrd.img
 echo "Built \$VARIANT image and published boot files."
 `;
 
-const KIOSK_SERVICE = `# \${ROOT}/etc/systemd/system/sureflow-kiosk.service
+export const KIOSK_SERVICE = `# \${ROOT}/etc/systemd/system/sureflow-kiosk.service
 # Reads the sureflow.* kernel args the PXE entry passes in (register_id, store_id,
 # relay URL) and opens the POS against this store's relay.
 [Unit]
@@ -123,7 +123,7 @@ StartLimitIntervalSec=0
 WantedBy=multi-user.target
 `;
 
-const BOOT_ENV_SH = `#!/bin/bash
+export const BOOT_ENV_SH = `#!/bin/bash
 # /usr/local/bin/sureflow-boot-env (inside the image)
 # Turns the PXE APPEND args into an env file the kiosk reads.
 set -e
@@ -140,7 +140,7 @@ done
 cat "\$OUT"
 `;
 
-const SUREFLOW_KIOSK_SH = `#!/bin/bash
+export const SUREFLOW_KIOSK_SH = `#!/bin/bash
 # /usr/local/bin/sureflow-kiosk (inside the image)
 # Launched by startx from sureflow-kiosk.service. Opens the POS LOGIN screen with
 # this lane's register_id on the URL, so the login screen selects its own register
@@ -269,9 +269,9 @@ const LANE_PRINTER_BRIDGE_STEP = {
     "The drawer kick (ESC p) and cheque endorsement (FS a family) are executed by the printer's own controller, so both are transport-agnostic and need no bridge-specific work.",
   ],
   commands: [
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends socat usbutils; done",
-    "# Force usblp on so the UB-U06 gets a character device\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V /bin/bash -c 'echo usblp > /etc/modules-load.d/sureflow-usblp.conf; rm -f /etc/modprobe.d/*usblp*blacklist* 2>/dev/null || true'; done",
-    "# Drop the udev rule and unit into both images, then enable\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V systemctl enable sureflow-printer-bridge; done",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V apt-get install -y --no-install-recommends socat usbutils; done",
+    "# Force usblp on so the UB-U06 gets a character device\nfor V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V /bin/bash -c 'echo usblp > /etc/modules-load.d/sureflow-usblp.conf; rm -f /etc/modprobe.d/*usblp*blacklist* 2>/dev/null || true'; done",
+    "# Drop the udev rule and unit into both images, then enable\nfor V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V systemctl enable sureflow-printer-bridge; done",
     `# On a booted lane — prove the device and the listener\nlsusb | grep -i epson\nls -l /dev/usb/lp0 /dev/sureflow-printer\nss -lntp | grep ${PRINTER_BRIDGE_PORT}`,
     `# From the relay VM — prove the RETURN direction (paper status)\nprintf '\\x10\\x04\\x01' | nc -w2 <lane_ip> ${PRINTER_BRIDGE_PORT} | od -c`,
   ],
@@ -293,8 +293,8 @@ const LANE_SERIAL_BRIDGE_STEP = {
     "Baud matters: the pinpad runs 115200 8N1 and most 2×20 poles run 9600 8N1. A wrong baud shows garbage glyphs rather than silence.",
   ],
   commands: [
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends ser2net setserial; done",
-    "# Drop the udev rules, ser2net config and unit into both images, then enable\nfor V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V systemctl enable sureflow-serial-bridge; done",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V apt-get install -y --no-install-recommends ser2net setserial; done",
+    "# Drop the udev rules, ser2net config and unit into both images, then enable\nfor V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V systemctl enable sureflow-serial-bridge; done",
     `# On a booted lane — prove the bridge is listening\nls -l /dev/sureflow-pinpad /dev/sureflow-pole\nss -lntp | grep -E '${BRIDGE_PORTS.pinpad}|${BRIDGE_PORTS.pole}'`,
     `# From the relay VM — prove the path\nprintf '' | nc -w2 <lane_ip> ${BRIDGE_PORTS.pinpad}`,
   ],
@@ -343,7 +343,7 @@ export const PXE_CONTROLLER_STEPS = [
       "Per-terminal boot entries and DHCP reservations are generated on the Registers page: open a register, press PXE, and paste each block into the paths shown.",
     ],
     commands: [
-      "sudo install -d /srv/tftp/pxelinux.cfg\nsudo cp /usr/lib/PXELINUX/pxelinux.0 /srv/tftp/\nsudo cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32,libutil.c32,menu.c32} /srv/tftp/",
+      "sudo install -d /srv/sureflow/tftp/pxelinux.cfg\nsudo cp /usr/lib/PXELINUX/pxelinux.0 /srv/sureflow/tftp/\nsudo cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32,libutil.c32,menu.c32} /srv/sureflow/tftp/",
       "sudo systemctl restart dnsmasq && sudo systemctl enable dnsmasq\njournalctl -u dnsmasq -n 30   # watch for DHCPDISCOVER from a booting lane",
     ],
     codeFiles: [{ name: "sureflow-pxe.conf", code: DNSMASQ_CONF }],
@@ -352,15 +352,17 @@ export const PXE_CONTROLLER_STEPS = [
     step_id: "pxe_build_images",
     label: "Build the diskless Debian images (legacy + modern)",
     instructions: [
+      "PREFERRED: the controller installer now does this for you. sureflow-build-lane-image builds the base root, layers in the kiosk / bridges / lane agent AND pulls this store's hardware profiles from the cloud — run it from the wizard's prompt or Lanes > Build a lane image in the console menu. The manual steps below remain the fallback and the explanation of what that builder does.",
       "Two images cover the fleet: legacy for IBM SurePOS 700 class terminals (nomodeset, i8042 quirks, fbdev video) and modern for Elo EPS00E2 class hardware.",
       "Each is a minimal debootstrap root served read-only over NFS, so a terminal has no local state to corrupt — the 4690 resilience property.",
       "Run the builder once per variant. It also publishes each image's kernel and initrd into the TFTP tree at the paths the generated boot entries reference.",
       "Rebuild an image to patch the fleet; terminals pick up the change on their next reboot.",
     ],
     commands: [
-      "sudo install -m 755 /dev/stdin /usr/local/sbin/sureflow-build-image  # paste the script below",
+      "# PREFERRED — the automated builder installed by the wizard\nsudo sureflow-build-lane-image both",
+      "# FALLBACK — the base-root-only script, for a box building an image by hand\nsudo install -m 755 /dev/stdin /usr/local/sbin/sureflow-build-image  # paste the script below",
       "sudo sureflow-build-image legacy\nsudo sureflow-build-image modern",
-      "sudo install -d /srv/nfs/overlay\nsudo systemctl restart nfs-server && sudo exportfs -ra\nsudo exportfs -v   # confirm both roots are exported",
+      "sudo install -d /srv/sureflow/overlay\nsudo systemctl restart nfs-server && sudo exportfs -ra\nsudo exportfs -v   # confirm both roots are exported",
     ],
     codeFiles: [
       { name: "sureflow-build-image", code: BUILD_IMAGE_SH },
@@ -379,9 +381,9 @@ export const PXE_CONTROLLER_STEPS = [
       "Peripheral rules (IBM 3AA01194300 hwdb scancodes, RS-232 / USB-OCIA scanner symlinks) are generated per register on the Registers page — install them into the image, then run systemd-hwdb update && udevadm trigger inside the chroot.",
     ],
     commands: [
-      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-boot-env  # paste below, repeat for -legacy",
-      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-kiosk     # paste below, repeat for -legacy",
-      "sudo chroot /srv/nfs/sureflow-modern systemctl enable sureflow-kiosk",
+      "sudo install -m 755 /dev/stdin /srv/sureflow/roots/sureflow-modern/usr/local/bin/sureflow-boot-env  # paste below, repeat for -legacy",
+      "sudo install -m 755 /dev/stdin /srv/sureflow/roots/sureflow-modern/usr/local/bin/sureflow-kiosk     # paste below, repeat for -legacy",
+      "sudo chroot /srv/sureflow/roots/sureflow-modern systemctl enable sureflow-kiosk",
     ],
     codeFiles: [
       { name: "sureflow-boot-env", code: BOOT_ENV_SH },
@@ -400,9 +402,9 @@ export const PXE_CONTROLLER_STEPS = [
       "Keep every module, boot arg and rule in the Hardware Driver Library rather than hand-editing the image — the builder reads those profiles so a rebuild never loses a quirk.",
     ],
     commands: [
-      "sudo chroot /srv/nfs/sureflow-modern apt-get install -y --no-install-recommends xserver-xorg-input-evdev xinput-calibrator xinput inputattach",
+      "sudo chroot /srv/sureflow/roots/sureflow-modern apt-get install -y --no-install-recommends xserver-xorg-input-evdev xinput-calibrator xinput inputattach",
       "# One-time calibration on a lane, then copy the matrix into the driver profile\nDISPLAY=:0 xinput_calibrator --output-type xorg.conf.d",
-      "sudo chroot /srv/nfs/sureflow-legacy /bin/bash -c 'echo -e \"usbtouchscreen\\natkbd\\n8250\" > /etc/modules-load.d/sureflow-ibm.conf'",
+      "sudo chroot /srv/sureflow/roots/sureflow-legacy /bin/bash -c 'echo -e \"usbtouchscreen\\natkbd\\n8250\" > /etc/modules-load.d/sureflow-ibm.conf'",
       "sudo sureflow-build-image legacy && sudo sureflow-build-image modern   # rebuild so the profiles land in the image",
     ],
     codeFiles: [{ name: "10-ibm-surepoint.conf", code: IBM_PERIPHERALS }],
@@ -421,7 +423,7 @@ export const PXE_CONTROLLER_STEPS = [
     ],
     commands: [
       "sudo apt install -y keepalived && sudo systemctl enable --now keepalived",
-      "# On controller A: push the boot payload to B over the backend VLAN (cron nightly)\nrsync -aHAX --delete /srv/nfs/ 10.0.25.11:/srv/nfs/\nrsync -aHAX --delete /srv/tftp/ 10.0.25.11:/srv/tftp/",
+      "# On controller A: push the boot payload to B over the backend VLAN (cron nightly)\nrsync -aHAX --delete /srv/sureflow/roots/ 10.0.25.11:/srv/sureflow/roots/\nrsync -aHAX --delete /srv/sureflow/tftp/ 10.0.25.11:/srv/sureflow/tftp/",
       "ip -br addr show vmbr0.40   # the PXE virtual IP appears on whichever node is MASTER",
     ],
     codeFiles: [{ name: "keepalived.conf", code: KEEPALIVED_CONF }],
@@ -446,13 +448,13 @@ export const PXE_CONTROLLER_STEPS = [
       "ls -l /usr/lib/xorg/Xorg.wrap               # missing = xserver-xorg-legacy is not installed",
       "grep ' / ' /proc/mounts                     # the root must NOT be mounted nosuid",
       "# On the CONTROLLER — install the setuid wrapper that reads Xwrapper.config",
-      "for V in legacy modern; do [ -d /srv/nfs/sureflow-$V ] && sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends xserver-xorg-legacy; done",
-      "ls -l /srv/nfs/sureflow-legacy/usr/lib/xorg/Xorg.wrap   # expect -rwsr-sr-x (setuid root)",
+      "for V in legacy modern; do [ -d /srv/sureflow/roots/sureflow-$V ] && sudo chroot /srv/sureflow/roots/sureflow-$V apt-get install -y --no-install-recommends xserver-xorg-legacy; done",
+      "ls -l /srv/sureflow/roots/sureflow-legacy/usr/lib/xorg/Xorg.wrap   # expect -rwsr-sr-x (setuid root)",
       "# On the CONTROLLER — grant Xorg the VT in both images",
-      "for V in legacy modern; do sudo tee /srv/nfs/sureflow-$V/etc/X11/Xwrapper.config > /dev/null <<'EOF'\nallowed_users=anybody\nneeds_root_rights=yes\nEOF\ndone",
+      "for V in legacy modern; do sudo tee /srv/sureflow/roots/sureflow-$V/etc/X11/Xwrapper.config > /dev/null <<'EOF'\nallowed_users=anybody\nneeds_root_rights=yes\nEOF\ndone",
       "# Add the missing network diagnostic tools to the existing images",
-      "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends iproute2 iputils-ping; done",
-      "grep -r . /srv/nfs/sureflow-legacy/etc/X11/Xwrapper.config   # verify before rebooting",
+      "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V apt-get install -y --no-install-recommends iproute2 iputils-ping; done",
+      "grep -r . /srv/sureflow/roots/sureflow-legacy/etc/X11/Xwrapper.config   # verify before rebooting",
     ],
     postInstructions: [
       "Reboot the lane. It should go straight from the boot messages into the POS with no console login in between.",
@@ -474,10 +476,10 @@ export const PXE_CONTROLLER_STEPS = [
     ],
     commands: [
       "# On the CONTROLLER — refresh the kiosk launcher in both images",
-      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-legacy/usr/local/bin/sureflow-kiosk   # paste the current script",
-      "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-kiosk",
+      "sudo install -m 755 /dev/stdin /srv/sureflow/roots/sureflow-legacy/usr/local/bin/sureflow-kiosk   # paste the current script",
+      "sudo install -m 755 /dev/stdin /srv/sureflow/roots/sureflow-modern/usr/local/bin/sureflow-kiosk",
       "# Confirm the boot entry actually carries the relay",
-      "grep -o 'sureflow.relay=[^ ]*' /srv/tftp/pxelinux.cfg/01-*",
+      "grep -o 'sureflow.relay=[^ ]*' /srv/sureflow/tftp/pxelinux.cfg/01-*",
       "# On the LANE after rebooting — both values must be present",
       "grep -o 'sureflow\\.[a-z_]*=[^ ]*' /proc/cmdline",
       "# Prove the relay itself answers from the lane",

@@ -215,22 +215,54 @@ lane_rebuild_image() {
   msg "\$out\\n\\nNow reboot the lanes (Lanes > Reboot all lanes) so they boot the new root."
 }
 
+# Builds the diskless root from scratch: Debian base, the fleet layer (kiosk, bridges,
+# lane agent) and this store's hardware profiles from the cloud. This is the FLEET PATCH
+# path — re-running is expected. Republish above only moves an already-built root's kernel
+# into the TFTP tree; it cannot change what is inside the root.
+lane_build_image() {
+  local which
+  [ -x /usr/local/sbin/sureflow-build-lane-image ] || {
+    msg "The lane image builder is not installed on this box.\\n\\nRe-run the installer (main menu > Re-run the installer) to lay it down, then come back."
+    return
+  }
+  which=$(whiptail --title "Build a lane image" --menu \\
+"Which variant?\\n\\nAllow 15-30 MINUTES PER VARIANT — it downloads a full Debian root over the backend\\nVLAN. The existing root is REPLACED, so every build is reproducible rather than a pile\\nof hand edits.\\n\\nLanes keep running on the old root until they reboot." 20 74 4 \\
+    both   "Both variants (legacy + modern)" \\
+    legacy "Legacy only — IBM SurePOS 700 class" \\
+    modern "Modern only — Elo EPS00E2 class" \\
+    back   "Back" 3>&1 1>&2 2>&3) || return
+  [ "\$which" = "back" ] && return
+
+  whiptail --title "Confirm build" --yesno \\
+    "Rebuild the \$which lane image(s) for store \$STORE_ID now?\\n\\nRunning lanes are NOT touched — they pick the new root up on their next reboot, either\\nfrom the nightly maintenance window or Lanes > Reboot here." 13 74 || return
+
+  clear
+  echo "Building \$which. Leave this running; progress prints as it goes."
+  echo
+  /usr/local/sbin/sureflow-build-lane-image "\$which"
+  echo
+  read -r -p "Press Enter to return to the menu. " _
+  # The builder writes its own summary and files its own audit entry.
+  [ -f /srv/sureflow/.lane-image-summary ] && msg "\$(cat /srv/sureflow/.lane-image-summary)"
+}
+
 lane_ssh_note() {
   msg "SSH to a lane is not possible — by design.\\n\\nLanes sit on the ISOLATED PXE VLAN (40). The controller NATs them outbound only:\\n  * nothing on the backend VLAN can open a connection INTO a lane — no SSH, no HTTP;\\n  * the relay sees the CONTROLLER's address as the source of every lane request, so a\\n    lane's real IP is never known to it.\\nThis is what keeps the lane network unreachable from the rest of the store.\\n\\nWhat to use instead:\\n  * Lanes table here — the agent's last poll tells you if a lane is alive.\\n  * On the lane itself: curl http://127.0.0.1:3099/health (loopback only).\\n  * Remote action: queue a reboot; the lane's agent collects it outbound.\\n  * Anything deeper needs the physical lane, or a change to the VLAN design."
 }
 
 lanes_menu() {
   while true; do
-    CHOICE=$(whiptail --title "Lanes — store \$STORE_ID" --menu "" 18 74 6 \\
+    CHOICE=$(whiptail --title "Lanes — store \$STORE_ID" --menu "" 19 74 7 \\
       list    "Lane status table" \\
       reboot  "Reboot one lane" \\
       all     "Reboot all lanes (batched)" \\
-      image   "Republish the lane image" \\
+      build   "Build a lane image (full rebuild)" \\
+      image   "Republish the lane image (kernel only)" \\
       ssh     "SSH to a lane?" \\
       back    "Back" 3>&1 1>&2 2>&3) || return
     case "\$CHOICE" in
       list) lane_list ;; reboot) lane_reboot_one ;; all) lane_reboot_all ;;
-      image) lane_rebuild_image ;; ssh) lane_ssh_note ;; back) return ;;
+      build) lane_build_image ;; image) lane_rebuild_image ;; ssh) lane_ssh_note ;; back) return ;;
     esac
   done
 }
@@ -320,7 +352,12 @@ export const CONTROLLER_MENU_ITEMS = [
   {
     item: "Manage lanes",
     detail:
-      "A status table merging three sources that each know only part of the answer: the cloud lists which registers the store has, the relay reports which lane agents have actually polled in (the only proof a lane is alive), and dnsmasq shows which MACs hold a PXE lease. From there: reboot one lane, reboot all in batches, or republish the lane image. SSH is a deliberate dead end and the menu explains why rather than offering an option that times out.",
+      "A status table merging three sources that each know only part of the answer: the cloud lists which registers the store has, the relay reports which lane agents have actually polled in (the only proof a lane is alive), and dnsmasq shows which MACs hold a PXE lease. From there: reboot one lane, reboot all in batches, build a lane image from scratch, or republish an already-built root's kernel. SSH is a deliberate dead end and the menu explains why rather than offering an option that times out.",
+  },
+  {
+    item: "Build a lane image",
+    detail:
+      "The fleet patch path, and the same builder the installer offers. Rebuilds the diskless root end to end — Debian base, the kiosk launcher and serial / printer bridges and lane agent, then this store's HardwareLibrary profiles pulled from the cloud with the relay API key. Re-running is expected and the root is replaced rather than edited, so a build is always reproducible. Running lanes are untouched; they pick the new root up on their next reboot. A box with no cloud route still gets a bootable image and says on the summary that the hardware profiles were skipped.",
   },
   {
     item: "Manage operators",

@@ -4,6 +4,7 @@ import { Wand2, Store as StoreIcon, AlertTriangle } from "lucide-react";
 import CodeBlock from "@/components/techdocs/CodeBlock";
 import StepList from "@/components/techdocs/StepList";
 import TarballDownloadCard from "@/components/techdocs/TarballDownloadCard";
+import LaneImageBuildCard from "@/components/techdocs/LaneImageBuildCard";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   CONTROLLER_INSTALL_STEPS,
@@ -66,9 +67,10 @@ export default function ControllerInstallerReference() {
           It now deploys the relay itself — cloning the repo's default branch into{" "}
           <span className="font-mono">/srv/sureflow/relay</span>, building it, and stamping the checked-out ref so the
           Cloud-Pushed Updates system reconciles the box onto the pinned release on the store's first maintenance
-          window. Still outstanding after a run: staging a lane root under{" "}
-          <span className="font-mono">/srv/sureflow/roots</span> and bringing up DRBD replication on an HA pair. The
-          summary screen tells you which.
+          window. It can now also build the diskless lane roots under{" "}
+          <span className="font-mono">/srv/sureflow/roots</span> — optionally, because a build costs 15 to 30 minutes per
+          variant. Still outstanding after a run: the per-lane PXE entries, which are keyed to each terminal's MAC and
+          are generated on the Registers page, and DRBD replication on an HA pair. The summary screen tells you which.
         </p>
       </div>
 
@@ -107,6 +109,8 @@ export default function ControllerInstallerReference() {
       </div>
 
       <StepList title="Build sequence" icon={Wand2} steps={CONTROLLER_INSTALL_STEPS} />
+
+      <LaneImageBuildCard />
 
       <CodeBlock
         title="Getting the wizard onto the box"
