@@ -35,10 +35,17 @@ export function usePosLunchState(operator, currentTime) {
       const [eh, em] = todayShift.lunch_end.split(":").map(Number);
       lunchEnd = new Date(now); lunchEnd.setHours(eh, em, 0, 0);
     }
+    // Clean slate: lunch enforcement only applies while the operator is actually
+    // on the clock. An entry closed by the auto clock-out sweep (or any close)
+    // leaves no active entry, so no stale "Lunch Break Overdue" lockout.
+    const clockedIn = !!activeEntry;
+    // A fresh clock-in made after the scheduled lunch time (e.g. following an
+    // auto clock-out) starts clean — that entry never owed this lunch window.
+    const startedAfterLunch = clockedIn && activeEntry.clock_in && new Date(activeEntry.clock_in) >= lunchStart;
     const onLunch = activeEntry?.status === "on_meal";
     const lunchTaken = !!(activeEntry?.meal_start && activeEntry?.meal_end);
-    const upcoming = !onLunch && !lunchTaken && now >= new Date(lunchStart.getTime() - 30 * 60000) && now < lunchStart;
-    const past = !onLunch && !lunchTaken && now >= lunchStart;
+    const upcoming = clockedIn && !onLunch && !lunchTaken && now >= new Date(lunchStart.getTime() - 30 * 60000) && now < lunchStart;
+    const past = clockedIn && !startedAfterLunch && !onLunch && !lunchTaken && now >= lunchStart;
     return { lunchStart, lunchEnd, onLunch, lunchTaken, upcoming, past };
   })();
 

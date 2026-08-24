@@ -279,7 +279,10 @@ export default function POSLogin() {
           const [lh, lm] = todayShift.lunch_start.split(":").map(Number);
           const lunchStart = new Date(); lunchStart.setHours(lh, lm, 0, 0);
           const lunchTaken = !!(activeEntry.meal_start && activeEntry.meal_end);
-          if (!lunchTaken && new Date() >= lunchStart) {
+          // Clean slate: an entry that started after the scheduled lunch time
+          // (fresh clock-in following an auto clock-out) isn't lunch-overdue.
+          const clockedInAfterLunch = activeEntry.clock_in && new Date(activeEntry.clock_in) >= lunchStart;
+          if (!lunchTaken && !clockedInAfterLunch && new Date() >= lunchStart) {
             setLunchLockout({ operator: op, shift: todayShift });
             setOverrideId(""); setOverridePin(""); setOverrideError("");
             setLoading(false);
