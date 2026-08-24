@@ -1,0 +1,113 @@
+{
+  "name": "TechDocument",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "What the document is, as a technician would search for it (e.g. 'IBM GC30-3623 ANPOS Keyboard Scan Codes')."
+    },
+    "doc_type": {
+      "type": "string",
+      "enum": [
+        "pdf",
+        "manual",
+        "spec_sheet",
+        "vendor_link",
+        "firmware",
+        "driver",
+        "internal_note",
+        "other"
+      ],
+      "default": "pdf",
+      "description": "pdf / manual / spec_sheet = an uploaded file. vendor_link = an external page kept as a source of truth. firmware / driver = a downloadable payload for a device. internal_note = something written here rather than sourced."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "terminal",
+        "keyboard",
+        "printer",
+        "scanner",
+        "pinpad",
+        "pole_display",
+        "cash_drawer",
+        "controller",
+        "network",
+        "os",
+        "other"
+      ],
+      "default": "other",
+      "description": "Which part of the estate this document belongs to. Drives the filter tabs in the document library."
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Manufacturer or publisher (IBM, Toshiba, Epson, Zebra, Ingenico, Dell, Debian)."
+    },
+    "device_models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Hardware models this document covers, matching the model strings used on register hardware profiles (e.g. 'IBM 4820', 'Epson TM-H6000V'). Lets a technician find every document for the box in front of them."
+    },
+    "file_url": {
+      "type": "string",
+      "description": "Uploaded file URL. Set for pdf / manual / spec_sheet / firmware / driver."
+    },
+    "source_url": {
+      "type": "string",
+      "description": "Where it came from \u2014 the vendor's page, a support article, an archive link. Kept even for uploaded files so the original can be re-fetched if a newer revision appears."
+    },
+    "doc_number": {
+      "type": "string",
+      "description": "Publisher's document or part number (e.g. GC30-3623, 3AA01194300). Often the fastest way to find the right revision."
+    },
+    "revision": {
+      "type": "string",
+      "description": "Edition / revision / date of this copy, so a superseded manual is obvious."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Why this document is kept and which pages matter \u2014 the difference between an archive and a useful reference."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Free-form search terms (scancode, MICR, DRBD, PXE, calibration)."
+    },
+    "archived": {
+      "type": "boolean",
+      "default": false,
+      "description": "Superseded documents are archived rather than deleted, so a lane still running old firmware can still be supported."
+    },
+    "added_by": {
+      "type": "string",
+      "description": "Admin who added the document."
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
