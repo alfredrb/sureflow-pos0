@@ -127,6 +127,12 @@ export const SECTION_GROUPS = [
         keywords: "pole display line display dm-d110 2x20 rs485 4610 4820 9101 frame capture",
       },
       {
+        id: "bootstatus",
+        label: "Boot Status Codes",
+        blurb: "Boot-stage codes written to the lane's pole display — read where a lane stopped off the glass.",
+        keywords: "boot status code pole diagnostic b10 b30 e01 e02 black screen initramfs stage stuck 4690 numeric code splash beep",
+      },
+      {
         id: "bridge",
         label: "Lane Serial Bridge",
         blurb: "USB pinpads and poles published as TCP ports on the lane.",
