@@ -16,11 +16,17 @@ import { LANE_IMAGE_BUILD_SCRIPT } from "@/lib/laneImageBuilder";
 // the Cloud-Pushed Updates system then reconciles the box onto the pinned release ref
 // on the store's first maintenance window.
 //
+// The URL lives in relayRepoConfig so the installer, the repo publisher and the admin
+// panel can never disagree about where the relay comes from.
+//
 // FUTURE HOOK (deliberately not built yet): the wizard could instead read the store's
 // assigned RelayUpdateAssignment.git_ref from the relaySync pull response's
 // pending_update and check that out directly, so a fresh box lands on the intended
 // release with no one-night reconciliation lag. relaySync already returns it.
-export const RELAY_REPO_URL = "https://github.com/your-org/sureflow-store-controller.git";
+// Imported (not just re-exported) because CONTROLLER_INSTALL_SCRIPT interpolates it
+// below — a bare `export ... from` creates no local binding.
+import { RELAY_REPO_URL } from "@/lib/relayRepoConfig";
+export { RELAY_REPO_URL };
 
 export const CONTROLLER_INSTALL_STEPS = [
   {

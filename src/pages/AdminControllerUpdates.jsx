@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { logAuditEvent } from "@/lib/auditLogger";
 import ReleaseForm from "@/components/updates/ReleaseForm";
 import ReleaseCard from "@/components/updates/ReleaseCard";
+import RelayRepoPanel from "@/components/relayrepo/RelayRepoPanel";
 
 export default function AdminControllerUpdates() {
   const [releases, setReleases] = useState([]);
@@ -140,6 +141,8 @@ export default function AdminControllerUpdates() {
         </div>
         <Button variant="outline" onClick={load}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
       </div>
+
+      <RelayRepoPanel />
 
       <ReleaseForm stores={stores} onSubmit={handleSubmit} submitting={busy} />
 
