@@ -7,6 +7,31 @@
         "admin",
         "user"
       ]
+    },
+    "admin_role": {
+      "type": "string",
+      "enum": [
+        "none",
+        "hq_admin",
+        "store_manager",
+        "csm",
+        "lp",
+        "technician",
+        "vendor"
+      ],
+      "description": "Admin-panel role mirrored from this person's Operator record. Row-level security can only read the signed-in account, never the POS operator held in the admin session, so the scope has to live here for store isolation to be enforceable. hq_admin bypasses store scoping."
+    },
+    "home_store_id": {
+      "type": "string",
+      "description": "Store number this account's data access is anchored to, mirrored from the Operator's home_store_id. Also set on the per-store 'registers' login accounts so a lane can only touch its own store's records."
+    },
+    "serviced_store_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Store numbers this account may reach beyond its home store, mirrored from the Operator's serviced_store_ids. Used for technicians who cover a cluster of stores."
     }
   },
   "required": [
