@@ -27,8 +27,9 @@ export default async function (req: Request): Promise<Response> {
     const action = String(body.action || '').trim();
 
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
-    if (action !== 'pull' && action !== 'push' && action !== 'update_result') {
-      return Response.json({ error: "action must be 'pull', 'push' or 'update_result'" }, { status: 400 });
+    const ACTIONS = ['pull', 'push', 'update_result', 'operator_manage'];
+    if (!ACTIONS.includes(action)) {
+      return Response.json({ error: `action must be one of: ${ACTIONS.join(', ')}` }, { status: 400 });
     }
 
     // ---- Authenticate the relay (shared with laneMaintenanceQueue) ----
@@ -100,6 +101,114 @@ export default async function (req: Request): Promise<Response> {
       }
 
       return Response.json({ ok: true, assignment_id: assignmentId, status: result });
+    }
+
+    // ---------------- OPERATOR_MANAGE: the controller CLI menu manages this store's operators ----------------
+    // The relay API key is the only credential, and it belongs to exactly one store, so
+    // every read and write below is pinned to that store — a controller can never reach
+    // another store's operators. Runs as service role, which is what satisfies the
+    // admin-only RLS on Operator writes.
+    if (action === 'operator_manage') {
+      const op = String(body.op || '').trim();
+      const input = body.operator && typeof body.operator === 'object' ? body.operator : {};
+      const operatorId = String(input.operator_id || '').trim();
+
+      const storeOperators = async () => {
+        const all = await db.Operator.list();
+        return all.filter((o: any) => o.store_id === storeId);
+      };
+
+      if (op === 'list') {
+        const rows = await storeOperators();
+        return Response.json({
+          ok: true,
+          operators: rows.map((o: any) => ({
+            operator_id: o.operator_id,
+            full_name: o.full_name,
+            role: o.role,
+            status: o.status || 'active',
+            pos_access: o.pos_access !== false,
+          })),
+        });
+      }
+
+      if (!operatorId) return Response.json({ error: 'operator.operator_id is required' }, { status: 400 });
+      const existing = (await storeOperators()).find((o: any) => o.operator_id === operatorId) || null;
+
+      const audit = (label: string, description: string, changes?: any[]) =>
+        db.AuditTrail.create({
+          action: label,
+          category: 'operator',
+          description,
+          actor_name: `Controller CLI (store ${storeId})`,
+          actor_role: 'system',
+          page: '/controller-cli',
+          changes: changes || [],
+        });
+
+      if (op === 'add') {
+        if (existing) return Response.json({ error: `Operator ${operatorId} already exists at this store` }, { status: 409 });
+        const fullName = String(input.full_name || '').trim();
+        const pin = String(input.pin || '').trim();
+        const role = String(input.role || 'cashier').trim();
+        if (!fullName || !pin) return Response.json({ error: 'full_name and pin are required' }, { status: 400 });
+
+        await db.Operator.create({
+          operator_id: operatorId,
+          full_name: fullName,
+          pin,
+          role,
+          status: 'active',
+          pos_access: true,
+          store_id: storeId,
+        });
+        await audit(
+          'Operator Added (Controller CLI)',
+          `Operator ${operatorId} (${fullName}) was created as ${role} at store #${storeId} from the controller console menu.`,
+          [{ field: 'operator_id', from: '', to: operatorId }, { field: 'role', from: '', to: role }]
+        );
+        return Response.json({ ok: true, message: `Added operator ${operatorId} (${fullName}) as ${role}.` });
+      }
+
+      if (op === 'edit') {
+        if (!existing) return Response.json({ error: `Operator ${operatorId} not found at store ${storeId}` }, { status: 404 });
+        const EDITABLE = ['full_name', 'pin', 'role', 'status', 'pos_access'];
+        const patch: any = {};
+        const changes: any[] = [];
+        for (const field of EDITABLE) {
+          if (input[field] === undefined) continue;
+          const value = field === 'pos_access' ? !!input[field] : String(input[field]);
+          patch[field] = value;
+          changes.push({
+            field,
+            from: field === 'pin' ? '****' : String(existing[field] ?? ''),
+            to: field === 'pin' ? '****' : String(value),
+          });
+        }
+        if (Object.keys(patch).length === 0) {
+          return Response.json({ error: `Nothing to change. Editable: ${EDITABLE.join(', ')}` }, { status: 400 });
+        }
+        await db.Operator.update(existing.id, patch);
+        await audit(
+          'Operator Updated (Controller CLI)',
+          `Operator ${operatorId} (${existing.full_name}) was updated at store #${storeId} from the controller console menu: ${changes.map((c) => `${c.field} ${c.from || 'blank'} to ${c.to}`).join(', ')}.`,
+          changes
+        );
+        return Response.json({ ok: true, message: `Updated ${operatorId}: ${changes.map((c) => c.field).join(', ')}.` });
+      }
+
+      if (op === 'remove') {
+        if (!existing) return Response.json({ error: `Operator ${operatorId} not found at store ${storeId}` }, { status: 404 });
+        await db.Operator.delete(existing.id);
+        await audit(
+          'Operator Removed (Controller CLI)',
+          `Operator ${operatorId} (${existing.full_name}, ${existing.role}) was removed from store #${storeId} from the controller console menu. Past transactions and time clock records are retained.`,
+          [{ field: 'operator_id', from: operatorId, to: '' }]
+        );
+        return Response.json({ ok: true, message: `Removed operator ${operatorId} (${existing.full_name}).` });
+      }
+
+      return Response.json({ error: "op must be 'list', 'add', 'edit' or 'remove'" }, { status: 400 });
     }
 
     // ---------------- PULL: send the store's catalog cache down ----------------

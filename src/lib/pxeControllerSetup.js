@@ -3,16 +3,18 @@
 // Consumed by PXEControllerGuide via the shared SetupStepDetail renderer.
 
 const DNSMASQ_CONF = `# /etc/dnsmasq.d/sureflow-pxe.conf
-# PXE/DHCP for the isolated boot VLAN only. The store's general network keeps
+# PXE/DHCP for the isolated boot VLAN 40 only. The store's general network keeps
 # its own DHCP server — this interface must never bridge to it.
-interface=vmbr0.30
+# VLAN 40 is the lane trunk's UNTAGGED NATIVE vlan, so a lane NIC PXE boots with
+# no VLAN tagging in firmware at all.
+interface=vmbr0.40
 bind-interfaces
 except-interface=lo
 
-# Boot VLAN (30): terminals get an address only to boot.
-dhcp-range=10.0.30.100,10.0.30.199,255.255.255.0,1h
-dhcp-option=option:router,10.0.30.1
-dhcp-option=option:dns-server,10.0.30.10
+# Boot VLAN (40): terminals get an address only to boot.
+dhcp-range=10.0.40.100,10.0.40.199,255.255.255.0,1h
+dhcp-option=option:router,10.0.40.1
+dhcp-option=option:dns-server,10.0.40.10
 
 # TFTP root holding pxelinux + the kernels/initrds
 enable-tftp
@@ -24,9 +26,10 @@ dhcp-boot=pxelinux.0
 `;
 
 const NFS_EXPORTS = `# /etc/exports — read-only roots, per-terminal writable overlay
-/srv/nfs/sureflow-legacy  10.0.30.0/24(ro,sync,no_subtree_check,no_root_squash)
-/srv/nfs/sureflow-modern  10.0.30.0/24(ro,sync,no_subtree_check,no_root_squash)
-/srv/nfs/overlay          10.0.30.0/24(rw,sync,no_subtree_check,no_root_squash)
+# Exported to the PXE boot VLAN 40 subnet only.
+/srv/nfs/sureflow-legacy  10.0.40.0/24(ro,sync,no_subtree_check,no_root_squash)
+/srv/nfs/sureflow-modern  10.0.40.0/24(ro,sync,no_subtree_check,no_root_squash)
+/srv/nfs/overlay          10.0.40.0/24(rw,sync,no_subtree_check,no_root_squash)
 `;
 
 const BUILD_IMAGE_SH = `#!/bin/bash
@@ -162,7 +165,7 @@ done
 if [ -n "\$POS_URL" ]; then
   URL="\${POS_URL%/}/pos/login"
 else
-  URL="\${RELAY:-http://10.0.40.10:3000}/kiosk"
+  URL="\${RELAY:-http://10.0.25.10:3000}/kiosk"
 fi
 [ -n "\$REGISTER_ID" ] && URL="\$URL?register_id=\$REGISTER_ID"
 # A cloud-served lane cannot find its relay from the page origin, and the kiosk
@@ -191,8 +194,10 @@ exec chromium \\
 `;
 
 const KEEPALIVED_CONF = `# /etc/keepalived/keepalived.conf — controller A (MASTER)
-# Both controllers share 10.0.30.10; terminals only ever know the virtual IP,
-# so a failover is invisible to a booting lane.
+# Both controllers share 10.0.40.10 on the PXE VLAN; terminals only ever know the
+# virtual IP, so a failover is invisible to a booting lane. A SECOND vrrp_instance
+# carries the backend VLAN 25 VIP that the relay, cloud sync and printers use —
+# see the HA Cluster reference for that half.
 vrrp_script chk_boot {
   script "/usr/bin/systemctl is-active dnsmasq && /usr/bin/systemctl is-active nfs-server"
   interval 2
@@ -201,12 +206,12 @@ vrrp_script chk_boot {
 
 vrrp_instance SUREFLOW_BOOT {
   state MASTER
-  interface vmbr0.30
-  virtual_router_id 30
+  interface vmbr0.40
+  virtual_router_id 40
   priority 150            # controller B uses 100 and state BACKUP
   advert_int 1
   authentication { auth_type PASS; auth_pass CHANGE_ME }
-  virtual_ipaddress { 10.0.30.10/24 }
+  virtual_ipaddress { 10.0.40.10/24 }
   track_script { chk_boot }
 }
 `;
@@ -305,15 +310,15 @@ export const PXE_CONTROLLER_STEPS = [
     step_id: "pxe_network_design",
     label: "Design the controller network (VLAN plan)",
     instructions: [
-      "Three VLANs per store, all trunked to the Proxmox host and terminated on the controller: VLAN 10 = general store/office traffic, VLAN 30 = PXE/diskless boot, VLAN 40 = backend (relay DB, sync, printing).",
-      "The controller holds 10.0.30.10 on VLAN 30 and 10.0.40.10 on VLAN 40. Lane terminals get a boot address on VLAN 30 and their working address on VLAN 40.",
-      "VLAN 30 must not route anywhere — no internet, no VLAN 10. A diskless terminal trusts whatever answers its DHCP boot request, so isolating that segment is the whole security model.",
-      "VLAN 40 routes only to the relay and the receipt printers (port 9100). Register records carry pxe_vlan and backend_vlan so the generated configs match this plan.",
-      "Switch ports for lanes: untagged/native VLAN 30 for the boot NIC, VLAN 40 tagged — or a second NIC per terminal if the hardware has one.",
+      "TWO VLANs per store, both trunked to the controller: VLAN 25 = backend (internet-routed — cloud sync, receipt printers, pinpads), VLAN 40 = PXE/diskless boot (isolated).",
+      "The controller is dual-homed: 10.0.40.10 on VLAN 40 serves DHCP/TFTP/NFS to the lanes, and 10.0.25.10 on VLAN 25 is where the Local Relay binds and reaches the cloud. Those are the two addresses the controller installer asks for.",
+      "VLAN 40 must not route anywhere — no internet, no VLAN 25. A diskless terminal trusts whatever answers its DHCP boot request, so isolating that segment is the whole security model.",
+      "VLAN 25 carries the relay's cloud sync, the receipt printers (port 9100) and the pinpads. It is the only side with an internet route.",
+      "Switch ports for lanes: VLAN 40 is the trunk's UNTAGGED NATIVE vlan so the lane NIC PXE boots with no tagging configured in firmware; VLAN 25 is tagged on the same trunk (or a second NIC where the terminal has one).",
     ],
     commands: [
       "# /etc/network/interfaces on the Proxmox host — VLAN-aware bridge\nauto vmbr0\niface vmbr0 inet manual\n    bridge-ports enp1s0\n    bridge-vlan-aware yes\n    bridge-vids 2-4094",
-      "# Controller VLAN interfaces\nauto vmbr0.30\niface vmbr0.30 inet static\n    address 10.0.30.10/24\n\nauto vmbr0.40\niface vmbr0.40 inet static\n    address 10.0.40.10/24",
+      "# Controller VLAN interfaces — PXE (isolated) and backend (internet-routed)\nauto vmbr0.40\niface vmbr0.40 inet static\n    address 10.0.40.10/24\n\nauto vmbr0.25\niface vmbr0.25 inet static\n    address 10.0.25.10/24\n    gateway 10.0.25.1",
     ],
   },
   {
@@ -321,8 +326,8 @@ export const PXE_CONTROLLER_STEPS = [
     label: "Provision the controller VM on Proxmox",
     instructions: [
       "Create a Debian 12 (bookworm) VM: 2 vCPU, 4 GB RAM, 120 GB disk — the disk holds the NFS roots, so size it for two images plus per-terminal overlays.",
-      "Attach two virtual NICs on vmbr0, tagged VLAN 30 and VLAN 40. Enable start-on-boot.",
-      "Keep this VM separate from the store's Local Relay VM. The relay handles transactions and cloud sync; the controller only boots terminals. One can be rebuilt without touching the other.",
+      "Attach two virtual NICs on vmbr0: VLAN 40 (PXE boot, untagged native to the lanes) and VLAN 25 (backend, internet-routed). Enable start-on-boot.",
+      "This reference describes a boot-only controller. The current fleet standard is the COMBINED build produced by the controller installer — PXE plus the Local Relay on the same dual-homed box, which is why the installer takes both addresses.",
     ],
     commands: [
       "sudo apt update && sudo apt install -y dnsmasq nfs-kernel-server pxelinux syslinux-common debootstrap rsync",
@@ -333,7 +338,7 @@ export const PXE_CONTROLLER_STEPS = [
     step_id: "pxe_tftp_dhcp",
     label: "Serve PXE: dnsmasq DHCP + TFTP on the boot VLAN",
     instructions: [
-      "dnsmasq provides DHCP, TFTP and the boot filename on VLAN 30 only — bound to vmbr0.30 so it can never answer the store's general network.",
+      "dnsmasq provides DHCP, TFTP and the boot filename on VLAN 40 only — bound to vmbr0.40 so it can never answer the backend VLAN 25 or the store's general network.",
       "Copy the pxelinux bootloader and its modules into the TFTP root, then drop in the config below.",
       "Per-terminal boot entries and DHCP reservations are generated on the Registers page: open a register, press PXE, and paste each block into the paths shown.",
     ],
@@ -409,15 +414,15 @@ export const PXE_CONTROLLER_STEPS = [
     step_id: "pxe_ha_failover",
     label: "Add controller high availability (failover pair)",
     instructions: [
-      "A single controller is a store-wide outage on the next terminal reboot. Run two and share the boot address 10.0.30.10 with keepalived so terminals never learn which one answered.",
+      "A single controller is a store-wide outage on the next terminal reboot. Run two and share the boot address 10.0.40.10 with keepalived so terminals never learn which one answered. A combined controller pair also shares a backend VIP on VLAN 25 for the relay.",
       "Controller A is MASTER (priority 150), controller B is BACKUP (priority 100). The health script demotes A if dnsmasq or nfs-server stops.",
       "Replicate the boot payload from A to B on a schedule — the images are large but change only when you rebuild them.",
       "Test failover deliberately: stop dnsmasq on A, confirm the virtual IP moves, then PXE-boot a lane before you rely on it.",
     ],
     commands: [
       "sudo apt install -y keepalived && sudo systemctl enable --now keepalived",
-      "# On controller A: push the boot payload to B (cron nightly)\nrsync -aHAX --delete /srv/nfs/ 10.0.40.11:/srv/nfs/\nrsync -aHAX --delete /srv/tftp/ 10.0.40.11:/srv/tftp/",
-      "ip -br addr show vmbr0.30   # the virtual IP appears on whichever node is MASTER",
+      "# On controller A: push the boot payload to B over the backend VLAN (cron nightly)\nrsync -aHAX --delete /srv/nfs/ 10.0.25.11:/srv/nfs/\nrsync -aHAX --delete /srv/tftp/ 10.0.25.11:/srv/tftp/",
+      "ip -br addr show vmbr0.40   # the PXE virtual IP appears on whichever node is MASTER",
     ],
     codeFiles: [{ name: "keepalived.conf", code: KEEPALIVED_CONF }],
   },

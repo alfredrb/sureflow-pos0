@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive, Layers, MoonStar, Wand2, GitBranch } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive, Layers, MoonStar, Wand2, GitBranch, TerminalSquare } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
@@ -22,11 +22,13 @@ import StoreHAClusterReference from "@/components/techdocs/StoreHAClusterReferen
 import LaneMaintenanceReference from "@/components/techdocs/LaneMaintenanceReference";
 import ControllerInstallerReference from "@/components/techdocs/ControllerInstallerReference";
 import CloudUpdateReference from "@/components/techdocs/CloudUpdateReference";
+import ControllerMenuReference from "@/components/techdocs/ControllerMenuReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
   { id: "ports", label: "Terminal Ports", icon: Plug, blurb: "Rear-panel port maps and wiring tables per terminal model." },
   { id: "installer", label: "Controller Installer", icon: Wand2, blurb: "Guided whiptail build of a store controller, with this store's answer sheet." },
+  { id: "controllermenu", label: "Controller Console Menu", icon: TerminalSquare, blurb: "The login menu on the box: relay health, PXE status, logs, and add/edit/remove of this store's operators." },
   { id: "pxe", label: "PXE Controller", icon: Server, blurb: "Diskless boot controller: DHCP/TFTP, NFS roots, kiosk image and boot profiles." },
   { id: "hacluster", label: "Controller Redundancy", icon: Layers, blurb: "Dual controller pair: PXE + NFS + relay on both boxes, DRBD mirror, floating VIP and automatic promotion." },
   { id: "maintenance", label: "Nightly Maintenance", icon: MoonStar, blurb: "Midnight lane reboot and update window: staggered batches, busy-lane deferral, and the relay poller." },
@@ -92,6 +94,7 @@ export default function AdminTechnicalDocs() {
             </div>
           )}
           {active === "installer" && <ControllerInstallerReference />}
+          {active === "controllermenu" && <ControllerMenuReference />}
           {active === "pxe" && <PXEControllerGuide />}
           {active === "hacluster" && <StoreHAClusterReference />}
           {active === "maintenance" && <LaneMaintenanceReference />}

@@ -39,8 +39,14 @@ export default function ControllerInstallerReference() {
         <div className="space-y-2 text-xs leading-relaxed text-gray-600">
           <p>
             The PXE Controller, Relay Deployment and Controller Redundancy sections describe every file by hand. This
-            wizard asks the six things that cannot be derived and writes those same files, so a store build does not
-            depend on a technician reading four documents in the right order.
+            wizard asks only what cannot be derived and writes those same files, so a store build does not depend on a
+            technician reading four documents in the right order.
+          </p>
+          <p>
+            It builds a <span className="font-semibold">combined</span> controller: PXE/TFTP and the NFS lane roots on
+            the isolated boot VLAN 40, and the Local Relay on the routed backend VLAN 25. That is why it asks for two
+            addresses — the PXE side serves lanes and reaches nothing else, while the backend side is the only one with
+            an internet route, so it is where the relay binds and where the cloud polls.
           </p>
           <p>
             It is deliberately re-runnable: answers are saved to{" "}
@@ -56,10 +62,12 @@ export default function ControllerInstallerReference() {
           <p className="text-sm font-semibold text-amber-900">What the wizard does not do</p>
         </div>
         <p className="text-xs leading-relaxed text-amber-800">
-          It provisions the platform, not the payload. Deploying the relay app into{" "}
-          <span className="font-mono">/srv/sureflow/relay</span>, staging a lane root under{" "}
-          <span className="font-mono">/srv/sureflow/roots</span>, and bringing up DRBD replication are still done from
-          their own sections — the wizard's summary screen tells you which of those is outstanding.
+          It now deploys the relay itself — cloning the repo's default branch into{" "}
+          <span className="font-mono">/srv/sureflow/relay</span>, building it, and stamping the checked-out ref so the
+          Cloud-Pushed Updates system reconciles the box onto the pinned release on the store's first maintenance
+          window. Still outstanding after a run: staging a lane root under{" "}
+          <span className="font-mono">/srv/sureflow/roots</span> and bringing up DRBD replication on an HA pair. The
+          summary screen tells you which.
         </p>
       </div>
 

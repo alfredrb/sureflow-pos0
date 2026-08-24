@@ -23,11 +23,19 @@ const ip = (v, fb) => (v && String(v).trim()) || fb;
 /** keepalived — the floating VIP plus the promote/demote hooks. */
 export function haKeepalivedConf(store = {}, role = "primary") {
   const isPrimary = role === "primary";
-  const vip = ip(store.controller_vip, "192.168.1.50");
-  const self = ip(isPrimary ? store.primary_controller_host : store.secondary_controller_host, isPrimary ? "192.168.1.51" : "192.168.1.52");
-  const peer = ip(isPrimary ? store.secondary_controller_host : store.primary_controller_host, isPrimary ? "192.168.1.52" : "192.168.1.51");
+  const vip = ip(store.controller_vip, "10.0.25.50");
+  const self = ip(isPrimary ? store.primary_controller_host : store.secondary_controller_host, isPrimary ? "10.0.25.51" : "10.0.25.52");
+  const peer = ip(isPrimary ? store.secondary_controller_host : store.primary_controller_host, isPrimary ? "10.0.25.52" : "10.0.25.51");
   return `# /etc/keepalived/keepalived.conf  —  ${role.toUpperCase()} controller, store ${store.store_number || "NNN"}
 # Both boxes run this file; only priority and the addresses differ.
+#
+# TWO VIPs, because a combined controller is dual-homed:
+#   SFCTRL     — the BACKEND VLAN 25 VIP below. The relay binds it, the cloud and the
+#                Infrastructure Command Center poll it, printers are reached from it.
+#                This is the address stored as the store's Relay URL / Controller VIP.
+#   SFCTRL_PXE — a second instance on the PXE VLAN 40 interface holding the boot VIP
+#                (e.g. 10.0.40.50) that DHCP next-server and nfsroot= point at.
+# Both must move together, so they share the same tracking script and priorities.
 
 vrrp_script chk_relay {
     script  "/usr/local/bin/sureflow-ha-check"
@@ -39,7 +47,7 @@ vrrp_script chk_relay {
 
 vrrp_instance SFCTRL {
     state           ${isPrimary ? "MASTER" : "BACKUP"}
-    interface       eth0
+    interface       vlan25          # backend VLAN — relay, cloud sync, printers
     virtual_router_id ${HA_VRRP_ID}
     priority        ${isPrimary ? 150 : 100}
     advert_int      1
@@ -52,7 +60,7 @@ vrrp_instance SFCTRL {
     }
 
     virtual_ipaddress {
-        ${vip}/24 dev eth0
+        ${vip}/24 dev vlan25
     }
 
     track_script { chk_relay }
@@ -67,8 +75,8 @@ vrrp_instance SFCTRL {
 
 /** DRBD resource — block-level mirror of the diskless root + relay database. */
 export function haDrbdResource(store = {}) {
-  const p = ip(store.primary_controller_host, "192.168.1.51");
-  const s = ip(store.secondary_controller_host, "192.168.1.52");
+  const p = ip(store.primary_controller_host, "10.0.25.51");
+  const s = ip(store.secondary_controller_host, "10.0.25.52");
   return `# /etc/drbd.d/${HA_DRBD_RESOURCE}.res
 # Mirrors the diskless root, TFTP tree and the relay's SQLite database, so the
 # standby box is byte-for-byte identical and can serve lanes immediately.
@@ -161,12 +169,14 @@ exit 0`;
 /** NFS export — identical on both boxes; only the acting primary has it mounted. */
 export function haNfsExports(store = {}) {
   return `# /etc/exports   (identical on both controllers)
+# Exported to the PXE boot VLAN 40 subnet — that is the side lanes mount from.
 # Subnet-wide so a lane boots from whichever box holds the VIP without re-keying.
 # no_root_squash is required: the diskless root is mounted as root by the lane kernel.
-${HA_EXPORT_PATH}/root  192.168.1.0/255.255.255.0(rw,sync,no_subtree_check,no_root_squash)
-${HA_EXPORT_PATH}/home  192.168.1.0/255.255.255.0(rw,sync,no_subtree_check)
+${HA_EXPORT_PATH}/root  10.0.40.0/255.255.255.0(rw,sync,no_subtree_check,no_root_squash)
+${HA_EXPORT_PATH}/home  10.0.40.0/255.255.255.0(rw,sync,no_subtree_check)
 
-# Store ${store.store_number || "NNN"} — lanes point at the VIP ${ip(store.controller_vip, "192.168.1.50")}, never at a box address.`;
+# Store ${store.store_number || "NNN"} — lanes point at the PXE VIP (10.0.40.50), never at a box
+# address. The backend VIP ${ip(store.controller_vip, "10.0.25.50")} is the relay side and is never exported.`;
 }
 
 /** Relay unit — same on both nodes, started only by the role script. */
@@ -192,15 +202,19 @@ RestartSec=5
 
 /** DHCP next-server must be the VIP, or failover only half works. */
 export function haDhcpSnippet(store = {}) {
-  const vip = ip(store.controller_vip, "192.168.1.50");
+  const vip = ip(store.controller_vip, "10.0.25.50");
   return `# /etc/dhcp/dhcpd.conf  (identical on both controllers)
-# next-server is the VIP. Point it at a box address and lanes keep trying a dead
-# controller after a failover even though the relay moved.
-next-server ${vip};
+# next-server is the PXE-VLAN VIP (VLAN 40), NOT the backend VIP — a lane on the
+# isolated boot VLAN has no route to the backend side at all. Point it at a box
+# address and lanes keep trying a dead controller after a failover.
+next-server 10.0.40.50;
 filename "pxelinux.0";
 
-# The kernel append line must also use the VIP for the NFS root:
-#   nfsroot=${vip}:${HA_EXPORT_PATH}/root
+# The kernel append line must also use the PXE VIP for the NFS root:
+#   nfsroot=10.0.40.50:${HA_EXPORT_PATH}/root
+#
+# The relay address handed to the lane (sureflow.relay=) is the BACKEND VIP
+# ${vip}:3000 — that is the routed side the POS prints and syncs through.
 #
 # Both boxes serve DHCP, but only the acting primary has isc-dhcp-server running
 # (the role script starts it), so there is never a competing offer.`;
@@ -238,9 +252,9 @@ export const HA_BUILD_STEPS = [
       "Primary gets priority 150, secondary 100, same virtual_router_id and auth_pass. ip addr show should list the VIP on exactly one box. Two boxes holding it means unicast_peer is wrong and the pair cannot see each other.",
   },
   {
-    step: "Repoint the store at the VIP",
+    step: "Repoint the store at the VIPs",
     detail:
-      "Set the store's Relay URL and Controller VIP to the VIP address, and update DHCP next-server plus the kernel nfsroot= to match. A store left pointing at a box address fails over on paper only.",
+      "Set the store's Relay URL and Controller VIP to the BACKEND (VLAN 25) VIP, and set DHCP next-server plus the kernel nfsroot= to the PXE (VLAN 40) VIP. Mixing the two is the classic failure: the lanes boot but cannot print, or print but cannot boot.",
   },
 ];
 
