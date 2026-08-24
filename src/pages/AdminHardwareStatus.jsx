@@ -21,6 +21,9 @@ export default function AdminHardwareStatus() {
   const [credentials, setCredentials] = useState([]);
   const [syncLogs, setSyncLogs] = useState([]);
   const [settings, setSettings] = useState(null);
+  const [windows, setWindows] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [planning, setPlanning] = useState(false);
   const [savingOps, setSavingOps] = useState(false);
   const [testingOps, setTestingOps] = useState(false);
   const [newKeys, setNewKeys] = useState({});
@@ -34,15 +37,19 @@ export default function AdminHardwareStatus() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [st, regs, sus, creds, logs, sets] = await Promise.all([
+      const [st, regs, sus, creds, logs, sets, wins, mtasks] = await Promise.all([
         base44.entities.Store.list(),
         base44.entities.Register.list(),
         base44.entities.StoreRelaySetup.list(),
         base44.entities.RelayCredential.filter({ status: "active" }),
         base44.entities.RelaySyncLog.list("-synced_at", 200),
         base44.entities.StoreSettings.list(),
+        base44.entities.LaneMaintenanceWindow.list(),
+        base44.entities.LaneMaintenanceTask.list("-created_date", 300),
       ]);
       setSettings(sets.find((s) => !s.store_id) || sets[0] || null);
+      setWindows(wins);
+      setTasks(mtasks);
       setStores(st.filter((s) => s.status !== "inactive"));
       setRegisters(regs);
       setSetups(sus);
@@ -189,6 +196,46 @@ export default function AdminHardwareStatus() {
     } catch (e) {
       toast({ title: "Error", description: "Failed to record failback", variant: "destructive" });
     }
+  };
+
+  // ---- Nightly lane maintenance window ----
+  const handleSaveMaintenance = async (store, values) => {
+    try {
+      const existing = windows.find((w) => w.store_id === store.store_number);
+      if (existing) {
+        await base44.entities.LaneMaintenanceWindow.update(existing.id, values);
+        setWindows((ws) => ws.map((w) => (w.id === existing.id ? { ...w, ...values } : w)));
+      } else {
+        const created = await base44.entities.LaneMaintenanceWindow.create({ store_id: store.store_number, ...values });
+        setWindows((ws) => [...ws, created]);
+      }
+      logAuditEvent({
+        action: "Updated Nightly Lane Maintenance Window",
+        category: "configuration",
+        description: `Nightly lane maintenance for ${store.name} (#${store.store_number}) ${values.enabled ? "enabled" : "disabled"} — ${values.batch_size} lane(s) per batch every ${values.batch_interval_minutes} minute(s), controller update ${values.include_controller_update ? "included" : "excluded"}. Lanes with a parked sale or an operator still clocked in are deferred, never rebooted.`,
+        page: "/admin/hardware",
+        changes: Object.keys(values).map((f) => ({ field: f, from: String(windows.find((w) => w.store_id === store.store_number)?.[f] ?? ""), to: String(values[f]) })),
+      });
+      toast({ title: "Saved", description: `Maintenance window updated for ${store.name}` });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save maintenance window", variant: "destructive" });
+    }
+  };
+
+  const handlePlanMaintenance = async (store) => {
+    setPlanning(true);
+    try {
+      const res = await base44.functions.invoke("nightlyLaneMaintenance", { pass: "initial" });
+      const mine = res.data?.results?.find((r) => r.store_id === store.store_number);
+      toast({
+        title: "Planning Complete",
+        description: mine?.summary || "No lanes were planned — check that the window is enabled for this store.",
+      });
+      load(true);
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to plan maintenance", variant: "destructive" });
+    }
+    setPlanning(false);
   };
 
   // ---- Setup guide checklist ----
@@ -358,6 +405,11 @@ export default function AdminHardwareStatus() {
               lastSync={syncLogs.find((l) => l.store_id === store.store_number)}
               credential={credentials.find((c) => c.store_id === store.store_number)}
               newKey={newKeys[store.store_number]}
+              maintenanceWindow={windows.find((w) => w.store_id === store.store_number)}
+              maintenanceTasks={tasks.filter((t) => t.store_id === store.store_number)}
+              onSaveMaintenance={handleSaveMaintenance}
+              onPlanMaintenance={handlePlanMaintenance}
+              planningMaintenance={planning}
               onGenerateKey={handleGenerateKey}
               onForceSync={handleForceSync}
               onToggleStep={handleToggleStep}

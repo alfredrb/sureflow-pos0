@@ -1,0 +1,60 @@
+{
+  "name": "LaneMaintenanceWindow",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number this maintenance window belongs to. One record per store."
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Opt-in. While false the nightly sweep plans nothing for this store, so no lane is ever rebooted by surprise."
+    },
+    "batch_size": {
+      "type": "number",
+      "default": 2,
+      "description": "How many lanes are released to reboot at the same time. Staggering means the store is never fully dark, and the NFS root is not hammered by every lane booting at once."
+    },
+    "batch_interval_minutes": {
+      "type": "number",
+      "default": 5,
+      "description": "Minutes between batches. Each planned lane gets a release time of window start + (batch index x this interval); the relay only claims a lane once its release time has passed."
+    },
+    "include_controller_update": {
+      "type": "boolean",
+      "default": false,
+      "description": "Also plan the controller / relay update step for this store in the same window. On an HA store this is a rolling update (secondary, fail over, primary, fail back); on a standalone controller it runs while the lanes are already cycling."
+    },
+    "last_run_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date of the last planning pass. Keeps the sweep idempotent \u2014 a second pass on the same night retries deferred lanes instead of re-planning the whole store."
+    },
+    "last_run_summary": {
+      "type": "string",
+      "description": "Human-readable outcome of the last pass, shown on the Infrastructure Command Center."
+    }
+  },
+  "required": [
+    "store_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

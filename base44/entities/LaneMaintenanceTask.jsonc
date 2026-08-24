@@ -1,0 +1,88 @@
+{
+  "name": "LaneMaintenanceTask",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number this task belongs to."
+    },
+    "run_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date of the maintenance window this task was planned for."
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "lane_reboot",
+        "controller_update"
+      ],
+      "default": "lane_reboot",
+      "description": "lane_reboot = reboot one diskless lane, which is also how it picks up a new NFS root image. controller_update = the controller / relay update step for the store."
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register this task targets. Blank for a controller_update task."
+    },
+    "register_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "claimed",
+        "completed",
+        "deferred",
+        "skipped",
+        "failed"
+      ],
+      "default": "pending",
+      "description": "pending = planned and waiting for its release time; claimed = the store's relay has queued the reboot; completed = the lane reported back up; deferred = the lane was busy (open sale, operator still clocked in) and will be retried; skipped = still busy at the cutoff, deliberately left alone; failed = the relay could not carry it out."
+    },
+    "defer_reason": {
+      "type": "string",
+      "description": "Why the lane was passed over \u2014 the record that the sweep never reboots a lane mid-transaction."
+    },
+    "batch_index": {
+      "type": "number",
+      "default": 0,
+      "description": "Which stagger batch this lane is in."
+    },
+    "release_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Earliest time the relay may claim this task. Spacing these is what staggers the reboots."
+    },
+    "claimed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "detail": {
+      "type": "string",
+      "description": "Result detail reported back by the relay."
+    }
+  },
+  "required": [
+    "store_id",
+    "task_type"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

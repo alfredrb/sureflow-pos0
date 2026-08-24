@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { authenticateRelay } from '../../shared/relayAuth.ts';
 
 // SureFlow Local Relay <-> Cloud sync endpoint (Phase 1).
 // Called by each store's Local Relay VM, authenticated with a per-store API key
@@ -28,13 +29,11 @@ export default async function (req: Request): Promise<Response> {
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
     if (action !== 'pull' && action !== 'push') return Response.json({ error: "action must be 'pull' or 'push'" }, { status: 400 });
 
-    // ---- Authenticate the relay ----
-    const creds = await db.RelayCredential.filter({ store_id: storeId, status: 'active' });
-    const cred = creds.find((c: any) => c.api_key === apiKey);
+    // ---- Authenticate the relay (shared with laneMaintenanceQueue) ----
+    const cred = await authenticateRelay(db, storeId, apiKey);
     if (!cred) return Response.json({ error: 'Invalid relay credentials for this store' }, { status: 401 });
 
     const now = new Date().toISOString();
-    await db.RelayCredential.update(cred.id, { last_used_at: now });
 
     // ---------------- PULL: send the store's catalog cache down ----------------
     if (action === 'pull') {
