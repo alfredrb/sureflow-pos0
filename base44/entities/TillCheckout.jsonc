@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Register name"
     },
+    "bag_number": {
+      "type": "string",
+      "description": "Bag number assigned to this till at check-out. Keyed again at check-in and must match, which is what ties the cash that left the safe to the cash that came back. Any value is allowed, including '0' for a loose till with no bag label."
+    },
     "operator_id": {
       "type": "string",
       "description": "Operator who checked out the till"
@@ -17,6 +21,14 @@
     "operator_name": {
       "type": "string",
       "description": "Operator name"
+    },
+    "checkin_operator_id": {
+      "type": "string",
+      "description": "Operator who checked the till back in. Recorded separately from the check-out operator so reconciliation can answer who pulled the bag and who returned it."
+    },
+    "checkin_operator_name": {
+      "type": "string",
+      "description": "Name of the operator who checked the till back in."
     },
     "checkout_date": {
       "type": "string",
@@ -36,6 +48,27 @@
       ],
       "default": "checked_out",
       "description": "Current status of the till"
+    },
+    "forced": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this till was checked in with a bag number that did not match the check-out, using the manager force override."
+    },
+    "force_manager_id": {
+      "type": "string",
+      "description": "Operator ID of the manager who authorized the forced check-in."
+    },
+    "force_manager_name": {
+      "type": "string",
+      "description": "Name of the manager who authorized the forced check-in."
+    },
+    "force_reason": {
+      "type": "string",
+      "description": "Why the bag-number mismatch was overridden (wrong bag pulled, label unreadable, and so on). Required by the UI when forcing."
+    },
+    "expected_bag_number": {
+      "type": "string",
+      "description": "Bag number the open check-out expected, kept alongside the keyed one so a mismatch stays legible after the fact."
     },
     "checkout_bills": {
       "type": "object",

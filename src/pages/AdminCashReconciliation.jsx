@@ -9,6 +9,7 @@ import { TillCheckoutModal, TillCheckinModal } from "@/components/TillCheckModal
 import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText, Printer, Zap } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
+import OpenBagsPanel from "@/components/till/OpenBagsPanel";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function AdminCashReconciliation() {
@@ -330,6 +331,16 @@ export default function AdminCashReconciliation() {
           Deposits
         </button>
         <button
+          onClick={() => setActiveTab("bags")}
+          className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
+            activeTab === "bags"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Open Bags {tillCheckouts.filter(t => t.status === "checked_out").length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-blue-600 text-white rounded-full w-5 h-5 text-xs font-bold">{tillCheckouts.filter(t => t.status === "checked_out").length}</span>}
+        </button>
+        <button
           onClick={() => setActiveTab("history")}
           className={`px-4 py-2 font-medium border-b-2 transition ${
             activeTab === "history"
@@ -390,6 +401,9 @@ export default function AdminCashReconciliation() {
           Export
         </button>
         </div>
+
+      {/* Open Bags Tab */}
+      {activeTab === "bags" && <OpenBagsPanel tillCheckouts={tillCheckouts} />}
 
       {/* Audit History Tab */}
       {activeTab === "audits" && (
@@ -811,8 +825,9 @@ export default function AdminCashReconciliation() {
                        <thead className="bg-gray-50 border-b border-gray-200">
                          <tr>
                            <th className="text-left px-4 py-3 font-bold text-gray-700">Date & Time</th>
+                           <th className="text-left px-4 py-3 font-bold text-gray-700">Bag #</th>
                            <th className="text-left px-4 py-3 font-bold text-gray-700">Register</th>
-                           <th className="text-left px-4 py-3 font-bold text-gray-700">Operator</th>
+                           <th className="text-left px-4 py-3 font-bold text-gray-700">Pulled / Returned By</th>
                            <th className="text-right px-4 py-3 font-bold text-gray-700">Expected ($250)</th>
                            <th className="text-right px-4 py-3 font-bold text-gray-700">Actual</th>
                            <th className="text-right px-4 py-3 font-bold text-gray-700">Discrepancy</th>
@@ -826,8 +841,17 @@ export default function AdminCashReconciliation() {
                            .map((till, idx) => (
                              <tr key={till.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
                                <td className="px-4 py-3 text-gray-900 font-medium">{new Date(till.checkin_date).toLocaleString()}</td>
+                               <td className="px-4 py-3 font-mono font-bold text-gray-900">
+                                 {till.bag_number || "—"}
+                                 {till.forced && (
+                                   <span className="ml-2 inline-flex px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold" title={`Expected bag ${till.expected_bag_number || "—"} · ${till.force_reason || ""} · ${till.force_manager_name || ""}`}>FORCED</span>
+                                 )}
+                               </td>
                                <td className="px-4 py-3 font-mono text-gray-600">{till.register_name}</td>
-                               <td className="px-4 py-3 text-gray-600">{till.operator_name}</td>
+                               <td className="px-4 py-3 text-gray-600">
+                                 <div>{till.operator_name || "—"}</div>
+                                 <div className="text-gray-400 text-xs">↩ {till.checkin_operator_name || "—"}</div>
+                               </td>
                                <td className="px-4 py-3 text-right font-medium text-gray-900">$250.00</td>
                                <td className="px-4 py-3 text-right font-medium text-gray-900">${till.checkin_total.toFixed(2)}</td>
                                <td className={`px-4 py-3 text-right font-bold ${till.discrepancy < 0 ? "text-red-600" : "text-green-600"}`}>
