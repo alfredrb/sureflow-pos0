@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import OperatorAdminAccessTab from "@/components/operators/OperatorAdminAccessTab";
 import { getAdminAccess, ADMIN_ROLE_LABELS, resolveAdminRole } from "@/lib/adminAccess";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+import { mirrorAdminScopeToUser } from "@/lib/adminScopeMirror";
 
 const EMPTY_FORM = { operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "", admin_role: "", home_store_id: "", serviced_store_ids: [] };
 const ADMIN_ACCESS_FIELDS = ["admin_role", "home_store_id", "serviced_store_ids"];
@@ -65,6 +66,16 @@ export default function AdminOperators() {
   const logAdminAccessChange = async (before, after) => {
     const changes = diffChanges(before, after, ADMIN_ACCESS_FIELDS);
     if (!changes.length) return;
+    // Push the scope onto the login account too — that copy is what the database rules read.
+    const mirror = await mirrorAdminScopeToUser(after).catch(() => ({ mirrored: false, reason: "error" }));
+    if (!mirror.mirrored) {
+      toast({
+        title: "Scope saved, not yet enforced",
+        description: mirror.reason === "no_account"
+          ? "No login account matches this operator's email, so data scoping cannot apply to them yet."
+          : "Add an email to this operator so their scope can be linked to a login account.",
+      });
+    }
     await logAuditEvent({
       action: `Changed admin access for ${after.full_name}`,
       category: "permissions",
