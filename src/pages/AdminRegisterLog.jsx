@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { ClipboardList, LogIn, LogOut, ShieldAlert, ShoppingCart, Slash, Ban, Search, Settings, Download, AlertTriangle, DollarSign } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { getAdminAccess } from "@/lib/adminAccess";
+import { buildRegisterScope, scopeByRegister } from "@/lib/cashScope";
 
 const exportToCSV = (data, filename) => {
   const keys = ["event_type", "operator_name", "operator_id", "register_id", "detail", "transaction_id", "transaction_total", "created_date"];
@@ -50,13 +52,18 @@ export default function AdminRegisterLog() {
   const [filterEvent, setFilterEvent] = useState("all");
   const [filterRegister, setFilterRegister] = useState("all");
   const [selectedLog, setSelectedLog] = useState(null);
+  const [allRegisters, setAllRegisters] = useState([]);
 
   useEffect(() => { loadLogs(); }, []);
 
   const loadLogs = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const data = await base44.entities.RegisterLog.list("-created_date", 100);
+      const [data, regs] = await Promise.all([
+        base44.entities.RegisterLog.list("-created_date", 100),
+        base44.entities.Register.list(),
+      ]);
+      setAllRegisters(regs);
       setLogs(data);
     } catch (e) {
       // Transient rate-limit / network error — keep existing data; the realtime
@@ -68,9 +75,19 @@ export default function AdminRegisterLog() {
 
   useRealtimeSync("RegisterLog", loadLogs, { intervalMs: 30000 });
 
-  const registers = ["all", ...new Set(logs.map(l => l.register_id).filter(Boolean))];
+  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
+  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
 
-  const filtered = logs.filter(log => {
+  // Log entries name a register but no store, so the store is resolved through the
+  // register — a store-scoped admin or LP investigator only sees their own lanes.
+  const scopedLogs = useMemo(
+    () => scopeByRegister(buildRegisterScope(access, allRegisters), logs),
+    [access, allRegisters, logs]
+  );
+
+  const registers = ["all", ...new Set(scopedLogs.map(l => l.register_id).filter(Boolean))];
+
+  const filtered = scopedLogs.filter(log => {
     const matchSearch = !search ||
       log.operator_name?.toLowerCase().includes(search.toLowerCase()) ||
       log.register_id?.toLowerCase().includes(search.toLowerCase()) ||

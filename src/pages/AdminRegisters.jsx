@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Plus, Edit2, Trash2, Monitor, Wifi, WifiOff, Wrench, ToggleLeft, ToggleRight, Building2, Server } from "lucide-react";
@@ -19,6 +19,8 @@ import PXEBootstrapDialog from "@/components/registers/PXEBootstrapDialog";
 import HardwareAuditChecklist from "@/components/registers/HardwareAuditChecklist";
 import RegisterTestPrintButton from "@/components/registers/RegisterTestPrintButton";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+import { getAdminAccess } from "@/lib/adminAccess";
+import { scopeRegisters } from "@/lib/cashScope";
 
 const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", printer_transport: "ethernet", printer_fallback_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", drawer_transport: "printer_dk", drawer_bridge_ip: "", drawer_bridge_port: DRAWER_BRIDGE_PORT, drawer_model: "", terminal_model: "", terminal_serial: "", mac_address: "", boot_profile: "local_disk", keyboard_model: "", scanner_interface: "usb_hid", pxe_vlan: "", backend_vlan: "", pinpad_model: "", pinpad_ip: "", pinpad_serial: "", pole_display_model: "", pole_display_ip: "", pole_display_serial: "", store_id: "" };
 
@@ -41,6 +43,13 @@ export default function AdminRegisters() {
   const [drawerProfiles, setDrawerProfiles] = useState([]);
   const { toast } = useToast();
 
+  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
+  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
+  // A store manager or CSM configures their own lanes; a technician sees the lanes at
+  // the stores they service. Only HQ sees the whole fleet here.
+  const scopedRegisters = useMemo(() => scopeRegisters(access, registers), [access, registers]);
+  const defaultStoreId = access.storeScope === "all" ? "" : (access.storeScope[0] || "");
+
   const load = async () => {
     const [regs, ops, drawers] = await Promise.all([
       base44.entities.Register.list(),
@@ -52,7 +61,9 @@ export default function AdminRegisters() {
   useEffect(() => { load(); }, []);
   useRealtimeSync("Register", load, { intervalMs: 20000 });
 
-  const openNew = () => { setEditing(null); setForm({ ...emptyReg }); setDialogOpen(true); };
+  // A new lane is created into the creator's own store, so a scoped admin can never
+  // add a register that lands in someone else's store.
+  const openNew = () => { setEditing(null); setForm({ ...emptyReg, store_id: defaultStoreId }); setDialogOpen(true); };
   const openEdit = (r) => {
     setEditing(r);
     setForm({ register_id: r.register_id, name: r.name, location: r.location || "", status: r.status, ip_address: r.ip_address || "", subnet_mask: r.subnet_mask || "255.255.255.0", gateway: r.gateway || "", assigned_operator: r.assigned_operator || "", cash_limit: r.cash_limit || 5000, feature_returns: r.feature_returns || false, feature_customer_service: r.feature_customer_service || false, feature_exchange: r.feature_exchange || false, printer_status: r.printer_status || "unknown", scanner_status: r.scanner_status || "unknown", cash_drawer_status: r.cash_drawer_status || "unknown", printer_model: r.printer_model || "", printer_ip: r.printer_ip || "", printer_transport: r.printer_transport || "ethernet", printer_fallback_ip: r.printer_fallback_ip || "", scanner_model: r.scanner_model || "", cash_drawer_model: r.cash_drawer_model || "", printer_serial: r.printer_serial || "", scanner_serial: r.scanner_serial || "", cash_drawer_serial: r.cash_drawer_serial || "", drawer_transport: r.drawer_transport || "printer_dk", drawer_bridge_ip: r.drawer_bridge_ip || "", drawer_bridge_port: r.drawer_bridge_port || DRAWER_BRIDGE_PORT, drawer_model: r.drawer_model || "", terminal_model: r.terminal_model || "", terminal_serial: r.terminal_serial || "", mac_address: r.mac_address || "", boot_profile: r.boot_profile || "local_disk", keyboard_model: r.keyboard_model || "", scanner_interface: r.scanner_interface || "usb_hid", pxe_vlan: r.pxe_vlan || "", backend_vlan: r.backend_vlan || "", pinpad_model: r.pinpad_model || "", pinpad_ip: r.pinpad_ip || "", pinpad_serial: r.pinpad_serial || "", pole_display_model: r.pole_display_model || "", pole_display_ip: r.pole_display_ip || "", pole_display_serial: r.pole_display_serial || "", store_id: r.store_id || "" });
@@ -123,15 +134,15 @@ export default function AdminRegisters() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Registers</h1>
-          <p className="text-gray-500 text-sm mt-1">{registers.length} registers configured</p>
+          <p className="text-gray-500 text-sm mt-1">{scopedRegisters.length} registers configured</p>
         </div>
         <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Register</Button>
       </div>
 
-      <HardwareAuditChecklist registers={registers} />
+      <HardwareAuditChecklist registers={scopedRegisters} />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {registers.map(r => (
+        {scopedRegisters.map(r => (
           <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">

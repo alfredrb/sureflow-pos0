@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TrendingUp, DollarSign, ShoppingCart, Package } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { getAdminAccess, isStoreInScope } from "@/lib/adminAccess";
 
 export default function AdminEODReports() {
   const [reports, setReports] = useState([]);
@@ -29,7 +30,19 @@ export default function AdminEODReports() {
   }, []);
   useRealtimeSync("EODReport", loadReports, { intervalMs: 30000 });
 
-  const sortedReports = [...reports].sort((a, b) => {
+  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
+  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
+  const showStore = access.storeScope === "all";
+
+  // An EOD report is the store's whole day of money, so a store-scoped admin only
+  // ever sees their own store's reports. Reports carry store_id directly, so the
+  // scope check is straightforward here.
+  const scopedReports = useMemo(
+    () => (showStore ? reports : reports.filter((r) => isStoreInScope(access, r.store_id))),
+    [reports, access, showStore]
+  );
+
+  const sortedReports = [...scopedReports].sort((a, b) => {
     const dateA = new Date(a.report_date);
     const dateB = new Date(b.report_date);
     return sortBy === "asc" ? dateA - dateB : dateB - dateA;
@@ -63,6 +76,9 @@ export default function AdminEODReports() {
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Date</p>
                   <p className="text-lg font-bold text-gray-900">{new Date(report.report_date).toLocaleDateString()}</p>
+                  {showStore && (
+                    <p className="text-xs text-gray-500 mt-0.5">Store {report.store_id || "—"}</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Revenue</p>

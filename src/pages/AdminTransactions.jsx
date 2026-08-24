@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Search, Eye, Download, Printer } from "lucide-react";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import moment from "moment";
 import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
 import { adminPrintReceipt } from "@/lib/adminPrint";
+import { getAdminAccess } from "@/lib/adminAccess";
+import { scopeRecords } from "@/lib/recordScope";
 
 const exportToCSV = (data, filename) => {
   const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
@@ -121,9 +123,18 @@ export default function AdminTransactions() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [detail, setDetail] = useState(null);
   const [detailSerialMap, setDetailSerialMap] = useState({});
+  const [registers, setRegisters] = useState([]);
+
+  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
+  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
 
   const load = async () => {
-    setTransactions(await base44.entities.Transaction.list("-created_date", 200));
+    const [txs, regs] = await Promise.all([
+      base44.entities.Transaction.list("-created_date", 200),
+      base44.entities.Register.list(),
+    ]);
+    setRegisters(regs);
+    setTransactions(txs);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -139,7 +150,14 @@ export default function AdminTransactions() {
     return () => { active = false; };
   }, [detail?.transaction_id]);
 
-  const filtered = transactions.filter(t => {
+  // A sale is store data, so a store-scoped admin only ever audits their own store's
+  // transactions. Registers are loaded alongside so pre-store_id history still resolves.
+  const scopedTransactions = useMemo(
+    () => scopeRecords(access, registers, transactions),
+    [access, registers, transactions]
+  );
+
+  const filtered = scopedTransactions.filter(t => {
     if (t.training_mode) return false;
     const matchSearch = !search ||
       t.transaction_id?.toLowerCase().includes(search.toLowerCase()) ||
@@ -195,7 +213,7 @@ export default function AdminTransactions() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Transaction Logs</h1>
-          <p className="text-gray-500 text-sm mt-1">{transactions.length} transactions</p>
+          <p className="text-gray-500 text-sm mt-1">{scopedTransactions.length} transactions</p>
         </div>
         <Button onClick={() => exportToCSV(filtered, "transactions.csv")} variant="outline" className="border-gray-300 w-full sm:w-auto"><Download className="w-4 h-4 mr-2" /> Export</Button>
       </div>
