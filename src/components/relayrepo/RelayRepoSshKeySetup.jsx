@@ -11,7 +11,9 @@ export default function RelayRepoSshKeySetup() {
 # 1. Create the key (press Enter at every prompt to accept the defaults)
 ssh-keygen -t ed25519 -C "sureflow-windows"
 
-# 2. Start the agent so the key is remembered between pushes
+# 2. OPTIONAL — only if you set a passphrase above. Needs an Administrator PowerShell;
+#    "Access is denied" here is harmless and can be ignored on a passphrase-less key,
+#    because ssh reads ~/.ssh/id_ed25519 directly with no agent involved.
 Set-Service ssh-agent -StartupType Automatic
 Start-Service ssh-agent
 ssh-add "$HOME\\.ssh\\id_ed25519"
@@ -32,8 +34,8 @@ ssh -T git@github.com`;
       </pre>
       <p className="text-xs text-gray-500">
         Only the <code className="font-mono">.pub</code> file is pasted into GitHub — never the file without the
-        extension. If <code className="font-mono">Set-Service</code> is refused, re-open PowerShell as Administrator for
-        that one line. Prefer not to use keys at all? Clone over HTTPS instead and paste a GitHub personal access token
+        extension. Step 2 is only for a key with a passphrase — if you pressed Enter through the prompts, skip it and go
+        straight to pasting the key into GitHub. Prefer not to use keys at all? Clone over HTTPS instead and paste a GitHub personal access token
         when prompted for a password.
       </p>
     </div>
