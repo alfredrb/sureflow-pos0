@@ -72,6 +72,7 @@ import AdminKeyboardLabels from '@/pages/AdminKeyboardLabels';
 import AdminCheckRegister from '@/pages/AdminCheckRegister';
 import AdminCustomerService from '@/pages/AdminCustomerService';
 import AdminControllerUpdates from '@/pages/AdminControllerUpdates';
+import AdminFacilityManagement from '@/pages/AdminFacilityManagement';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -158,6 +159,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/check-register" element={<AdminCheckRegister />} />
           <Route path="/admin/customer-service" element={<AdminCustomerService />} />
           <Route path="/admin/controller-updates" element={<AdminControllerUpdates />} />
+          <Route path="/admin/facility" element={<AdminFacilityManagement />} />
         </Route>
       </Route>
 

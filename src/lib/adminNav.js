@@ -12,6 +12,7 @@ export const adminNavGroups = [
       { label: "Cash Reconciliation", path: "/admin/cash-reconciliation", icon: DollarSign },
       { label: "EOD Reports", path: "/admin/eod-reports", icon: Calendar },
       { label: "Maintenance Log", path: "/admin-maintenance-log", icon: Wrench },
+      { label: "Facility Management", path: "/admin/facility", icon: Building2 },
       { label: "Diagnostic Tools", path: "/admin/diagnostics", icon: Activity },
       { label: "POS Feedback", path: "/admin/pos-feedback", icon: MessageSquare },
     ],

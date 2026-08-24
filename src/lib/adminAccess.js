@@ -47,6 +47,8 @@ const TECHNICIAN_PAGES = [
   "/admin/keyboard-mapper",
   "/admin-maintenance-log",
   "/admin-system-alerts",
+  // Techs see the facility queue so an assigned visit is visible to the person doing it.
+  "/admin/facility",
 ];
 
 // Asset Protection is an investigator: the LP workbench plus the views that feed it.

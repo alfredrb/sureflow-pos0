@@ -1,0 +1,142 @@
+{
+  "name": "FacilityRequest",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number that raised the request. Set from the submitting manager's home store, so a store can never file against another store."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "technician_visit",
+        "hardware_replacement_repair",
+        "general_maintenance",
+        "supplies"
+      ],
+      "default": "technician_visit",
+      "description": "What the store is asking HQ for. technician_visit = send a person. hardware_replacement_repair = a POS device needs repairing or swapping. general_maintenance = a building work order (plumbing, HVAC, fixtures) routed to a vendor or the facilities team. supplies = consumables (register rolls, cleaning, bags)."
+    },
+    "subject": {
+      "type": "string",
+      "description": "One-line summary shown in the queue."
+    },
+    "description": {
+      "type": "string",
+      "description": "What is wrong / what is needed, in the store's own words."
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "critical"
+      ],
+      "default": "normal",
+      "description": "How badly the store needs this. critical = a lane or the building is unusable right now."
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Register involved, when the request is about a specific lane. Blank for building work and supplies."
+    },
+    "affected_sku": {
+      "type": "string",
+      "description": "SKU or part being requested \u2014 the supply item, or the replacement part for a hardware request."
+    },
+    "quantity": {
+      "type": "number",
+      "description": "How many units are being asked for. Mainly used by supply requests."
+    },
+    "preferred_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the store would like the visit or delivery. A preference only \u2014 HQ sets the real date in scheduled_date on approval."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "submitted",
+        "approved",
+        "denied",
+        "scheduled",
+        "completed"
+      ],
+      "default": "submitted",
+      "description": "submitted = waiting on HQ. approved = HQ agreed; assignment may still be pending. scheduled = approved with a date and/or a named person, so the store knows who is coming and when. denied = refused, with denial_reason. completed = the work or delivery is done."
+    },
+    "assigned_operator_id": {
+      "type": "string",
+      "description": "Operator HQ assigned to carry out the work \u2014 usually a technician."
+    },
+    "assigned_operator_name": {
+      "type": "string",
+      "description": "Name of the assigned person, copied at assignment time so the store still sees who came after staffing changes."
+    },
+    "assigned_hardware": {
+      "type": "string",
+      "description": "Hardware or parts HQ committed to the request (model, serial, or a short description of what is being shipped)."
+    },
+    "scheduled_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date HQ scheduled the visit or delivery for."
+    },
+    "hq_notes": {
+      "type": "string",
+      "description": "HQ's note back to the store \u2014 shown with the decision so an approval or a denial is never unexplained."
+    },
+    "denial_reason": {
+      "type": "string",
+      "description": "Why the request was refused. Required by the UI when denying."
+    },
+    "decided_by_name": {
+      "type": "string",
+      "description": "HQ admin who approved or denied the request."
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "maintenance_log_id": {
+      "type": "string",
+      "description": "MaintenanceLog entry created when the request was approved. Keeps the store's existing maintenance timeline complete without duplicating the cross-post on a re-save."
+    },
+    "submitted_by_operator_id": {
+      "type": "string"
+    },
+    "submitted_by_operator_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "store_id",
+    "category",
+    "subject"
+  ],
+  "rls": {
+    "create": null,
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "data.store_id": "{{user.data.home_store_id}}"
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
