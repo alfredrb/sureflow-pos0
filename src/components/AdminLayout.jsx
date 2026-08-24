@@ -3,6 +3,8 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Settings, ChevronLeft, ChevronDown, Menu, LogOut, Monitor, AlertCircle, Volume2, VolumeX, Trash2, Download, BarChart3, Palette } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { adminNavGroups } from "@/lib/adminNav";
+import { getAdminAccess, canAccessPage } from "@/lib/adminAccess";
+import AdminScopeBadge from "@/components/admin/AdminScopeBadge";
 import { getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
 import { getTheme, setTheme } from "@/lib/theme";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -28,13 +30,13 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const pendingCount = useAdminAlertCount(soundEnabled);
 
-  const isManager = adminOperator?.role === "manager";
-  const isTechnician = adminOperator?.role === "technician";
-  const isLossPrevention = adminOperator?.role === "loss_prevention";
-  const isVendor = adminOperator?.role === "vendor";
-  const TECHNICIAN_PAGES = ["/admin/registers", "/admin/network", "/admin/hardware", "/admin-maintenance-log", "/admin/diagnostics"];
-  const LP_PAGES = ["/admin/register-log", "/admin/loss-prevention", "/admin/transactions", "/admin/emergency-log", "/admin-system-alerts", "/admin/eod-reports", "/admin/cash-reconciliation", "/admin-maintenance-log", "/admin/staff-report"];
-  const VENDOR_PAGES = ["/admin/inventory", "/admin/vendor-insights"];
+  // One resolver drives the whole panel: which stores this person sees and which
+  // tools they may use. Pages must not invent their own rules.
+  const access = getAdminAccess(adminOperator);
+  const isManager = access.role === "store_manager" || access.role === "hq_admin";
+  const isCsm = access.role === "csm";
+  const isLossPrevention = access.role === "lp";
+  const isVendor = access.role === "vendor";
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -45,11 +47,12 @@ export default function AdminLayout() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!adminOperator || isManager || isTechnician || isLossPrevention) return;
+    // Only the CSM role is driven by the configurable AdminPermission record.
+    if (!adminOperator || !isCsm) return;
     let active = true;
     (async () => {
       try {
-        const recs = await base44.entities.AdminPermission.filter({ role: adminOperator.role || "csm" });
+        const recs = await base44.entities.AdminPermission.filter({ role: "csm" });
         if (active) setPermission(recs[0] || null);
       } catch (e) {}
     })();
@@ -57,14 +60,11 @@ export default function AdminLayout() {
   }, [adminOperator, isManager]);
 
   const canAccess = (path) => {
-    if (path === "/admin") return !isVendor;
-    if (isManager) return true;
     if (!adminOperator) return true;
-    if (isVendor) return VENDOR_PAGES.includes(path);
-    if (isTechnician) return TECHNICIAN_PAGES.includes(path);
-    if (isLossPrevention) return LP_PAGES.includes(path);
-    if (!permission) return true; // not configured yet => full access
-    return (permission.allowed_pages || []).includes(path);
+    if (!canAccessPage(access, path)) return false;
+    // CSMs are additionally narrowed by their configurable permission record.
+    if (isCsm && permission) return path === "/admin" || (permission.allowed_pages || []).includes(path);
+    return true;
   };
 
   useEffect(() => {
@@ -165,7 +165,10 @@ export default function AdminLayout() {
                 <span className="font-bold text-sm">SureFlow POS Admin</span>
               </div>
               {adminOperator && (
-                <div className="text-xs text-blue-300/70 pl-10">{adminOperator.full_name} · {adminOperator.role === "manager" ? "Manager" : adminOperator.role === "technician" ? "Technician" : adminOperator.role === "loss_prevention" ? "Loss Prevention" : adminOperator.role === "vendor" ? "Vendor" : "CSM"}</div>
+                <>
+                  <div className="pl-10 text-xs text-blue-300/70">{adminOperator.full_name}</div>
+                  <AdminScopeBadge access={access} />
+                </>
               )}
             </div>
           )}

@@ -10,6 +10,18 @@
       "type": "string",
       "description": "Store display name"
     },
+    "store_type": {
+      "type": "string",
+      "enum": [
+        "supercenter",
+        "standard",
+        "express",
+        "distribution",
+        "support_office"
+      ],
+      "default": "standard",
+      "description": "Class of site. Drives which feature set a store gets (an express lane count and a supercenter's service desk are not the same store), and lets HQ report by format rather than only by region. support_office = a non-selling site (HQ / back office) that owns no lanes."
+    },
     "address_street": {
       "type": "string"
     },

@@ -24,7 +24,32 @@
         "vendor"
       ],
       "default": "cashier",
-      "description": "Technician role: POS access in locked Training Mode with diagnostics tools; admin access limited to Registers, Network, Hardware Status, and Maintenance Log. Loss Prevention role: admin-only access to logs, transactions, and the Loss Prevention workbench; no POS access. Vendor role: admin access limited to Inventory (own items) and Vendor Insights; no POS access."
+      "description": "POS-side role. Governs what this person can do at the register (tender keys, overrides, training-mode diagnostics) and nothing else. Admin-panel access is governed separately by admin_role, because the same person needs different permissions on the two surfaces."
+    },
+    "admin_role": {
+      "type": "string",
+      "enum": [
+        "none",
+        "hq_admin",
+        "store_manager",
+        "csm",
+        "lp",
+        "technician",
+        "vendor"
+      ],
+      "description": "Admin-panel role, deliberately separate from the POS role. none = no admin panel at all. hq_admin = every store, full metrics and fleet hardware ops, but NOT Remote Workstation (taking over a live lane is a store-floor action). store_manager = their own store, everything. csm = their store, operational pages only, Remote Workstation limited to override tools. lp = Asset Protection / Loss Prevention: their store's LP workbench and the views feeding it, no config, no hardware, no lane takeover. technician = hardware, diagnostics and docs across their serviced stores, no people and no money. vendor = their own product line across every store that carries it. Blank = derived from the POS role so existing operators keep working."
+    },
+    "home_store_id": {
+      "type": "string",
+      "description": "Store number this person's admin access is anchored to \u2014 the single store a store_manager, csm or lp may see. Blank falls back to store_id."
+    },
+    "serviced_store_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Store numbers a technician services. Hardware problems do not respect store boundaries, so techs are region/cluster scoped rather than single-store: a list of one covers a dedicated in-store tech, and a list of every store covers a chain IT lead. Empty falls back to home_store_id / store_id."
     },
     "status": {
       "type": "string",
