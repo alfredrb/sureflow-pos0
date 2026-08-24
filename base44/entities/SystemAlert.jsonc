@@ -51,6 +51,21 @@
     },
     "resolution_notes": {
       "type": "string"
+    },
+    "notified_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this alert was last emailed to the ops notification list. Blank = never notified. The dispatcher reads this so the same alert is not re-sent on every pass."
+    },
+    "notify_count": {
+      "type": "number",
+      "default": 0,
+      "description": "How many times this alert has been emailed. Used with the re-notify window so a store that is down all weekend produces a handful of reminders rather than hundreds."
+    },
+    "recovery_notified_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the 'recovered' email was sent after this alert resolved. Only alerts that were actually notified get a recovery email, so the inbox tells a complete story."
     }
   },
   "required": [

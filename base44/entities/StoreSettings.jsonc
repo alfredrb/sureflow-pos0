@@ -19,6 +19,29 @@
       "type": "string",
       "description": "Static LAN IP of the printer the Admin site prints to (till check-in/out slips, cash slips, transaction reprints), reached through the store's Local Relay VM on port 9100. Blank = the relay uses the first printer in its PRINTER_IPS list."
     },
+    "ops_notification_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Addresses emailed when a critical SystemAlert is raised (a store's relay stopped syncing, a controller failed over) and again when it clears. Set on the global settings record; empty = alerts are recorded but nobody is told."
+    },
+    "ops_notify_min_severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "critical"
+      ],
+      "default": "critical",
+      "description": "Lowest SystemAlert severity that triggers an ops notification email."
+    },
+    "ops_renotify_hours": {
+      "type": "number",
+      "default": 12,
+      "description": "Hours to wait before re-sending a reminder for an alert that is still open. Stops a store that is down all weekend from generating hundreds of emails."
+    },
     "default_tax_rate": {
       "type": "number",
       "default": 7,

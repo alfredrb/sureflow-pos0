@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import StoreSection from "@/components/infrastructure/StoreSection";
+import OpsNotificationsCard from "@/components/infrastructure/OpsNotificationsCard";
 import RebootConfirmDialog from "@/components/infrastructure/RebootConfirmDialog";
 import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCard";
 import { DEFAULT_SETUP_STEPS } from "@/components/infrastructure/RelaySetupGuide";
@@ -19,6 +20,9 @@ export default function AdminHardwareStatus() {
   const [setups, setSetups] = useState([]);
   const [credentials, setCredentials] = useState([]);
   const [syncLogs, setSyncLogs] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [savingOps, setSavingOps] = useState(false);
+  const [testingOps, setTestingOps] = useState(false);
   const [newKeys, setNewKeys] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -30,13 +34,15 @@ export default function AdminHardwareStatus() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [st, regs, sus, creds, logs] = await Promise.all([
+      const [st, regs, sus, creds, logs, sets] = await Promise.all([
         base44.entities.Store.list(),
         base44.entities.Register.list(),
         base44.entities.StoreRelaySetup.list(),
         base44.entities.RelayCredential.filter({ status: "active" }),
         base44.entities.RelaySyncLog.list("-synced_at", 200),
+        base44.entities.StoreSettings.list(),
       ]);
+      setSettings(sets.find((s) => !s.store_id) || sets[0] || null);
       setStores(st.filter((s) => s.status !== "inactive"));
       setRegisters(regs);
       setSetups(sus);
@@ -83,6 +89,51 @@ export default function AdminHardwareStatus() {
     } catch (e) {
       toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
     }
+  };
+
+  // ---- Ops notification recipients for critical system alerts ----
+  const handleSaveOps = async (values) => {
+    setSavingOps(true);
+    try {
+      let saved;
+      if (settings) {
+        await base44.entities.StoreSettings.update(settings.id, values);
+        saved = { ...settings, ...values };
+      } else {
+        saved = await base44.entities.StoreSettings.create({ store_name: "SureFlow", ...values });
+      }
+      setSettings(saved);
+      logAuditEvent({
+        action: "Updated Ops Notification Recipients",
+        category: "configuration",
+        description: `System alert notifications set to ${values.ops_notification_emails.length} recipient(s): ${values.ops_notification_emails.join(", ") || "(none)"}. Minimum severity '${values.ops_notify_min_severity}', reminder every ${values.ops_renotify_hours} hours.`,
+        page: "/admin/hardware",
+        changes: [
+          { field: "ops_notification_emails", from: (settings?.ops_notification_emails || []).join(", "), to: values.ops_notification_emails.join(", ") },
+          { field: "ops_notify_min_severity", from: settings?.ops_notify_min_severity || "critical", to: values.ops_notify_min_severity },
+          { field: "ops_renotify_hours", from: String(settings?.ops_renotify_hours ?? 12), to: String(values.ops_renotify_hours) },
+        ],
+      });
+      toast({ title: "Saved", description: "Ops notification settings updated." });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save notification settings", variant: "destructive" });
+    }
+    setSavingOps(false);
+  };
+
+  const handleTestOps = async () => {
+    setTestingOps(true);
+    try {
+      const res = await base44.functions.invoke("dispatchSystemAlerts", { test: true });
+      if (res.data?.ok) {
+        toast({ title: "Test Sent", description: `Test notification sent to ${res.data.sent_to} recipient(s).` });
+      } else {
+        toast({ title: "Test Failed", description: res.data?.error || "Could not send the test notification.", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Test Failed", description: "Could not send the test notification. Save the recipient list first.", variant: "destructive" });
+    }
+    setTestingOps(false);
   };
 
   // ---- Relay URL configuration ----
@@ -273,6 +324,15 @@ export default function AdminHardwareStatus() {
           </SelectContent>
         </Select>
       </div>
+
+      <OpsNotificationsCard
+        key={settings?.id || "new"}
+        settings={settings}
+        onSave={handleSaveOps}
+        onTest={handleTestOps}
+        saving={savingOps}
+        testing={testingOps}
+      />
 
       <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
