@@ -257,7 +257,7 @@ export default function AdminCashReconciliation() {
         />
       )}
 
-      {activeTab === "report" && <CashQuickReportTab records={scoped} totals={totals} onToast={toast} />}
+      {activeTab === "report" && <CashQuickReportTab records={scoped} onToast={toast} />}
 
       {activeTab === "export" && (
         <CashExportTab

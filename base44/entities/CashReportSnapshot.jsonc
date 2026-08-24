@@ -1,0 +1,54 @@
+{
+  "name": "CashReportSnapshot",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number this snapshot covers. Blank = the single-store default."
+    },
+    "report_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date the snapshot covers (YYYY-MM-DD). One snapshot per store per day."
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The computed Quick Report totals object for that day, exactly as the on-screen tiles show it. Stored so a past day still reads correctly even after records are edited."
+    },
+    "report_text": {
+      "type": "string",
+      "description": "Rendered 42-column report text as it was printed at midnight."
+    },
+    "printed": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the midnight job successfully pushed the report to the store's receipt printer."
+    },
+    "print_error": {
+      "type": "string",
+      "description": "Why the auto-print failed (relay unreachable, no printer configured), so a manager can reprint by hand."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "report_date"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

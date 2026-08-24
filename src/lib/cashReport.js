@@ -31,7 +31,7 @@ export function groupByRegister({ deposits = [], advances = [], pickups = [], au
 }
 
 const tillBlock = (t) =>
-  `\n=== TILL CHECKOUT/CHECKIN ===\nTills Checked Out: ${t.checkedOutCount}\nChecked Out Expected Total: $${t.checkedOutExpected.toFixed(2)}\nTills Checked In: ${t.checkedInCount}\nTill Discrepancies Total: ${t.totalDiscrepancies >= 0 ? "+" : ""}$${t.totalDiscrepancies.toFixed(2)}\n`;
+  `\n=== TILL CHECKOUT/CHECKIN ===\nTills Checked Out: ${t.checkedOutCount}\nChecked Out Expected Total: $${t.checkedOutExpected.toFixed(2)}\nTills Checked In: ${t.checkedInCount} / ${t.checkedOutCount}\nTill Discrepancies Total: ${t.totalDiscrepancies >= 0 ? "+" : ""}$${t.totalDiscrepancies.toFixed(2)}\n`;
 
 export function buildReportText(groups, t) {
   let out = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n`;

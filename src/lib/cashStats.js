@@ -1,11 +1,16 @@
 // Shared totals for the Cash Reconciliation summary tiles and every export format,
 // so the printed slip, the CSV and the on-screen figures can never disagree.
+//
+// `day` (YYYY-MM-DD) scopes the till figures. Without it the till counts read the
+// whole history, which is how "Tills Checked In" ended up showing 326 against the
+// 5 registers that happen to exist today.
+import { checkedOutOnDay, checkedInOnDay } from "@/lib/cashDay";
 
 const sum = (arr, pick) => arr.reduce((s, x) => s + (pick(x) || 0), 0);
 
-export function computeCashTotals({ deposits = [], advances = [], pickups = [], audits = [], robberies = [], giftCardCashouts = [], tillCheckouts = [], registers = [] }) {
-  const checkedOutCount = tillCheckouts.filter((t) => t.status === "checked_out").length;
-  const checkedInCount = tillCheckouts.filter((t) => t.status === "checked_in").length;
+export function computeCashTotals({ deposits = [], advances = [], pickups = [], audits = [], robberies = [], giftCardCashouts = [], tillCheckouts = [], registers = [], day = null }) {
+  const outTills = day ? checkedOutOnDay(tillCheckouts, day) : tillCheckouts.filter((t) => t.status === "checked_out");
+  const inTills = day ? checkedInOnDay(tillCheckouts, day) : tillCheckouts.filter((t) => t.status === "checked_in");
 
   return {
     totalDeposits: deposits.length,
@@ -25,12 +30,13 @@ export function computeCashTotals({ deposits = [], advances = [], pickups = [], 
       const match = log.detail?.match(/\$(\d+\.\d+)/);
       return s + (match ? parseFloat(match[1]) : 0);
     }, 0),
-    checkedOutCount,
-    checkedInCount,
-    checkedOutExpected: checkedOutCount * 250,
-    totalDiscrepancies: tillCheckouts
-      .filter((t) => t.status === "checked_in" && t.discrepancy !== undefined)
-      .reduce((s, t) => s + t.discrepancy, 0),
+    checkedOutCount: outTills.length,
+    // Checked in is measured against the tills that actually went out that day —
+    // a store can only bring back what it pulled, never "one per register".
+    checkedInCount: inTills.length,
+    checkedOutExpected: sum(outTills, (t) => t.checkout_total ?? 250),
+    totalDiscrepancies: sum(inTills, (t) => t.discrepancy),
     totalRegisters: registers.length,
+    day,
   };
 }
