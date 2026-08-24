@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import OperatorAdminAccessTab from "@/components/operators/OperatorAdminAccessTab";
-import { getAdminAccess, ADMIN_ROLE_LABELS, resolveAdminRole } from "@/lib/adminAccess";
+import { getAdminAccess, ADMIN_ROLE_LABELS, resolveAdminRole, scopeOperators, getOperatorListAccess } from "@/lib/adminAccess";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 import { mirrorAdminScopeToUser } from "@/lib/adminScopeMirror";
 
@@ -32,6 +32,10 @@ export default function AdminOperators() {
   // widen the set of stores they can see.
   const currentAccess = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
   const canEditAdminAccess = currentAccess.role === "hq_admin";
+  // Store-scoped roles only ever see their own store's people; techs and vendors see
+  // only themselves. Read-only roles get the list without the management controls.
+  const listAccess = getOperatorListAccess(currentAccess);
+  const ownStore = currentAccess.storeScope === "all" ? "" : (currentAccess.storeScope || [])[0] || "";
 
   const load = async () => {
     try {
@@ -89,6 +93,8 @@ export default function AdminOperators() {
     try {
       // Non-HQ admins may view the tab but never write its fields.
       const payload = canEditAdminAccess ? form : (() => { const p = { ...form }; ADMIN_ACCESS_FIELDS.forEach(f => delete p[f]); return p; })();
+      // A store manager can only create people into their own store.
+      if (!editing && ownStore) payload.store_id = ownStore;
       if (editing) {
         await base44.entities.Operator.update(editing.id, payload);
         if (canEditAdminAccess) await logAdminAccessChange(editing, form);
@@ -117,7 +123,8 @@ export default function AdminOperators() {
   };
 
   const ROLE_ORDER = { manager: 0, csm: 1, loss_prevention: 2, cashier: 3, vendor: 4, technician: 5 };
-  const filtered = operators
+  const visibleOperators = scopeOperators(currentAccess, operators);
+  const filtered = visibleOperators
     .filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search))
     .sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99));
 
@@ -131,10 +138,22 @@ export default function AdminOperators() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Operator Management</h1>
-          <p className="text-gray-500 text-sm mt-1">{operators.length} operators</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {visibleOperators.length} operators
+            {listAccess.visibility === "store" && ownStore ? ` · Store ${ownStore}` : ""}
+            {listAccess.visibility === "self" ? " · your own record only" : ""}
+          </p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Operator</Button>
+        {listAccess.canEdit && (
+          <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"><Plus className="w-4 h-4 mr-2" /> Add Operator</Button>
+        )}
       </div>
+
+      {!listAccess.canEdit && (
+        <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-800">
+          Read-only view — {ADMIN_ROLE_LABELS[currentAccess.role]} access cannot add, edit or remove operators.
+        </div>
+      )}
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -154,10 +173,12 @@ export default function AdminOperators() {
                   <p className="text-sm font-medium text-gray-900">{op.full_name}</p>
                   <p className="text-xs text-gray-400">ID: {op.operator_id}</p>
                 </div>
-                <div className="md:hidden flex gap-1">
-                  <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-4 h-4" /></button>
-                  <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                </div>
+                {listAccess.canEdit && (
+                  <div className="md:hidden flex gap-1">
+                    <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-gray-500 md:block">{op.email || "—"}</p>
               <span className={`text-xs font-medium px-2 py-1 rounded-full w-fit ${roleBadge[op.role] || "bg-gray-100 text-gray-600"}`}>{roleLabel[op.role] || op.role}</span>
@@ -169,10 +190,12 @@ export default function AdminOperators() {
                   : <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">POS Access</span>}
                 {op.on_leave && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">On Leave</span>}
               </div>
-              <div className="hidden md:flex gap-1">
-                <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
+              {listAccess.canEdit ? (
+                <div className="hidden md:flex gap-1">
+                  <button onClick={() => openEdit(op)} className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => remove(op)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              ) : <span className="hidden md:block" />}
             </div>
           ))}
         </div>

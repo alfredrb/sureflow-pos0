@@ -152,6 +152,46 @@ export function canAccessPage(access, path) {
   }
 }
 
+// Who may see, and who may change, the people list.
+//   hq_admin      — every operator, full edit.
+//   store_manager — their own store's operators, full edit.
+//   csm           — their own store's operators, read-only (they run a shift, not the roster).
+//   technician /
+//   vendor        — isolated: only their own record, read-only. A tech services boxes,
+//                   and a vendor is an outside party, so neither sees a store's people.
+//   lp            — their own store's operators, read-only, because the LP workbench
+//                   ranks operators and the names have to resolve.
+export function getOperatorListAccess(access) {
+  switch (access?.role) {
+    case "hq_admin":
+      return { visibility: "all", canEdit: true };
+    case "store_manager":
+      return { visibility: "store", canEdit: true };
+    case "csm":
+    case "lp":
+      return { visibility: "store", canEdit: false };
+    case "technician":
+    case "vendor":
+      return { visibility: "self", canEdit: false };
+    default:
+      return { visibility: "none", canEdit: false };
+  }
+}
+
+// Narrows a loaded operator list to what this person is allowed to see.
+export function scopeOperators(access, operators) {
+  const { visibility } = getOperatorListAccess(access);
+  if (visibility === "all") return operators;
+  if (visibility === "none") return [];
+  if (visibility === "self") {
+    const selfId = access?.operator?.operator_id;
+    return operators.filter((o) => o.operator_id === selfId);
+  }
+  // Store visibility deliberately excludes unassigned operators — an operator with no
+  // store belongs to the chain, and only HQ places them.
+  return operators.filter((o) => o.store_id && isStoreInScope(access, o.store_id));
+}
+
 // Whether a record belonging to storeId is inside this person's data scope.
 export function isStoreInScope(access, storeId) {
   if (!access) return false;
