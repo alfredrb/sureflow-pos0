@@ -7,7 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import OperatorAdminAccessTab from "@/components/operators/OperatorAdminAccessTab";
+import { getAdminAccess, ADMIN_ROLE_LABELS, resolveAdminRole } from "@/lib/adminAccess";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+
+const EMPTY_FORM = { operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "", admin_role: "", home_store_id: "", serviced_store_ids: [] };
+const ADMIN_ACCESS_FIELDS = ["admin_role", "home_store_id", "serviced_store_ids"];
 
 export default function AdminOperators() {
   const [operators, setOperators] = useState([]);
@@ -15,9 +22,15 @@ export default function AdminOperators() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "" });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [showPin, setShowPin] = useState(false);
+  const [stores, setStores] = useState([]);
   const { toast } = useToast();
+
+  // Admin access is HQ-only to assign: a store's own management must not be able to
+  // widen the set of stores they can see.
+  const currentAccess = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
+  const canEditAdminAccess = currentAccess.role === "hq_admin";
 
   const load = async () => {
     try {
@@ -33,18 +46,45 @@ export default function AdminOperators() {
   };
   
   useEffect(() => { load(); }, []);
+  useEffect(() => { base44.entities.Store.filter({ status: "active" }).then(setStores).catch(() => {}); }, []);
   useRealtimeSync("Operator", load, { intervalMs: 20000 });
 
-  const openNew = () => { setEditing(null); setForm({ operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "" }); setDialogOpen(true); };
-  const openEdit = (op) => { setEditing(op); setForm({ operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status, email: op.email || "", pos_access: op.pos_access !== false, company_id: op.company_id || "" }); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm(EMPTY_FORM); setDialogOpen(true); };
+  const openEdit = (op) => {
+    setEditing(op);
+    setForm({
+      operator_id: op.operator_id, full_name: op.full_name, pin: op.pin, role: op.role, status: op.status,
+      email: op.email || "", pos_access: op.pos_access !== false, company_id: op.company_id || "",
+      admin_role: op.admin_role || "", home_store_id: op.home_store_id || "", serviced_store_ids: op.serviced_store_ids || [],
+    });
+    setDialogOpen(true);
+  };
+
+  // Admin access changes are recorded field-by-field so the audit trail shows exactly
+  // who widened or narrowed someone's reach.
+  const logAdminAccessChange = async (before, after) => {
+    const changes = diffChanges(before, after, ADMIN_ACCESS_FIELDS);
+    if (!changes.length) return;
+    await logAuditEvent({
+      action: `Changed admin access for ${after.full_name}`,
+      category: "permissions",
+      description: `Admin role now ${ADMIN_ROLE_LABELS[resolveAdminRole(after)]}, home store ${after.home_store_id || "none"}, serviced stores ${(after.serviced_store_ids || []).join(", ") || "none"}.`,
+      page: "/admin/operators",
+      changes,
+    });
+  };
 
   const save = async () => {
     try {
+      // Non-HQ admins may view the tab but never write its fields.
+      const payload = canEditAdminAccess ? form : (() => { const p = { ...form }; ADMIN_ACCESS_FIELDS.forEach(f => delete p[f]); return p; })();
       if (editing) {
-        await base44.entities.Operator.update(editing.id, form);
+        await base44.entities.Operator.update(editing.id, payload);
+        if (canEditAdminAccess) await logAdminAccessChange(editing, form);
         toast({ title: "Operator updated" });
       } else {
-        await base44.entities.Operator.create(form);
+        await base44.entities.Operator.create(payload);
+        if (canEditAdminAccess) await logAdminAccessChange({}, form);
         toast({ title: "Operator created" });
       }
       setDialogOpen(false);
