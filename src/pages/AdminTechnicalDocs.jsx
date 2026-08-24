@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive, Layers } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
@@ -18,11 +18,13 @@ import RelayUpdateWalkthrough from "@/components/techdocs/RelayUpdateWalkthrough
 import ScannerSuffixReference from "@/components/techdocs/ScannerSuffixReference";
 import IBMScancodeReference from "@/components/techdocs/IBMScancodeReference";
 import KeyturnMsrReference from "@/components/techdocs/KeyturnMsrReference";
+import StoreHAClusterReference from "@/components/techdocs/StoreHAClusterReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
   { id: "ports", label: "Terminal Ports", icon: Plug, blurb: "Rear-panel port maps and wiring tables per terminal model." },
   { id: "pxe", label: "PXE Controller", icon: Server, blurb: "Diskless boot controller: DHCP/TFTP, NFS roots, kiosk image and boot profiles." },
+  { id: "hacluster", label: "Controller Redundancy", icon: Layers, blurb: "Dual controller pair: PXE + NFS + relay on both boxes, DRBD mirror, floating VIP and automatic promotion." },
   { id: "relay", label: "Relay Deployment", icon: HardDrive, blurb: "Local Relay VM build: OS, networking, app, printing and telemetry." },
   { id: "relayupdate", label: "Relay Feature Update", icon: Rocket, blurb: "Step-by-step upgrade of an existing relay: new modules, routes, lane bridges and verification." },
   { id: "check", label: "Cheque Station", icon: FileText, blurb: "MICR reading, endorsement franking, relay cheque routes and hardware diagnostics." },
@@ -84,6 +86,7 @@ export default function AdminTechnicalDocs() {
             </div>
           )}
           {active === "pxe" && <PXEControllerGuide />}
+          {active === "hacluster" && <StoreHAClusterReference />}
           {active === "relay" && <RelayDeploymentReference />}
           {active === "relayupdate" && <RelayUpdateWalkthrough />}
           {active === "check" && <CheckReaderReference />}

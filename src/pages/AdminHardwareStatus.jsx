@@ -104,6 +104,42 @@ export default function AdminHardwareStatus() {
     }
   };
 
+  // ---- Controller redundancy (dual PXE controller + dual relay pair) ----
+  const handleSaveHa = async (store, values) => {
+    try {
+      await base44.entities.Store.update(store.id, values);
+      setStores((ss) => ss.map((s) => (s.id === store.id ? { ...s, ...values } : s)));
+      logAuditEvent({
+        action: "Updated Controller Redundancy Configuration",
+        category: "configuration",
+        description: `Redundant controller pair for ${store.name} (#${store.store_number}) ${values.ha_enabled ? "enabled" : "disabled"}. VIP '${values.controller_vip || "(none)"}', primary '${values.primary_controller_host || "(none)"}', secondary '${values.secondary_controller_host || "(none)"}'.`,
+        page: "/admin/hardware",
+        changes: Object.keys(values).map((f) => ({ field: f, from: String(store[f] ?? ""), to: String(values[f]) })),
+      });
+      toast({ title: "Saved", description: `Redundancy settings updated for ${store.name}` });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save redundancy settings", variant: "destructive" });
+    }
+  };
+
+  const handleFailback = async (store) => {
+    const patch = { acting_primary: "primary", failback_pending: false };
+    try {
+      await base44.entities.Store.update(store.id, patch);
+      setStores((ss) => ss.map((s) => (s.id === store.id ? { ...s, ...patch } : s)));
+      logAuditEvent({
+        action: "Controller Failback to Primary",
+        category: "system",
+        description: `${store.name} (#${store.store_number}) marked failed back to its primary controller (${store.primary_controller_host || "unknown"}) after running on the secondary since ${store.last_failover_at || "an unrecorded time"}.`,
+        page: "/admin/hardware",
+        changes: [{ field: "acting_primary", from: "secondary", to: "primary" }],
+      });
+      toast({ title: "Failed Back", description: `${store.name} is recorded as running on its primary controller.` });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to record failback", variant: "destructive" });
+    }
+  };
+
   // ---- Setup guide checklist ----
   const handleToggleStep = async (store, stepId) => {
     const actor = JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
@@ -268,6 +304,8 @@ export default function AdminHardwareStatus() {
               onRebootClick={setRebootStore}
               onOverride={handleOverride}
               onSaveRelayUrl={handleSaveRelayUrl}
+              onSaveHa={handleSaveHa}
+              onFailback={handleFailback}
             />
           ))}
         </div>

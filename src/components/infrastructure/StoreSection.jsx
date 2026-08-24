@@ -8,8 +8,9 @@ import RegisterHardwareCard from "@/components/infrastructure/RegisterHardwareCa
 import RelaySetupGuide from "@/components/infrastructure/RelaySetupGuide";
 import SyncHealthCard from "@/components/infrastructure/SyncHealthCard";
 import RelayOpsCard from "@/components/infrastructure/RelayOpsCard";
+import StoreRedundancyCard from "@/components/infrastructure/StoreRedundancyCard";
 
-export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync }) {
+export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
   const [open, setOpen] = useState(true);
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(store.relay_url || "");
@@ -98,6 +99,7 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               onForceSync={onForceSync}
             />
             <RelayOpsCard store={store} relay={relay} />
+            <StoreRedundancyCard store={store} onSaveHa={onSaveHa} onFailback={onFailback} />
             <div className="bg-white border border-gray-100 rounded-2xl p-5 md:col-span-2 xl:col-span-1">
               <p className="text-sm font-semibold text-gray-900 mb-3">Register Hardware</p>
               {registers.length === 0 ? (

@@ -41,7 +41,37 @@ export default async function (req: Request): Promise<Response> {
           status: 'active',
         });
         results.push({ store_id: sid, action: 'alert_raised', minutes_ago: minutesAgo });
-      } else if (!stale && existing) {
+      }
+
+      // Redundant stores: a stale relay behind the VIP means the acting primary is
+      // gone, so record the promotion to the secondary. keepalived has already moved
+      // the VIP on the store LAN — this mirrors that into the cloud so the command
+      // center shows reality and an admin knows a failback is owed. Failback is
+      // deliberately manual: auto-returning mid-DRBD-resync serves a half-copied root.
+      if (stale && store.ha_enabled && store.acting_primary !== 'secondary') {
+        const reason = minutesAgo === null
+          ? 'Relay behind the floating VIP has never reported a successful sync.'
+          : `Relay behind the floating VIP went stale (last successful sync ${minutesAgo} minutes ago, threshold ${STALE_MINUTES}).`;
+        const at = new Date().toISOString();
+        await svc.entities.Store.update(store.id, {
+          acting_primary: 'secondary',
+          last_failover_at: at,
+          last_failover_reason: reason,
+          failback_pending: true,
+        });
+        await svc.entities.AuditTrail.create({
+          action: 'Controller Failover to Secondary',
+          category: 'system',
+          description: `${store.name} (#${sid}) was automatically promoted onto its secondary controller (${store.secondary_controller_host || 'unknown host'}). ${reason} Lanes that reboot come up on the secondary; lanes mid-transaction when the primary died must be rebooted. A controlled failback is owed once the primary is up and DRBD reads UpToDate on both boxes.`,
+          actor_name: 'System',
+          actor_role: 'system',
+          page: '/admin/hardware',
+          changes: [{ field: 'acting_primary', from: 'primary', to: 'secondary' }],
+        });
+        results.push({ store_id: sid, action: 'failed_over_to_secondary', minutes_ago: minutesAgo });
+      }
+
+      if (!stale && existing) {
         await svc.entities.SystemAlert.update(existing.id, {
           status: 'resolved',
           resolved_at: new Date().toISOString(),
@@ -49,7 +79,8 @@ export default async function (req: Request): Promise<Response> {
           resolution_notes: `Sync recovered — last successful sync ${minutesAgo} minutes ago.`,
         });
         results.push({ store_id: sid, action: 'alert_resolved', minutes_ago: minutesAgo });
-      } else {
+      } else if (existing || !stale) {
+        // (a freshly raised alert already pushed its own result above)
         results.push({ store_id: sid, action: stale ? 'already_alerted' : 'healthy', minutes_ago: minutesAgo });
       }
     }
