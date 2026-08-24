@@ -13,7 +13,7 @@ const TITLES = {
 
 // Cash slips (advance, pickup, till check-in/out) print through the shared
 // 42-column IBM 4690 pipeline — relay ESC/POS first, browser window as fallback.
-export default function CashSlipReceipt({ type, registerName, registerId, amount, reason, date, operator }) {
+export default function CashSlipReceipt({ type, registerName, registerId, amount, reason, date, operator, denominations }) {
   const handlePrint = () => {
     printReceipt(buildPanelReceiptProps({
       operator,
@@ -26,6 +26,7 @@ export default function CashSlipReceipt({ type, registerName, registerId, amount
         kind: type,
         amount: parseFloat(amount || 0),
         reason: reason || "",
+        denominations: denominations || [],
       },
       date,
     }));

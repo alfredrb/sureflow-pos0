@@ -47,7 +47,7 @@ export async function adminPrintReceipt(props) {
 }
 
 // Convenience wrapper for admin cash / till slips.
-export function adminPrintCashSlip({ title, kind, amount, reason, registerId, registerName, operatorName, date }) {
+export function adminPrintCashSlip({ title, kind, amount, reason, registerId, registerName, operatorName, date, denominations }) {
   return adminPrintReceipt({
     docType: "cash",
     transactionId: "",
@@ -55,7 +55,7 @@ export function adminPrintCashSlip({ title, kind, amount, reason, registerId, re
     operatorName,
     registerId: registerId || "ADMIN",
     registerName: registerName || registerId || "ADMIN",
-    cashSlip: { title, kind, amount: Number(amount || 0), reason: reason || "" },
+    cashSlip: { title, kind, amount: Number(amount || 0), reason: reason || "", denominations: denominations || [] },
     date,
   });
 }

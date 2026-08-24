@@ -9,6 +9,12 @@ import { logAuditEvent } from "@/lib/auditLogger";
 import BagNumberField from "@/components/till/BagNumberField";
 import TillCountInputs from "@/components/till/TillCountInputs";
 import ForceCheckinPrompt from "@/components/till/ForceCheckinPrompt";
+import { slipDenominations } from "@/lib/denominations";
+import { applyVaultMovement } from "@/lib/vault";
+
+// The standard $250 till float handed out at check-out.
+const STANDARD_BILLS = { twenty: 5, ten: 5, five: 10, one: 40 };
+const STANDARD_COINS = { quarters_rolls: 2, dimes_rolls: 1, nickels_rolls: 1, pennies_rolls: 2 };
 
 // Pop the selected register's drawer so the till can be loaded / pulled. Silent on failure.
 const popRegisterDrawer = (register) =>
@@ -80,6 +86,7 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
               title: "TILL CHECK-OUT SLIP",
               kind: "checkout",
               amount: 250,
+              denominations: slipDenominations(STANDARD_BILLS, STANDARD_COINS),
               reason: `BAG ${bagKey(bagNumber) || "—"} · STANDARD $250 TILL FLOAT`,
               registerId: registers.find(r => r.id === selectedRegister)?.register_id,
               registerName: registers.find(r => r.id === selectedRegister)?.name,
@@ -117,9 +124,17 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
                   operator_name: user.full_name,
                   checkout_date: new Date().toISOString(),
                   status: "checked_out",
-                  checkout_bills: { twenty: 5, ten: 5, five: 10, one: 40 },
-                  checkout_coins: { quarters_rolls: 2, dimes_rolls: 1, nickels_rolls: 1, pennies_rolls: 2 },
+                  checkout_bills: STANDARD_BILLS,
+                  checkout_coins: STANDARD_COINS,
                   checkout_total: 250
+                });
+
+                // The float leaves the vault.
+                applyVaultMovement({
+                  bills: STANDARD_BILLS,
+                  coins: STANDARD_COINS,
+                  direction: -1,
+                  note: `Till check-out bag ${bag} → ${register?.name || selectedRegister}`,
                 });
 
                 await base44.entities.RegisterLog.create({
@@ -146,6 +161,7 @@ export function TillCheckoutModal({ open, onClose, registers, onSuccess }) {
                   title: "TILL CHECK-OUT SLIP",
                   kind: "checkout",
                   amount: 250,
+                  denominations: slipDenominations(STANDARD_BILLS, STANDARD_COINS),
                   reason: `BAG ${bag} · STANDARD $250 TILL FLOAT`,
                   registerId: register?.register_id,
                   registerName: register?.name,
@@ -221,6 +237,14 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
         });
       }
 
+      // The counted cash returns to the vault.
+      applyVaultMovement({
+        bills: checkinBills,
+        coins: checkinCoins,
+        direction: 1,
+        note: `Till check-in bag ${keyed} ← ${register?.name || selectedRegister}`,
+      });
+
       const forcedNote = override
         ? ` — FORCED: expected bag ${expected || "—"}, authorized by ${override.manager.full_name} (${override.reason})`
         : "";
@@ -254,6 +278,7 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
         title: override ? "TILL CHECK-IN SLIP (FORCED)" : "TILL CHECK-IN SLIP",
         kind: "checkin",
         amount: checkinTotal,
+        denominations: slipDenominations(checkinBills, checkinCoins),
         reason: `BAG ${keyed}${override ? ` (EXPECTED ${expected || "—"} · FORCED BY ${override.manager.full_name})` : ""} · DISCREPANCY ${discrepancy >= 0 ? "+" : "-"}$${Math.abs(discrepancy).toFixed(2)}`,
         registerId: register?.register_id,
         registerName: register?.name,
@@ -360,6 +385,7 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
               title: "TILL CHECK-IN SLIP",
               kind: "checkin",
               amount: checkinTotal,
+              denominations: slipDenominations(checkinBills, checkinCoins),
               reason: `BAG ${bagKey(bagNumber) || "—"} · DISCREPANCY ${discrepancy >= 0 ? "+" : "-"}$${Math.abs(discrepancy).toFixed(2)}`,
               registerId: registers.find(r => r.id === selectedRegister)?.register_id,
               registerName: registers.find(r => r.id === selectedRegister)?.name,

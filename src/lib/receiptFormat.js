@@ -17,6 +17,14 @@ export const rule = (char = "-") => char.repeat(RECEIPT_WIDTH);
 export const amountRow = (label, amount) =>
   rpad(label, 30) + rpad(amount, 12);
 
+// Denomination breakdown line for cash slips:  "  250 x $  20.00 = $  5000.00"
+export const denomRow = (d) => {
+  const qty = Number(d.qty || 0);
+  const amt = money(qty * Number(d.value || 0));
+  const label = d.label ? pad(d.label, 9) : "$" + rpad(money(d.value), 8);
+  return rpad(String(qty), 6) + " x " + label + " = $" + rpad(amt, 10);
+};
+
 // Centers text inside a fixed-width column so item names line up uniformly.
 const centerPad = (s, n) => {
   const t = String(s ?? "").slice(0, n);
@@ -100,6 +108,17 @@ export function buildReceiptTokens(r) {
     push("blank");
     push("line", amountRow("TYPE", String(cs.kind || "").toUpperCase()));
     push("line", amountRow("AMOUNT", money(cs.amount)));
+    // Denomination breakdown (the 4690 "Notes:" block) when the slip carries one.
+    if ((cs.denominations || []).length) {
+      push("blank");
+      push("line", "NOTES:");
+      let dt = 0;
+      for (const d of cs.denominations) {
+        dt += Number(d.qty || 0) * Number(d.value || 0);
+        push("line", denomRow(d));
+      }
+      push("line", amountRow("NOTES TOTAL", money(dt)));
+    }
     if (cs.reason) {
       push("blank");
       push("center", "REASON");

@@ -13,6 +13,33 @@
       "type": "number",
       "description": "Amount of cash advanced"
     },
+    "bills": {
+      "type": "object",
+      "description": "Bill counts dispensed with this advance, for reconciliation and the printed slip's denomination block. Optional \u2014 an amount-only advance leaves this blank.",
+      "properties": {
+        "hundred": {
+          "type": "number"
+        },
+        "fifty": {
+          "type": "number"
+        },
+        "twenty": {
+          "type": "number"
+        },
+        "ten": {
+          "type": "number"
+        },
+        "five": {
+          "type": "number"
+        },
+        "two": {
+          "type": "number"
+        },
+        "one": {
+          "type": "number"
+        }
+      }
+    },
     "reason": {
       "type": "string",
       "description": "Reason for the cash advance"

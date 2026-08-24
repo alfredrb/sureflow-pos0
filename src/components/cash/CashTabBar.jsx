@@ -1,5 +1,6 @@
 const TABS = [
   { key: "deposits", label: "Deposits", accent: "blue" },
+  { key: "vault", label: "Vault", accent: "green" },
   { key: "bags", label: "Open Bags", accent: "blue" },
   { key: "history", label: "Advances & Pickups", accent: "blue" },
   { key: "emergency", label: "Emergency", accent: "red" },

@@ -19,6 +19,9 @@ import CashHistoryTab from "@/components/cash/CashHistoryTab";
 import CashExportTab from "@/components/cash/CashExportTab";
 import CashQuickReportTab from "@/components/cash/CashQuickReportTab";
 import OpenBagsPanel from "@/components/till/OpenBagsPanel";
+import VaultTab from "@/components/cash/VaultTab";
+import { billsTotal, slipDenominations } from "@/lib/denominations";
+import { applyVaultMovement } from "@/lib/vault";
 import {
   CashAdvanceDialog,
   CashPickupDialog,
@@ -32,9 +35,9 @@ export default function AdminCashReconciliation() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(null);
   const [advanceDialog, setAdvanceDialog] = useState(false);
-  const [advanceForm, setAdvanceForm] = useState({ register_id: "", amount: "", reason: "" });
+  const [advanceForm, setAdvanceForm] = useState({ register_id: "", amount: "", reason: "", bills: {} });
   const [pickupDialog, setPickupDialog] = useState(false);
-  const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
+  const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "", bills: {} });
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [activeTab, setActiveTab] = useState("deposits");
@@ -116,27 +119,39 @@ export default function AdminCashReconciliation() {
     try {
       const register = scoped.registers.find((r) => r.id === form.register_id);
       const entity = kind === "advance" ? base44.entities.CashAdvance : base44.entities.CashPickup;
+      const hasBills = billsTotal(form.bills || {}) > 0;
       await entity.create({
         register_id: register?.register_id || "",
         register_name: register?.name || "",
         amount: parseFloat(form.amount),
+        bills: hasBills ? form.bills : undefined,
         reason: form.reason,
         status: "approved",
       });
+      // An advance leaves the vault; a pickup returns to it. Only when the
+      // bill counts were actually keyed — an amount-only entry can't move denominations.
+      if (hasBills) {
+        applyVaultMovement({
+          bills: form.bills,
+          direction: kind === "advance" ? -1 : 1,
+          note: `Cash ${kind} ${kind === "advance" ? "→" : "←"} ${register?.name || form.register_id}`,
+        });
+      }
       setPrintData({
         type: kind,
         registerName: register?.name || "",
         registerId: register?.register_id || "",
         amount: form.amount,
         reason: form.reason,
+        denominations: hasBills ? slipDenominations(form.bills) : [],
         date: new Date().toISOString(),
       });
       toast({
         title: kind === "advance" ? "Cash advance recorded" : "Cash pickup recorded",
         description: `$${parseFloat(form.amount).toFixed(2)} ${kind === "advance" ? "to" : "from"} ${register?.name}`,
       });
-      if (kind === "advance") { setAdvanceForm({ register_id: "", amount: "", reason: "" }); setAdvanceDialog(false); }
-      else { setPickupForm({ register_id: "", amount: "", reason: "" }); setPickupDialog(false); }
+      if (kind === "advance") { setAdvanceForm({ register_id: "", amount: "", reason: "", bills: {} }); setAdvanceDialog(false); }
+      else { setPickupForm({ register_id: "", amount: "", reason: "", bills: {} }); setPickupDialog(false); }
       loadData();
     } catch (e) {
       toast({ title: kind === "advance" ? "Error creating advance" : "Error creating pickup", variant: "destructive" });
@@ -219,6 +234,8 @@ export default function AdminCashReconciliation() {
       {activeTab === "deposits" && (
         <CashDepositsTab deposits={scoped.deposits} selectedDate={selectedDate} onSelectDate={setSelectedDate} renderPushBtn={renderPushBtn} />
       )}
+
+      {activeTab === "vault" && <VaultTab onToast={toast} />}
 
       {activeTab === "bags" && <OpenBagsPanel tillCheckouts={scoped.tillCheckouts} />}
 

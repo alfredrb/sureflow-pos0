@@ -1,0 +1,85 @@
+{
+  "name": "StoreVault",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number this vault belongs to. One record per store; blank = the single-store default vault."
+    },
+    "bills": {
+      "type": "object",
+      "description": "Current bill counts on hand in the vault (cash-recycler view). Drawn down by till check-outs and cash advances, refilled by till check-ins and cash pickups.",
+      "properties": {
+        "hundred": {
+          "type": "number"
+        },
+        "fifty": {
+          "type": "number"
+        },
+        "twenty": {
+          "type": "number"
+        },
+        "ten": {
+          "type": "number"
+        },
+        "five": {
+          "type": "number"
+        },
+        "two": {
+          "type": "number"
+        },
+        "one": {
+          "type": "number"
+        }
+      }
+    },
+    "coins": {
+      "type": "object",
+      "description": "Current coin-roll counts on hand in the vault.",
+      "properties": {
+        "quarters_rolls": {
+          "type": "number"
+        },
+        "dimes_rolls": {
+          "type": "number"
+        },
+        "nickels_rolls": {
+          "type": "number"
+        },
+        "pennies_rolls": {
+          "type": "number"
+        }
+      }
+    },
+    "movements": {
+      "type": "array",
+      "description": "Recent vault movements (capped at 50), newest first. delta is the signed dollar value that moved.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string"
+          },
+          "delta": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  },
+  "required": [],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

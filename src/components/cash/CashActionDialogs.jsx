@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import CashSlipReceipt from "@/components/CashSlipReceipt";
+import DenominationInputs from "@/components/cash/DenominationInputs";
+import { billsTotal } from "@/lib/denominations";
 
 const RegisterSelect = ({ value, onChange, registers, ring }) => (
   <div>
@@ -45,13 +47,20 @@ const AmountReason = ({ form, setForm, placeholder }) => (
   </>
 );
 
+// Keying bill counts auto-fills the amount so the slip, the record and the vault agree.
+const onBillsChange = (form, setForm) => (bills) => {
+  const total = billsTotal(bills);
+  setForm({ ...form, bills, amount: total > 0 ? String(total) : form.amount });
+};
+
 export function CashAdvanceDialog({ open, onOpenChange, form, setForm, registers, onSubmit }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Record Cash Advance</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <RegisterSelect value={form.register_id} onChange={(v) => setForm({ ...form, register_id: v })} registers={registers} ring="focus:ring-blue-500" />
+          <DenominationInputs bills={form.bills || {}} onChange={onBillsChange(form, setForm)} />
           <AmountReason form={form} setForm={setForm} placeholder="e.g., Low cash float, unexpected spike" />
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">Cancel</Button>
@@ -66,10 +75,11 @@ export function CashAdvanceDialog({ open, onOpenChange, form, setForm, registers
 export function CashPickupDialog({ open, onOpenChange, form, setForm, registers, onSubmit }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Record Cash Pickup</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <RegisterSelect value={form.register_id} onChange={(v) => setForm({ ...form, register_id: v })} registers={registers} ring="focus:ring-amber-500" />
+          <DenominationInputs bills={form.bills || {}} onChange={onBillsChange(form, setForm)} />
           <AmountReason form={form} setForm={setForm} placeholder="e.g., Excess cash, daily deposit" />
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">Cancel</Button>
@@ -143,6 +153,16 @@ export function CashSlipDialog({ printData, onClose }) {
             <div className="border-t border-b py-2 text-center">
               <div className="text-2xl font-bold">${parseFloat(printData.amount).toFixed(2)}</div>
             </div>
+            {(printData.denominations || []).length > 0 && (
+              <div className="text-xs border-b pb-2">
+                <div>Notes:</div>
+                {printData.denominations.map((d, i) => (
+                  <div key={i} className="text-right tabular-nums">
+                    {d.qty} x {d.label || `$${Number(d.value).toFixed(2)}`} = ${(Number(d.qty) * Number(d.value)).toFixed(2)}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="space-y-1 text-xs">
               <div>Date: {new Date(printData.date).toLocaleString()}</div>
               {printData.reason && <div>Reason: {printData.reason}</div>}
@@ -158,6 +178,7 @@ export function CashSlipDialog({ printData, onClose }) {
               amount={printData.amount}
               reason={printData.reason}
               date={printData.date}
+              denominations={printData.denominations}
             />
           </div>
         </div>

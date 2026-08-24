@@ -7,7 +7,7 @@ const net = require("net");
 
 // Bumped whenever this file changes. The test print shows it, so a technician can
 // confirm the relay is actually running the current printer.js and not a stale copy.
-const BUILD = "printer-build 8 (cheque reference on receipts)";
+const BUILD = "printer-build 9 (denomination breakdown on cash slips)";
 
 // Cheque tender reference for the receipt: cheque number + account last 4 only.
 // The full routing/account number is deliberately NOT printed — that stays on the
@@ -53,6 +53,14 @@ function padL(s, n) { return String(s == null ? "" : s).slice(-n).padStart(n, " 
 
 // IBM 4690 totals block: right-aligned label + right-aligned amount.
 function amountRow(label, amount) { return padL(label, 30) + padL(amount, 12) + "\\n"; }
+
+// Denomination breakdown line for cash slips: "  250 x $  20.00 = $  5000.00"
+function denomRow(d) {
+  const qty = Number(d.qty || 0);
+  const amt = money(qty * Number(d.value || 0));
+  const label = d.label ? padR(d.label, 9) : "$" + padL(money(d.value), 8);
+  return padL(String(qty), 6) + " x " + label + " = $" + padL(amt, 10) + "\\n";
+}
 
 // Centers text in a fixed-width column so item names line up uniformly.
 function padC(s, n) {
@@ -115,6 +123,16 @@ function buildReceipt(r) {
       String(cs.title || "CASH SLIP").toUpperCase() + "\\n" + BIG_OFF + BOLD_OFF + ALIGN_L + "\\n";
     o += amountRow("TYPE", String(cs.kind || "").toUpperCase());
     o += amountRow("AMOUNT", money(cs.amount));
+    // Denomination breakdown (the 4690 "Notes:" block) when the slip carries one.
+    if ((cs.denominations || []).length) {
+      o += "\\nNOTES:\\n";
+      let dt = 0;
+      for (const d of cs.denominations) {
+        dt += Number(d.qty || 0) * Number(d.value || 0);
+        o += denomRow(d);
+      }
+      o += amountRow("NOTES TOTAL", money(dt));
+    }
     if (cs.reason) o += "\\n" + center("REASON") + center(String(cs.reason));
     o += "\\nOPERATOR X________________________\\n";
     o += "AUDITOR  X________________________\\n\\n";
