@@ -53,6 +53,21 @@ export default function ControllerMenuReference() {
         </ul>
       </div>
 
+      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-sky-600" />
+          <p className="text-sm font-semibold text-sky-900">Why the Lanes screen works the way it does</p>
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-sky-800">
+          <li>Lanes are on the isolated PXE VLAN 40 and are NAT'd outbound only — nothing can open a connection into a lane, so there is no SSH and no direct probe. The menu says so plainly instead of offering an action that would time out.</li>
+          <li>"Booted?" therefore comes from the lane agent's own outbound polls, which the relay stamps as it answers them. A lane showing "never seen" is powered off, still booting, or running a root without the agent.</li>
+          <li>Reboots are queued by <span className="font-mono">register_id</span>, never by IP: the relay only ever sees the controller's address on a lane request, so an IP would be meaningless. The lane collects its own reboot within ~10s.</li>
+          <li>A diskless lane holds no local state — republishing the root and rebooting <em>is</em> the update. There is no way to patch a running lane in place, which is why "republish the image" and "reboot all" are separate steps.</li>
+          <li>Reboot all is batched with a wait between batches, for the same reason the nightly maintenance window staggers: releasing every lane at once hammers the NFS root and leaves the store dark.</li>
+          <li>Every lane action is written to the audit trail as "Controller CLI (store NNN)", the same as operator changes.</li>
+        </ul>
+      </div>
+
       <StepList
         title="Menu items"
         icon={TerminalSquare}

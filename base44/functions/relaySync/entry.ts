@@ -27,7 +27,7 @@ export default async function (req: Request): Promise<Response> {
     const action = String(body.action || '').trim();
 
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
-    const ACTIONS = ['pull', 'push', 'update_result', 'operator_manage'];
+    const ACTIONS = ['pull', 'push', 'update_result', 'operator_manage', 'lanes'];
     if (!ACTIONS.includes(action)) {
       return Response.json({ error: `action must be one of: ${ACTIONS.join(', ')}` }, { status: 400 });
     }
@@ -209,6 +209,53 @@ export default async function (req: Request): Promise<Response> {
       }
 
       return Response.json({ error: "op must be 'list', 'add', 'edit' or 'remove'" }, { status: 400 });
+    }
+
+    // ---------------- LANES: the controller CLI menu's lane table and action log ----------------
+    // op=list  -> this store's registers, so the menu can show a lane's name and expected
+    //             hardware alongside whether its agent has checked in locally. The cloud
+    //             deliberately does NOT claim a lane is "up": only the relay knows that,
+    //             from the agent polls, so the menu merges the two.
+    // op=audit -> records a lane action taken on the box (reboot, batch reboot, image
+    //             rebuild) so it is as traceable as the same action from the admin panel.
+    if (action === 'lanes') {
+      const op = String(body.op || 'list').trim();
+
+      if (op === 'list') {
+        const registers = await db.Register.filter({ store_id: storeId });
+        return Response.json({
+          ok: true,
+          lanes: registers.map((r: any) => ({
+            register_id: r.register_id,
+            name: r.name,
+            status: r.status || 'offline',
+            paused: !!r.paused,
+            boot_profile: r.boot_profile || 'local_disk',
+            assigned_operator: r.assigned_operator || '',
+            ip_address: r.ip_address || '',
+            mac_address: r.mac_address || '',
+          })),
+        });
+      }
+
+      if (op === 'audit') {
+        const laneAction = String(body.lane_action || '').trim();
+        const detail = String(body.detail || '').slice(0, 900);
+        if (!laneAction) return Response.json({ error: 'lane_action is required' }, { status: 400 });
+
+        await db.AuditTrail.create({
+          action: 'Lane Maintenance (Controller CLI)',
+          category: 'register',
+          description: `Store #${storeId}: ${laneAction}${detail ? ` — ${detail}` : ''} (run from the controller console menu).`,
+          actor_name: `Controller CLI (store ${storeId})`,
+          actor_role: 'system',
+          page: '/controller-cli',
+          changes: [{ field: 'lane_action', from: '', to: laneAction }],
+        });
+        return Response.json({ ok: true, message: 'Recorded in the audit trail.' });
+      }
+
+      return Response.json({ error: "op must be 'list' or 'audit'" }, { status: 400 });
     }
 
     // ---------------- PULL: send the store's catalog cache down ----------------

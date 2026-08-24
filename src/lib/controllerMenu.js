@@ -113,6 +113,128 @@ operators_menu() {
   done
 }
 
+# --- lanes -------------------------------------------------------------------
+# The relay's own token, needed for the lane routes. It lives in the relay .env that
+# systemd reads, NOT in this login shell, so it must be read out each time.
+RELAY_DIR=\${RELAY_DIR:-/srv/sureflow/relay}
+relay_token() { grep -E '^RELAY_ACCESS_TOKEN=' "\$RELAY_DIR/.env" 2>/dev/null | cut -d= -f2-; }
+relay_get()  { curl -s --max-time 5 -H "X-Relay-Token: \$(relay_token)" "http://127.0.0.1:3000\$1"; }
+
+lane_audit() { # lane_audit "<what>" "<detail>"
+  sync "\\"action\\":\\"lanes\\",\\"op\\":\\"audit\\",\\"lane_action\\":\\"\$1\\",\\"detail\\":\\"\${2:-}\\"" >/dev/null 2>&1 || true
+}
+
+# Merges the three things that each know part of the answer:
+#   cloud   -> which registers this store HAS, and their names
+#   relay   -> which lanes have actually checked in (agent polls) and pending reboots
+#   dnsmasq -> which MACs hold a PXE lease right now
+lane_table() {
+  local cloud relay leases
+  cloud=$(sync '"action":"lanes","op":"list"')
+  relay=$(relay_get /lane/seen)
+  leases=$(awk '{print toupper(\$2)}' /var/lib/misc/dnsmasq.leases 2>/dev/null | sort -u | tr '\\n' ' ')
+  echo "\$cloud" | jq -r --argjson relay "\${relay:-{}}" --arg leases "\$leases" '
+    if .lanes then
+      (["REGISTER      NAME                 SEEN            REBOOT   LEASE"] +
+       (.lanes | map(
+          . as \$l |
+          (\$relay.lanes // [] | map(select(.register_id == (\$l.register_id | ascii_upcase))) | first) as \$s |
+          "\\(\$l.register_id | .[0:13] | . + (" " * (14 - length)))" +
+          "\\(\$l.name // "" | .[0:20] | . + (" " * (21 - length)))" +
+          "\\(if \$s then (if \$s.seconds_ago < 60 then "\\(\$s.seconds_ago)s ago" else "\\((\$s.seconds_ago/60|floor))m ago" end) else "never seen" end | .[0:15] | . + (" " * (16 - length)))" +
+          "\\(if \$s and \$s.reboot_pending then "queued " else "-      " end)" +
+          "\\(if (\$leases | ascii_upcase | contains(\$l.mac_address | ascii_upcase)) and (\$l.mac_address != "") then "yes" else "-" end)"
+        ))) | join("\\n")
+    else "Error: \\(.error // "cloud unreachable")" end' 2>/dev/null \\
+    || echo "Could not build the lane table (is the relay up and is jq installed?)"
+}
+
+lane_list() {
+  msg "Lanes — store \$STORE_ID\\n\\n\$(lane_table)\\n\\nSEEN is the lane agent's last outbound poll — the only proof a lane is alive, since\\nthe PXE VLAN cannot be probed inbound. 'never seen' = powered off, still booting,\\nor running a root without the lane agent installed."
+}
+
+lane_pick() { # echoes a chosen register_id, or nothing
+  local cloud args
+  cloud=$(sync '"action":"lanes","op":"list"')
+  args=$(echo "\$cloud" | jq -r '.lanes // [] | map("\\(.register_id) \\"\\(.name // "lane")\\"") | join(" ")')
+  [ -n "\$args" ] || { msg "No registers are assigned to store \$STORE_ID in the cloud."; return 1; }
+  eval "whiptail --title 'Pick a lane' --menu 'Which lane?' 20 74 10 \$args 3>&1 1>&2 2>&3"
+}
+
+lane_reboot_one() {
+  local id body
+  id=$(lane_pick) || return
+  [ -n "\$id" ] || return
+  whiptail --title "Reboot \$id" --yesno "Reboot lane \$id now?\\n\\nThe lane's agent collects this within about 10 seconds. A lane mid-sale will lose\\nthat sale — check the lane is clear first." 12 74 || return
+  body=$(curl -s --max-time 5 -X POST http://127.0.0.1:3000/lane/reboot \\
+    -H 'Content-Type: application/json' -H "X-Relay-Token: \$(relay_token)" \\
+    -d "{\\"register_id\\":\\"\$id\\",\\"requested_by\\":\\"controller console (\$(whoami))\\"}")
+  lane_audit "Rebooted lane \$id" "Queued from the console menu; the lane agent collects within ~10s."
+  msg "\$(echo "\$body" | jq -r 'if .queued then "Reboot queued for \\(.register_id). It will collect within ~10s." else "Error: \\(.error // "relay did not accept the request")" end' 2>/dev/null || echo "\$body")"
+}
+
+# Batched on purpose: releasing every lane at once hammers the NFS root and leaves the
+# store dark. Same reasoning as the nightly maintenance window's stagger.
+lane_reboot_all() {
+  local ids batch interval count=0 token
+  ids=$(sync '"action":"lanes","op":"list"' | jq -r '.lanes // [] | map(.register_id) | join(" ")')
+  [ -n "\$ids" ] || { msg "No registers found for store \$STORE_ID."; return; }
+  batch=$(ask "How many lanes per batch?" "2") || return
+  interval=$(ask "Seconds between batches?" "60") || return
+  whiptail --title "Reboot ALL lanes" --yesno \\
+    "Reboot every lane at store \$STORE_ID, \$batch at a time, \$interval seconds apart?\\n\\nLanes: \$ids\\n\\nAny lane mid-sale WILL lose that sale. This is a maintenance action." 15 74 || return
+  token=$(relay_token)
+  clear
+  echo "Rebooting lanes in batches of \$batch, \$interval s apart. Ctrl+C stops between batches."
+  for id in \$ids; do
+    curl -s --max-time 5 -X POST http://127.0.0.1:3000/lane/reboot \\
+      -H 'Content-Type: application/json' -H "X-Relay-Token: \$token" \\
+      -d "{\\"register_id\\":\\"\$id\\",\\"requested_by\\":\\"controller console batch\\"}" >/dev/null
+    echo "  queued \$id"
+    count=\$((count + 1))
+    if [ \$((count % batch)) -eq 0 ]; then echo "  ...waiting \$interval s"; sleep "\$interval"; fi
+  done
+  lane_audit "Rebooted all lanes in batches" "\$count lane(s), \$batch per batch, \${interval}s apart."
+  echo; read -r -p "Queued \$count lane(s). Press Enter to return to the menu. " _
+}
+
+# A diskless lane has no local state: it pulls its root from NFS, so republishing the
+# root and rebooting IS the update. There is no way to patch a running lane in place.
+lane_rebuild_image() {
+  local root out
+  root=$(ask "Lane root to republish" "\${LANE_ROOT:-/srv/sureflow/roots/sureflow-legacy}") || return
+  if [ ! -d "\$root" ]; then msg "No such root: \$root\\n\\nStage a lane root there first — see the PXE Controller docs."; return; fi
+  whiptail --title "Republish lane image" --yesno \\
+    "Republish the kernel and initrd from\\n  \$root\\ninto the TFTP tree, then reboot the lanes so they pick it up?\\n\\nThis does NOT modify the root itself — build changes into it first." 14 74 || return
+  out=$( { cp "\$root"/boot/vmlinuz-*    /srv/sureflow/tftp/debian-legacy/vmlinuz    && \\
+           cp "\$root"/boot/initrd.img-* /srv/sureflow/tftp/debian-legacy/initrd.img && \\
+           echo "Published kernel and initrd from \$root."; } 2>&1 )
+  # Remember the answer so the next pass defaults to the root this store actually uses.
+  sed -i '/^LANE_ROOT=/d' "\$CONF" 2>/dev/null; echo "LANE_ROOT=\$root" >> "\$CONF"
+  lane_audit "Republished the lane image" "Root \$root -> TFTP tree."
+  msg "\$out\\n\\nNow reboot the lanes (Lanes > Reboot all lanes) so they boot the new root."
+}
+
+lane_ssh_note() {
+  msg "SSH to a lane is not possible — by design.\\n\\nLanes sit on the ISOLATED PXE VLAN (40). The controller NATs them outbound only:\\n  * nothing on the backend VLAN can open a connection INTO a lane — no SSH, no HTTP;\\n  * the relay sees the CONTROLLER's address as the source of every lane request, so a\\n    lane's real IP is never known to it.\\nThis is what keeps the lane network unreachable from the rest of the store.\\n\\nWhat to use instead:\\n  * Lanes table here — the agent's last poll tells you if a lane is alive.\\n  * On the lane itself: curl http://127.0.0.1:3099/health (loopback only).\\n  * Remote action: queue a reboot; the lane's agent collects it outbound.\\n  * Anything deeper needs the physical lane, or a change to the VLAN design."
+}
+
+lanes_menu() {
+  while true; do
+    CHOICE=$(whiptail --title "Lanes — store \$STORE_ID" --menu "" 18 74 6 \\
+      list    "Lane status table" \\
+      reboot  "Reboot one lane" \\
+      all     "Reboot all lanes (batched)" \\
+      image   "Republish the lane image" \\
+      ssh     "SSH to a lane?" \\
+      back    "Back" 3>&1 1>&2 2>&3) || return
+    case "\$CHOICE" in
+      list) lane_list ;; reboot) lane_reboot_one ;; all) lane_reboot_all ;;
+      image) lane_rebuild_image ;; ssh) lane_ssh_note ;; back) return ;;
+    esac
+  done
+}
+
 # --- local controller actions ------------------------------------------------
 relay_health() {
   local h s
@@ -146,9 +268,10 @@ tail_log() {
 # --- main menu ---------------------------------------------------------------
 while true; do
   CHOICE=$(whiptail --title "SureFlow Controller — store \$STORE_ID (\${ROLE:-standalone})" \\
-    --menu "" 18 74 7 \\
+    --menu "" 20 74 8 \\
     relay     "Relay health" \\
     restart   "Restart the relay" \\
+    lanes     "Manage lanes" \\
     operators "Manage operators" \\
     boot      "PXE / boot status" \\
     log       "Tail the relay log" \\
@@ -157,6 +280,7 @@ while true; do
   case "\$CHOICE" in
     relay)     relay_health ;;
     restart)   relay_restart ;;
+    lanes)     lanes_menu ;;
     operators) operators_menu ;;
     boot)      boot_status ;;
     log)       tail_log ;;
@@ -192,6 +316,11 @@ export const CONTROLLER_MENU_ITEMS = [
     item: "Restart the relay",
     detail:
       "Standalone boxes restart the unit directly. On an HA pair keepalived's role script owns the relay lifecycle, so the menu says so rather than fighting it.",
+  },
+  {
+    item: "Manage lanes",
+    detail:
+      "A status table merging three sources that each know only part of the answer: the cloud lists which registers the store has, the relay reports which lane agents have actually polled in (the only proof a lane is alive), and dnsmasq shows which MACs hold a PXE lease. From there: reboot one lane, reboot all in batches, or republish the lane image. SSH is a deliberate dead end and the menu explains why rather than offering an option that times out.",
   },
   {
     item: "Manage operators",

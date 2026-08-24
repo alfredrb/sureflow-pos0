@@ -35,7 +35,7 @@ export const CONTROLLER_INSTALL_STEPS = [
   {
     step: "Fetch and run the wizard as root",
     detail:
-      "Copy the script below to /usr/local/sbin/sureflow-controller-install, chmod +x, and run it with sudo. It is re-runnable: answers are saved to /etc/sureflow/controller.conf and offered back as defaults on the next pass.",
+      "Download the installer bundle, extract it on the box and run 'sudo ./install' — it lays down the wizard, the console menu and the lane agent, then starts the wizard. A store-specific bundle arrives with its answers pre-seeded. It is re-runnable: answers are saved to /etc/sureflow/controller.conf and offered back as defaults on the next pass. Pasting the script by hand still works if the box cannot receive a file.",
   },
   {
     step: "Answer the prompts — two addresses, not one",
@@ -254,7 +254,12 @@ whiptail --title "Install Summary — store $STORE_ID" --msgbox \\
 "Role: \$ROLE\\nPXE  (v40): \$PXE_IP  -> VIP \$PXE_VIP\\nBackend(v25): \$BACKEND_IP  -> VIP \$BACKEND_VIP\\nRelay ref: \${CURRENT_REF:-unknown}\$SUMMARY\\n\\nRelay health: \$HEALTH\$CLONE_NOTE\\n\\nNext: stage a lane root under /srv/sureflow/roots, then PXE boot one lane.\\n\\nSet this store's relay URL to http://\$BACKEND_VIP:3000 in the Infrastructure Command Center — the BACKEND address, never the PXE one.\\n\\nLog out and back in for the controller console menu." 22 74
 `;
 
-export const CONTROLLER_INSTALL_FETCH = `# On the controller, as root:
+export const CONTROLLER_INSTALL_FETCH = `# PREFERRED — the downloadable bundle (wizard + console menu + lane agent):
+tar xzf sureflow-controller-*.tar.gz
+cd sureflow-controller-*
+sudo ./install          # puts every file in place, then runs the wizard
+
+# FALLBACK — paste by hand, for a box with no way to receive a file:
 mkdir -p /etc/sureflow
 nano /usr/local/sbin/sureflow-controller-install   # paste the script
 chmod +x /usr/local/sbin/sureflow-controller-install

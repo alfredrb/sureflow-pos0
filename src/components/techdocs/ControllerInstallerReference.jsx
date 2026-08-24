@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Wand2, Store as StoreIcon, AlertTriangle } from "lucide-react";
 import CodeBlock from "@/components/techdocs/CodeBlock";
 import StepList from "@/components/techdocs/StepList";
+import TarballDownloadCard from "@/components/techdocs/TarballDownloadCard";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   CONTROLLER_INSTALL_STEPS,
@@ -88,6 +89,11 @@ export default function ControllerInstallerReference() {
             ))}
           </SelectContent>
         </Select>
+        {store && (
+          <div className="mb-4">
+            <TarballDownloadCard store={store} />
+          </div>
+        )}
         {store ? (
           <CodeBlock
             title="Answer sheet"
@@ -105,6 +111,7 @@ export default function ControllerInstallerReference() {
       <CodeBlock
         title="Getting the wizard onto the box"
         filename="on the controller"
+        note="Preferred: download the bundle above and extract it. The paste-by-hand path below still works if the box has no way to receive a file."
         code={CONTROLLER_INSTALL_FETCH}
       />
       <CodeBlock

@@ -21,6 +21,13 @@ export const RELAY_LANE_REBOOT_CODE = `// laneReboot.js — SureFlow Local Relay
 const pending = new Map();   // register_id -> { requested_at, requested_by }
 const TTL_MS = 2 * 60 * 1000; // a reboot not collected within 2 minutes is abandoned
 
+// Seen-lane register. Every agent poll stamps its register_id here, which is the ONLY
+// way the relay learns a lane is alive — it cannot probe the PXE VLAN inbound, and the
+// source IP on a lane request is the controller's, not the lane's. In memory on purpose:
+// after a relay restart "seen" should mean "has polled since the relay came up", not a
+// stale claim about a lane that may have been switched off hours ago.
+const seen = new Map();      // register_id -> { last_seen, polls }
+
 function normalizeRegister(value) {
   return String(value || "").trim().toUpperCase();
 }
@@ -35,6 +42,11 @@ function queueReboot(registerId, requestedBy) {
 // Called by the lane agent. Consumes the command so it only ever fires once.
 function claimReboot(registerId) {
   const id = normalizeRegister(registerId);
+  if (id) {
+    // The poll itself is the heartbeat, so no extra call from the lane is needed.
+    const prev = seen.get(id);
+    seen.set(id, { last_seen: Date.now(), polls: (prev?.polls || 0) + 1 });
+  }
   const entry = pending.get(id);
   if (!entry) return { reboot: false };
   pending.delete(id);
@@ -51,14 +63,30 @@ function listPending() {
     .map(([register_id, v]) => ({ register_id, ...v }));
 }
 
-module.exports = { queueReboot, claimReboot, listPending };
+// Every lane that has ever polled since the relay started, newest first, with how long
+// ago it last checked in. A lane that has stopped polling is either powered off, still
+// booting, or running a root without the agent.
+function listSeen() {
+  const now = Date.now();
+  return [...seen.entries()]
+    .map(([register_id, v]) => ({
+      register_id,
+      last_seen: new Date(v.last_seen).toISOString(),
+      seconds_ago: Math.round((now - v.last_seen) / 1000),
+      polls: v.polls,
+      reboot_pending: pending.has(register_id),
+    }))
+    .sort((a, b) => a.seconds_ago - b.seconds_ago);
+}
+
+module.exports = { queueReboot, claimReboot, listPending, listSeen };
 `;
 
 export const RELAY_LANE_REBOOT_ROUTES_CODE = `// server.js (patch) — lane reboot queue.
 // Mount ABOVE the SPA catch-all. The POS-facing claim route stays OPEN on the LAN
 // (a lane has no token), while queuing a reboot is token-gated.
-const { queueReboot, claimReboot, listPending } = require("./laneReboot");
-console.log("lane-reboot-build 2");
+const { queueReboot, claimReboot, listPending, listSeen } = require("./laneReboot");
+console.log("lane-reboot-build 3");
 
 // Admin portal / POS asks for a lane to reboot. Identified by REGISTER ID, never by
 // IP — the relay cannot see or reach a lane's real address across the PXE VLAN.
@@ -81,6 +109,13 @@ app.get("/lane/reboot-pending", (req, res) => {
 // Visibility for the Infrastructure Command Center.
 app.get("/lane/reboot-queue", requireRelayToken, (req, res) => {
   res.json({ pending: listPending() });
+});
+
+// Which lanes have checked in, and how long ago. This is what the controller console
+// menu's Lanes table reads for "booted?" — built from agent polls, because the relay has
+// no inbound path to a lane to ask directly.
+app.get("/lane/seen", requireRelayToken, (req, res) => {
+  res.json({ lanes: listSeen(), relay_started_at: new Date(Date.now() - process.uptime() * 1000).toISOString() });
 });
 `;
 
