@@ -1,0 +1,78 @@
+{
+  "name": "RelayUpdateAssignment",
+  "type": "object",
+  "properties": {
+    "update_id": {
+      "type": "string",
+      "description": "RelayUpdate record this assignment belongs to."
+    },
+    "update_label": {
+      "type": "string",
+      "description": "Release label copied at queue time, so the rollout table reads correctly even if the release is renamed."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this assignment targets. One assignment per store per release."
+    },
+    "git_ref": {
+      "type": "string",
+      "description": "Target ref this store must end up on. Copied from the release so the relay has a fixed instruction even if the release is edited afterwards."
+    },
+    "include_lane_image": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this store must also rebuild the diskless NFS root from the same ref."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "applied",
+        "failed",
+        "rolled_back"
+      ],
+      "default": "pending",
+      "description": "pending = queued, waiting for the store's maintenance window. in_progress = the controller has claimed it and is staging the checkout. applied = the new code is live and passed the health gate. failed = the controller could not complete the checkout or rebuild. rolled_back = the health gate failed after restart and the controller restored the previous ref."
+    },
+    "planned_for_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date of the maintenance window this assignment was folded into. Blank until the nightly sweep plans it \u2014 that is what keeps a push from ever landing outside the window."
+    },
+    "current_ref": {
+      "type": "string",
+      "description": "Ref the store is running now. Seeded from the store's previously applied ref at queue time, then updated to the target ref once applied."
+    },
+    "previous_ref": {
+      "type": "string",
+      "description": "Ref the store was on before this update. This is the one-click rollback target."
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error": {
+      "type": "string",
+      "description": "Failure detail reported back by the controller (checkout failed, image rebuild failed, health gate timed out)."
+    }
+  },
+  "required": [
+    "update_id",
+    "store_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

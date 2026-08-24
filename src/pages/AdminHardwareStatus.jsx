@@ -23,6 +23,7 @@ export default function AdminHardwareStatus() {
   const [settings, setSettings] = useState(null);
   const [windows, setWindows] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [updateAssignments, setUpdateAssignments] = useState([]);
   const [planning, setPlanning] = useState(false);
   const [savingOps, setSavingOps] = useState(false);
   const [testingOps, setTestingOps] = useState(false);
@@ -37,7 +38,7 @@ export default function AdminHardwareStatus() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [st, regs, sus, creds, logs, sets, wins, mtasks] = await Promise.all([
+      const [st, regs, sus, creds, logs, sets, wins, mtasks, upd] = await Promise.all([
         base44.entities.Store.list(),
         base44.entities.Register.list(),
         base44.entities.StoreRelaySetup.list(),
@@ -46,7 +47,9 @@ export default function AdminHardwareStatus() {
         base44.entities.StoreSettings.list(),
         base44.entities.LaneMaintenanceWindow.list(),
         base44.entities.LaneMaintenanceTask.list("-created_date", 300),
+        base44.entities.RelayUpdateAssignment.list("-created_date", 300),
       ]);
+      setUpdateAssignments(upd);
       setSettings(sets.find((s) => !s.store_id) || sets[0] || null);
       setWindows(wins);
       setTasks(mtasks);
@@ -407,6 +410,7 @@ export default function AdminHardwareStatus() {
               newKey={newKeys[store.store_number]}
               maintenanceWindow={windows.find((w) => w.store_id === store.store_number)}
               maintenanceTasks={tasks.filter((t) => t.store_id === store.store_number)}
+              updateAssignments={updateAssignments.filter((a) => a.store_id === store.store_number)}
               onSaveMaintenance={handleSaveMaintenance}
               onPlanMaintenance={handlePlanMaintenance}
               planningMaintenance={planning}

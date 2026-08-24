@@ -27,13 +27,80 @@ export default async function (req: Request): Promise<Response> {
     const action = String(body.action || '').trim();
 
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
-    if (action !== 'pull' && action !== 'push') return Response.json({ error: "action must be 'pull' or 'push'" }, { status: 400 });
+    if (action !== 'pull' && action !== 'push' && action !== 'update_result') {
+      return Response.json({ error: "action must be 'pull', 'push' or 'update_result'" }, { status: 400 });
+    }
 
     // ---- Authenticate the relay (shared with laneMaintenanceQueue) ----
     const cred = await authenticateRelay(db, storeId, apiKey);
     if (!cred) return Response.json({ error: 'Invalid relay credentials for this store' }, { status: 401 });
 
     const now = new Date().toISOString();
+
+    // ---------------- UPDATE_RESULT: the controller reports a cloud-pushed update ----------------
+    // The controller has already staged the checkout, restarted and run its own health
+    // gate locally. This only records the outcome — the cloud never drives the update.
+    if (action === 'update_result') {
+      const assignmentId = String(body.assignment_id || '').trim();
+      const result = String(body.result || '').trim();
+      const allowed = ['in_progress', 'applied', 'failed', 'rolled_back'];
+      if (!assignmentId || !allowed.includes(result)) {
+        return Response.json({ error: `assignment_id and result (${allowed.join(', ')}) are required` }, { status: 400 });
+      }
+
+      const assignment = await db.RelayUpdateAssignment.get(assignmentId).catch(() => null);
+      if (!assignment || assignment.store_id !== storeId) {
+        return Response.json({ error: 'Assignment not found for this store' }, { status: 404 });
+      }
+
+      const patch: any = { status: result, error: String(body.error || '').slice(0, 900) };
+      if (result === 'applied') {
+        patch.current_ref = String(body.current_ref || assignment.git_ref || '');
+        patch.previous_ref = String(body.previous_ref || assignment.current_ref || '');
+        patch.applied_at = now;
+      }
+      if (result === 'rolled_back' || result === 'failed') {
+        patch.current_ref = String(body.current_ref || assignment.current_ref || '');
+      }
+      await db.RelayUpdateAssignment.update(assignmentId, patch);
+
+      if (result === 'applied' || result === 'rolled_back' || result === 'failed') {
+        await db.AuditTrail.create({
+          action: result === 'applied' ? 'Controller Update Applied' : result === 'rolled_back' ? 'Controller Update Rolled Back' : 'Controller Update Failed',
+          category: 'system',
+          description:
+            result === 'applied'
+              ? `Store #${storeId} is now running ref ${patch.current_ref} for release "${assignment.update_label || assignment.update_id}" (previous ref ${patch.previous_ref || 'unknown'}).${assignment.include_lane_image ? ' The diskless NFS root was rebuilt from the same ref; lanes pick it up on their staggered reboots.' : ''}`
+              : `Store #${storeId} did not take release "${assignment.update_label || assignment.update_id}" (target ref ${assignment.git_ref}). ${result === 'rolled_back' ? 'The health gate failed after restart and the controller restored the previous ref.' : 'The controller could not complete the checkout or image rebuild.'} Reported: ${patch.error || 'no detail'}`,
+          actor_name: 'System',
+          actor_role: 'system',
+          page: '/admin/controller-updates',
+        });
+      }
+
+      // A rollback or hard failure must reach ops without anyone watching the screen.
+      if (result === 'rolled_back' || result === 'failed') {
+        await db.SystemAlert.create({
+          alert_type: 'sync',
+          severity: 'critical',
+          title: `Store ${storeId} ${result === 'rolled_back' ? 'rolled back' : 'failed'} a pushed controller update`,
+          description: `Release "${assignment.update_label || assignment.update_id}" targeting ref ${assignment.git_ref} did not stick. ${patch.error || 'No detail reported.'} The store is running ref ${patch.current_ref || 'unknown'}.`,
+          source: `Store ${storeId}`,
+          status: 'active',
+        });
+        await db.RelayUpdate.update(assignment.update_id, { status: 'rolled_back' }).catch(() => null);
+      }
+
+      // Release completes once every store in scope has taken it.
+      if (result === 'applied') {
+        const siblings = await db.RelayUpdateAssignment.filter({ update_id: assignment.update_id });
+        if (siblings.length > 0 && siblings.every((a: any) => a.status === 'applied')) {
+          await db.RelayUpdate.update(assignment.update_id, { status: 'complete' }).catch(() => null);
+        }
+      }
+
+      return Response.json({ ok: true, assignment_id: assignmentId, status: result });
+    }
 
     // ---------------- PULL: send the store's catalog cache down ----------------
     if (action === 'pull') {
@@ -52,9 +119,29 @@ export default async function (req: Request): Promise<Response> {
       const storeOperators = forStore(operators);
       const storeSettings = forStore(settings)[0] || null;
 
+      // A pushed update rides the store's own maintenance window: it is only handed
+      // down once the nightly sweep has folded it into tonight's plan (planned_for_date).
+      // Until then the controller sees nothing, so nothing updates mid-day.
+      const assignments = await db.RelayUpdateAssignment.filter({ store_id: storeId });
+      const today = now.slice(0, 10);
+      const due = assignments.find(
+        (a: any) => (a.status === 'pending' || a.status === 'in_progress') && a.planned_for_date === today
+      );
+      const pending_update = due
+        ? {
+            assignment_id: due.id,
+            update_label: due.update_label || '',
+            git_ref: due.git_ref || '',
+            include_lane_image: !!due.include_lane_image,
+            current_ref: due.current_ref || '',
+            status: due.status,
+          }
+        : null;
+
       const payload = {
         cached_at: now,
         store_id: storeId,
+        pending_update,
         products: storeProducts,
         operators: storeOperators,
         registers,

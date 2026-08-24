@@ -10,8 +10,9 @@ import SyncHealthCard from "@/components/infrastructure/SyncHealthCard";
 import RelayOpsCard from "@/components/infrastructure/RelayOpsCard";
 import StoreRedundancyCard from "@/components/infrastructure/StoreRedundancyCard";
 import LaneMaintenanceCard from "@/components/infrastructure/LaneMaintenanceCard";
+import StoreUpdateTile from "@/components/infrastructure/StoreUpdateTile";
 
-export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, maintenanceWindow, maintenanceTasks, onSaveMaintenance, onPlanMaintenance, planningMaintenance, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
+export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, maintenanceWindow, maintenanceTasks, updateAssignments = [], onSaveMaintenance, onPlanMaintenance, planningMaintenance, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
   const [open, setOpen] = useState(true);
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(store.relay_url || "");
@@ -110,6 +111,7 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               onRunNow={onPlanMaintenance}
               running={planningMaintenance}
             />
+            <StoreUpdateTile assignments={updateAssignments} windowEnabled={!!maintenanceWindow?.enabled} />
             <div className="bg-white border border-gray-100 rounded-2xl p-5 md:col-span-2 xl:col-span-1">
               <p className="text-sm font-semibold text-gray-900 mb-3">Register Hardware</p>
               {registers.length === 0 ? (

@@ -43,12 +43,18 @@ export default async function (req: Request): Promise<Response> {
       const batchSize = Math.max(1, Number(win.batch_size || 2));
       const interval = Math.max(1, Number(win.batch_interval_minutes || 5));
 
-      const [registers, tasks, openShifts, suspends] = await Promise.all([
+      const [registers, tasks, openShifts, suspends, assignments] = await Promise.all([
         db.Register.filter({ store_id: sid }),
         db.LaneMaintenanceTask.filter({ store_id: sid, run_date: runDate }),
         db.TimeClockEntry.filter({ status: 'open' }),
         db.SuspendedTransaction.filter({ store_id: sid, status: 'suspended' }),
+        db.RelayUpdateAssignment.filter({ store_id: sid, status: 'pending' }),
       ]);
+
+      // A cloud-pushed update only becomes visible to the controller once it is folded
+      // into TONIGHT's plan. That is the whole reason a push can never land mid-day, and
+      // why a store with no enabled window is never updated from the cloud at all.
+      const pendingUpdate = assignments.find((a: any) => !a.planned_for_date || a.planned_for_date === runDate) || null;
 
       // A lane is busy if a sale is parked on it or somebody is still clocked in on it.
       // Never reboot a lane mid-transaction — this is the whole safety rule.
@@ -98,7 +104,10 @@ export default async function (req: Request): Promise<Response> {
           stillBusy.push(p.reg.register_id);
         }
 
-        if (win.include_controller_update) {
+        if (win.include_controller_update || pendingUpdate) {
+          const updateDetail = pendingUpdate
+            ? ` Cloud-pushed release "${pendingUpdate.update_label || pendingUpdate.update_id}": check out ref ${pendingUpdate.git_ref}${pendingUpdate.include_lane_image ? ' and rebuild the diskless NFS root from the same ref (lanes pick it up on tonight\'s reboots)' : ' (relay app only — lanes stay on their existing image)'}, then health-gate the restart and roll back to ${pendingUpdate.current_ref || 'the previous ref'} if it fails.`
+            : '';
           await db.LaneMaintenanceTask.create({
             store_id: sid,
             run_date: runDate,
@@ -107,10 +116,14 @@ export default async function (req: Request): Promise<Response> {
             // Held back until after the last lane batch so a controller restart never
             // lands on a lane that is still coming up.
             release_at: new Date(start + (Math.ceil(due.length / batchSize) + 1) * interval * 60000).toISOString(),
-            detail: store.ha_enabled
-              ? 'HA store — rolling update: update secondary, fail over, update primary, fail back.'
-              : 'Standalone controller — update in place while the lanes are already cycling.',
+            detail:
+              (store.ha_enabled
+                ? 'HA store — rolling update: update secondary, fail over, update primary, fail back.'
+                : 'Standalone controller — update in place while the lanes are already cycling.') + updateDetail,
           });
+          if (pendingUpdate) {
+            await db.RelayUpdateAssignment.update(pendingUpdate.id, { planned_for_date: runDate });
+          }
         }
       } else {
         // ---- Retry pass: give the deferred lanes another chance ----
@@ -134,7 +147,7 @@ export default async function (req: Request): Promise<Response> {
 
       const summary =
         pass === 'initial'
-          ? `${created.length} lane(s) planned, ${stillBusy.length} deferred (busy)${win.include_controller_update ? ', controller update queued' : ''}.`
+          ? `${created.length} lane(s) planned, ${stillBusy.length} deferred (busy)${win.include_controller_update || pendingUpdate ? ', controller update queued' : ''}${pendingUpdate ? ` (release "${pendingUpdate.update_label || ''}" -> ${pendingUpdate.git_ref})` : ''}.`
           : `Retry pass: ${requeued.length} lane(s) requeued, ${stillBusy.length} left alone at cutoff.`;
 
       if (created.length || requeued.length || stillBusy.length) {

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive, Layers, MoonStar, Wand2 } from "lucide-react";
+import { BookOpen, Cpu, Plug, Server, Boxes, HardDrive, FileText, PenLine, Tv, Usb, Printer, Rocket, ScanLine, KeyRound, Archive, Layers, MoonStar, Wand2, GitBranch } from "lucide-react";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
@@ -21,6 +21,7 @@ import KeyturnMsrReference from "@/components/techdocs/KeyturnMsrReference";
 import StoreHAClusterReference from "@/components/techdocs/StoreHAClusterReference";
 import LaneMaintenanceReference from "@/components/techdocs/LaneMaintenanceReference";
 import ControllerInstallerReference from "@/components/techdocs/ControllerInstallerReference";
+import CloudUpdateReference from "@/components/techdocs/CloudUpdateReference";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
@@ -30,6 +31,7 @@ const SECTIONS = [
   { id: "hacluster", label: "Controller Redundancy", icon: Layers, blurb: "Dual controller pair: PXE + NFS + relay on both boxes, DRBD mirror, floating VIP and automatic promotion." },
   { id: "maintenance", label: "Nightly Maintenance", icon: MoonStar, blurb: "Midnight lane reboot and update window: staggered batches, busy-lane deferral, and the relay poller." },
   { id: "relay", label: "Relay Deployment", icon: HardDrive, blurb: "Local Relay VM build: OS, networking, app, printing and telemetry." },
+  { id: "cloudupdate", label: "Cloud-Pushed Updates", icon: GitBranch, blurb: "Pinned git ref checked out by the controller itself during its maintenance window, health-gated with automatic rollback." },
   { id: "relayupdate", label: "Relay Feature Update", icon: Rocket, blurb: "Step-by-step upgrade of an existing relay: new modules, routes, lane bridges and verification." },
   { id: "check", label: "Cheque Station", icon: FileText, blurb: "MICR reading, endorsement franking, relay cheque routes and hardware diagnostics." },
   { id: "pinpad", label: "Customer Pinpad", icon: PenLine, blurb: "Ingenico signature capture, customer prompts, cart mirror, rating and relay pinpad routes." },
@@ -94,6 +96,7 @@ export default function AdminTechnicalDocs() {
           {active === "hacluster" && <StoreHAClusterReference />}
           {active === "maintenance" && <LaneMaintenanceReference />}
           {active === "relay" && <RelayDeploymentReference />}
+          {active === "cloudupdate" && <CloudUpdateReference />}
           {active === "relayupdate" && <RelayUpdateWalkthrough />}
           {active === "check" && <CheckReaderReference />}
           {active === "check" && <CheckStationDiagnostics />}

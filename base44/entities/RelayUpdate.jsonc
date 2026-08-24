@@ -1,0 +1,82 @@
+{
+  "name": "RelayUpdate",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Operator-facing name of this release (e.g. 'Two-pass cheque endorsement + pole display')."
+    },
+    "notes": {
+      "type": "string",
+      "description": "What changed and anything a technician should know if it has to be rolled back."
+    },
+    "git_ref": {
+      "type": "string",
+      "description": "Pinned ref in the store-controller repo the relay checks out: a branch, a tag, or a commit SHA. A tag or SHA is strongly preferred over a branch, because a branch moves and two stores updating on different nights would land on different code."
+    },
+    "include_lane_image": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this release also rebuilds the diskless NFS root image from the same ref. The lanes pick the new root up on the staggered reboots the maintenance window already plans, so no lane is touched by hand. False = relay app only, lanes stay on their existing image."
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "all",
+        "selected"
+      ],
+      "default": "selected",
+      "description": "all = every active store; selected = only the stores in store_ids. Either way a store with no enabled maintenance window never receives the push."
+    },
+    "store_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Store numbers in scope when scope is 'selected'."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "released",
+        "complete",
+        "rolled_back"
+      ],
+      "default": "draft",
+      "description": "draft = invisible to stores, still being authored. released = assignments queued and waiting for each store's maintenance window. complete = every assignment applied. rolled_back = at least one store health-gated out and rolled itself back."
+    },
+    "released_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the release was cut and the per-store assignments were queued."
+    },
+    "released_by": {
+      "type": "string",
+      "description": "Admin who released it."
+    }
+  },
+  "required": [
+    "label",
+    "git_ref"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

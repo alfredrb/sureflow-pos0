@@ -1,4 +1,4 @@
-import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, ClipboardCheck, PackageX, TrendingDown, Scale, MessageSquare, Hash, BookOpen, Banknote, Headphones } from "lucide-react";
+import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Settings, ClipboardList, MonitorSpeaker, Percent, Calendar, DollarSign, AlertTriangle, Clock, CreditCard, ShieldCheck, GraduationCap, Siren, Wrench, Settings as SettingsIcon, ShieldAlert, HardDrive, ShoppingCart, Lock, FileJson, Activity, Award, Store, Building2, UserPlus, UserCog, ScrollText, Megaphone, ClipboardCheck, PackageX, TrendingDown, Scale, MessageSquare, Hash, BookOpen, Banknote, Headphones, GitBranch } from "lucide-react";
 
 export const adminNavGroups = [
   {
@@ -8,6 +8,7 @@ export const adminNavGroups = [
       { label: "Register Log", path: "/admin/register-log", icon: ClipboardList },
       { label: "Remote Workstation", path: "/admin/remote-workstation", icon: MonitorSpeaker },
       { label: "Hardware Status", path: "/admin/hardware", icon: HardDrive },
+      { label: "Controller Updates", path: "/admin/controller-updates", icon: GitBranch },
       { label: "Cash Reconciliation", path: "/admin/cash-reconciliation", icon: DollarSign },
       { label: "EOD Reports", path: "/admin/eod-reports", icon: Calendar },
       { label: "Maintenance Log", path: "/admin-maintenance-log", icon: Wrench },
