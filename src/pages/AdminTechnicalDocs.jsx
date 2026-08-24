@@ -23,10 +23,12 @@ import LaneMaintenanceReference from "@/components/techdocs/LaneMaintenanceRefer
 import ControllerInstallerReference from "@/components/techdocs/ControllerInstallerReference";
 import CloudUpdateReference from "@/components/techdocs/CloudUpdateReference";
 import ControllerMenuReference from "@/components/techdocs/ControllerMenuReference";
+import DebianControllerBuildGuide from "@/components/techdocs/DebianControllerBuildGuide";
 
 const SECTIONS = [
   { id: "hardware", label: "Fleet Hardware", icon: Cpu, blurb: "Terminals, keyboard, pole displays, scanners, printing and lane validation." },
   { id: "ports", label: "Terminal Ports", icon: Plug, blurb: "Rear-panel port maps and wiring tables per terminal model." },
+  { id: "debianbuild", label: "Debian Controller Build", icon: HardDrive, blurb: "Bare metal before the wizard: disk layout, dual-NIC VLAN setup and the fleet-wide IP standard, HA and standalone." },
   { id: "installer", label: "Controller Installer", icon: Wand2, blurb: "Guided whiptail build of a store controller, with this store's answer sheet." },
   { id: "controllermenu", label: "Controller Console Menu", icon: TerminalSquare, blurb: "The login menu on the box: relay health, PXE status, logs, and add/edit/remove of this store's operators." },
   { id: "pxe", label: "PXE Controller", icon: Server, blurb: "Diskless boot controller: DHCP/TFTP, NFS roots, kiosk image and boot profiles." },
@@ -93,6 +95,7 @@ export default function AdminTechnicalDocs() {
               <TerminalPortMap />
             </div>
           )}
+          {active === "debianbuild" && <DebianControllerBuildGuide />}
           {active === "installer" && <ControllerInstallerReference />}
           {active === "controllermenu" && <ControllerMenuReference />}
           {active === "pxe" && <PXEControllerGuide />}

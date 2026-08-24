@@ -98,7 +98,7 @@ ROLE=$(whiptail --title "Controller Role" --menu "What is this box?" 14 74 3 \\
 
 ask PXE_IP      "This box's PXE-VLAN 40 IP (isolated, serves lanes)"    "\${PXE_IP:-10.0.40.10}"
 ask PXE_SUBNET  "Lane PXE subnet on VLAN 40"                            "\${PXE_SUBNET:-10.0.40.0/24}"
-ask BACKEND_IP  "This box's backend-VLAN 25 IP (routed, relay + cloud)" "\${BACKEND_IP:-10.0.25.51}"
+ask BACKEND_IP  "This box's backend-VLAN 25 IP (routed, relay + cloud)" "\${BACKEND_IP:-10.0.25.12}"
 
 if [ "$ROLE" = "standalone" ]; then
   # No keepalived: the box's own addresses are the service addresses.
