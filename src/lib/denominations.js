@@ -19,17 +19,30 @@ export const COIN_DENOMS = [
   { key: "pennies_rolls", label: "PNY ROLL", value: 0.5 },
 ];
 
+// Loose (unrolled) coin — what actually comes out of a drawer's coin cups and off
+// a lane during a pickup. Counted alongside whole rolls so cup change never shows
+// up as a till shortage or a vault discrepancy.
+export const LOOSE_COIN_DENOMS = [
+  { key: "quarters", label: "QTR", value: 0.25 },
+  { key: "dimes", label: "DIME", value: 0.1 },
+  { key: "nickels", label: "NKL", value: 0.05 },
+  { key: "pennies", label: "PNY", value: 0.01 },
+];
+
+// Every coin field, rolls first, for iteration over a whole coins object.
+export const ALL_COIN_DENOMS = [...COIN_DENOMS, ...LOOSE_COIN_DENOMS];
+
 export const billsTotal = (bills = {}) =>
   BILL_DENOMS.reduce((s, d) => s + Number(bills[d.key] || 0) * d.value, 0);
 
 export const coinsTotal = (coins = {}) =>
-  COIN_DENOMS.reduce((s, d) => s + Number(coins[d.key] || 0) * d.value, 0);
+  ALL_COIN_DENOMS.reduce((s, d) => s + Number(coins[d.key] || 0) * d.value, 0);
 
-// Slip "Notes:" block lines (ascending, zeros included like the 4690 slip),
-// plus coin-roll lines only when rolls were actually counted.
+// Slip "Notes:" block lines (ascending, zeros included like the 4690 slip), plus
+// coin-roll and loose-coin lines only where something was actually counted.
 export function slipDenominations(bills = {}, coins = {}) {
   const lines = BILL_DENOMS.map((d) => ({ qty: Number(bills[d.key] || 0), value: d.value }));
-  for (const d of COIN_DENOMS) {
+  for (const d of ALL_COIN_DENOMS) {
     const qty = Number(coins[d.key] || 0);
     if (qty > 0) lines.push({ qty, value: d.value, label: d.label });
   }

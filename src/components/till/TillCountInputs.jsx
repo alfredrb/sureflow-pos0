@@ -33,6 +33,13 @@ export default function TillCountInputs({ bills, coins, onBills, onCoins }) {
           <NumField label="Nickel Rolls" value={coins.nickels_rolls} onChange={(v) => onCoins({ ...coins, nickels_rolls: v })} />
           <NumField label="Penny Rolls" value={coins.pennies_rolls} onChange={(v) => onCoins({ ...coins, pennies_rolls: v })} />
         </div>
+        <h3 className="font-semibold mb-3 mt-4 text-gray-800">Loose Coin Returned</h3>
+        <div className="space-y-2">
+          <NumField label="Quarters" value={coins.quarters || 0} onChange={(v) => onCoins({ ...coins, quarters: v })} />
+          <NumField label="Dimes" value={coins.dimes || 0} onChange={(v) => onCoins({ ...coins, dimes: v })} />
+          <NumField label="Nickels" value={coins.nickels || 0} onChange={(v) => onCoins({ ...coins, nickels: v })} />
+          <NumField label="Pennies" value={coins.pennies || 0} onChange={(v) => onCoins({ ...coins, pennies: v })} />
+        </div>
       </div>
     </div>
   );

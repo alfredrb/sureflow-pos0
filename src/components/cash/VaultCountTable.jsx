@@ -1,4 +1,6 @@
-import { BILL_DENOMS, COIN_DENOMS } from "@/lib/denominations";
+import { BILL_DENOMS, COIN_DENOMS, LOOSE_COIN_DENOMS } from "@/lib/denominations";
+
+const LOOSE_LABELS = { quarters: "Quarters", dimes: "Dimes", nickels: "Nickels", pennies: "Pennies" };
 
 const Row = ({ denom, qty, editable, onQty }) => (
   <div className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0 text-sm">
@@ -34,6 +36,11 @@ export default function VaultCountTable({ bills = {}, coins = {}, editable, onBi
         <div className="flex justify-between text-xs text-gray-400 pb-1"><span className="w-24">Roll</span><span className="w-24 text-right">Count</span><span className="w-28 text-right">Value</span></div>
         {COIN_DENOMS.map((d) => (
           <Row key={d.key} denom={{ ...d, label: d.label.replace("QTR", "Quarter").replace("NKL", "Nickel").replace("PNY", "Penny").replace("DIME", "Dime").replace(" ROLL", " Roll") }} qty={Number(coins[d.key] || 0)} editable={editable} onQty={(v) => onCoins({ ...coins, [d.key]: v })} />
+        ))}
+        <h3 className="font-semibold text-gray-800 mb-2 mt-4">Loose Coin</h3>
+        <div className="flex justify-between text-xs text-gray-400 pb-1"><span className="w-24">Coin</span><span className="w-24 text-right">Count</span><span className="w-28 text-right">Value</span></div>
+        {LOOSE_COIN_DENOMS.map((d) => (
+          <Row key={d.key} denom={{ ...d, label: LOOSE_LABELS[d.key] }} qty={Number(coins[d.key] || 0)} editable={editable} onQty={(v) => onCoins({ ...coins, [d.key]: v })} />
         ))}
       </div>
     </div>
