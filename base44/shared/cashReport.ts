@@ -53,12 +53,73 @@ const row = (label, value) => {
 
 const signed = (n) => (num(n) >= 0 ? "+" : "-") + "$" + money(Math.abs(num(n)));
 
+const nameOf = (v) => String(v || "-").toUpperCase().slice(0, 20);
+
+// Per-register detail block: every till bag, advance, pickup and deposit for the
+// day with the people attached to it, so the printed copy reads like the screen
+// view rather than a bare set of store totals.
+export function buildDetailLines({ deposits = [], advances = [], pickups = [], tillCheckouts = [] } = {}) {
+  const groups = {};
+  const bucket = (r) => {
+    const id = r.register_id || "UNKNOWN";
+    if (!groups[id]) groups[id] = { name: "", tills: [], advances: [], pickups: [], deposits: [] };
+    if (!groups[id].name && r.register_name) groups[id].name = r.register_name;
+    return groups[id];
+  };
+  tillCheckouts.forEach((t) => bucket(t).tills.push(t));
+  advances.forEach((a) => bucket(a).advances.push(a));
+  pickups.forEach((p) => bucket(p).pickups.push(p));
+  deposits.forEach((d) => bucket(d).deposits.push(d));
+
+  const ids = Object.keys(groups).sort();
+  if (!ids.length) return ["", "NO REGISTER ACTIVITY", ""];
+
+  const lines = [""];
+  ids.forEach((id) => {
+    const g = groups[id];
+    lines.push("-".repeat(RECEIPT_WIDTH));
+    lines.push((g.name ? `${g.name} (${id})` : id).toUpperCase());
+
+    g.tills.forEach((t) => {
+      lines.push(`  TILL BAG ${t.bag_number || "-"}`);
+      lines.push(row(`   OUT ${nameOf(t.operator_name)}`, "$" + money(t.checkout_total == null ? 250 : t.checkout_total)));
+      if (t.status === "checked_in") {
+        lines.push(row(`   IN  ${nameOf(t.checkin_operator_name)}`, "$" + money(t.checkin_total)));
+        lines.push(row(t.forced ? "   VARIANCE (FORCED)" : "   VARIANCE", signed(t.discrepancy)));
+      } else {
+        lines.push(row("   STATUS", "STILL OUT"));
+      }
+    });
+
+    g.advances.forEach((a) => {
+      lines.push(row(`  ADVANCE BY ${nameOf(a.approved_by_name)}`, "$" + money(a.amount)));
+      if (a.reason) lines.push(`    ${String(a.reason).slice(0, RECEIPT_WIDTH - 4)}`);
+    });
+
+    g.pickups.forEach((p) => {
+      lines.push(row(`  PICKUP BY ${nameOf(p.approved_by_name)}`, "$" + money(p.amount)));
+      if (p.reason) lines.push(`    ${String(p.reason).slice(0, RECEIPT_WIDTH - 4)}`);
+    });
+
+    g.deposits.forEach((d) => {
+      lines.push(row("  DEPOSIT EXPECTED", "$" + money(d.expected_cash)));
+      lines.push(row("  DEPOSIT COUNTED", "$" + money(d.actual_cash_deposited)));
+      lines.push(row("  DEPOSIT VARIANCE", signed(d.difference)));
+    });
+
+    lines.push("");
+  });
+  return lines;
+}
+
 // 42-column body shared by the printed slip and the archived snapshot text.
-export function buildReportLines(t, storeName = "") {
+export function buildReportLines(t, storeName = "", records = null) {
   return [
     storeName ? storeName.toUpperCase() : "",
     "FOR " + t.day,
     "=".repeat(RECEIPT_WIDTH),
+    ...(records ? buildDetailLines(records) : []),
+    ...(records ? ["STORE TOTALS", "=".repeat(RECEIPT_WIDTH)] : []),
     row("DEPOSITS", String(t.totalDeposits)),
     row("EXPECTED TOTAL", "$" + money(t.totalExpected)),
     row("DEPOSITED TOTAL", "$" + money(t.totalDeposited)),
@@ -84,6 +145,6 @@ export function buildReportLines(t, storeName = "") {
   ].filter((l) => l !== null);
 }
 
-export function buildReportText(t, storeName = "") {
-  return ["CASH RECONCILIATION DAILY REPORT", ...buildReportLines(t, storeName)].join("\n");
+export function buildReportText(t, storeName = "", records = null) {
+  return ["CASH RECONCILIATION DAILY REPORT", ...buildReportLines(t, storeName, records)].join("\n");
 }

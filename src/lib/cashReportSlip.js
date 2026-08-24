@@ -1,26 +1,19 @@
 // Prints the Quick Report on the store's receipt printer.
 //
 // Rides the existing admin print pipeline (adminPrint -> relay -> printer_ip) as a
-// 4690-style notice slip, which is the same paper and printer the midnight
+// 4690-style notice slip, and uses the same per-register detail layout the midnight
 // auto-print uses, so what a manager prints by hand matches the nightly copy.
 import { adminPrintReceipt, getAdminPrintContext } from "@/lib/adminPrint";
+import { buildDetailLines, row, signed, WIDTH } from "@/lib/cashReportDetail";
 
-const WIDTH = 42;
 const money = (n) => Number(n || 0).toFixed(2);
-const signed = (n) => (Number(n) >= 0 ? "+" : "-") + "$" + money(Math.abs(Number(n) || 0));
 
-// Label left, value right, padded to the full receipt width so the printer's
-// centred notice block still lines the columns up.
-const row = (label, value) => {
-  const v = String(value);
-  const l = String(label).slice(0, WIDTH - v.length - 1);
-  return l + " ".repeat(Math.max(1, WIDTH - l.length - v.length)) + v;
-};
-
-export function buildQuickReportLines(t) {
+export function buildQuickReportLines(t, records = null) {
   return [
     "FOR " + (t.day || ""),
     "=".repeat(WIDTH),
+    ...(records ? buildDetailLines(records) : []),
+    ...(records ? ["STORE TOTALS", "=".repeat(WIDTH)] : []),
     row("DEPOSITS", String(t.totalDeposits)),
     row("EXPECTED TOTAL", "$" + money(t.totalExpected)),
     row("DEPOSITED TOTAL", "$" + money(t.totalDeposited)),
@@ -46,7 +39,7 @@ export function buildQuickReportLines(t) {
   ];
 }
 
-export async function printQuickReport(totals, operatorName = "ADMIN") {
+export async function printQuickReport(totals, records = null, operatorName = "ADMIN") {
   const ctx = await getAdminPrintContext();
   return adminPrintReceipt({
     docType: "notice",
@@ -57,7 +50,7 @@ export async function printQuickReport(totals, operatorName = "ADMIN") {
     registerName: "ADMIN",
     notice: {
       heading: "CASH REPORT",
-      lines: buildQuickReportLines(totals),
+      lines: buildQuickReportLines(totals, records),
       footer: "***DAILY CASH REPORT***",
     },
     storeNumber: ctx.storeInfo?.store_number,

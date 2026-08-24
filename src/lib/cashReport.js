@@ -1,3 +1,5 @@
+import { buildDetailLines } from "@/lib/cashReportDetail";
+
 // One builder for the Quick Report in all three output formats. Previously the same
 // grouping and formatting was written out three times, so a change to one export
 // silently disagreed with the others.
@@ -33,8 +35,11 @@ export function groupByRegister({ deposits = [], advances = [], pickups = [], au
 const tillBlock = (t) =>
   `\n=== TILL CHECKOUT/CHECKIN ===\nTills Checked Out: ${t.checkedOutCount}\nChecked Out Expected Total: $${t.checkedOutExpected.toFixed(2)}\nTills Checked In: ${t.checkedInCount} / ${t.checkedOutCount}\nTill Discrepancies Total: ${t.totalDiscrepancies >= 0 ? "+" : ""}$${t.totalDiscrepancies.toFixed(2)}\n`;
 
-export function buildReportText(groups, t) {
+export function buildReportText(groups, t, records = null) {
   let out = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n`;
+  // Same per-register detail the receipt shows, so the exported / on-screen copy
+  // and the printed copy tell the same story.
+  if (records) out += `REGISTER DETAIL\n${buildDetailLines(records).join("\n")}\n`;
   out += `SUMMARY BY REGISTER\n`;
   out += `\nRegister | Deposits | Expected | Deposited | Variance | Advances | Pickups | Audits | Audit Amount | Robberies | Stolen\n`;
   out += `${"─".repeat(130)}\n`;

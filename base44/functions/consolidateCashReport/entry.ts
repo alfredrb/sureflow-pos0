@@ -89,23 +89,28 @@ export default async function (req) {
       );
       const mine = (rows) => (targets.length === 1 ? rows : rows.filter((r) => regIds.has(r.register_id)));
 
-      const totals = computeDayTotals({
-        day,
+      // The day's own records, kept so the printed copy can show the per-register
+      // detail (bag numbers, who took what) rather than only store totals.
+      const dayRecords = {
         deposits: filterDay(mine(deposits), 'report_date', day),
         advances: filterDay(mine(advances), 'created_date', day),
         pickups: filterDay(mine(pickups), 'created_date', day),
         audits: filterDay(mine(audits), 'audit_date', day),
         robberies: filterDay(mine(robberies), 'created_date', day),
         giftCardCashouts: filterDay(mine(cashouts), 'created_date', day),
-        tillCheckouts: mine(tills),
-      });
+        tillCheckouts: mine(tills).filter(
+          (t) => String(t.checkout_date || '').slice(0, 10) === day || String(t.checkin_date || '').slice(0, 10) === day
+        ),
+      };
+
+      const totals = computeDayTotals({ day, ...dayRecords, tillCheckouts: mine(tills) });
 
       const settings =
         allSettings.find((s) => (s.store_id || '') === storeId) ||
         allSettings.find((s) => !s.store_id) ||
         null;
       const storeName = store.name || settings?.store_name || 'Store';
-      const lines = buildReportLines(totals, storeName);
+      const lines = buildReportLines(totals, storeName, dayRecords);
 
       let printed = false;
       let printError = '';
@@ -121,7 +126,7 @@ export default async function (req) {
         store_id: storeId,
         report_date: day,
         totals,
-        report_text: buildReportText(totals, storeName),
+        report_text: buildReportText(totals, storeName, dayRecords),
         printed,
         print_error: printError,
         generated_at: new Date().toISOString(),
@@ -136,7 +141,7 @@ export default async function (req) {
     await svc.AuditTrail.create({
       action: 'Daily Cash Report Consolidated',
       category: 'system',
-      description: `Archived and printed the ${day} cash report for ${results.length} store(s). Printed: ${results.filter((r) => r.printed).length}.`,
+      description: `Archived and printed the ${day} cash report for ${results.length} store(s) using the detailed per-register format (till bags with check-out/check-in operators, advances, pickups and deposit variance per register, then store totals). Printed: ${results.filter((r) => r.printed).length}.`,
       actor_name: user ? user.full_name || 'Admin' : 'System (scheduled)',
       actor_role: user ? 'admin' : 'system',
       page: '/admin/cash-reconciliation',

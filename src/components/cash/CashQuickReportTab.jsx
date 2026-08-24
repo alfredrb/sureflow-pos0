@@ -30,7 +30,7 @@ export default function CashQuickReportTab({ records, onToast }) {
   const groups = () => groupByRegister(dayRecords);
 
   const exportText = () => {
-    downloadFile(buildReportText(groups(), totals), `cash_report_${day}.txt`, "text/plain");
+    downloadFile(buildReportText(groups(), totals, dayRecords), `cash_report_${day}.txt`, "text/plain");
     onToast({ title: "Report exported as TXT" });
   };
 
@@ -40,7 +40,7 @@ export default function CashQuickReportTab({ records, onToast }) {
   };
 
   const printWindow = () => {
-    const report = buildReportText(groups(), totals);
+    const report = buildReportText(groups(), totals, dayRecords);
     const w = window.open("", "", "width=600,height=700");
     w.document.write(`<pre style="font-family: monospace; margin: 20px; font-size: 11px; line-height: 1.5;">${report.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`);
     w.document.close();
@@ -49,7 +49,7 @@ export default function CashQuickReportTab({ records, onToast }) {
 
   const printReceipt = async () => {
     try {
-      await printQuickReport(totals);
+      await printQuickReport(totals, dayRecords);
       onToast({ title: "Report sent to the receipt printer" });
     } catch (e) {
       onToast({ title: "Receipt printer unavailable", description: e.message, variant: "destructive" });
