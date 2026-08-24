@@ -176,6 +176,24 @@ relay.db-shm
 *.log
 `;
 
+// Lets the repo be pushed from a native WINDOWS box without corrupting the fleet.
+// Git on Windows defaults to core.autocrlf=true, which would commit CRLF into the shell
+// scripts — a controller then fails with "bad interpreter: /bin/bash^M" — and into the
+// systemd unit and .env.example. eol=lf pins every text file to LF in the working tree
+// as well as the index, so what a controller clones is byte-identical to a Linux push.
+// The exec bit is not a line ending: Windows cannot store it, so it is pinned in the
+// index instead (git update-index --chmod=+x, listed in the push steps).
+const GITATTRIBUTES = `* text=auto eol=lf
+*.sh text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.service text eol=lf
+.env.example text eol=lf
+*.png binary
+*.gz binary
+`;
+
 const README = `# SureFlow Store Controller — Local Relay
 
 The store-local relay the POS lanes talk to: receipt printing, cash drawer, cheque
@@ -266,6 +284,7 @@ export function buildRepoFiles() {
     { name: "package.json", body: PACKAGE_JSON },
     { name: ".env.example", body: ENV_EXAMPLE },
     { name: ".gitignore", body: GITIGNORE },
+    { name: ".gitattributes", body: GITATTRIBUTES },
     { name: "README.md", body: README },
     { name: "fetch-pos-dist.sh", body: FETCH_POS_DIST, mode: 0o755 },
     { name: "sureflow-backup.sh", body: RELAY_BACKUP_SCRIPT, mode: 0o755 },
