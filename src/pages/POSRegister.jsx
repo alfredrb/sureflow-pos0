@@ -26,6 +26,7 @@ import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClien
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { executeFunctionKeyAction } from "@/lib/posFunctionKeyExec";
 import { savePosReceiptContext } from "@/lib/posReceiptContext";
+import { scopeCatalogToStore } from "@/lib/storeCatalog";
 import POSTransactionSummary from "@/components/pos/POSTransactionSummary";
 import POSReceiptDialog from "@/components/pos/POSReceiptDialog";
 import POSPaymentDialog from "@/components/pos/POSPaymentDialog";
@@ -301,7 +302,11 @@ export default function POSRegister() {
         const active = (layouts || []).filter(l => l.active !== false);
         const laneLayout = active.find(l => l.keyboard_model === regs[0]?.keyboard_model) || active[0];
         setKeyboardSlots(laneLayout?.slots || []);
-        setProducts(prods);
+        // The lane sells its own store's items plus the shared chain catalog — never
+        // another store's local merchandise. The store comes off this register.
+        const laneStoreId = regs[0]?.store_id || sessionStorage.getItem("pos_store_id") || "";
+        const scoped = scopeCatalogToStore(prods, laneStoreId);
+        setProducts(scoped);
         setFunctionKeys(fkeys);
         setActionCodes(acodes);
         setDiscounts(discs);
@@ -309,7 +314,7 @@ export default function POSRegister() {
         // Resolve the store record + settings so the receipt can print ST#, manager and tax rate.
         // The store number comes straight off the register so it always prints, even if the
         // Store / StoreSettings lookups below fail.
-        const storeId = regs[0]?.store_id || sessionStorage.getItem("pos_store_id") || "";
+        const storeId = laneStoreId;
         if (storeId) sessionStorage.setItem("pos_store_id", storeId);
         setStoreInfo({ store_number: storeId });
         savePosReceiptContext({ storeInfo: { store_number: storeId }, storeConfig: config[0] || null });
@@ -342,7 +347,7 @@ export default function POSRegister() {
           // wrong value (the controller's) onto every register. ip_address is now
           // provisioned per register instead.
         }
-        const cats = ["All", ...new Set(prods.map(p => p.category).filter(Boolean))];
+        const cats = ["All", ...new Set(scoped.map(p => p.category).filter(Boolean))];
         setCategories(cats);
         setLoading(false);
       } catch (e) {
@@ -350,7 +355,11 @@ export default function POSRegister() {
         // Cloud unreachable — fall back to the relay's locally cached catalog.
         try {
           const cat = await fetchCatalog();
-          const prods = (cat.products || []).filter(p => p.status === "active");
+          // Same store scoping offline — the relay caches the chain catalog.
+          const prods = scopeCatalogToStore(
+            (cat.products || []).filter(p => p.status === "active"),
+            sessionStorage.getItem("pos_store_id") || ""
+          );
           setProducts(prods);
           setFunctionKeys(cat.function_keys || []);
           setDiscounts(cat.discounts || []);
