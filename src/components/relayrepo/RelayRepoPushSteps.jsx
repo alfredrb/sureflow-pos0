@@ -1,5 +1,6 @@
 import React from "react";
 import { RELAY_REPO_SSH } from "@/lib/relayRepoConfig";
+import RelayRepoSshKeySetup from "@/components/relayrepo/RelayRepoSshKeySetup";
 
 // What to do with the downloaded archive, from a WINDOWS box — no Linux build machine
 // needed. Two Windows-only hazards are handled explicitly:
@@ -36,7 +37,8 @@ git tag ${rel}
 git push origin HEAD --tags`;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
+      <RelayRepoSshKeySetup />
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Push it to GitHub (Windows)</p>
       <pre className="overflow-x-auto rounded-xl bg-gray-900 p-4 text-xs leading-relaxed text-gray-100">
         <code className="font-mono">{script}</code>
