@@ -11,20 +11,26 @@ import { RELAY_REPO_SSH } from "@/lib/relayRepoConfig";
 // stores end up on different code.
 export default function RelayRepoPushSteps({ tag }) {
   const rel = tag || "relay-1.0.0";
-  const script = `:: Run in Git Bash (installed with Git for Windows) — not cmd.exe.
+  const script = `# PowerShell. Paste one block at a time and read the output before continuing.
 
-# 1. Clone the repo once (your own SSH key, or a PAT over https)
+# 1. Confirm GitHub accepts your key first — everything else fails without this
+ssh -T git@github.com
+
+# 2. Fresh clone. Removing any half-finished folder first: a directory holding only
+#    extracted files is NOT a repo, and every git command below would fail in it.
+cd $HOME\\Downloads
+Remove-Item -Recurse -Force .\\sureflow-store-controller -ErrorAction SilentlyContinue
 git clone ${RELAY_REPO_SSH} sureflow-store-controller
-cd sureflow-store-controller
+cd .\\sureflow-store-controller
 
-# 2. Extract the downloaded bundle OVER the checkout (files land at the repo root)
-tar xzf /c/Users/$USERNAME/Downloads/sureflow-store-controller-${rel}.tar.gz
+# 3. Extract the downloaded bundle OVER the checkout (files land at the repo root)
+tar xzf "$HOME\\Downloads\\sureflow-store-controller-${rel}.tar.gz"
 
-# 3. Windows cannot store the exec bit — set it in the git index instead
+# 4. Windows cannot store the exec bit — set it in the git index instead
 git add -A
 git update-index --chmod=+x fetch-pos-dist.sh sureflow-backup.sh sureflow-selfupdate.sh
 
-# 4. Commit and tag. Stores are pinned to the TAG, never to a branch.
+# 5. Commit and tag. Stores are pinned to the TAG, never to a branch.
 git commit -m "Publish relay ${rel} from the admin app"
 git tag ${rel}
 git push origin HEAD --tags`;
@@ -38,7 +44,9 @@ git push origin HEAD --tags`;
       <p className="text-xs text-gray-500">
         The bundle includes a <code className="font-mono">.gitattributes</code> that forces LF on every text file, so a
         Windows push produces the same bytes a Linux push would — no <code className="font-mono">^M</code> breakage on
-        the controllers. Skip <code className="font-mono">node --check server.js</code> unless Node is installed locally.
+        the controllers. If <code className="font-mono">ssh -T git@github.com</code> says permission denied, add your
+        Windows key (<code className="font-mono">ssh-keygen -t ed25519</code>, then paste{" "}
+        <code className="font-mono">$HOME\.ssh\id_ed25519.pub</code> into GitHub → Settings → SSH keys) before cloning.
       </p>
       <p className="text-xs text-gray-500">
         Then create a release in Controller Updates pinned to <code className="font-mono">{rel}</code> and each store
