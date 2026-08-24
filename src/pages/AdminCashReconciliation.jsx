@@ -1,48 +1,53 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TillCheckoutModal, TillCheckinModal } from "@/components/TillCheckModals";
-import { TrendingDown, TrendingUp, DollarSign, Plus, Minus, Clock, Download, FileText, Printer, Zap } from "lucide-react";
+import { Plus, Minus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import CashSlipReceipt from "@/components/CashSlipReceipt";
+import { getAdminAccess } from "@/lib/adminAccess";
+import { buildRegisterScope, scopeByRegister, scopeRegisters } from "@/lib/cashScope";
+import { computeCashTotals } from "@/lib/cashStats";
+import usePushToLP from "@/hooks/usePushToLP";
+import PushToLPButton from "@/components/cash/PushToLPButton";
+import CashTabBar from "@/components/cash/CashTabBar";
+import CashDepositsTab from "@/components/cash/CashDepositsTab";
+import CashAuditHistoryTab from "@/components/cash/CashAuditHistoryTab";
+import CashDiscrepanciesTab from "@/components/cash/CashDiscrepanciesTab";
+import CashEmergencyTab from "@/components/cash/CashEmergencyTab";
+import CashHistoryTab from "@/components/cash/CashHistoryTab";
+import CashExportTab from "@/components/cash/CashExportTab";
+import CashQuickReportTab from "@/components/cash/CashQuickReportTab";
 import OpenBagsPanel from "@/components/till/OpenBagsPanel";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import {
+  CashAdvanceDialog,
+  CashPickupDialog,
+  ManualAuditDialog,
+  CancelAuditDialog,
+  CashSlipDialog,
+} from "@/components/cash/CashActionDialogs";
 
 export default function AdminCashReconciliation() {
-  const [deposits, setDeposits] = useState([]);
-  const [registers, setRegisters] = useState([]);
+  const [raw, setRaw] = useState({ deposits: [], registers: [], advances: [], pickups: [], robberies: [], audits: [], alerts: [], giftCardCashouts: [], tillCheckouts: [] });
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(null);
   const [advanceDialog, setAdvanceDialog] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({ register_id: "", amount: "", reason: "" });
-  const [advances, setAdvances] = useState([]);
   const [pickupDialog, setPickupDialog] = useState(false);
   const [pickupForm, setPickupForm] = useState({ register_id: "", amount: "", reason: "" });
-  const [pickups, setPickups] = useState([]);
-  const [robberies, setRobberies] = useState([]);
-  const [audits, setAudits] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [giftCardCashouts, setGiftCardCashouts] = useState([]);
-  const [tillCheckouts, setTillCheckouts] = useState([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
-  const [selectedRegisterCheckout, setSelectedRegisterCheckout] = useState("");
-  const [selectedRegisterCheckin, setSelectedRegisterCheckin] = useState("");
-  const [checkinBills, setCheckinBills] = useState({ twenty: 0, ten: 0, five: 0, one: 0 });
-  const [checkinCoins, setCheckinCoins] = useState({ quarters_rolls: 0, dimes_rolls: 0, nickels_rolls: 0, pennies_rolls: 0 });
   const [activeTab, setActiveTab] = useState("deposits");
   const [printData, setPrintData] = useState(null);
   const [selectedRegister, setSelectedRegister] = useState("all");
   const [auditDialog, setAuditDialog] = useState(false);
   const [auditForm, setAuditForm] = useState({ register_id: "" });
   const [cancelAuditDialog, setCancelAuditDialog] = useState(null);
-  const [pushedIds, setPushedIds] = useState(() => new Set());
-  const [pushingId, setPushingId] = useState(null);
   const { toast } = useToast();
+  const { push, pushedIds, pushingId } = usePushToLP(toast);
+
+  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
+  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
 
   const loadData = async () => {
     try {
@@ -55,19 +60,19 @@ export default function AdminCashReconciliation() {
         base44.entities.CashAudit.list("-audit_date", 200),
         base44.entities.CashLimitAlert.list("-triggered_at", 100),
         base44.entities.RegisterLog.list("-created_date", 500),
-        base44.entities.TillCheckout.list("-checkout_date")
+        base44.entities.TillCheckout.list("-checkout_date"),
       ]);
-      setDeposits(depositsData);
-      setRegisters(registersData);
-      setAdvances(advancesData);
-      setPickups(pickupsData);
-      setRobberies(robberiesData);
-      setAudits(auditsData);
-      setAlerts(alertsData);
-      setTillCheckouts(tillsData);
-      // Extract gift card cashouts from RegisterLog
-      const cashouts = logData.filter(log => log.detail && log.detail.includes("Gift card cash out"));
-      setGiftCardCashouts(cashouts);
+      setRaw({
+        deposits: depositsData,
+        registers: registersData,
+        advances: advancesData,
+        pickups: pickupsData,
+        robberies: robberiesData,
+        audits: auditsData,
+        alerts: alertsData,
+        tillCheckouts: tillsData,
+        giftCardCashouts: logData.filter((log) => log.detail && log.detail.includes("Gift card cash out")),
+      });
       setLoading(false);
     } catch (e) {
       toast({ title: "Error loading data", variant: "destructive" });
@@ -75,72 +80,66 @@ export default function AdminCashReconciliation() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
   useRealtimeSync(["CashAdvance", "CashPickup", "CashAudit", "EODCashDeposit", "Robbery", "TillCheckout", "RegisterLog"], loadData, { intervalMs: 15000 });
 
-  const handleAdvance = async () => {
-    if (!advanceForm.register_id || !advanceForm.amount) {
-      toast({ title: "Please fill in all required fields", variant: "destructive" });
-      return;
-    }
-    try {
-      const register = registers.find(r => r.id === advanceForm.register_id);
-      await base44.entities.CashAdvance.create({
-        register_id: register?.register_id || "",
-        register_name: register?.name || "",
-        amount: parseFloat(advanceForm.amount),
-        reason: advanceForm.reason,
-        status: "approved"
-      });
-      // Set print data
-      setPrintData({
-        type: "advance",
-        registerName: register?.name || "",
-        registerId: register?.register_id || "",
-        amount: advanceForm.amount,
-        reason: advanceForm.reason,
-        date: new Date().toISOString()
-      });
-      toast({ title: "Cash advance recorded", description: `$${parseFloat(advanceForm.amount).toFixed(2)} to ${register?.name}` });
-      setAdvanceForm({ register_id: "", amount: "", reason: "" });
-      setAdvanceDialog(false);
-      loadData();
-    } catch (e) {
-      toast({ title: "Error creating advance", variant: "destructive" });
-    }
-  };
+  // Every figure on this page is money, so nothing leaves the viewer's store scope.
+  // Cash records carry only a register reference, so the scope is resolved through
+  // the registers this person is allowed to see.
+  const scoped = useMemo(() => {
+    const registers = scopeRegisters(access, raw.registers);
+    const scope = buildRegisterScope(access, raw.registers);
+    return {
+      registers,
+      deposits: scopeByRegister(scope, raw.deposits),
+      advances: scopeByRegister(scope, raw.advances),
+      pickups: scopeByRegister(scope, raw.pickups),
+      robberies: scopeByRegister(scope, raw.robberies),
+      audits: scopeByRegister(scope, raw.audits),
+      tillCheckouts: scopeByRegister(scope, raw.tillCheckouts),
+      giftCardCashouts: scopeByRegister(scope, raw.giftCardCashouts),
+    };
+  }, [access, raw]);
 
-  const handlePickup = async () => {
-    if (!pickupForm.register_id || !pickupForm.amount) {
+  const totals = useMemo(() => computeCashTotals(scoped), [scoped]);
+
+  const renderPushBtn = (rec, kind) => (
+    <PushToLPButton recordId={rec.id} kind={kind} pushedIds={pushedIds} pushingId={pushingId} onPush={() => push(rec, kind)} />
+  );
+
+  const recordCashMove = async (kind) => {
+    const form = kind === "advance" ? advanceForm : pickupForm;
+    if (!form.register_id || !form.amount) {
       toast({ title: "Please fill in all required fields", variant: "destructive" });
       return;
     }
     try {
-      const register = registers.find(r => r.id === pickupForm.register_id);
-      await base44.entities.CashPickup.create({
+      const register = scoped.registers.find((r) => r.id === form.register_id);
+      const entity = kind === "advance" ? base44.entities.CashAdvance : base44.entities.CashPickup;
+      await entity.create({
         register_id: register?.register_id || "",
         register_name: register?.name || "",
-        amount: parseFloat(pickupForm.amount),
-        reason: pickupForm.reason,
-        status: "approved"
+        amount: parseFloat(form.amount),
+        reason: form.reason,
+        status: "approved",
       });
-      // Set print data
       setPrintData({
-        type: "pickup",
+        type: kind,
         registerName: register?.name || "",
         registerId: register?.register_id || "",
-        amount: pickupForm.amount,
-        reason: pickupForm.reason,
-        date: new Date().toISOString()
+        amount: form.amount,
+        reason: form.reason,
+        date: new Date().toISOString(),
       });
-      toast({ title: "Cash pickup recorded", description: `$${parseFloat(pickupForm.amount).toFixed(2)} from ${register?.name}` });
-      setPickupForm({ register_id: "", amount: "", reason: "" });
-      setPickupDialog(false);
+      toast({
+        title: kind === "advance" ? "Cash advance recorded" : "Cash pickup recorded",
+        description: `$${parseFloat(form.amount).toFixed(2)} ${kind === "advance" ? "to" : "from"} ${register?.name}`,
+      });
+      if (kind === "advance") { setAdvanceForm({ register_id: "", amount: "", reason: "" }); setAdvanceDialog(false); }
+      else { setPickupForm({ register_id: "", amount: "", reason: "" }); setPickupDialog(false); }
       loadData();
     } catch (e) {
-      toast({ title: "Error creating pickup", variant: "destructive" });
+      toast({ title: kind === "advance" ? "Error creating advance" : "Error creating pickup", variant: "destructive" });
     }
   };
 
@@ -150,7 +149,7 @@ export default function AdminCashReconciliation() {
       return;
     }
     try {
-      const register = registers.find(r => r.id === auditForm.register_id);
+      const register = scoped.registers.find((r) => r.id === auditForm.register_id);
       await base44.entities.CashAudit.create({
         register_id: register?.register_id || "",
         register_name: register?.name || "",
@@ -161,7 +160,7 @@ export default function AdminCashReconciliation() {
         discrepancy: 0,
         audit_date: new Date().toISOString(),
         notes: "Manual audit initiated by admin",
-        status: "pending"
+        status: "pending",
       });
       toast({ title: "Manual audit created", description: `Audit created for ${register?.name}` });
       setAuditForm({ register_id: "" });
@@ -183,113 +182,6 @@ export default function AdminCashReconciliation() {
     }
   };
 
-  const sevFor = (amount, isShort) => {
-    const a = Math.abs(amount);
-    if (isShort) { if (a >= 100) return "critical"; if (a >= 50) return "high"; if (a >= 20) return "medium"; return "low"; }
-    if (a >= 100) return "high"; if (a >= 50) return "medium"; return "low";
-  };
-
-  const handlePushToLP = async (rec, kind) => {
-    const id = `${kind}-${rec.id}`;
-    if (pushedIds.has(id)) return;
-    setPushingId(id);
-    try {
-      let type, title, amount, operator_id = "", operator_name = "", register_id = "", register_name = "", evidence = [], date, dateStr, detail;
-      if (kind === "audit") {
-        const disc = rec.discrepancy || 0;
-        const isShort = disc < 0;
-        type = isShort ? "cash_short" : "cash_over";
-        amount = Math.abs(disc);
-        operator_id = rec.operator_id || ""; operator_name = rec.operator_name || "";
-        register_id = rec.register_id || ""; register_name = rec.register_name || "";
-        date = rec.audit_date;
-        dateStr = date ? new Date(date).toISOString().split("T")[0] : "";
-        detail = `Cash audit: counted $${(rec.total_counted || 0).toFixed(2)} vs expected $${(rec.expected_amount || 0).toFixed(2)}${rec.triggered_by_cash_limit ? " · limit-triggered" : ""}`;
-        title = `${isShort ? "Cash short" : "Cash over"} — ${register_name || register_id}${operator_name ? ` (${operator_name})` : ""}`;
-        evidence = [{ type: "cash_audit", ref: rec.id, detail, amount: disc, date }];
-      } else if (kind === "deposit") {
-        const diff = rec.difference || 0;
-        const isShort = diff < 0;
-        type = isShort ? "cash_short" : "cash_over";
-        amount = Math.abs(diff);
-        operator_id = rec.operator_id || ""; operator_name = rec.operator_name || "";
-        register_id = rec.register_id || ""; register_name = rec.register_name || "";
-        date = rec.report_date; dateStr = date ? new Date(date).toISOString().split("T")[0] : "";
-        detail = `EOD deposit: expected $${(rec.expected_cash || 0).toFixed(2)} vs deposited $${(rec.actual_cash_deposited || 0).toFixed(2)}`;
-        title = `${isShort ? "Deposit short" : "Deposit over"} — ${register_name || register_id}${operator_name ? ` (${operator_name})` : ""}`;
-        evidence = [{ type: "deposit", ref: rec.id, detail, amount: diff, date }];
-      } else {
-        const disc = rec.discrepancy || 0;
-        const isShort = disc < 0;
-        type = isShort ? "cash_short" : "cash_over";
-        amount = Math.abs(disc);
-        operator_id = rec.operator_id || ""; operator_name = rec.operator_name || "";
-        register_id = rec.register_id || ""; register_name = rec.register_name || "";
-        date = rec.checkin_date; dateStr = date ? new Date(date).toISOString().split("T")[0] : "";
-        detail = `Till check-in: expected $250.00 vs actual $${(rec.checkin_total || 0).toFixed(2)}`;
-        title = `${isShort ? "Till short" : "Till over"} — ${register_name || register_id}${operator_name ? ` (${operator_name})` : ""}`;
-        evidence = [{ type: "till_checkin", ref: rec.id, detail, amount: disc, date }];
-      }
-      const severity = sevFor(amount, type === "cash_short");
-      const admin = JSON.parse(sessionStorage.getItem("admin_operator") || "null");
-      const by = admin?.full_name || admin?.operator_id || "Admin";
-      await base44.entities.Investigation.create({
-        title, type, severity, status: "open",
-        operator_name, operator_id, register_id,
-        summary: `Pushed instantly from Cash Reconciliation. ${detail}`,
-        amount_impact: amount,
-        date_range_start: dateStr, date_range_end: dateStr,
-        evidence,
-        activity_log: [{ date: new Date().toISOString(), by, action: "Pushed from Cash Reconciliation", note: "" }],
-        created_by: by,
-      });
-      setPushedIds(prev => new Set(prev).add(id));
-      toast({ title: "Pushed to Loss Prevention", description: title });
-    } catch (e) {
-      toast({ title: "Failed to push to Loss Prevention", variant: "destructive" });
-    }
-    setPushingId(null);
-  };
-
-  const renderPushBtn = (rec, kind) => {
-    const id = `${kind}-${rec.id}`;
-    const pushed = pushedIds.has(id);
-    return (
-      <button
-        onClick={() => handlePushToLP(rec, kind)}
-        disabled={pushed || pushingId === id}
-        className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
-          pushed ? "bg-emerald-100 text-emerald-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-        }`}
-      >
-        <Zap className="w-3.5 h-3.5" /> {pushed ? "Pushed" : pushingId === id ? "Pushing..." : "Push to LP"}
-      </button>
-    );
-  };
-
-  const groupByDate = () => {
-    const grouped = {};
-    deposits.forEach((deposit) => {
-      if (!grouped[deposit.report_date]) {
-        grouped[deposit.report_date] = [];
-      }
-      grouped[deposit.report_date].push(deposit);
-    });
-    return grouped;
-  };
-
-  const getDateStats = (dateDeposits) => {
-    const totalExpected = dateDeposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
-    const totalDeposited = dateDeposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
-    const totalDiff = dateDeposits.reduce((sum, d) => sum + (d.difference || 0), 0);
-    const longs = dateDeposits.filter((d) => (d.difference || 0) > 0).length;
-    const shorts = dateDeposits.filter((d) => (d.difference || 0) < 0).length;
-    return { totalExpected, totalDeposited, totalDiff, longs, shorts };
-  };
-
-  const groupedDeposits = groupByDate();
-  const sortedDates = Object.keys(groupedDeposits).sort().reverse();
-
   if (loading) return <div className="p-6"><div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full" /></div>;
 
   return (
@@ -300,12 +192,8 @@ export default function AdminCashReconciliation() {
           <p className="text-gray-500 mt-2 text-sm sm:text-base">Track register cash deposits, longs, shorts, advances, and pickups</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>
-            Check Out Till
-          </Button>
-          <Button variant="outline" onClick={() => setShowCheckinModal(true)}>
-            Check In Till
-          </Button>
+          <Button variant="outline" onClick={() => setShowCheckoutModal(true)}>Check Out Till</Button>
+          <Button variant="outline" onClick={() => setShowCheckinModal(true)}>Check In Till</Button>
           <Button onClick={() => setAuditDialog(true)} className="bg-purple-600 hover:bg-purple-700 flex gap-2">
             <Plus className="w-4 h-4" /> Manual Audit
           </Button>
@@ -318,1078 +206,85 @@ export default function AdminCashReconciliation() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto scrollbar-thin">
-        <button
-          onClick={() => setActiveTab("deposits")}
-          className={`px-4 py-2 font-medium border-b-2 transition ${
-            activeTab === "deposits"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Deposits
-        </button>
-        <button
-          onClick={() => setActiveTab("bags")}
-          className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
-            activeTab === "bags"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Open Bags {tillCheckouts.filter(t => t.status === "checked_out").length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-blue-600 text-white rounded-full w-5 h-5 text-xs font-bold">{tillCheckouts.filter(t => t.status === "checked_out").length}</span>}
-        </button>
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`px-4 py-2 font-medium border-b-2 transition ${
-            activeTab === "history"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Advances & Pickups
-        </button>
-        <button
-          onClick={() => setActiveTab("emergency")}
-          className={`px-4 py-2 font-medium border-b-2 transition ${
-            activeTab === "emergency"
-              ? "border-red-600 text-red-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Emergency {robberies.length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-red-600 text-white rounded-full w-5 h-5 text-xs font-bold">{robberies.length}</span>}
-        </button>
-        <button
-           onClick={() => setActiveTab("audits")}
-           className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
-             activeTab === "audits"
-               ? "border-green-600 text-green-600"
-               : "border-transparent text-gray-500 hover:text-gray-700"
-           }`}
-         >
-           Audit History {audits.length > 0 && <span className="ml-2 inline-flex items-center justify-center bg-green-600 text-white rounded-full w-5 h-5 text-xs font-bold">{audits.filter(a => a.status === "pending").length}</span>}
-         </button>
-        <button
-           onClick={() => setActiveTab("discrepancies")}
-           className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
-            activeTab === "discrepancies"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Discrepancies
-        </button>
-        <button
-          onClick={() => setActiveTab("report")}
-          className={`px-4 py-2 font-medium border-b-2 transition whitespace-nowrap ${
-            activeTab === "report"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Quick Report
-        </button>
-        <button
-          onClick={() => setActiveTab("export")}
-          className={`px-4 py-2 font-medium border-b-2 transition ${
-            activeTab === "export"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          Export
-        </button>
-        </div>
-
-      {/* Open Bags Tab */}
-      {activeTab === "bags" && <OpenBagsPanel tillCheckouts={tillCheckouts} />}
-
-      {/* Audit History Tab */}
-      {activeTab === "audits" && (
-        <div className="space-y-4">
-          {audits.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No cash audits found</div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_160px] gap-4 px-6 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <span>Register & Operator</span>
-                <span>Amount Counted</span>
-                <span>Expected</span>
-                <span>Discrepancy</span>
-                <span>Limit Trigger</span>
-                <span>Status</span>
-                <span>Date</span>
-                <span>Action</span>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {audits.map((audit) => (
-                  <div key={audit.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_160px] gap-4 px-6 py-3 items-center hover:bg-gray-50">
-                    <div>
-                      <p className="font-semibold text-gray-900">{audit.register_name}</p>
-                      <p className="text-xs text-gray-600">{audit.operator_name} ({audit.operator_id})</p>
-                    </div>
-                    <p className="text-sm font-semibold text-gray-900">${audit.total_counted?.toFixed(2) || '0.00'}</p>
-                    <p className="text-sm text-gray-600">${audit.expected_amount?.toFixed(2) || '0.00'}</p>
-                    <p className={`text-sm font-bold ${(audit.discrepancy || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {(audit.discrepancy || 0) >= 0 ? "+" : ""}{audit.discrepancy?.toFixed(2) || "0.00"}
-                      {audit.discrepancy_percentage && <span className="text-xs text-gray-500 ml-1">({audit.discrepancy_percentage.toFixed(1)}%)</span>}
-                    </p>
-                    <p className="text-sm">{audit.triggered_by_cash_limit ? "Yes" : "No"}</p>
-                    <p className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      audit.status === "pending" ? "bg-yellow-100 text-yellow-700" :
-                      audit.status === "complete" ? "bg-green-100 text-green-700" :
-                      audit.status === "acknowledged" ? "bg-blue-100 text-blue-700" :
-                      audit.status === "resolved" ? "bg-emerald-100 text-emerald-700" :
-                      audit.status === "canceled" ? "bg-red-100 text-red-700" :
-                      "bg-gray-100 text-gray-700"
-                    }`}>
-                      {audit.status}
-                    </p>
-                    <p className="text-sm text-gray-600">{new Date(audit.audit_date).toLocaleDateString()}</p>
-                    <div className="flex flex-col gap-1.5">
-                      {(audit.discrepancy || 0) !== 0 && renderPushBtn(audit, "audit")}
-                      {audit.status !== "canceled" && (
-                        <Button onClick={() => setCancelAuditDialog(audit)} className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 px-2">
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Deposits Tab */}
-      {activeTab === "deposits" && (
-        <div className="space-y-4">
-          {sortedDates.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No cash deposits found</div>
-          ) : (
-            sortedDates.map((date) => {
-              const dateDeposits = groupedDeposits[date];
-              const stats = getDateStats(dateDeposits);
-              const isOver = stats.totalDiff > 0;
-
-              return (
-                <div key={date}>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 cursor-pointer hover:bg-blue-100 transition" onClick={() => setSelectedDate(selectedDate === date ? null : date)}>
-                    <div className="grid grid-cols-5 gap-4">
-                      <div>
-                        <p className="text-xs text-gray-600 uppercase">Date</p>
-                        <p className="text-lg font-bold text-gray-900">{new Date(date).toLocaleDateString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 uppercase">Expected</p>
-                        <p className="text-lg font-bold text-gray-900">${stats.totalExpected.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 uppercase">Deposited</p>
-                        <p className="text-lg font-bold text-gray-900">${stats.totalDeposited.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 uppercase">Variance</p>
-                        <p className={`text-lg font-bold ${isOver ? "text-green-600" : "text-red-600"}`}>
-                          {isOver ? "+" : ""}{stats.totalDiff.toFixed(2)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-600 uppercase">Registers</p>
-                        <p className="text-lg font-bold text-gray-900">{stats.longs > 0 ? `+${stats.longs}` : ""} {stats.shorts > 0 ? `-${stats.shorts}` : ""}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedDate === date && (
-                    <div className="bg-white border border-gray-200 rounded-lg mt-2 p-4 space-y-3">
-                      {dateDeposits.map((deposit) => {
-                        const diff = deposit.difference || 0;
-                        const isLong = diff > 0;
-
-                        return (
-                          <div key={deposit.id} className={`p-3 rounded border-l-4 ${isLong ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500"}`}>
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <p className="font-bold text-gray-900">{deposit.register_name} - {deposit.operator_name}</p>
-                                <p className="text-xs text-gray-600">{deposit.operator_id}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className={`text-lg font-bold ${isLong ? "text-green-600" : "text-red-600"}`}>
-                                  {isLong ? <TrendingUp className="w-5 h-5 inline mr-1" /> : <TrendingDown className="w-5 h-5 inline mr-1" />}
-                                  {isLong ? "+" : ""}{diff.toFixed(2)}
-                                </p>
-                                <p className="text-xs text-gray-600">
-                                  Expected: ${deposit.expected_cash?.toFixed(2) || "0.00"} → Deposited: ${deposit.actual_cash_deposited?.toFixed(2) || "0.00"}
-                                </p>
-                              </div>
-                            </div>
-                            {deposit.notes && <p className="text-xs text-gray-600 mt-2 italic">Note: {deposit.notes}</p>}
-                            {diff !== 0 && <div className="flex justify-end mt-2">{renderPushBtn(deposit, "deposit")}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* Export Tab */}
-       {activeTab === "export" && (
-         <div className="space-y-4">
-           {/* Summary cards */}
-           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-             <div className="bg-white rounded-lg p-4 border border-gray-100 shadow-sm">
-               <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Total Transactions</p>
-               <p className="text-2xl sm:text-3xl font-bold text-gray-900">{advances.length + pickups.length}</p>
-             </div>
-             <div className="bg-white rounded-lg p-4 border border-gray-100 shadow-sm">
-               <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Total Advances</p>
-               <p className="text-2xl sm:text-3xl font-bold text-blue-600">${advances.reduce((sum, a) => sum + (a.amount || 0), 0).toFixed(2)}</p>
-               <p className="text-gray-400 text-[10px] sm:text-xs mt-1">{advances.length} advance{advances.length !== 1 ? "s" : ""}</p>
-             </div>
-             <div className="bg-white rounded-lg p-4 border border-gray-100 shadow-sm">
-               <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Total Pickups</p>
-               <p className="text-2xl sm:text-3xl font-bold text-amber-600">${pickups.reduce((sum, p) => sum + (p.amount || 0), 0).toFixed(2)}</p>
-               <p className="text-gray-400 text-[10px] sm:text-xs mt-1">{pickups.length} pickup{pickups.length !== 1 ? "s" : ""}</p>
-             </div>
-           </div>
-
-           {/* Export button */}
-           <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between">
-               <div>
-                 <h2 className="font-semibold text-sm sm:text-base text-gray-900">Export Data</h2>
-                 <p className="text-gray-500 text-[10px] sm:text-xs mt-1">Download all cash management transactions as CSV</p>
-               </div>
-               <Button onClick={() => {
-                 const allTransactions = [
-                   ...deposits.map(d => ({
-                     type: "Deposit",
-                     date: d.report_date,
-                     register: d.register_name,
-                     registerId: d.register_id,
-                     operator: d.operator_name,
-                     amount: d.actual_cash_deposited || 0,
-                     expected: d.expected_cash || 0,
-                     difference: d.difference || 0,
-                     notes: d.notes || ""
-                   })),
-                   ...audits.map(a => ({
-                     type: "Audit",
-                     date: a.audit_date,
-                     register: a.register_name,
-                     registerId: a.register_id,
-                     operator: a.operator_name,
-                     amount: a.total_counted || 0,
-                     expected: a.expected_amount || 0,
-                     difference: a.discrepancy || 0,
-                     notes: `Status: ${a.status}, Limit Trigger: ${a.triggered_by_cash_limit ? "Yes" : "No"}`
-                   })),
-                   ...advances.map(a => ({
-                     type: "Advance",
-                     date: a.created_date,
-                     register: a.register_name,
-                     registerId: a.register_id,
-                     operator: "",
-                     amount: a.amount,
-                     expected: 0,
-                     difference: 0,
-                     notes: a.reason || ""
-                   })),
-                   ...pickups.map(p => ({
-                     type: "Pickup",
-                     date: p.created_date,
-                     register: p.register_name,
-                     registerId: p.register_id,
-                     operator: "",
-                     amount: p.amount,
-                     expected: 0,
-                     difference: 0,
-                     notes: p.reason || ""
-                   })),
-                   ...robberies.map(r => ({
-                     type: "Robbery",
-                     date: r.created_date,
-                     register: r.register_name,
-                     registerId: r.register_id,
-                     operator: r.operator_name,
-                     amount: r.amount_stolen || 0,
-                     expected: 0,
-                     difference: 0,
-                     notes: r.notes || ""
-                   }))
-                 ].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                 const headers = ["Type", "Date", "Register", "Register ID", "Operator", "Amount", "Expected", "Difference", "Notes"];
-                 const csvContent = [
-                   headers.join(","),
-                   ...allTransactions.map(t =>
-                     [
-                       t.type,
-                       new Date(t.date).toLocaleString(),
-                       t.register,
-                       t.registerId,
-                       t.operator,
-                       `$${t.amount.toFixed(2)}`,
-                       t.expected > 0 ? `$${t.expected.toFixed(2)}` : "",
-                       t.difference !== 0 ? `$${t.difference.toFixed(2)}` : "",
-                       `"${t.notes}"`
-                     ].join(",")
-                   )
-                 ].join("\n");
-
-                 const blob = new Blob([csvContent], { type: "text/csv" });
-                 const url = window.URL.createObjectURL(blob);
-                 const a = document.createElement("a");
-                 a.href = url;
-                 a.download = `cash_history_${new Date().toISOString().split("T")[0]}.csv`;
-                 document.body.appendChild(a);
-                 a.click();
-                 window.URL.revokeObjectURL(url);
-                 document.body.removeChild(a);
-               }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2">
-                 <Download className="w-4 h-4" />
-                 Export to CSV
-               </Button>
-             </div>
-           </div>
-
-           {/* Transactions table */}
-           <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-             <div className="p-3 sm:p-5 border-b border-gray-100">
-               <h2 className="font-semibold text-sm sm:text-base text-gray-900">All Transactions</h2>
-             </div>
-             <div className="overflow-x-auto">
-               <table className="w-full text-sm">
-                 <thead className="bg-gray-50 border-b border-gray-200">
-                   <tr>
-                     <th className="text-left px-3 sm:px-4 py-3 font-bold text-gray-700 text-xs sm:text-sm">Type</th>
-                     <th className="text-left px-3 sm:px-4 py-3 font-bold text-gray-700 text-xs sm:text-sm">Date</th>
-                     <th className="text-left px-3 sm:px-4 py-3 font-bold text-gray-700 text-xs sm:text-sm">Register</th>
-                     <th className="text-right px-3 sm:px-4 py-3 font-bold text-gray-700 text-xs sm:text-sm">Amount</th>
-                     <th className="text-left px-3 sm:px-4 py-3 font-bold text-gray-700 text-xs sm:text-sm">Reason</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {advances.length === 0 && pickups.length === 0 ? (
-                     <tr>
-                       <td colSpan="5" className="text-center py-8 text-gray-500 text-xs sm:text-sm">No cash transactions recorded</td>
-                     </tr>
-                   ) : (
-                     [...advances.map(a => ({ ...a, _type: "advance" })), ...pickups.map(p => ({ ...p, _type: "pickup" }))]
-                       .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
-                       .map((item, idx) => (
-                         <tr key={item.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
-                           <td className="px-3 sm:px-4 py-3">
-                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold ${
-                               item._type === "advance" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
-                             }`}>
-                               {item._type === "advance" ? "Advance" : "Pickup"}
-                             </span>
-                           </td>
-                           <td className="px-3 sm:px-4 py-3 text-gray-900 text-[11px] sm:text-sm font-medium">
-                             {new Date(item.created_date).toLocaleString()}
-                           </td>
-                           <td className="px-3 sm:px-4 py-3 text-gray-600 text-[11px] sm:text-sm">
-                             <div>{item.register_name}</div>
-                             <div className="text-gray-400 text-[9px] sm:text-xs">{item.register_id}</div>
-                           </td>
-                           <td className="px-3 sm:px-4 py-3 text-right text-gray-900 font-bold text-[11px] sm:text-sm">
-                             ${item.amount.toFixed(2)}
-                           </td>
-                           <td className="px-3 sm:px-4 py-3 text-gray-600 text-[11px] sm:text-sm">
-                             {item.reason || "—"}
-                           </td>
-                         </tr>
-                       ))
-                   )}
-                 </tbody>
-               </table>
-             </div>
-           </div>
-         </div>
-       )}
-
-       {/* Emergency Tab — Robberies */}
-       {activeTab === "emergency" && (
-         <div className="space-y-4">
-           {robberies.length === 0 ? (
-             <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-100">
-               <p className="text-sm">No robbery incidents recorded</p>
-             </div>
-           ) : (
-             <div className="rounded-lg border border-gray-200 overflow-hidden">
-               <table className="w-full text-sm">
-                 <thead className="bg-red-50 border-b border-red-200">
-                   <tr>
-                     <th className="text-left px-4 py-3 font-bold text-red-700">Date & Time</th>
-                     <th className="text-left px-4 py-3 font-bold text-red-700">Register</th>
-                     <th className="text-left px-4 py-3 font-bold text-red-700">Operator</th>
-                     <th className="text-right px-4 py-3 font-bold text-red-700">Amount Stolen</th>
-                     <th className="text-left px-4 py-3 font-bold text-red-700">Notes</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {robberies.map((rob, idx) => (
-                     <tr key={rob.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-red-50/20"}`}>
-                       <td className="px-4 py-3 text-gray-900 font-medium">{new Date(rob.created_date).toLocaleString()}</td>
-                       <td className="px-4 py-3 font-mono text-gray-600">{rob.register_id}</td>
-                       <td className="px-4 py-3 text-gray-600">
-                         <div>{rob.operator_name}</div>
-                         <div className="text-gray-400 text-xs">{rob.operator_id}</div>
-                       </td>
-                       <td className="px-4 py-3 font-bold text-right text-red-600">${rob.amount_stolen?.toFixed(2) || '0.00'}</td>
-                       <td className="px-4 py-3 text-gray-600 text-xs">{rob.notes || "—"}</td>
-                     </tr>
-                   ))}
-                 </tbody>
-                 <tfoot className="bg-red-50 border-t border-red-200">
-                   <tr>
-                     <td colSpan="3" className="px-4 py-3 font-bold text-red-700">Total Amount Stolen</td>
-                     <td className="px-4 py-3 font-bold text-right text-red-600">${robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0).toFixed(2)}</td>
-                     <td></td>
-                   </tr>
-                 </tfoot>
-               </table>
-             </div>
-           )}
-         </div>
-       )}
-
-       {/* Discrepancies Tab */}
-       {activeTab === "discrepancies" && (
-         <div className="space-y-4">
-           <div className="flex gap-3">
-             <select
-               value={selectedRegister}
-               onChange={(e) => setSelectedRegister(e.target.value)}
-               className="h-9 px-3 rounded-md border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-             >
-               <option value="all">All Registers</option>
-               {[...new Set([...deposits.map(d => d.register_id), ...tillCheckouts.map(t => t.register_id)].filter(Boolean))].map(rid => (
-                 <option key={rid} value={rid}>{rid}</option>
-               ))}
-             </select>
-             <span className="text-sm text-gray-500 flex items-center">{deposits.length + tillCheckouts.filter(t => t.status === "checked_in" && t.discrepancy !== undefined).length} records</span>
-           </div>
-
-           {deposits.length > 0 || tillCheckouts.some(t => t.status === "checked_in" && t.discrepancy !== undefined) ? (
-             <div className="space-y-6">
-               {/* Deposit Discrepancies Chart */}
-               {deposits.length > 0 && (
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                   <div className="bg-white rounded-xl border border-gray-200 p-4">
-                     <h2 className="text-sm font-semibold text-gray-900 mb-3">Deposit Discrepancy Trend</h2>
-                     <ResponsiveContainer width="100%" height={300}>
-                       <LineChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), difference: d.difference || 0 }))}>
-                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                         <YAxis tick={{ fontSize: 12 }} />
-                         <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
-                         <Legend />
-                         <Line type="monotone" dataKey="difference" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                       </LineChart>
-                     </ResponsiveContainer>
-                   </div>
-
-                   <div className="bg-white rounded-xl border border-gray-200 p-4">
-                     <h2 className="text-sm font-semibold text-gray-900 mb-3">Expected vs Actual</h2>
-                     <ResponsiveContainer width="100%" height={300}>
-                       <BarChart data={deposits.filter(d => selectedRegister === "all" || d.register_id === selectedRegister).sort((a, b) => new Date(a.report_date) - new Date(b.report_date)).slice(-10).map(d => ({ date: new Date(d.report_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }), expected: d.expected_cash || 0, actual: d.actual_cash_deposited || 0 }))}>
-                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                         <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                         <YAxis tick={{ fontSize: 12 }} />
-                         <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} formatter={(val) => `$${val.toFixed(2)}`} />
-                         <Legend />
-                         <Bar dataKey="expected" fill="#3b82f6" />
-                         <Bar dataKey="actual" fill="#10b981" />
-                       </BarChart>
-                     </ResponsiveContainer>
-                   </div>
-                 </div>
-               )}
-
-               {/* Till Check-In Discrepancies Table */}
-               {tillCheckouts.some(t => t.status === "checked_in" && t.discrepancy !== undefined) && (
-                 <div className="bg-white rounded-xl border border-gray-200 p-6">
-                   <h2 className="text-sm font-semibold text-gray-900 mb-4">Till Check-In Discrepancies</h2>
-                   <div className="rounded-lg border border-gray-200 overflow-hidden">
-                     <table className="w-full text-sm">
-                       <thead className="bg-gray-50 border-b border-gray-200">
-                         <tr>
-                           <th className="text-left px-4 py-3 font-bold text-gray-700">Date & Time</th>
-                           <th className="text-left px-4 py-3 font-bold text-gray-700">Bag #</th>
-                           <th className="text-left px-4 py-3 font-bold text-gray-700">Register</th>
-                           <th className="text-left px-4 py-3 font-bold text-gray-700">Pulled / Returned By</th>
-                           <th className="text-right px-4 py-3 font-bold text-gray-700">Expected ($250)</th>
-                           <th className="text-right px-4 py-3 font-bold text-gray-700">Actual</th>
-                           <th className="text-right px-4 py-3 font-bold text-gray-700">Discrepancy</th>
-                           <th className="text-right px-4 py-3 font-bold text-gray-700">Action</th>
-                           </tr>
-                       </thead>
-                       <tbody>
-                         {tillCheckouts
-                           .filter(t => t.status === "checked_in" && t.discrepancy !== undefined && (selectedRegister === "all" || t.register_id === selectedRegister))
-                           .sort((a, b) => new Date(b.checkin_date) - new Date(a.checkin_date))
-                           .map((till, idx) => (
-                             <tr key={till.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
-                               <td className="px-4 py-3 text-gray-900 font-medium">{new Date(till.checkin_date).toLocaleString()}</td>
-                               <td className="px-4 py-3 font-mono font-bold text-gray-900">
-                                 {till.bag_number || "—"}
-                                 {till.forced && (
-                                   <span className="ml-2 inline-flex px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold" title={`Expected bag ${till.expected_bag_number || "—"} · ${till.force_reason || ""} · ${till.force_manager_name || ""}`}>FORCED</span>
-                                 )}
-                               </td>
-                               <td className="px-4 py-3 font-mono text-gray-600">{till.register_name}</td>
-                               <td className="px-4 py-3 text-gray-600">
-                                 <div>{till.operator_name || "—"}</div>
-                                 <div className="text-gray-400 text-xs">↩ {till.checkin_operator_name || "—"}</div>
-                               </td>
-                               <td className="px-4 py-3 text-right font-medium text-gray-900">$250.00</td>
-                               <td className="px-4 py-3 text-right font-medium text-gray-900">${till.checkin_total.toFixed(2)}</td>
-                               <td className={`px-4 py-3 text-right font-bold ${till.discrepancy < 0 ? "text-red-600" : "text-green-600"}`}>
-                                 {till.discrepancy >= 0 ? "+" : ""}${till.discrepancy.toFixed(2)}
-                               </td>
-                               <td className="px-4 py-3 text-right">{(till.discrepancy || 0) !== 0 && renderPushBtn(till, "till")}</td>
-                             </tr>
-                           ))}
-                       </tbody>
-                     </table>
-                   </div>
-                 </div>
-               )}
-             </div>
-           ) : (
-             <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 text-center text-gray-500">No discrepancy data available</div>
-           )}
-         </div>
-       )}
-
-       {/* Quick Report Tab */}
-       {activeTab === "report" && (
-         <div className="space-y-4">
-           {(() => {
-                     const totalDeposits = deposits.length;
-                     const totalExpected = deposits.reduce((sum, d) => sum + (d.expected_cash || 0), 0);
-                     const totalDeposited = deposits.reduce((sum, d) => sum + (d.actual_cash_deposited || 0), 0);
-                     const totalVariance = deposits.reduce((sum, d) => sum + (d.difference || 0), 0);
-                     const shortages = deposits.filter(d => (d.difference || 0) < 0).length;
-                     const overages = deposits.filter(d => (d.difference || 0) > 0).length;
-                     const totalAdvances = advances.reduce((sum, a) => sum + (a.amount || 0), 0);
-                     const totalPickups = pickups.reduce((sum, p) => sum + (p.amount || 0), 0);
-                     const totalStolen = robberies.reduce((sum, r) => sum + (r.amount_stolen || 0), 0);
-                     const totalAudits = audits.length;
-                     const pendingAudits = audits.filter(a => a.status === "pending").length;
-                     const totalAuditedAmount = audits.reduce((sum, a) => sum + (a.total_counted || 0), 0);
-                     // Extract gift card cashout amounts from RegisterLog details
-                     const totalGiftCardCashout = giftCardCashouts.reduce((sum, log) => {
-                       const match = log.detail?.match(/\$(\d+\.\d+)/);
-                       return sum + (match ? parseFloat(match[1]) : 0);
-                     }, 0);
-                     const checkedOutCount = tillCheckouts.filter(t => t.status === "checked_out").length;
-                     const checkedInCount = tillCheckouts.filter(t => t.status === "checked_in").length;
-                     const checkedOutExpected = checkedOutCount * 250;
-                     const totalDiscrepancies = tillCheckouts
-                       .filter(t => t.status === "checked_in" && t.discrepancy !== undefined)
-                       .reduce((sum, t) => sum + t.discrepancy, 0);
-                     const totalRegisters = registers.length;
-
-             return (
-               <>
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                   <div className="bg-white rounded-lg p-4 border border-gray-100">
-                     <p className="text-gray-500 text-xs font-medium">Total Deposits</p>
-                     <p className="text-2xl font-bold text-gray-900">{totalDeposits}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-gray-100">
-                     <p className="text-gray-500 text-xs font-medium">Expected Total</p>
-                     <p className="text-2xl font-bold text-gray-900">${totalExpected.toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-gray-100">
-                     <p className="text-gray-500 text-xs font-medium">Deposited Total</p>
-                     <p className="text-2xl font-bold text-gray-900">${totalDeposited.toFixed(2)}</p>
-                   </div>
-                   <div className={`bg-white rounded-lg p-4 border ${totalVariance < 0 ? "border-red-200" : "border-green-200"}`}>
-                     <p className="text-gray-500 text-xs font-medium">Total Variance</p>
-                     <p className={`text-2xl font-bold ${totalVariance < 0 ? "text-red-600" : "text-green-600"}`}>{totalVariance < 0 ? "−" : "+"}${Math.abs(totalVariance).toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-red-100">
-                     <p className="text-gray-500 text-xs font-medium">Shortages</p>
-                     <p className="text-2xl font-bold text-red-600">{shortages}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-green-100">
-                     <p className="text-gray-500 text-xs font-medium">Overages</p>
-                     <p className="text-2xl font-bold text-green-600">{overages}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-blue-100">
-                     <p className="text-gray-500 text-xs font-medium">Total Advances</p>
-                     <p className="text-2xl font-bold text-blue-600">${totalAdvances.toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-amber-100">
-                     <p className="text-gray-500 text-xs font-medium">Total Pickups</p>
-                     <p className="text-2xl font-bold text-amber-600">${totalPickups.toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-green-100">
-                     <p className="text-gray-500 text-xs font-medium">Total Audits</p>
-                     <p className="text-2xl font-bold text-green-600">{totalAudits}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-yellow-100">
-                     <p className="text-gray-500 text-xs font-medium">Pending Audits</p>
-                     <p className="text-2xl font-bold text-yellow-600">{pendingAudits}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-purple-100">
-                     <p className="text-gray-500 text-xs font-medium">Audited Amount</p>
-                     <p className="text-2xl font-bold text-purple-600">${totalAuditedAmount.toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-rose-100">
-                     <p className="text-gray-500 text-xs font-medium">Gift Card Cashouts</p>
-                     <p className="text-2xl font-bold text-rose-600">${totalGiftCardCashout.toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-blue-100">
-                     <p className="text-gray-500 text-xs font-medium">Tills Checked Out</p>
-                     <p className="text-2xl font-bold text-blue-600">{checkedOutCount} / {totalRegisters}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-cyan-100">
-                     <p className="text-gray-500 text-xs font-medium">Checked Out Expected Total</p>
-                     <p className="text-2xl font-bold text-cyan-600">${checkedOutExpected.toFixed(2)}</p>
-                   </div>
-                   <div className="bg-white rounded-lg p-4 border border-green-100">
-                     <p className="text-gray-500 text-xs font-medium">Tills Checked In</p>
-                     <p className="text-2xl font-bold text-green-600">{checkedInCount} / {totalRegisters}</p>
-                   </div>
-                   <div className={`bg-white rounded-lg p-4 border ${totalDiscrepancies < 0 ? "border-red-100" : "border-orange-100"}`}>
-                     <p className="text-gray-500 text-xs font-medium">Till Discrepancies Total</p>
-                     <p className={`text-2xl font-bold ${totalDiscrepancies < 0 ? "text-red-600" : "text-orange-600"}`}>{totalDiscrepancies >= 0 ? "+" : ""}${totalDiscrepancies.toFixed(2)}</p>
-                   </div>
-                   </div>
-
-                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-                   <div className="flex items-center justify-between">
-                     <h3 className="font-semibold text-lg text-gray-900">Generate & Export Report</h3>
-                     <div className="flex gap-2 flex-wrap">
-                       <Button onClick={() => {
-                         const registerGroups = {};
-                         [...deposits, ...advances.map(a => ({ ...a, type: "advance" })), ...pickups.map(p => ({ ...p, type: "pickup" })), ...audits.map(a => ({ ...a, type: "audit" })), ...robberies.map(r => ({ ...r, type: "robbery" }))].forEach(item => {
-                           const regId = item.register_id || "Unknown";
-                           if (!registerGroups[regId]) {
-                             registerGroups[regId] = { deposits: 0, expectedCash: 0, depositedCash: 0, variance: 0, advances: 0, pickups: 0, audits: 0, auditAmount: 0, robberies: 0, stolenAmount: 0 };
-                           }
-                           if (item.report_date) registerGroups[regId].deposits += 1;
-                           if (item.expected_cash) registerGroups[regId].expectedCash += item.expected_cash;
-                           if (item.actual_cash_deposited) registerGroups[regId].depositedCash += item.actual_cash_deposited;
-                           if (item.difference) registerGroups[regId].variance += item.difference;
-                           if (item.type === "advance") registerGroups[regId].advances += item.amount || 0;
-                           if (item.type === "pickup") registerGroups[regId].pickups += item.amount || 0;
-                           if (item.type === "audit") registerGroups[regId].audits += 1;
-                           if (item.type === "audit" && item.total_counted) registerGroups[regId].auditAmount += item.total_counted;
-                           if (item.type === "robbery") registerGroups[regId].robberies += 1;
-                           if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
-                         });
-
-                         let reportContent = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n`;
-                         reportContent += `SUMMARY BY REGISTER\n`;
-                         reportContent += `\nRegister | Deposits | Expected | Deposited | Variance | Advances | Pickups | Audits | Audit Amount | Robberies | Stolen\n`;
-                         reportContent += `${"─".repeat(130)}\n`;
-
-                         Object.entries(registerGroups).forEach(([regId, data]) => {
-                           reportContent += `${regId.padEnd(15)} | ${String(data.deposits).padEnd(8)} | $${data.expectedCash.toFixed(2).padEnd(9)} | $${data.depositedCash.toFixed(2).padEnd(10)} | $${data.variance.toFixed(2).padEnd(8)} | $${data.advances.toFixed(2).padEnd(8)} | $${data.pickups.toFixed(2).padEnd(8)} | ${String(data.audits).padEnd(6)} | $${data.auditAmount.toFixed(2).padEnd(13)} | ${String(data.robberies).padEnd(10)} | $${data.stolenAmount.toFixed(2)}\n`;
-                         });
-
-                         reportContent += `${"─".repeat(130)}\n`;
-                         reportContent += `TOTALS${" ".repeat(9)} | ${String(totalDeposits).padEnd(8)} | $${totalExpected.toFixed(2).padEnd(9)} | $${totalDeposited.toFixed(2).padEnd(10)} | $${totalVariance.toFixed(2).padEnd(8)} | $${totalAdvances.toFixed(2).padEnd(8)} | $${totalPickups.toFixed(2).padEnd(8)} | ${String(totalAudits).padEnd(6)} | $${totalAuditedAmount.toFixed(2).padEnd(13)} | ${String(robberies.length).padEnd(10)} | $${totalStolen.toFixed(2)}\n`;
-
-                         reportContent += `\n=== TILL CHECKOUT/CHECKIN ===\n`;
-                         reportContent += `Tills Checked Out: ${checkedOutCount}\nChecked Out Expected Total: $${checkedOutExpected.toFixed(2)}\nTills Checked In: ${checkedInCount}\nTill Discrepancies Total: ${totalDiscrepancies >= 0 ? "+" : ""}$${totalDiscrepancies.toFixed(2)}\n`;
-
-                         const report = reportContent;
-
-                         const blob = new Blob([report], { type: "text/plain" });
-                         const url = window.URL.createObjectURL(blob);
-                         const a = document.createElement("a");
-                         a.href = url;
-                         a.download = `cash_report_${new Date().toISOString().split("T")[0]}.txt`;
-                         document.body.appendChild(a);
-                         a.click();
-                         window.URL.revokeObjectURL(url);
-                         document.body.removeChild(a);
-                         toast({ title: "Report exported as TXT" });
-                       }} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-                         <FileText className="w-4 h-4" /> Text
-                       </Button>
-                       <Button onClick={() => {
-                         const registerGroups = {};
-                         [...deposits, ...advances.map(a => ({ ...a, type: "advance" })), ...pickups.map(p => ({ ...p, type: "pickup" })), ...audits.map(a => ({ ...a, type: "audit" })), ...robberies.map(r => ({ ...r, type: "robbery" }))].forEach(item => {
-                           const regId = item.register_id || "Unknown";
-                           if (!registerGroups[regId]) {
-                             registerGroups[regId] = { deposits: 0, expectedCash: 0, depositedCash: 0, variance: 0, advances: 0, pickups: 0, audits: 0, auditAmount: 0, robberies: 0, stolenAmount: 0 };
-                           }
-                           if (item.report_date) registerGroups[regId].deposits += 1;
-                           if (item.expected_cash) registerGroups[regId].expectedCash += item.expected_cash;
-                           if (item.actual_cash_deposited) registerGroups[regId].depositedCash += item.actual_cash_deposited;
-                           if (item.difference) registerGroups[regId].variance += item.difference;
-                           if (item.type === "advance") registerGroups[regId].advances += item.amount || 0;
-                           if (item.type === "pickup") registerGroups[regId].pickups += item.amount || 0;
-                           if (item.type === "audit") registerGroups[regId].audits += 1;
-                           if (item.type === "audit" && item.total_counted) registerGroups[regId].auditAmount += item.total_counted;
-                           if (item.type === "robbery") registerGroups[regId].robberies += 1;
-                           if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
-                         });
-
-                         const csvContent = "Register,Deposits,Expected Cash,Deposited Cash,Variance,Advances,Pickups,Gift Card Cashouts,Audits,Audit Amount,Robberies,Stolen Amount\n" +
-                           Object.entries(registerGroups).map(([regId, data]) => 
-                             `"${regId}",${data.deposits},$${data.expectedCash.toFixed(2)},$${data.depositedCash.toFixed(2)},$${data.variance.toFixed(2)},$${data.advances.toFixed(2)},$${data.pickups.toFixed(2)},$0.00,${data.audits},$${data.auditAmount.toFixed(2)},${data.robberies},$${data.stolenAmount.toFixed(2)}`
-                           ).join("\n") + 
-                           `\nTOTAL,${totalDeposits},$${totalExpected.toFixed(2)},$${totalDeposited.toFixed(2)},$${totalVariance.toFixed(2)},$${totalAdvances.toFixed(2)},$${totalPickups.toFixed(2)},$${totalGiftCardCashout.toFixed(2)},${totalAudits},$${totalAuditedAmount.toFixed(2)},${robberies.length},$${totalStolen.toFixed(2)}\n\nTILL CHECKOUT/CHECKIN\nTills Checked Out,${checkedOutCount}\nChecked Out Expected Total,$${checkedOutExpected.toFixed(2)}\nTills Checked In,${checkedInCount}\nTill Discrepancies Total,$${totalDiscrepancies.toFixed(2)}`;
-
-                         const blob = new Blob([csvContent], { type: "text/csv" });
-                         const url = window.URL.createObjectURL(blob);
-                         const a = document.createElement("a");
-                         a.href = url;
-                         a.download = `cash_report_${new Date().toISOString().split("T")[0]}.csv`;
-                         document.body.appendChild(a);
-                         a.click();
-                         window.URL.revokeObjectURL(url);
-                         document.body.removeChild(a);
-                         toast({ title: "Report exported as CSV" });
-                       }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-                         <Download className="w-4 h-4" /> CSV
-                       </Button>
-                       <Button onClick={() => {
-                         const registerGroups = {};
-                         [...deposits, ...advances.map(a => ({ ...a, type: "advance" })), ...pickups.map(p => ({ ...p, type: "pickup" })), ...audits.map(a => ({ ...a, type: "audit" })), ...robberies.map(r => ({ ...r, type: "robbery" }))].forEach(item => {
-                           const regId = item.register_id || "Unknown";
-                           if (!registerGroups[regId]) {
-                             registerGroups[regId] = { deposits: 0, expectedCash: 0, depositedCash: 0, variance: 0, advances: 0, pickups: 0, audits: 0, auditAmount: 0, robberies: 0, stolenAmount: 0 };
-                           }
-                           if (item.report_date) registerGroups[regId].deposits += 1;
-                           if (item.expected_cash) registerGroups[regId].expectedCash += item.expected_cash;
-                           if (item.actual_cash_deposited) registerGroups[regId].depositedCash += item.actual_cash_deposited;
-                           if (item.difference) registerGroups[regId].variance += item.difference;
-                           if (item.type === "advance") registerGroups[regId].advances += item.amount || 0;
-                           if (item.type === "pickup") registerGroups[regId].pickups += item.amount || 0;
-                           if (item.type === "audit") registerGroups[regId].audits += 1;
-                           if (item.type === "audit" && item.total_counted) registerGroups[regId].auditAmount += item.total_counted;
-                           if (item.type === "robbery") registerGroups[regId].robberies += 1;
-                           if (item.type === "robbery" && item.amount_stolen) registerGroups[regId].stolenAmount += item.amount_stolen;
-                         });
-
-                         let reportContent = `CASH RECONCILIATION QUICK REPORT\nGenerated: ${new Date().toLocaleString()}\n\n`;
-                         reportContent += `SUMMARY BY REGISTER\n`;
-                         reportContent += `\nRegister | Deposits | Expected | Deposited | Variance | Advances | Pickups | Audits | Audit Amount | Robberies | Stolen\n`;
-                         reportContent += `${"─".repeat(130)}\n`;
-
-                         Object.entries(registerGroups).forEach(([regId, data]) => {
-                           reportContent += `${regId.padEnd(15)} | ${String(data.deposits).padEnd(8)} | $${data.expectedCash.toFixed(2).padEnd(9)} | $${data.depositedCash.toFixed(2).padEnd(10)} | $${data.variance.toFixed(2).padEnd(8)} | $${data.advances.toFixed(2).padEnd(8)} | $${data.pickups.toFixed(2).padEnd(8)} | ${String(data.audits).padEnd(6)} | $${data.auditAmount.toFixed(2).padEnd(13)} | ${String(data.robberies).padEnd(10)} | $${data.stolenAmount.toFixed(2)}\n`;
-                         });
-
-                         reportContent += `${"─".repeat(130)}\n`;
-                         reportContent += `TOTALS${" ".repeat(9)} | ${String(totalDeposits).padEnd(8)} | $${totalExpected.toFixed(2).padEnd(9)} | $${totalDeposited.toFixed(2).padEnd(10)} | $${totalVariance.toFixed(2).padEnd(8)} | $${totalAdvances.toFixed(2).padEnd(8)} | $${totalPickups.toFixed(2).padEnd(8)} | ${String(totalAudits).padEnd(6)} | $${totalAuditedAmount.toFixed(2).padEnd(13)} | ${String(robberies.length).padEnd(10)} | $${totalStolen.toFixed(2)}\n`;
-
-                         reportContent += `\n=== TILL CHECKOUT/CHECKIN ===\n`;
-                         reportContent += `Tills Checked Out: ${checkedOutCount}\nChecked Out Expected Total: $${checkedOutExpected.toFixed(2)}\nTills Checked In: ${checkedInCount}\nTill Discrepancies Total: ${totalDiscrepancies >= 0 ? "+" : ""}$${totalDiscrepancies.toFixed(2)}\n`;
-
-                         const report = reportContent;
-
-                         const printWindow = window.open('', '', 'width=600,height=700');
-                         printWindow.document.write(`<pre style="font-family: monospace; margin: 20px; font-size: 11px; line-height: 1.5;">${report.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`);
-                         printWindow.document.close();
-                         printWindow.print();
-                       }} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
-                         <Printer className="w-4 h-4" /> Print Slip
-                       </Button>
-                     </div>
-                   </div>
-                 </div>
-               </>
-             );
-           })()}
-         </div>
-       )}
-
-       {/* History Tab */}
-         {activeTab === "history" && (
-        <div className="space-y-4">
-          <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-bold text-gray-700">Time</th>
-                  <th className="text-left px-4 py-3 font-bold text-gray-700">Register</th>
-                  <th className="text-left px-4 py-3 font-bold text-gray-700">Type</th>
-                  <th className="text-left px-4 py-3 font-bold text-gray-700">Amount</th>
-                  <th className="text-left px-4 py-3 font-bold text-gray-700">Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {advances.length === 0 && pickups.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="text-center py-8 text-gray-500">No advances or pickups recorded</td>
-                  </tr>
-                ) : (
-                  [...advances, ...pickups]
-                    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
-                    .map((item, idx) => {
-                      const isAdvance = "approved_by_id" in item && advances.some(a => a.id === item.id);
-                      return (
-                        <tr key={item.id} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <Clock className="w-3.5 h-3.5" />
-                              {new Date(item.created_date).toLocaleString()}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 font-medium text-gray-900">{item.register_name}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
-                              isAdvance 
-                                ? "bg-blue-100 text-blue-700" 
-                                : "bg-amber-100 text-amber-700"
-                            }`}>
-                              {isAdvance ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-                              {isAdvance ? "Advance" : "Pickup"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-bold text-gray-900">${item.amount.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-gray-600">{item.reason || "—"}</td>
-                        </tr>
-                      );
-                    })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Cash Advance Dialog */}
-      <Dialog open={advanceDialog} onOpenChange={setAdvanceDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Record Cash Advance</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Register</label>
-              <select
-                value={advanceForm.register_id}
-                onChange={(e) => setAdvanceForm({ ...advanceForm, register_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="">Select a register</option>
-                {registers.length > 0 ? (
-                  registers.map((reg) => (
-                    <option key={reg.id} value={reg.id}>{reg.name}</option>
-                  ))
-                ) : (
-                  <option disabled>No registers available</option>
-                )}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={advanceForm.amount}
-                  onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
-                  className="pl-7"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
-              <Input
-                placeholder="e.g., Low cash float, unexpected spike"
-                value={advanceForm.reason}
-                onChange={(e) => setAdvanceForm({ ...advanceForm, reason: e.target.value })}
-              />
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setAdvanceDialog(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handleAdvance} className="flex-1 bg-blue-600 hover:bg-blue-700">Record & Print</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Cash Pickup Dialog */}
-      <Dialog open={pickupDialog} onOpenChange={setPickupDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Record Cash Pickup</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Register</label>
-              <select
-                value={pickupForm.register_id}
-                onChange={(e) => setPickupForm({ ...pickupForm, register_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
-              >
-                <option value="">Select a register</option>
-                {registers.length > 0 ? (
-                  registers.map((reg) => (
-                    <option key={reg.id} value={reg.id}>{reg.name}</option>
-                  ))
-                ) : (
-                  <option disabled>No registers available</option>
-                )}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={pickupForm.amount}
-                  onChange={(e) => setPickupForm({ ...pickupForm, amount: e.target.value })}
-                  className="pl-7"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Reason</label>
-              <Input
-                placeholder="e.g., Excess cash, daily deposit"
-                value={pickupForm.reason}
-                onChange={(e) => setPickupForm({ ...pickupForm, reason: e.target.value })}
-              />
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setPickupDialog(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handlePickup} className="flex-1 bg-amber-600 hover:bg-amber-700">Record & Print</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Print Slip Dialog */}
-      {/* Manual Audit Dialog */}
-      <Dialog open={auditDialog} onOpenChange={setAuditDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create Manual Audit</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Register</label>
-              <select
-                value={auditForm.register_id}
-                onChange={(e) => setAuditForm({ ...auditForm, register_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
-              >
-                <option value="">Select a register</option>
-                {registers.length > 0 ? (
-                  registers.map((reg) => (
-                    <option key={reg.id} value={reg.id}>{reg.name}</option>
-                  ))
-                ) : (
-                  <option disabled>No registers available</option>
-                )}
-              </select>
-              <p className="text-xs text-gray-500 mt-2">Cash count will be entered in the POS Cash Management system</p>
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setAuditDialog(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handleManualAudit} className="flex-1 bg-purple-600 hover:bg-purple-700">Create Audit</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Cancel Audit Confirmation Dialog */}
-      <Dialog open={!!cancelAuditDialog} onOpenChange={(open) => !open && setCancelAuditDialog(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-red-600">Confirm Audit Cancellation</DialogTitle>
-          </DialogHeader>
-          {cancelAuditDialog && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Are you sure you want to cancel the audit for <span className="font-bold">{cancelAuditDialog.register_name}</span>? This action cannot be undone.
-              </p>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                The audit status will be changed to "Canceled" and it will appear in the audit history log.
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => setCancelAuditDialog(null)} className="flex-1">Keep Audit</Button>
-                <Button onClick={() => handleCancelAudit(cancelAuditDialog.id)} className="flex-1 bg-red-600 hover:bg-red-700">Confirm Cancel</Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {printData && (
-        <Dialog open={!!printData} onOpenChange={(open) => !open && setPrintData(null)}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Print Cash {printData.type === "advance" ? "Advance" : "Pickup"} Slip</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2 font-mono text-sm">
-                <div className="text-center font-bold border-b pb-2">
-                  CASH {printData.type === "advance" ? "ADVANCE" : "PICKUP"} SLIP
-                </div>
-                <div className="space-y-1">
-                  <div>Type: {printData.type === "advance" ? "ADVANCE" : "PICKUP"}</div>
-                  <div>Register: {printData.registerId}</div>
-                  <div>Name: {printData.registerName}</div>
-                </div>
-                <div className="border-t border-b py-2 text-center">
-                  <div className="text-2xl font-bold">${parseFloat(printData.amount).toFixed(2)}</div>
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div>Date: {new Date(printData.date).toLocaleString()}</div>
-                  {printData.reason && <div>Reason: {printData.reason}</div>}
-                </div>
-                <div className="text-center text-xs border-t pt-2 text-gray-600">
-                  FOR AUDITOR CONFIRMATION
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setPrintData(null)} className="flex-1">Close</Button>
-                <CashSlipReceipt
-                  type={printData.type}
-                  registerName={printData.registerName}
-                  registerId={printData.registerId}
-                  amount={printData.amount}
-                  reason={printData.reason}
-                  date={printData.date}
-                />
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      <TillCheckoutModal 
-        open={showCheckoutModal} 
-        onClose={() => setShowCheckoutModal(false)}
-        registers={registers}
-        onSuccess={loadData}
+      <CashTabBar
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        counts={{
+          bags: scoped.tillCheckouts.filter((t) => t.status === "checked_out").length,
+          emergency: scoped.robberies.length,
+          audits: totals.pendingAudits,
+        }}
       />
 
-      <TillCheckinModal 
+      {activeTab === "deposits" && (
+        <CashDepositsTab deposits={scoped.deposits} selectedDate={selectedDate} onSelectDate={setSelectedDate} renderPushBtn={renderPushBtn} />
+      )}
+
+      {activeTab === "bags" && <OpenBagsPanel tillCheckouts={scoped.tillCheckouts} />}
+
+      {activeTab === "audits" && (
+        <CashAuditHistoryTab audits={scoped.audits} renderPushBtn={renderPushBtn} onCancelAudit={setCancelAuditDialog} />
+      )}
+
+      {activeTab === "history" && <CashHistoryTab advances={scoped.advances} pickups={scoped.pickups} />}
+
+      {activeTab === "emergency" && <CashEmergencyTab robberies={scoped.robberies} />}
+
+      {activeTab === "discrepancies" && (
+        <CashDiscrepanciesTab
+          deposits={scoped.deposits}
+          tillCheckouts={scoped.tillCheckouts}
+          selectedRegister={selectedRegister}
+          onSelectRegister={setSelectedRegister}
+          renderPushBtn={renderPushBtn}
+        />
+      )}
+
+      {activeTab === "report" && <CashQuickReportTab records={scoped} totals={totals} onToast={toast} />}
+
+      {activeTab === "export" && (
+        <CashExportTab
+          deposits={scoped.deposits}
+          audits={scoped.audits}
+          advances={scoped.advances}
+          pickups={scoped.pickups}
+          robberies={scoped.robberies}
+        />
+      )}
+
+      <CashAdvanceDialog
+        open={advanceDialog}
+        onOpenChange={setAdvanceDialog}
+        form={advanceForm}
+        setForm={setAdvanceForm}
+        registers={scoped.registers}
+        onSubmit={() => recordCashMove("advance")}
+      />
+      <CashPickupDialog
+        open={pickupDialog}
+        onOpenChange={setPickupDialog}
+        form={pickupForm}
+        setForm={setPickupForm}
+        registers={scoped.registers}
+        onSubmit={() => recordCashMove("pickup")}
+      />
+      <ManualAuditDialog
+        open={auditDialog}
+        onOpenChange={setAuditDialog}
+        form={auditForm}
+        setForm={setAuditForm}
+        registers={scoped.registers}
+        onSubmit={handleManualAudit}
+      />
+      <CancelAuditDialog audit={cancelAuditDialog} onClose={() => setCancelAuditDialog(null)} onConfirm={handleCancelAudit} />
+      <CashSlipDialog printData={printData} onClose={() => setPrintData(null)} />
+
+      <TillCheckoutModal open={showCheckoutModal} onClose={() => setShowCheckoutModal(false)} registers={scoped.registers} onSuccess={loadData} />
+      <TillCheckinModal
         open={showCheckinModal}
         onClose={() => setShowCheckinModal(false)}
-        registers={registers}
-        tillCheckouts={tillCheckouts}
+        registers={scoped.registers}
+        tillCheckouts={scoped.tillCheckouts}
         onSuccess={loadData}
       />
     </div>
