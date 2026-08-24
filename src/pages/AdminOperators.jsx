@@ -170,7 +170,12 @@ export default function AdminOperators() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? "Edit Operator" : "New Operator"}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <Tabs defaultValue="operator">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="operator">Operator</TabsTrigger>
+              <TabsTrigger value="admin">Admin Access</TabsTrigger>
+            </TabsList>
+            <TabsContent value="operator" className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Operator ID</label>
@@ -234,8 +239,18 @@ export default function AdminOperators() {
                 <p className="text-xs text-gray-400 mt-1">Ties this vendor to inventory tagged with this Company ID. They can only view and edit those items.</p>
               </div>
             )}
-            <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Create"} Operator</Button>
-          </div>
+            </TabsContent>
+            <TabsContent value="admin" className="pt-2">
+              <OperatorAdminAccessTab
+                form={form}
+                setForm={setForm}
+                stores={stores}
+                readOnly={!canEditAdminAccess}
+                operator={editing}
+              />
+            </TabsContent>
+            <Button onClick={save} className="mt-4 w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Create"} Operator</Button>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
