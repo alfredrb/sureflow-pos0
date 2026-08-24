@@ -10,7 +10,7 @@
 // Set these two once the private GitHub repo exists. REPO_OWNER blank = not configured
 // yet, which the Relay Repo panel reports rather than silently emitting a URL that
 // cannot be cloned.
-export const REPO_OWNER = "";
+export const REPO_OWNER = "alfredrb";
 export const REPO_NAME = "sureflow-store-controller";
 
 export const PLACEHOLDER_OWNER = "your-org";
