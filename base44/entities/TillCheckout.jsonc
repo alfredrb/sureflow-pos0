@@ -120,8 +120,11 @@
     },
     "checkin_bills": {
       "type": "object",
-      "description": "Bills returned at checkin",
+      "description": "Bills returned at checkin. Includes $100 bills taken over the day even though the standard checkout float carries none.",
       "properties": {
+        "hundred": {
+          "type": "number"
+        },
         "twenty": {
           "type": "number"
         },

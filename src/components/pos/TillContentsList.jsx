@@ -8,6 +8,7 @@ export const STANDARD_TILL = {
 };
 
 const BILLS = [
+  { key: "hundred", label: "$100 Bills", value: 100 },
   { key: "twenty", label: "$20 Bills", value: 20 },
   { key: "ten", label: "$10 Bills", value: 10 },
   { key: "five", label: "$5 Bills", value: 5 },

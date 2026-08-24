@@ -175,10 +175,10 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
   const [selectedRegister, setSelectedRegister] = useState("");
   const [bagNumber, setBagNumber] = useState("");
   const [forcePrompt, setForcePrompt] = useState(null);
-  const [checkinBills, setCheckinBills] = useState({ twenty: 0, ten: 0, five: 0, one: 0 });
+  const [checkinBills, setCheckinBills] = useState({ hundred: 0, twenty: 0, ten: 0, five: 0, one: 0 });
   const [checkinCoins, setCheckinCoins] = useState({ quarters_rolls: 0, dimes_rolls: 0, nickels_rolls: 0, pennies_rolls: 0 });
 
-  const billTotal = (checkinBills.twenty * 20) + (checkinBills.ten * 10) + (checkinBills.five * 5) + (checkinBills.one * 1);
+  const billTotal = ((checkinBills.hundred || 0) * 100) + (checkinBills.twenty * 20) + (checkinBills.ten * 10) + (checkinBills.five * 5) + (checkinBills.one * 1);
   const coinTotal = (checkinCoins.quarters_rolls * 10) + (checkinCoins.dimes_rolls * 5) + (checkinCoins.nickels_rolls * 2) + (checkinCoins.pennies_rolls * 0.50);
   const checkinTotal = billTotal + coinTotal;
   const discrepancy = checkinTotal - 250;
@@ -189,7 +189,7 @@ export function TillCheckinModal({ open, onClose, registers, tillCheckouts, onSu
     setSelectedRegister("");
     setBagNumber("");
     setForcePrompt(null);
-    setCheckinBills({ twenty: 0, ten: 0, five: 0, one: 0 });
+    setCheckinBills({ hundred: 0, twenty: 0, ten: 0, five: 0, one: 0 });
     setCheckinCoins({ quarters_rolls: 0, dimes_rolls: 0, nickels_rolls: 0, pennies_rolls: 0 });
   };
 
