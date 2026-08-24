@@ -11,6 +11,8 @@ import { useToast } from "@/components/ui/use-toast";
 import BulkEditDialog from "@/components/inventory/BulkEditDialog";
 import CategoryManager from "@/components/inventory/CategoryManager";
 import SerializedInventoryTab from "@/components/inventory/SerializedInventoryTab";
+import { getAdminAccess } from "@/lib/adminAccess";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 
 const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "", serialized: false };
 const MPP_LABELS = { none: "—", wrapped: "Wrap", case: "Case", counter: "Counter", locked: "Locked", other: "Other" };
@@ -101,6 +103,9 @@ export default function AdminInventory() {
 
   const load = async () => {
     let prods = await base44.entities.Product.list();
+    // A store-scoped admin sees their own store's items plus the shared chain catalog,
+    // never another store's local items — the same rule the lanes use.
+    prods = scopeCatalogToAccess(getAdminAccess(operator), prods);
     if (isVendor) prods = prods.filter(p => (p.vendor_company_id || "") === vendorCompanyId);
     setProducts(prods);
     setLoading(false);

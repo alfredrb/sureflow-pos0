@@ -1,3 +1,5 @@
+import { isStoreInScope } from "@/lib/adminAccess";
+
 // Scopes the item catalog to one store.
 //
 // A product with a store_id belongs to that store only; a product with a blank
@@ -13,4 +15,12 @@ export function scopeCatalogToStore(products, storeId) {
   const list = products || [];
   if (!storeId) return list.filter((p) => !p.store_id);
   return list.filter((p) => !p.store_id || p.store_id === storeId);
+}
+
+// Same rule for the admin side, where a person may hold more than one store: their
+// own stores' items plus the shared chain catalog. HQ sees everything.
+export function scopeCatalogToAccess(access, products) {
+  const list = products || [];
+  if (!access || access.storeScope === "all") return list;
+  return list.filter((p) => !p.store_id || isStoreInScope(access, p.store_id));
 }

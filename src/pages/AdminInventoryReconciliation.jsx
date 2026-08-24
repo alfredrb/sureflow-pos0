@@ -7,9 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
+import { getAdminAccess, isStoreInScope } from "@/lib/adminAccess";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 
 export default function AdminInventoryReconciliation() {
   const operator = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator") || "null"); } catch { return null; } })();
+  const access = getAdminAccess(operator);
+  const ownStore = Array.isArray(access.storeScope) ? access.storeScope[0] || "" : "";
   const [products, setProducts] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +31,11 @@ export default function AdminInventoryReconciliation() {
         base44.entities.Product.list(),
         base44.entities.InventoryReconciliation.list("-date", 50),
       ]);
-      setProducts(prods);
-      setHistory(hist);
+      // Count the shelf you actually have: own-store items plus the shared chain catalog.
+      setProducts(scopeCatalogToAccess(access, prods));
+      // Counts stamped before store scoping have no store_id, so they stay visible
+      // rather than leaving a store with an empty history.
+      setHistory(hist.filter(h => !h.store_id || isStoreInScope(access, h.store_id)));
     } catch (e) {
       toast({ title: "Error", description: "Failed to load inventory", variant: "destructive" });
     }
@@ -71,6 +78,7 @@ export default function AdminInventoryReconciliation() {
         date: new Date().toISOString(),
         operator_name: operator?.full_name || "Admin",
         operator_id: operator?.operator_id || "",
+        store_id: ownStore,
         status: "completed",
         total_items: lines.length,
         matched_count: matched,

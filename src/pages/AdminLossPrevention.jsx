@@ -26,6 +26,8 @@ import ShrinkageReportPanel from "@/components/lossprevention/ShrinkageReportPan
 import MealExceptionsPanel from "@/components/lossprevention/MealExceptionsPanel";
 import EvidenceLockerPanel from "@/components/lossprevention/EvidenceLockerPanel";
 import ActionCodeAuditPanel from "@/components/lossprevention/ActionCodeAuditPanel";
+import { getAdminAccess } from "@/lib/adminAccess";
+import { scopeRecords } from "@/lib/recordScope";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -66,14 +68,19 @@ export default function AdminLossPrevention() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [logData, txnData, auditData] = await Promise.all([
+      const [logData, txnData, auditData, regData] = await Promise.all([
         base44.entities.RegisterLog.list("-created_date", 500),
         base44.entities.Transaction.list("-created_date", 500),
         base44.entities.CashAudit.list("-audit_date", 300),
+        base44.entities.Register.list(),
       ]);
-      setLogs(logData);
-      setTxns(txnData);
-      setAudits(auditData);
+      // Everything the workbench reasons over is scoped once, here — the panels all
+      // read these three lists, so a store-level investigator can never rank or
+      // investigate another store's operators.
+      const access = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
+      setLogs(scopeRecords(access, regData, logData));
+      setTxns(scopeRecords(access, regData, txnData));
+      setAudits(scopeRecords(access, regData, auditData));
       try {
         const settings = await base44.entities.StoreSettings.list("-created_date", 1);
         const s = settings[0];

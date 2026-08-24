@@ -13,6 +13,10 @@
     "operator_id": {
       "type": "string"
     },
+    "store_id": {
+      "type": "string",
+      "description": "Store number the count was taken at, stamped from the counting admin's own store scope. Blank on counts recorded before store scoping existed, which stay visible to everyone rather than disappearing from the history."
+    },
     "status": {
       "type": "string",
       "enum": [

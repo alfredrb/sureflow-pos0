@@ -11,6 +11,8 @@ import WeeklyScheduleCalendar from "@/components/WeeklyScheduleCalendar";
 import WeeklyHoursBudget from "@/components/scheduling/WeeklyHoursBudget";
 import AvailabilityTab from "@/components/scheduling/AvailabilityTab";
 import { weeklyHoursByOperator, getRateForRole } from "@/lib/payrollUtils";
+import { getAdminAccess, scopeOperators } from "@/lib/adminAccess";
+import { scopeRegisters } from "@/lib/cashScope";
 
 const timeToMinutes = (time) => {
   const [h, m] = time.split(":").map(Number);
@@ -76,12 +78,20 @@ export default function AdminShiftScheduling() {
         base44.entities.StoreBudget.list("-month", 100)
       ]);
 
+      // A store schedules its own people onto its own lanes. Scoped once here, so the
+      // calendar, the list, the AI draft and the shift form all work off the same set.
+      const access = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
+      const scopedOps = scopeOperators(access, opData);
+      const scopedRegs = scopeRegisters(access, regData);
+      const scopedOpIds = new Set(scopedOps.map(o => o.operator_id));
+      const inScope = (s) => access.storeScope === "all" || scopedOpIds.has(s.operator_id);
+
       // Auto-sync technician shifts from the Maintenance Log (not AI-driven).
       // For every scheduled/in-progress maintenance entry, ensure a technician
       // shift exists on its service_date. Idempotent via a [ML-<id>] marker.
       let syncedShifts = shiftData;
       try {
-        const techs = opData.filter(o => o.role === "technician");
+        const techs = scopedOps.filter(o => o.role === "technician");
         if (techs.length > 0) {
           const logs = await base44.entities.MaintenanceLog.list("-service_date", 200);
           const pending = logs.filter(l =>
@@ -117,9 +127,9 @@ export default function AdminShiftScheduling() {
         console.error("Error syncing tech shifts from maintenance:", e);
       }
 
-      setShifts(syncedShifts);
-      setOperators(opData);
-      setRegisters(regData);
+      setShifts(syncedShifts.filter(inScope));
+      setOperators(scopedOps);
+      setRegisters(scopedRegs);
       setTemplates(templateData);
       setPeakTimes(peakData);
       setSwapLogs(swapReqs);
