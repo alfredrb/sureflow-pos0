@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen } from "lucide-react";
 import TechDocsNav from "@/components/techdocs/TechDocsNav";
+import TechDocsSearchResults from "@/components/techdocs/TechDocsSearchResults";
+import { searchDocumentation } from "@/lib/techDocSearchIndex";
 import DocumentLibrary from "@/components/techdocs/DocumentLibrary";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
@@ -31,6 +33,19 @@ export default function AdminTechnicalDocs() {
   const [active, setActive] = useState("hardware");
   const [query, setQuery] = useState("");
 
+  const searching = !!query.trim();
+  // Per-section hit counts, so the nav shows where the answers are while the results
+  // themselves are read on the right.
+  const matchCounts = (searchDocumentation(query) || []).reduce((acc, h) => {
+    acc[h.sectionId] = (acc[h.sectionId] || 0) + 1;
+    return acc;
+  }, {});
+
+  const openSection = (id) => {
+    setActive(id);
+    setQuery("");
+  };
+
   return (
     <div className="w-full p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
@@ -46,9 +61,15 @@ export default function AdminTechnicalDocs() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
-        <TechDocsNav active={active} onSelect={setActive} query={query} onQueryChange={setQuery} />
+        <TechDocsNav active={active} onSelect={openSection} query={query} onQueryChange={setQuery} matchCounts={matchCounts} />
 
-        <div className="min-w-0 space-y-4">
+        {searching && (
+          <div className="min-w-0">
+            <TechDocsSearchResults query={query} onOpenSection={openSection} />
+          </div>
+        )}
+
+        <div className={`min-w-0 space-y-4 ${searching ? "hidden" : ""}`}>
           {active === "hardware" && <HardwareFleetGuide />}
           {active === "ports" && (
             <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">

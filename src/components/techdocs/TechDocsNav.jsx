@@ -1,26 +1,10 @@
 import React from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { SECTION_GROUPS, searchSections } from "@/lib/techDocSections";
+import { SECTION_GROUPS } from "@/lib/techDocSections";
 
-function NavButton({ section, active, onSelect, showGroup }) {
-  const isActive = active === section.id;
-  return (
-    <button
-      onClick={() => onSelect(section.id)}
-      className={`w-full rounded-xl border p-3 text-left transition-colors ${
-        isActive ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white hover:border-gray-200"
-      }`}
-    >
-      <span className={`text-sm font-semibold ${isActive ? "text-blue-700" : "text-gray-800"}`}>{section.label}</span>
-      {showGroup && <span className="ml-2 text-[10px] uppercase tracking-wide text-gray-400">{section.groupLabel}</span>}
-      <span className="mt-1 block text-[11px] leading-snug text-gray-400">{section.blurb}</span>
-    </button>
-  );
-}
-
-export default function TechDocsNav({ active, onSelect, query, onQueryChange }) {
-  const results = searchSections(query);
+export default function TechDocsNav({ active, onSelect, query, onQueryChange, matchCounts }) {
+  const searching = !!query.trim();
 
   return (
     <nav className="space-y-4 lg:sticky lg:top-6 lg:self-start">
@@ -29,7 +13,7 @@ export default function TechDocsNav({ active, onSelect, query, onQueryChange }) 
         <Input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="Search — drbd, micr, scancode, vlan…"
+          placeholder="Search all documentation…"
           className="pl-9 pr-8 text-sm"
         />
         {query && (
@@ -39,29 +23,42 @@ export default function TechDocsNav({ active, onSelect, query, onQueryChange }) 
         )}
       </div>
 
-      {results ? (
-        <div className="space-y-1.5">
-          <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            {results.length} match{results.length === 1 ? "" : "es"}
-          </p>
-          {results.map((s) => (
-            <NavButton key={s.id} section={s} active={active} onSelect={onSelect} showGroup />
-          ))}
-          {!results.length && <p className="px-1 text-xs text-gray-400">Nothing matched. Try a device name or an acronym.</p>}
-        </div>
-      ) : (
-        SECTION_GROUPS.map((g) => (
-          <div key={g.id} className="space-y-1.5">
-            <div className="px-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{g.label}</p>
-              <p className="text-[10px] leading-snug text-gray-400">{g.blurb}</p>
-            </div>
-            {g.sections.map((s) => (
-              <NavButton key={s.id} section={s} active={active} onSelect={onSelect} />
-            ))}
-          </div>
-        ))
+      {searching && (
+        <p className="px-1 text-[11px] leading-snug text-gray-400">
+          Showing results on the right. Numbers below are matches per section — click one to open it.
+        </p>
       )}
+
+      {SECTION_GROUPS.map((g) => (
+        <div key={g.id} className="space-y-1.5">
+          <div className="px-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{g.label}</p>
+            <p className="text-[10px] leading-snug text-gray-400">{g.blurb}</p>
+          </div>
+          {g.sections.map((s) => {
+            const isActive = !searching && active === s.id;
+            const count = matchCounts?.[s.id] || 0;
+            const dimmed = searching && !count;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onSelect(s.id)}
+                className={`w-full rounded-xl border p-3 text-left transition-colors ${
+                  isActive ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white hover:border-gray-200"
+                } ${dimmed ? "opacity-40" : ""}`}
+              >
+                <span className="flex items-start justify-between gap-2">
+                  <span className={`text-sm font-semibold ${isActive ? "text-blue-700" : "text-gray-800"}`}>{s.label}</span>
+                  {searching && count > 0 && (
+                    <span className="mt-0.5 shrink-0 rounded bg-blue-100 px-1.5 text-[10px] font-semibold text-blue-700">{count}</span>
+                  )}
+                </span>
+                <span className="mt-1 block text-[11px] leading-snug text-gray-400">{s.blurb}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
