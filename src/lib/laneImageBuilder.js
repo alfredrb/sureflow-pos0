@@ -72,6 +72,9 @@ SUITE=bookworm
 CLOUD_SYNC_URL="\${CLOUD_SYNC_URL:-https://sure-flow-pos.base44.app/functions/relaySync}"
 PXE_SUBNET="\${PXE_SUBNET:-10.0.40.0/24}"
 SUMMARY=/srv/sureflow/.lane-image-summary
+# Technician credential baked into the lane image. Override per store by adding
+# LANE_PASSWORD=... to /etc/sureflow/controller.conf before building.
+LANE_PASSWORD="\${LANE_PASSWORD:-sureflow}"
 WARNINGS=""
 KEYBOARDS_BAKED=""
 
@@ -357,7 +360,7 @@ apt-get update -qq
 apt-get install -y --no-install-recommends \\
   linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
   xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
-  ca-certificates curl iproute2 iputils-ping sudo \\
+  ca-certificates curl iproute2 iputils-ping sudo openssh-server \\
   evtest kbd ser2net setserial socat \\
   plymouth plymouth-themes beep \$extra >/dev/null
 # Plymouth needs a theme SELECTED, not just installed. Without this the kernel's
@@ -372,6 +375,11 @@ rm -f /etc/modprobe.d/*pcspkr*blacklist* 2>/dev/null || true
 # groups — without them a lane cannot be diagnosed at all.
 id -u sureflow >/dev/null 2>&1 || useradd -m -s /bin/bash sureflow
 usermod -aG sudo,adm,systemd-journal,dialout,video,tty sureflow
+# useradd leaves the account PASSWORD-LOCKED, which locked a lane out of both SSH and
+# its own console — a lane that cannot be logged into cannot be diagnosed at all.
+# Set it here so every lane in the fleet has the same technician credential.
+echo "sureflow:\${LANE_PASSWORD}" | chpasswd
+systemctl enable ssh >/dev/null 2>&1 || true
 echo 'sureflow ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sureflow
 chmod 440 /etc/sudoers.d/sureflow
 echo 'ALL: kiosk' > /etc/sureflow-role
