@@ -38,7 +38,7 @@ PXE_VIP=${ha ? "10.0.40.50" : "10.0.40.10"}
 BACKEND_VIP=${store.controller_vip || store.primary_controller_host || ""}
 PEER_IP=${ha ? store.secondary_controller_host || "" : ""}
 RELAY_KEY=
-CLOUD_SYNC_URL=${window.location.origin}
+CLOUD_SYNC_URL=${window.location.origin}/functions/relaySync
 `;
 }
 
