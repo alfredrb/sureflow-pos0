@@ -122,7 +122,7 @@ else
 fi
 
 ask RELAY_KEY   "Relay API key for store \$STORE_ID"                "\${RELAY_KEY:-}"
-ask CLOUD_SYNC_URL "Cloud base URL"                                "\${CLOUD_SYNC_URL:-https://app.base44.com}"
+ask CLOUD_SYNC_URL "Cloud sync endpoint (full relaySync URL)"       "\${CLOUD_SYNC_URL:-https://sure-flow-pos.base44.app/functions/relaySync}"
 
 whiptail --title "Confirm" --yesno \\
 "Store:        \$STORE_ID\\nRole:         \$ROLE\\n\\nPXE  (v40):   \$PXE_IP    subnet \$PXE_SUBNET\\nBackend(v25): \$BACKEND_IP\\nPXE VIP:      \$PXE_VIP\\nBackend VIP:  \$BACKEND_VIP\\nPeer:         \${PEER_IP:-none}\\n\\nRelay repo:   \$RELAY_REPO_URL (default branch)\\n\\nBuild now?" 20 74 || exit 1
@@ -193,6 +193,7 @@ echo 72; echo "# Writing relay environment"
 # NO inline comments in this file — they are parsed as part of the value.
 cat >"$RELAY_DIR/.env" <<EOF
 STORE_ID=$STORE_ID
+CLOUD_API_KEY=$RELAY_KEY
 RELAY_API_KEY=$RELAY_KEY
 CLOUD_SYNC_URL=$CLOUD_SYNC_URL
 BIND_ADDRESS=$BACKEND_VIP

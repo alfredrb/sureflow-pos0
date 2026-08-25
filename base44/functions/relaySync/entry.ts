@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { authenticateRelay } from '../../shared/relayAuth.ts';
+import { renderHwdbMap, hwdbFileSlug } from '../../shared/keyboardHwdb.ts';
 
 // SureFlow Local Relay <-> Cloud sync endpoint (Phase 1).
 // Called by each store's Local Relay VM, authenticated with a per-store API key
@@ -27,7 +28,7 @@ export default async function (req: Request): Promise<Response> {
     const action = String(body.action || '').trim();
 
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
-    const ACTIONS = ['pull', 'push', 'status', 'command_result', 'update_result', 'operator_manage', 'lanes', 'hardware_profiles'];
+    const ACTIONS = ['pull', 'push', 'status', 'command_result', 'update_result', 'operator_manage', 'lanes', 'hardware_profiles', 'keyboard_layouts'];
     if (!ACTIONS.includes(action)) {
       return Response.json({ error: `action must be one of: ${ACTIONS.join(', ')}` }, { status: 400 });
     }
@@ -428,6 +429,49 @@ export default async function (req: Request): Promise<Response> {
           boot_args: p.boot_args || '',
           udev_rules: p.udev_rules || '',
           xorg_config: p.xorg_config || '',
+        })),
+      });
+    }
+
+    // ---------------- KEYBOARD_LAYOUTS: rendered hwdb maps for a lane image build ----------------
+    // Called by sureflow-build-lane-image alongside hardware_profiles. Scoped the same way:
+    // this store's registers on the requested boot profile name their keyboard_model, and
+    // those models are matched against saved KeyboardLayout records. Baking the map removes
+    // the hand-paste step that left lanes running a stale scancode table.
+    if (action === 'keyboard_layouts') {
+      const variant = String(body.variant || 'all').trim();
+      const BOOT_PROFILE: Record<string, string> = {
+        legacy: 'pxe_debian_legacy',
+        modern: 'pxe_debian_modern',
+      };
+      if (variant !== 'all' && !BOOT_PROFILE[variant]) {
+        return Response.json({ error: "variant must be 'legacy', 'modern' or 'all'" }, { status: 400 });
+      }
+
+      const registers = await db.Register.filter({ store_id: storeId });
+      const inScope =
+        variant === 'all'
+          ? registers
+          : registers.filter((r: any) => (r.boot_profile || '') === BOOT_PROFILE[variant]);
+
+      const norm = (s: any) => String(s || '').trim().toLowerCase();
+      const wanted = new Set(inScope.map((r: any) => norm(r.keyboard_model)).filter(Boolean));
+
+      const layouts = await db.KeyboardLayout.list();
+      const matched = layouts.filter(
+        (l: any) => l.active !== false && wanted.has(norm(l.keyboard_model))
+      );
+
+      return Response.json({
+        ok: true,
+        variant,
+        registers_in_scope: inScope.length,
+        models: [...wanted],
+        layouts: matched.map((l: any) => ({
+          keyboard_model: l.keyboard_model,
+          file_slug: hwdbFileSlug(l.keyboard_model),
+          mapped_keys: (l.slots || []).filter((s: any) => s.scancode && s.keycode).length,
+          hwdb: renderHwdbMap(l),
         })),
       });
     }

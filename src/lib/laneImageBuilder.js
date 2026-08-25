@@ -68,24 +68,44 @@ ROOTS=${LANE_ROOTS_DIR}
 TFTP=${LANE_TFTP_DIR}
 AGENT_SRC=/srv/sureflow/lane-agent
 SUITE=bookworm
-CLOUD_SYNC_URL="\${CLOUD_SYNC_URL:-https://app.base44.com}"
+# The FULL relaySync endpoint, used verbatim. Appending a path here returned 405.
+CLOUD_SYNC_URL="\${CLOUD_SYNC_URL:-https://sure-flow-pos.base44.app/functions/relaySync}"
 PXE_SUBNET="\${PXE_SUBNET:-10.0.40.0/24}"
 SUMMARY=/srv/sureflow/.lane-image-summary
 WARNINGS=""
+KEYBOARDS_BAKED=""
 
 log() { echo "[\$(date +%H:%M:%S)] \$*"; }
 warn() { WARNINGS="\$WARNINGS
   ! \$*"; log "WARNING: \$*"; }
 
-need() {
-  command -v "\$1" >/dev/null 2>&1 || {
-    log "Installing missing build tool: \$1"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y "\$2" >/dev/null 2>&1
-  }
+# A missing tool used to be installed with every error suppressed, so a failed install
+# surfaced 20 minutes later as "debootstrap: command not found" with no explanation.
+# Now apt is refreshed first and a failure is reported with apt's own last words.
+APT_REFRESHED=0
+need() { # need <command> <package>
+  command -v "\$1" >/dev/null 2>&1 && return 0
+  if [ "\$APT_REFRESHED" = "0" ]; then
+    log "Refreshing the package lists"
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1 || \\
+      warn "apt-get update failed — installing build tools may fail too."
+    APT_REFRESHED=1
+  fi
+  log "Installing missing build tool: \$1 (\$2)"
+  local out
+  out=\$(DEBIAN_FRONTEND=noninteractive apt-get install -y "\$2" 2>&1)
+  if command -v "\$1" >/dev/null 2>&1; then return 0; fi
+  warn "Could not install \$2 — \$1 is still missing. apt said: \$(echo "\$out" | tail -3 | tr '\\n' ' ')"
+  return 1
 }
-need debootstrap debootstrap
-need jq jq
-need curl curl
+# debootstrap is not optional: with no debootstrap there is no image at all, so stop here
+# rather than burning time and failing confusingly further in.
+if ! need debootstrap debootstrap; then
+  echo "FATAL: debootstrap is required to build a lane root and could not be installed." >&2
+  exit 1
+fi
+need jq jq || true
+need curl curl || true
 
 # ---------------------------------------------------------------------------
 # LAYER 3 helper — pull this store's HardwareLibrary profiles from the cloud.
@@ -98,7 +118,7 @@ fetch_profiles() { # fetch_profiles <variant> <outfile>
     warn "No relay API key in \$CONF — hardware profiles were SKIPPED for \$variant."
     return 1
   fi
-  body=\$(curl -s --max-time 25 -X POST "\$CLOUD_SYNC_URL/api/apps/functions/relaySync" \\
+  body=\$(curl -s --max-time 25 -X POST "\$CLOUD_SYNC_URL" \\
     -H 'Content-Type: application/json' \\
     -d "{\\"store_id\\":\\"\$STORE_ID\\",\\"api_key\\":\\"\$RELAY_KEY\\",\\"action\\":\\"hardware_profiles\\",\\"variant\\":\\"\$variant\\"}" 2>/dev/null)
   if [ -z "\$body" ] || ! echo "\$body" | jq -e '.profiles' >/dev/null 2>&1; then
@@ -106,6 +126,49 @@ fetch_profiles() { # fetch_profiles <variant> <outfile>
     return 1
   fi
   echo "\$body" > "\$out"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# LAYER 3 helper — bake this store's saved keyboard maps in as hwdb.
+# A diskless root is read-only, so a scancode map that is not baked at build time can
+# never be applied on the lane. Optional like the profiles above: no key or no route
+# still yields a bootable image, it just keeps the stock USB-HID mapping.
+# ---------------------------------------------------------------------------
+apply_keyboards() { # apply_keyboards <root> <variant>
+  local root="\$1" variant="\$2" body count i model slug hwdb keys
+  [ -n "\${RELAY_KEY:-}" ] || { warn "No relay API key in \$CONF — keyboard maps were SKIPPED for \$variant."; return 0; }
+
+  body=\$(curl -s --max-time 25 -X POST "\$CLOUD_SYNC_URL" \\
+    -H 'Content-Type: application/json' \\
+    -d "{\\"store_id\\":\\"\$STORE_ID\\",\\"api_key\\":\\"\$RELAY_KEY\\",\\"action\\":\\"keyboard_layouts\\",\\"variant\\":\\"\$variant\\"}" 2>/dev/null)
+  if [ -z "\$body" ] || ! echo "\$body" | jq -e '.layouts' >/dev/null 2>&1; then
+    warn "Could not fetch keyboard maps for \$variant — the lanes will use stock USB-HID mapping. Re-run once the backend VLAN has a route."
+    return 0
+  fi
+
+  count=\$(echo "\$body" | jq -r '.layouts | length')
+  if [ "\$count" = "0" ]; then
+    warn "No saved keyboard map matched this store's \$variant registers. Check keyboard_model on the Registers page and save a layout in the Key Mapper."
+    return 0
+  fi
+
+  install -d -m 755 "\$root/etc/udev/hwdb.d"
+  i=0
+  while [ "\$i" -lt "\$count" ]; do
+    model=\$(echo "\$body" | jq -r ".layouts[\$i].keyboard_model")
+    slug=\$(echo "\$body" | jq -r ".layouts[\$i].file_slug")
+    keys=\$(echo "\$body" | jq -r ".layouts[\$i].mapped_keys")
+    hwdb=\$(echo "\$body" | jq -r ".layouts[\$i].hwdb")
+    printf '%s\\n' "\$hwdb" > "\$root/etc/udev/hwdb.d/70-sureflow-pos-keyboard-\$slug.hwdb"
+    log "  keyboard map baked: \$model (\$keys key(s))"
+    [ "\$keys" = "0" ] && warn "The saved map for \$model has no captured scancodes — its keys will not be remapped. Calibrate it in the Key Mapper."
+    i=\$((i + 1))
+  done
+  # An hwdb file does nothing until the binary database is rebuilt inside the root.
+  chroot "\$root" systemd-hwdb update >/dev/null 2>&1 || \\
+    warn "systemd-hwdb update failed inside the \$variant root — the baked keyboard map will not load."
+  KEYBOARDS_BAKED="\$KEYBOARDS_BAKED \$variant:\$count"
   return 0
 }
 
@@ -285,10 +348,11 @@ CHROOTEOF
   log "[3/5] Applying the fleet layer (kiosk, bridges, lane agent)"
   apply_fleet_layer "\$root"
 
-  log "[4/5] Fetching this store's hardware profiles from the cloud"
+  log "[4/5] Fetching this store's hardware profiles and keyboard maps from the cloud"
   pf=\$(mktemp)
   if fetch_profiles "\$variant" "\$pf"; then apply_profiles "\$root" "\$variant" "\$pf"; fi
   rm -f "\$pf"
+  apply_keyboards "\$root" "\$variant"
 
   log "[5/5] Rebuilding the initramfs for NFS root and publishing to TFTP"
   # MODULES=most puts the NIC drivers in the initramfs; BOOT=nfs is what lets the kernel
@@ -347,6 +411,8 @@ echo "LANE_IMAGE_VARIANT=\$WHICH" >> "\$CONF"
   echo "Built:  \${BUILT:- none}"
   [ -n "\$FAILED" ] && echo "FAILED:\$FAILED"
   echo
+  echo "Keyboard maps baked:\${KEYBOARDS_BAKED:- none}"
+  echo
   echo "Published:"
   for v in \$BUILT; do
     echo "  \$TFTP/debian-\$v/vmlinuz + initrd.img"
@@ -360,9 +426,9 @@ echo "LANE_IMAGE_VARIANT=\$WHICH" >> "\$CONF"
 
 # Record it centrally, best effort — a build is a fleet change and belongs in the audit trail.
 if [ -n "\${RELAY_KEY:-}" ]; then
-  curl -s --max-time 10 -X POST "\$CLOUD_SYNC_URL/api/apps/functions/relaySync" \\
+  curl -s --max-time 10 -X POST "\$CLOUD_SYNC_URL" \\
     -H 'Content-Type: application/json' \\
-    -d "{\\"store_id\\":\\"\$STORE_ID\\",\\"api_key\\":\\"\$RELAY_KEY\\",\\"action\\":\\"lanes\\",\\"op\\":\\"audit\\",\\"lane_action\\":\\"Built lane image(s):\${BUILT:- none}\\",\\"detail\\":\\"Ran sureflow-build-lane-image \$WHICH on the controller.\${FAILED:+ FAILED:\$FAILED}\\"}" >/dev/null 2>&1 || true
+    -d "{\\"store_id\\":\\"\$STORE_ID\\",\\"api_key\\":\\"\$RELAY_KEY\\",\\"action\\":\\"lanes\\",\\"op\\":\\"audit\\",\\"lane_action\\":\\"Built lane image(s):\${BUILT:- none}\\",\\"detail\\":\\"Ran sureflow-build-lane-image \$WHICH on the controller. Keyboard maps baked:\${KEYBOARDS_BAKED:- none}.\${WARNINGS:+ Warnings were reported.}\${FAILED:+ FAILED:\$FAILED}\\"}" >/dev/null 2>&1 || true
 fi
 
 echo
@@ -379,6 +445,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "Re-running is how the fleet is patched. The build is destructive by design: the existing root is removed first, so every build is reproducible rather than an accumulation of hand edits. Lanes pick up the new root on their next reboot.",
   "The cloud profile step is optional on purpose. With no relay API key or no cloud route the build still produces a bootable base + fleet image and says so on the summary; re-run once the route is up to layer the profiles in.",
   "Hardware profiles come from this store's own registers: the models filled in on the Registers page decide which HardwareLibrary profiles are fetched. A register with blank models contributes nothing, which is the usual reason a build reports zero profiles.",
+  "Saved keyboard maps are baked in automatically. The build renders each active Key Mapper layout whose model appears on this store's registers into /etc/udev/hwdb.d inside the root and rebuilds the hwdb database — a read-only lane cannot apply a scancode map at runtime, so this is the only way it can take effect. An uncalibrated layout is reported as a warning rather than silently baked as a no-op.",
   "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
 ];

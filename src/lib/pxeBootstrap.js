@@ -6,7 +6,9 @@ const BOOT_IMAGES = {
     label: "PXE Debian — Legacy (SurePOS 700 class)",
     kernel: "debian-legacy/vmlinuz",
     initrd: "debian-legacy/initrd.img",
-    nfsroot: "/srv/nfs/sureflow-legacy",
+    // Must match the builder's LANE_ROOTS_DIR — a lane cannot mount a root that is
+    // exported from a different path than the one on its kernel command line.
+    nfsroot: "/srv/sureflow/roots/sureflow-legacy",
     // quiet splash hands the screen to Plymouth. Plymouth falls back to the text
     // console on failure, and ESC shows the messages live.
     // NO nomodeset: it stops i915 from initialising KMS, so there is no DRM device
@@ -18,7 +20,7 @@ const BOOT_IMAGES = {
     label: "PXE Debian — Modern (Elo EPS00E2 class)",
     kernel: "debian-modern/vmlinuz",
     initrd: "debian-modern/initrd.img",
-    nfsroot: "/srv/nfs/sureflow-modern",
+    nfsroot: "/srv/sureflow/roots/sureflow-modern",
     extra: "quiet splash",
   },
 };

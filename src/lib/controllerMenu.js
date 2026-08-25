@@ -20,8 +20,9 @@ if [ ! -r "$CONF" ]; then
 fi
 # shellcheck disable=SC1090
 . "$CONF"
-CLOUD_SYNC_URL="\${CLOUD_SYNC_URL:-https://app.base44.com}"
-SYNC="\$CLOUD_SYNC_URL/api/apps/functions/relaySync"
+# CLOUD_SYNC_URL is the FULL relaySync endpoint, used verbatim — the same value the
+# relay's own .env carries. Appending a path here is what produced 405 Method Not Allowed.
+SYNC="\${CLOUD_SYNC_URL:-https://sure-flow-pos.base44.app/functions/relaySync}"
 
 # --- cloud call helper -------------------------------------------------------
 # sync '<extra json>'  -> merges store_id/api_key in and returns the raw body.
