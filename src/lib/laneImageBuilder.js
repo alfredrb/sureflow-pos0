@@ -79,6 +79,33 @@ log() { echo "[\$(date +%H:%M:%S)] \$*"; }
 warn() { WARNINGS="\$WARNINGS
   ! \$*"; log "WARNING: \$*"; }
 
+# debootstrap mounts /proc, /sys and /dev for its own second stage and unmounts them when
+# it finishes, so every LATER chroot ran without them. That is what produced the harmless
+# but alarming "Is /dev/pts mounted?" and "/proc/ is not mounted" postinst noise — and it
+# also meant systemd-tmpfiles silently skipped creating device and /run entries in the
+# image. Mount them for the whole chroot phase instead.
+MOUNTED_ROOT=""
+chroot_mount() { # chroot_mount <root>
+  local root="\$1"
+  mount -t proc     proc     "\$root/proc"    2>/dev/null || true
+  mount -t sysfs    sysfs    "\$root/sys"     2>/dev/null || true
+  mount -o bind     /dev     "\$root/dev"     2>/dev/null || true
+  mount -t devpts   devpts   "\$root/dev/pts" 2>/dev/null || true
+  MOUNTED_ROOT="\$root"
+}
+chroot_umount() { # always lazy — a leftover bind mount under a root we later rm -rf
+  local root="\${1:-\$MOUNTED_ROOT}"
+  [ -n "\$root" ] || return 0
+  umount -l "\$root/dev/pts" 2>/dev/null || true
+  umount -l "\$root/dev"     2>/dev/null || true
+  umount -l "\$root/sys"     2>/dev/null || true
+  umount -l "\$root/proc"    2>/dev/null || true
+  MOUNTED_ROOT=""
+}
+# An interrupted build must never leave /dev bind-mounted inside a root that the next
+# pass deletes — that would take the controller's own /dev with it.
+trap 'chroot_umount' EXIT INT TERM
+
 # A missing tool used to be installed with every error suppressed, so a failed install
 # surfaced 20 minutes later as "debootstrap: command not found" with no explanation.
 # Now apt is refreshed first and a failure is reported with apt's own last words.
@@ -308,6 +335,9 @@ build_variant() {
   log "=== Building the \$variant lane image at \$root ==="
   if [ -d "\$root" ]; then
     log "Existing root found — removing it so this is a clean, reproducible build."
+    # A previous interrupted build may still have /dev bind-mounted in here. Deleting the
+    # root before unmounting would delete the controller's own /dev through the bind.
+    chroot_umount "\$root"
     rm -rf "\$root"
   fi
   install -d -m 755 "\$root" "\$TFTP/debian-\$variant"
@@ -319,6 +349,7 @@ build_variant() {
   fi
 
   log "[2/5] Installing the kiosk package set"
+  chroot_mount "\$root"
   chroot "\$root" /bin/bash -s <<CHROOTEOF
 set -e
 export DEBIAN_FRONTEND=noninteractive
@@ -342,6 +373,7 @@ echo 'ALL: kiosk' > /etc/sureflow-role
 CHROOTEOF
   if [ \$? -ne 0 ]; then
     warn "The package install failed inside the \$variant root — the image is incomplete."
+    chroot_umount "\$root"
     return 1
   fi
 
@@ -361,6 +393,10 @@ CHROOTEOF
   chroot "\$root" update-initramfs -u -k all >/dev/null 2>&1 || \\
     chroot "\$root" update-initramfs -c -k all >/dev/null 2>&1 || \\
     warn "Could not rebuild the initramfs for \$variant — the lane will not mount its NFS root."
+
+  # Every chroot for this variant is done — release the mounts before touching the root
+  # as plain files again.
+  chroot_umount "\$root"
 
   if ! cp "\$root"/boot/vmlinuz-* "\$TFTP/debian-\$variant/vmlinuz" 2>/dev/null; then
     warn "No kernel found in the \$variant root — nothing was published to TFTP."
@@ -446,6 +482,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "The cloud profile step is optional on purpose. With no relay API key or no cloud route the build still produces a bootable base + fleet image and says so on the summary; re-run once the route is up to layer the profiles in.",
   "Hardware profiles come from this store's own registers: the models filled in on the Registers page decide which HardwareLibrary profiles are fetched. A register with blank models contributes nothing, which is the usual reason a build reports zero profiles.",
   "Saved keyboard maps are baked in automatically. The build renders each active Key Mapper layout whose model appears on this store's registers into /etc/udev/hwdb.d inside the root and rebuilds the hwdb database — a read-only lane cannot apply a scancode map at runtime, so this is the only way it can take effect. An uncalibrated layout is reported as a warning rather than silently baked as a no-op.",
+  "/proc, /sys, /dev and /dev/pts are mounted for the whole chroot phase and released afterwards. debootstrap mounts them only for its own second stage, so without this the package postinst scripts printed 'Is /dev/pts mounted?' and '/proc/ is not mounted' warnings and systemd-tmpfiles silently skipped creating device and /run entries. The mounts are torn down on interrupt too — deleting a root with /dev still bind-mounted inside it would take the controller's own /dev with it.",
   "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
 ];
