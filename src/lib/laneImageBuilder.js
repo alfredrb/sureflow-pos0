@@ -449,7 +449,16 @@ for v in \$VARIANTS; do
 done
 
 write_exports
-chown -R sureflow:sureflow /srv/sureflow 2>/dev/null || true
+# NEVER chown /srv/sureflow recursively — that walks INTO the lane roots and gives every
+# file in the image to uid 995, which strips the setuid bit from /usr/bin/sudo and
+# Xorg.wrap. The lane then refuses every sudo with "must be owned by uid 0" and X can
+# never take its VT. Only the relay/agent payload is the sureflow user's to own.
+for d in relay lane-agent overlay; do
+  [ -e "/srv/sureflow/\$d" ] && chown -R sureflow:sureflow "/srv/sureflow/\$d" 2>/dev/null
+done
+# The roots are a Debian filesystem and must stay root-owned.
+for v in \$BUILT; do chown root:root "\$ROOTS/sureflow-\$v" 2>/dev/null; done
+true
 
 # Remember what this box built so the menu and the wizard default to it next time.
 sed -i '/^LANE_IMAGE_VARIANT=/d' "\$CONF" 2>/dev/null

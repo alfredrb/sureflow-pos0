@@ -109,7 +109,11 @@ Wants=network-online.target
 [Service]
 User=sureflow
 Environment=DISPLAY=:0
-ExecStartPre=/usr/local/bin/sureflow-boot-env
+# The leading '+' runs this step as ROOT even though the service User= is sureflow.
+# Without it the script cannot create /run/sureflow.env (a root-owned directory), exits 1,
+# and systemd never reaches ExecStart — the lane crash-loops to a text login with no
+# Xorg log at all, because X was never started.
+ExecStartPre=+/usr/local/bin/sureflow-boot-env
 # NEVER pass -logfile here. Xorg.wrap rejects -logfile (and -modulepath,
 # -configdir) when X is started by a non-root user and exits immediately, which
 # looks exactly like a crash loop with no Xorg log written at all. The log lands
