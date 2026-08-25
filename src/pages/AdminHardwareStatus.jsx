@@ -3,6 +3,7 @@ import { base44 } from "@/api/data";
 import { Link } from "react-router-dom";
 import { useRelayPolling } from "@/hooks/useRelayPolling";
 import { logAuditEvent } from "@/lib/auditLogger";
+import { forceRelaySync, rebootRelayVm } from "@/lib/relayClient";
 import { HardDrive, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ export default function AdminHardwareStatus() {
   const [savingOps, setSavingOps] = useState(false);
   const [testingOps, setTestingOps] = useState(false);
   const [newKeys, setNewKeys] = useState({});
+  const [newTokens, setNewTokens] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -280,6 +282,9 @@ export default function AdminHardwareStatus() {
       const created = await base44.entities.RelayCredential.create({
         store_id: store.store_number,
         api_key: key,
+        // Carried across the rotation — rotating the SYNC key must not silently strip
+        // the relay access token and break every portal operation for this store.
+        access_token: existing?.access_token || "",
         status: "active",
         generated_by: actor.full_name || "Admin",
         generated_at: now,
@@ -298,22 +303,70 @@ export default function AdminHardwareStatus() {
     }
   };
 
+  // ---- Per-store relay ACCESS token (gates the relay's privileged routes) ----
+  // Stored on the credential and never read back by the browser: the relayProxy
+  // function attaches it server-side, which is what lets this HTTPS portal command a
+  // plain-HTTP relay at all.
+  const handleGenerateToken = async (store) => {
+    const actor = JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    const token = `sft_${store.store_number}_${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+    const now = new Date().toISOString();
+    try {
+      const existing = credentials.find((c) => c.store_id === store.store_number);
+      let saved;
+      if (existing) {
+        await base44.entities.RelayCredential.update(existing.id, { access_token: token });
+        saved = { ...existing, access_token: token };
+      } else {
+        // A store can be given a relay token before it has a sync key; api_key is
+        // required on the entity, so it is seeded here rather than blocking on it.
+        saved = await base44.entities.RelayCredential.create({
+          store_id: store.store_number,
+          api_key: `sfr_${store.store_number}_${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`,
+          access_token: token,
+          status: "active",
+          generated_by: actor.full_name || "Admin",
+          generated_at: now,
+        });
+      }
+      setCredentials((cs) => [...cs.filter((c) => c.store_id !== store.store_number), saved]);
+      setNewTokens((t) => ({ ...t, [store.store_number]: token }));
+      logAuditEvent({
+        action: existing?.access_token ? "Rotated Relay Access Token" : "Generated Relay Access Token",
+        category: "system",
+        description: `${existing?.access_token ? "Rotated" : "Generated"} the relay access token for ${store.name} (#${store.store_number}). The portal now authorizes reboot, backup, self-update and lane reboot with this token; it must be set on the relay as RELAY_ACCESS_TOKEN and the service restarted.`,
+        page: "/admin/hardware",
+      });
+      toast({ title: "Token Generated", description: "Copy it now — it is only shown once." });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to generate relay access token", variant: "destructive" });
+    }
+  };
+
   // ---- Force an immediate relay sync ----
+  // Goes through relayClient, which routes cross-origin http:// relays through the
+  // relayProxy function instead of the browser (mixed content would block it).
   const handleForceSync = async (store) => {
     try {
-      const res = await fetch(`${(store.relay_url || "").replace(/\/$/, "")}/api/sync`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 404) {
-        toast({ title: "Sync Endpoint Missing", description: "The relay answered but has no /api/sync route — it is still running the pre-Phase 1 server.js. Deploy db.js, sync.js, api.js and the Phase 1 server.js from the setup guide.", variant: "destructive" });
-      } else if (data.ok) {
+      const data = await forceRelaySync(store.relay_url || "");
+      if (data?.ok) {
         toast({ title: "Sync Complete", description: `${store.name} synced with the cloud.` });
       } else {
-        toast({ title: "Sync Failed", description: data.error || `Relay returned HTTP ${res.status}. Check the relay log: journalctl -u sureflow-relay -n 50`, variant: "destructive" });
+        toast({ title: "Sync Failed", description: data?.error || "The relay did not report a successful sync.", variant: "destructive" });
       }
       load(true);
       pollNow();
     } catch (e) {
-      toast({ title: "Relay Unreachable", description: `Could not reach ${store.name}'s relay at ${store.relay_url || "(no relay URL set)"}. This browser must be on the store LAN, the relay service must be running, and it must send CORS headers.`, variant: "destructive" });
+      const missing = /HTTP 404|No relay at this address/i.test(e.message);
+      toast({
+        title: missing ? "Sync Endpoint Missing" : "Sync Failed",
+        description: missing
+          ? "The relay answered but has no /api/sync route — it is still running the pre-Phase 1 server.js. Deploy db.js, sync.js, api.js and the Phase 1 server.js from the setup guide."
+          : `${e.message}. Check the relay log: journalctl -u sureflow-relay -n 50`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -324,8 +377,8 @@ export default function AdminHardwareStatus() {
     setRebooting(true);
     let ok = false;
     try {
-      const res = await fetch(`${(store.relay_url || "").replace(/\/$/, "")}/proxmox/reboot`, { method: "POST" });
-      ok = res.ok;
+      await rebootRelayVm(store.relay_url || "");
+      ok = true;
     } catch (e) {
       ok = false;
     }
@@ -408,6 +461,8 @@ export default function AdminHardwareStatus() {
               lastSync={syncLogs.find((l) => l.store_id === store.store_number)}
               credential={credentials.find((c) => c.store_id === store.store_number)}
               newKey={newKeys[store.store_number]}
+              newToken={newTokens[store.store_number]}
+              onGenerateToken={handleGenerateToken}
               maintenanceWindow={windows.find((w) => w.store_id === store.store_number)}
               maintenanceTasks={tasks.filter((t) => t.store_id === store.store_number)}
               updateAssignments={updateAssignments.filter((a) => a.store_id === store.store_number)}

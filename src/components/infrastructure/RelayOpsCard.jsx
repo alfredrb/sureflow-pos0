@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { ShieldCheck, ShieldAlert, DatabaseBackup, DownloadCloud, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { relayBackupNow, relaySelfUpdate } from "@/lib/relayClient";
+import RelayAccessTokenCard from "@/components/infrastructure/RelayAccessTokenCard";
 
 // Phase 3 — on-demand local backup and relay self-update, plus the relay's
 // token-protection state as reported by /status.
-export default function RelayOpsCard({ store, relay }) {
+export default function RelayOpsCard({ store, relay, credential, newToken, onGenerateToken }) {
   const [busy, setBusy] = useState("");
   const [result, setResult] = useState(null);
 
@@ -70,6 +71,13 @@ export default function RelayOpsCard({ store, relay }) {
           )}
         </div>
       )}
+
+      <RelayAccessTokenCard
+        store={store}
+        credential={credential}
+        newToken={newToken}
+        onGenerateToken={onGenerateToken}
+      />
     </div>
   );
 }

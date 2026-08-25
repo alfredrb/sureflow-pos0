@@ -1,3 +1,5 @@
+import { base44 } from "@/api/base44Client";
+
 // Client for the store's Local Relay VM (Phase 1 relay server).
 //
 // The POS terminals load the app from the relay itself, so the relay lives at the
@@ -16,12 +18,41 @@ export function getRelayBase(base) {
 }
 
 // Phase 3 — the relay's privileged routes (reboot, sync, ops) require its token.
-// Stored per browser so the cloud portal can act on a secured relay.
+// Only used on the same-origin (lane) path; the cloud portal's token lives server-side
+// on RelayCredential and is attached by the relayProxy function.
 function relayToken() {
   try { return localStorage.getItem("relay_access_token") || ""; } catch { return ""; }
 }
 
+// A relay on a DIFFERENT origin than the page cannot be called by the browser: the
+// portal is HTTPS and store relays answer on plain http://, which the browser blocks as
+// mixed content before the request ever leaves the machine. Those calls go through the
+// relayProxy backend function instead, which has no such restriction.
+// Same-origin (a lane serving the POS from its own relay) still calls direct.
+function needsProxy(base) {
+  if (!base) return false;
+  if (typeof window === "undefined") return false;
+  try {
+    return new URL(base, window.location.href).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 async function relayFetch(path, options = {}, timeoutMs = 5000, base = "") {
+  if (needsProxy(base)) {
+    const res = await base44.functions.invoke("relayProxy", {
+      relay_url: getRelayBase(base),
+      path,
+      method: options.method || "GET",
+      body: options.body,
+      timeout_ms: timeoutMs,
+    });
+    const out = res.data || {};
+    if (!out.ok) throw new Error(out.error || `HTTP ${out.status || 0}`);
+    return out.data;
+  }
+
   const token = relayToken();
   const res = await fetch(`${getRelayBase(base)}${path}`, {
     ...options,
@@ -143,7 +174,10 @@ export const poleIdle = (payload) =>
   relayFetch("/api/pole/idle", { method: "POST", body: JSON.stringify(payload) }, 6000);
 
 // Ask the relay to sync with the cloud right now.
-export const forceRelaySync = () => relayFetch("/api/sync", { method: "POST" }, 20000);
+export const forceRelaySync = (base = "") => relayFetch("/api/sync", { method: "POST" }, 20000, base);
+
+// Reboot the relay VM itself (not a lane).
+export const rebootRelayVm = (base = "") => relayFetch("/proxmox/reboot", { method: "POST" }, 15000, base);
 
 // Phase 3 — terminal health beat (register/printer/scanner/drawer) for live telemetry.
 export const sendRegisterHeartbeat = (beat) =>

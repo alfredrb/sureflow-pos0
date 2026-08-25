@@ -1,32 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { base44 } from "@/api/base44Client";
 
 const POLL_INTERVAL_MS = 30000;
 const TIMEOUT_MS = 5000;
 
-// Fetches a store relay's /status endpoint with a hard timeout.
-async function fetchRelayStatus(url) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(`${url.replace(/\/$/, "")}/status`, { signal: ctrl.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// The cloud portal is served over HTTPS, so a browser refuses to fetch a plain
-// http:// relay address and the request fails before it ever leaves the machine.
-// That is a browser restriction, not a dead relay, so it gets its own status —
-// reporting it as "unreachable" made healthy stores look down.
-function isMixedContentBlocked(url) {
-  if (typeof window === "undefined") return false;
-  return window.location.protocol === "https:" && /^http:\/\//i.test(url);
-}
-
-// Polls every store's relay_url on an interval. Returns per-store relay state:
-// { [store_number]: { status: 'ok'|'unreachable'|'blocked'|'no_url', data, lastPoll, lastOk } }
+// Polls every store's relay in ONE server-side call.
+//
+// This used to fetch each relay_url straight from the browser, which meant the HTTPS
+// portal was asking for a plain http:// address — blocked as mixed content, so healthy
+// stores read as unreachable and every card sat empty. The relayProxy function makes the
+// same request server-side, where no such restriction exists, and it also attaches the
+// store's relay token from RelayCredential.
+//
+// Returns per-store relay state:
+// { [store_number]: { status: 'ok'|'unreachable'|'no_url', data, lastPoll, lastOk } }
 export function useRelayPolling(stores) {
   const [relayData, setRelayData] = useState({});
   const storesRef = useRef(stores);
@@ -34,29 +21,46 @@ export function useRelayPolling(stores) {
 
   const pollAll = useCallback(async () => {
     const list = storesRef.current || [];
-    await Promise.all(
-      list.map(async (s) => {
+    if (list.length === 0) return;
+    const now = new Date().toISOString();
+
+    let results = {};
+    try {
+      const res = await base44.functions.invoke("relayProxy", {
+        stores: list.map((s) => ({ store_number: s.store_number, relay_url: s.relay_url || "" })),
+        timeout_ms: TIMEOUT_MS,
+      });
+      results = (res.data && res.data.results) || {};
+    } catch {
+      // The proxy itself failed (cloud hiccup). Every store is reported unreachable for
+      // this pass rather than left showing stale certainty.
+      results = {};
+    }
+
+    setRelayData((prev) => {
+      const next = { ...prev };
+      list.forEach((s) => {
         const key = s.store_number;
-        const now = new Date().toISOString();
-        if (!s.relay_url) {
-          setRelayData((prev) => ({ ...prev, [key]: { status: "no_url", data: null, lastPoll: now, lastOk: prev[key]?.lastOk || null } }));
+        const out = results[key];
+        const previous = prev[key] || {};
+        if (!s.relay_url || (out && out.error === "no_url")) {
+          next[key] = { status: "no_url", data: null, lastPoll: now, lastOk: previous.lastOk || null };
           return;
         }
-        if (isMixedContentBlocked(s.relay_url)) {
-          setRelayData((prev) => ({ ...prev, [key]: { status: "blocked", data: prev[key]?.data || null, lastPoll: now, lastOk: prev[key]?.lastOk || null } }));
+        if (out && out.ok) {
+          next[key] = { status: "ok", data: out.data, lastPoll: now, lastOk: now };
           return;
         }
-        try {
-          const data = await fetchRelayStatus(s.relay_url);
-          setRelayData((prev) => ({ ...prev, [key]: { status: "ok", data, lastPoll: now, lastOk: now } }));
-        } catch {
-          setRelayData((prev) => ({
-            ...prev,
-            [key]: { status: "unreachable", data: prev[key]?.data || null, lastPoll: now, lastOk: prev[key]?.lastOk || null },
-          }));
-        }
-      })
-    );
+        next[key] = {
+          status: "unreachable",
+          data: previous.data || null,
+          lastPoll: now,
+          lastOk: previous.lastOk || null,
+          error: (out && out.error) || "Relay did not answer",
+        };
+      });
+      return next;
+    });
   }, []);
 
   useEffect(() => {

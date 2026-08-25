@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, ChevronDown, WifiOff, Pencil, Check, X, ShieldAlert } from "lucide-react";
+import { Building2, ChevronDown, WifiOff, Pencil, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import VMHealthCard from "@/components/infrastructure/VMHealthCard";
@@ -12,20 +12,22 @@ import StoreRedundancyCard from "@/components/infrastructure/StoreRedundancyCard
 import LaneMaintenanceCard from "@/components/infrastructure/LaneMaintenanceCard";
 import StoreUpdateTile from "@/components/infrastructure/StoreUpdateTile";
 
-export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, maintenanceWindow, maintenanceTasks, updateAssignments = [], onSaveMaintenance, onPlanMaintenance, planningMaintenance, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
+export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, newToken, onGenerateToken, maintenanceWindow, maintenanceTasks, updateAssignments = [], onSaveMaintenance, onPlanMaintenance, planningMaintenance, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
   const [open, setOpen] = useState(true);
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(store.relay_url || "");
 
   const reachable = relay?.status === "ok";
-  // "blocked" = the browser refused the call because this portal is HTTPS and the
-  // relay is plain HTTP. Live panels still can't be filled, but the relay itself
-  // may be perfectly healthy — the sync card is the reliable signal in that case.
-  const blocked = relay?.status === "blocked";
-  const unreachable = blocked || relay?.status === "unreachable" || (relay?.status === "no_url");
-  const statusLabel = blocked
-    ? "Not Reachable From Browser"
-    : relay?.status === "no_url" ? "No Relay URL" : "Relay Unreachable";
+  // Relays are now polled server-side through the relayProxy function, so a plain
+  // http:// relay is no longer blocked by the browser's mixed-content rule — an
+  // unreachable relay here means the relay really did not answer.
+  const unreachable = relay?.status === "unreachable" || relay?.status === "no_url";
+  // The relay sits on a private store LAN, which the cloud has no route to. Not a
+  // fault — it needs a public HTTPS hostname before the portal can reach it.
+  const privateLan = relay?.error === "private_lan_unroutable";
+  const statusLabel = relay?.status === "no_url"
+    ? "No Relay URL"
+    : privateLan ? "Private LAN — Not Routable" : "Relay Unreachable";
   const relayRegisters = relay?.data?.registers || [];
 
   const saveUrl = () => {
@@ -55,8 +57,8 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Relay Online
             </span>
           ) : (
-            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${blocked ? "bg-amber-50 text-amber-700" : "bg-gray-200 text-gray-600"}`}>
-              {blocked ? <ShieldAlert className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />} {statusLabel}
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-600">
+              <WifiOff className="w-3.5 h-3.5" /> {statusLabel}
             </span>
           )}
         </div>
@@ -80,14 +82,21 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
 
       {open && (
         <div className="px-5 pb-5 space-y-4">
-          {blocked && (
+          {privateLan ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-              This portal is served over HTTPS, so your browser blocks direct calls to the relay's plain
-              <span className="font-mono"> http:// </span>address. The live VM, printer and hardware panels stay empty
-              until the relay is reached over HTTPS or the portal is opened from inside the store network. The relay
-              may still be perfectly healthy — check the Sync Health card below, which reports through the cloud.
+              This store's relay address <span className="font-mono">{store.relay_url}</span> is on a private LAN.
+              The portal now reaches relays from the cloud, and the cloud has no route into a store network — so the
+              live VM, printer and hardware panels stay empty and operations cannot be issued. The relay itself may be
+              perfectly healthy. To control it from here, give it a publicly resolvable HTTPS hostname (reverse proxy
+              or tunnel) and set that as the relay URL. Until then, Cloud Sync below is the reliable signal.
             </div>
-          )}
+          ) : relay?.status === "unreachable" && relay?.error ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+              Relay did not answer: <span className="font-mono">{relay.error}</span>. The portal reaches relays
+              server-side, so this is the relay or the network — not your browser. Check that the relay URL is the
+              store's backend address on port 3000 and that <span className="font-mono">sureflow-relay</span> is running.
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <VMHealthCard vmStats={relay?.data?.vm_stats} unreachable={unreachable} onRebootClick={() => onRebootClick(store)} />
             <PrinterStatusCard printers={relay?.data?.printers} unreachable={unreachable} />
@@ -100,7 +109,13 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               onGenerateKey={onGenerateKey}
               onForceSync={onForceSync}
             />
-            <RelayOpsCard store={store} relay={relay} />
+            <RelayOpsCard
+              store={store}
+              relay={relay}
+              credential={credential}
+              newToken={newToken}
+              onGenerateToken={onGenerateToken}
+            />
             <StoreRedundancyCard store={store} onSaveHa={onSaveHa} onFailback={onFailback} />
             <LaneMaintenanceCard
               key={maintenanceWindow?.id || "no-window"}
