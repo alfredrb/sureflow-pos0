@@ -360,6 +360,11 @@ apt-get install -y --no-install-recommends \\
   ca-certificates curl iproute2 iputils-ping sudo \\
   evtest kbd ser2net setserial socat \\
   plymouth plymouth-themes beep \$extra >/dev/null
+# Plymouth needs a theme SELECTED, not just installed. Without this the kernel's
+# 'splash' arg hands the screen to Plymouth, which has no theme to draw and shows a
+# flat grey field for the whole boot. -R rebuilds the initramfs so the theme is
+# present from the first second; the initramfs is rebuilt again in step 5 for NFS.
+plymouth-set-default-theme -R spinner >/dev/null 2>&1 || true
 # Motherboard beeper for pre-POS boot feedback; minbase roots blacklist pcspkr.
 echo pcspkr > /etc/modules-load.d/sureflow-pcspkr.conf
 rm -f /etc/modprobe.d/*pcspkr*blacklist* 2>/dev/null || true
