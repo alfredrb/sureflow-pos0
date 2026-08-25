@@ -1,6 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import HardwareModelSelect from "@/components/registers/HardwareModelSelect";
 
 const BOOT_PROFILES = [
   { value: "pxe_debian_legacy", label: "PXE Debian — Legacy (SurePOS 700)" },
@@ -15,7 +16,7 @@ const SCANNER_INTERFACES = [
   { value: "unknown", label: "Unknown" },
 ];
 
-export default function HardwareProfileSection({ form, setForm }) {
+export default function HardwareProfileSection({ form, setForm, keyboardOptions = [] }) {
   const set = (k) => (v) => setForm({ ...form, [k]: v });
 
   return (
@@ -41,7 +42,13 @@ export default function HardwareProfileSection({ form, setForm }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Keyboard Model</label>
-            <Input value={form.keyboard_model} onChange={e => set("keyboard_model")(e.target.value)} placeholder="IBM 3AA01194300" />
+            <HardwareModelSelect
+              value={form.keyboard_model}
+              onChange={set("keyboard_model")}
+              options={keyboardOptions}
+              placeholder="Select a keyboard"
+              emptyLabel="No keyboard map"
+            />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Interface</label>

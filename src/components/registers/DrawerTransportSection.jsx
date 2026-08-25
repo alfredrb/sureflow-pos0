@@ -1,6 +1,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import HardwareModelSelect from "@/components/registers/HardwareModelSelect";
 import { DRAWER_TRANSPORTS, DRAWER_BRIDGE_PORT } from "@/lib/drawerProfiles";
 
 export default function DrawerTransportSection({ form, setForm, drawerProfiles = [] }) {
@@ -36,12 +37,13 @@ export default function DrawerTransportSection({ form, setForm, drawerProfiles =
             </p>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Drawer Model</label>
-              <Select value={form.drawer_model || ""} onValueChange={set("drawer_model")}>
-                <SelectTrigger><SelectValue placeholder="Standard ESC p pulse" /></SelectTrigger>
-                <SelectContent>
-                  {drawerProfiles.map((p) => <SelectItem key={p.id} value={p.model}>{p.model}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <HardwareModelSelect
+                value={form.drawer_model}
+                onChange={set("drawer_model")}
+                options={drawerProfiles}
+                placeholder="Standard ESC p pulse"
+                emptyLabel="Standard ESC p pulse"
+              />
               <p className="mt-1 text-xs text-gray-500">
                 Sourced from the hardware library's cash drawer profiles, which carry the model's open command. No
                 selection = the standard ESC p pulse.

@@ -18,6 +18,8 @@ import { poleLabel } from "@/lib/poleDisplayProfiles";
 import PXEBootstrapDialog from "@/components/registers/PXEBootstrapDialog";
 import HardwareAuditChecklist from "@/components/registers/HardwareAuditChecklist";
 import RegisterTestPrintButton from "@/components/registers/RegisterTestPrintButton";
+import HardwareModelSelect from "@/components/registers/HardwareModelSelect";
+import { profilesByType, keyboardModelOptions } from "@/lib/hardwareModels";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 import { getAdminAccess } from "@/lib/adminAccess";
 import { scopeRegisters } from "@/lib/cashScope";
@@ -40,8 +42,16 @@ export default function AdminRegisters() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...emptyReg });
   const [pxeRegister, setPxeRegister] = useState(null);
-  const [drawerProfiles, setDrawerProfiles] = useState([]);
+  const [library, setLibrary] = useState([]);
+  const [keyboardLayouts, setKeyboardLayouts] = useState([]);
   const { toast } = useToast();
+
+  // One library fetch feeds every model dropdown in the dialog.
+  const terminalProfiles = useMemo(() => profilesByType(library, "terminal"), [library]);
+  const printerProfiles = useMemo(() => profilesByType(library, "printer"), [library]);
+  const scannerProfiles = useMemo(() => profilesByType(library, "scanner"), [library]);
+  const drawerProfiles = useMemo(() => profilesByType(library, "cash_drawer"), [library]);
+  const keyboardOptions = useMemo(() => keyboardModelOptions(keyboardLayouts, library), [keyboardLayouts, library]);
 
   const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
   const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
@@ -51,12 +61,13 @@ export default function AdminRegisters() {
   const defaultStoreId = access.storeScope === "all" ? "" : (access.storeScope[0] || "");
 
   const load = async () => {
-    const [regs, ops, drawers] = await Promise.all([
+    const [regs, ops, hardware, layouts] = await Promise.all([
       base44.entities.Register.list(),
       base44.entities.Operator.filter({ status: "active" }),
-      base44.entities.HardwareLibrary.filter({ device_type: "cash_drawer", active: true }),
+      base44.entities.HardwareLibrary.filter({ active: true }),
+      base44.entities.KeyboardLayout.filter({ active: true }),
     ]);
-    setRegisters(regs); setOperators(ops); setDrawerProfiles(drawers); setLoading(false);
+    setRegisters(regs); setOperators(ops); setLibrary(hardware); setKeyboardLayouts(layouts); setLoading(false);
   };
   useEffect(() => { load(); }, []);
   useRealtimeSync("Register", load, { intervalMs: 20000 });
@@ -253,11 +264,17 @@ export default function AdminRegisters() {
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Connected Hardware</h3>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Terminal / Computer Model</label><Input value={form.terminal_model} onChange={e => setForm({ ...form, terminal_model: e.target.value })} placeholder="e.g. HP EliteDesk 800 G6" /></div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Terminal / Computer Model</label>
+                    <HardwareModelSelect value={form.terminal_model} onChange={v => setForm({ ...form, terminal_model: v })} options={terminalProfiles} placeholder="Select a terminal" />
+                  </div>
                   <div><label className="text-sm font-medium text-gray-700 mb-1 block">Terminal Serial</label><Input value={form.terminal_serial} onChange={e => setForm({ ...form, terminal_serial: e.target.value })} placeholder="Serial number" className="font-mono text-sm" /></div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Printer Model</label><Input value={form.printer_model} onChange={e => setForm({ ...form, printer_model: e.target.value })} placeholder="Epson TM-T20III" /></div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Printer Model</label>
+                    <HardwareModelSelect value={form.printer_model} onChange={v => setForm({ ...form, printer_model: v })} options={printerProfiles} placeholder="Select a printer" />
+                  </div>
                   <div><label className="text-sm font-medium text-gray-700 mb-1 block">Printer Serial</label><Input value={form.printer_serial} onChange={e => setForm({ ...form, printer_serial: e.target.value })} className="font-mono text-sm" /></div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Printer Status</label>
@@ -277,7 +294,10 @@ export default function AdminRegisters() {
                   <p className="text-xs text-gray-400 mt-1">Assigns this lane's receipt printer. Receipts and the cash-drawer kick are sent here through the store's relay on port 9100. Blank = the relay uses the first printer in its list.</p>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Model</label><Input value={form.scanner_model} onChange={e => setForm({ ...form, scanner_model: e.target.value })} placeholder="Honeywell 1450g" /></div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Model</label>
+                    <HardwareModelSelect value={form.scanner_model} onChange={v => setForm({ ...form, scanner_model: v })} options={scannerProfiles} placeholder="Select a scanner" />
+                  </div>
                   <div><label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Serial</label><Input value={form.scanner_serial} onChange={e => setForm({ ...form, scanner_serial: e.target.value })} className="font-mono text-sm" /></div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Scanner Status</label>
@@ -292,7 +312,10 @@ export default function AdminRegisters() {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><label className="text-sm font-medium text-gray-700 mb-1 block">Cash Drawer Model</label><Input value={form.cash_drawer_model} onChange={e => setForm({ ...form, cash_drawer_model: e.target.value })} placeholder="APG Vasario 1416" /></div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cash Drawer Model</label>
+                    <HardwareModelSelect value={form.cash_drawer_model} onChange={v => setForm({ ...form, cash_drawer_model: v })} options={drawerProfiles} placeholder="Select a drawer" />
+                  </div>
                   <div><label className="text-sm font-medium text-gray-700 mb-1 block">Cash Drawer Serial</label><Input value={form.cash_drawer_serial} onChange={e => setForm({ ...form, cash_drawer_serial: e.target.value })} className="font-mono text-sm" /></div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Drawer Status</label>
@@ -312,7 +335,7 @@ export default function AdminRegisters() {
             <DrawerTransportSection form={form} setForm={setForm} drawerProfiles={drawerProfiles} />
             <PinpadProfileSection form={form} setForm={setForm} />
             <PoleDisplaySection form={form} setForm={setForm} />
-            <HardwareProfileSection form={form} setForm={setForm} />
+            <HardwareProfileSection form={form} setForm={setForm} keyboardOptions={keyboardOptions} />
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Add"} Register</Button>
           </div>
         </DialogContent>
