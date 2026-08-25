@@ -127,7 +127,7 @@ export default function PXEBootstrapDialog({ register, open, onOpenChange }) {
             )}
           </div>
 
-          <CodeBlock title="PXE boot entry" path={`/srv/tftp/${pxeConfigFileName(register)}`} code={buildPxelinuxConfig(register, controllerIp, profiles, relayUrl)} />
+          <CodeBlock title="PXE boot entry" path={`/srv/sureflow/tftp/${pxeConfigFileName(register)}`} code={buildPxelinuxConfig(register, controllerIp, profiles, relayUrl)} />
           <CodeBlock title="DHCP reservation (PXE VLAN)" path="/etc/dnsmasq.d/sureflow-pxe.conf" code={buildDnsmasqEntry(register)} />
           <CodeBlock title="Peripheral rules" path="/etc/udev/rules.d/70-sureflow.rules" code={buildPeripheralRules(register, profiles)} />
           <CodeBlock title="Xorg input config" path="/etc/X11/xorg.conf.d/90-sureflow-input.conf" code={buildXorgConfig(register, profiles)} />
