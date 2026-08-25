@@ -1,0 +1,90 @@
+{
+  "name": "RelayCommand",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number whose relay must carry this out. The relay only ever receives commands for its own store \u2014 the sync API key is the identity."
+    },
+    "command_type": {
+      "type": "string",
+      "enum": [
+        "reboot_vm",
+        "backup",
+        "self_update",
+        "force_sync",
+        "lane_reboot",
+        "test_print"
+      ],
+      "description": "What the relay should do locally. These are the same operations the portal used to call inbound; queuing them instead is what removes the need for the cloud to reach into a store network."
+    },
+    "register_id": {
+      "type": "string",
+      "description": "Lane this command targets. Set for lane_reboot and test_print; blank for controller-wide operations."
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Extra arguments the relay needs (e.g. printer_ip and station for a test print). Deliberately free-form so a new command type does not need a schema change."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "claimed",
+        "completed",
+        "failed",
+        "expired"
+      ],
+      "default": "pending",
+      "description": "pending = queued, waiting for the store's next sync pass. claimed = handed down to the relay, which is executing it. completed / failed = the relay reported back. expired = it sat unclaimed too long (a relay that was down when it was queued), so it is not carried out days later by surprise."
+    },
+    "claimed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the relay picked this command up. Set by the sync endpoint at hand-down time, which is also what stops the same command being executed twice."
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "result": {
+      "type": "string",
+      "description": "What the relay reported back \u2014 the command output, or the error if it failed. Surfaced verbatim in the Command Center so an admin sees the store's own words."
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Admin who queued the command."
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "store_id",
+    "command_type"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

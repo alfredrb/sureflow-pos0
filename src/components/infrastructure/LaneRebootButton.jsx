@@ -8,13 +8,24 @@ import { logAuditEvent } from "@/lib/auditLogger";
 
 // Remote reboot for one lane, issued through the store's relay. Every reboot is
 // written to the audit trail with the admin who ordered it.
-export default function LaneRebootButton({ register, relayBase, disabled }) {
+export default function LaneRebootButton({ register, relayBase, disabled, store, direct = false, onQueueCommand }) {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
   const confirm = async () => {
     setSubmitting(true);
+
+    // A store the cloud cannot reach inbound gets the reboot written to the relay
+    // command queue instead; its relay collects it on the next sync pass and queues it
+    // for the lane exactly as a direct call would have.
+    if (!direct) {
+      await onQueueCommand?.(store, "lane_reboot", { registerId: register.register_id });
+      setSubmitting(false);
+      setOpen(false);
+      return;
+    }
+
     try {
       await rebootLane({ register_id: register.register_id, requested_by: "Admin" }, relayBase);
       toast({ title: "Reboot Queued", description: `${register.register_id} will pick up the reboot within about 10 seconds.` });

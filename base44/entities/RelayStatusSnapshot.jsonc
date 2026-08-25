@@ -1,0 +1,112 @@
+{
+  "name": "RelayStatusSnapshot",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number this snapshot belongs to. Exactly one record per store \u2014 every relaySync pass overwrites it, so this is always 'what the store last told us about itself'."
+    },
+    "pushed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the relay pushed this payload up. The Command Center judges freshness from this: a snapshot older than the sync interval reads as 'Awaiting relay sync' rather than as live truth."
+    },
+    "vm_stats": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Controller VM health exactly as the relay's /status reports it: cpu_pct, ram_pct, disk_pct, uptime_seconds."
+    },
+    "printers": {
+      "type": "array",
+      "description": "Network printer states as the relay sees them on the store LAN.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "paper_status": {
+            "type": "string"
+          },
+          "last_used": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "registers": {
+      "type": "array",
+      "description": "Per-lane hardware state from the relay's heartbeat table, mirroring the relay /status shape so the existing hardware cards read it unchanged.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "register_id": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "printer_status": {
+            "type": "string"
+          },
+          "scanner_status": {
+            "type": "string"
+          },
+          "cash_drawer_status": {
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "sync": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The relay's own view of its cloud connectivity (online, last_sync_at, pending_count, catalog_cached_at, catalog_stale, missing_config)."
+    },
+    "phase": {
+      "type": "number",
+      "description": "Relay server phase the store is running (1, 2, 3). Drives which operations the portal offers for this store."
+    },
+    "secured": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the relay reports RELAY_ACCESS_TOKEN is set, so its privileged routes are gated."
+    },
+    "build": {
+      "type": "string",
+      "description": "Build stamp the relay reports, so the portal can tell which published relay code a store is actually running."
+    }
+  },
+  "required": [
+    "store_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

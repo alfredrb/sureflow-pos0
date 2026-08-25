@@ -12,22 +12,26 @@ import StoreRedundancyCard from "@/components/infrastructure/StoreRedundancyCard
 import LaneMaintenanceCard from "@/components/infrastructure/LaneMaintenanceCard";
 import StoreUpdateTile from "@/components/infrastructure/StoreUpdateTile";
 
-export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, newToken, onGenerateToken, maintenanceWindow, maintenanceTasks, updateAssignments = [], onSaveMaintenance, onPlanMaintenance, planningMaintenance, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
+export default function StoreSection({ store, relay, registers, setupSteps, lastSync, credential, newKey, newToken, onGenerateToken, commands = [], onQueueCommand, maintenanceWindow, maintenanceTasks, updateAssignments = [], onSaveMaintenance, onPlanMaintenance, planningMaintenance, onToggleStep, onRebootClick, onOverride, onSaveRelayUrl, onGenerateKey, onForceSync, onSaveHa, onFailback }) {
   const [open, setOpen] = useState(true);
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState(store.relay_url || "");
 
-  const reachable = relay?.status === "ok";
-  // Relays are now polled server-side through the relayProxy function, so a plain
-  // http:// relay is no longer blocked by the browser's mixed-content rule — an
-  // unreachable relay here means the relay really did not answer.
-  const unreachable = relay?.status === "unreachable" || relay?.status === "no_url";
-  // The relay sits on a private store LAN, which the cloud has no route to. Not a
-  // fault — it needs a public HTTPS hostname before the portal can reach it.
-  const privateLan = relay?.error === "private_lan_unroutable";
-  const statusLabel = relay?.status === "no_url"
-    ? "No Relay URL"
-    : privateLan ? "Private LAN — Not Routable" : "Relay Unreachable";
+  // Two ways a store can be healthy now. 'ok' means the relay answered the portal
+  // directly (a public relay URL — instant operations). 'snapshot' means it pushed
+  // fresh telemetry up on its last sync pass, which is the normal path for a relay on
+  // a private store LAN the cloud has no route into.
+  const live = relay?.status === "ok";
+  const pushed = relay?.status === "snapshot";
+  const reachable = live || pushed;
+  const unreachable = !reachable;
+  const stale = relay?.status === "stale";
+  const awaiting = relay?.status === "awaiting";
+  const statusLabel =
+    relay?.status === "no_url" ? "No Relay URL"
+    : stale ? "Awaiting Relay Sync"
+    : awaiting ? "No Status Pushed Yet"
+    : "Awaiting Relay Sync";
   const relayRegisters = relay?.data?.registers || [];
 
   const saveUrl = () => {
@@ -45,8 +49,10 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
           <div className="min-w-0">
             <p className="font-semibold text-gray-900 truncate">{store.name} <span className="text-gray-400 font-normal text-sm">#{store.store_number}</span></p>
             <p className="text-xs text-gray-400 truncate">
-              {relay?.lastPoll ? `Last poll: ${format(new Date(relay.lastPoll), "h:mm:ss a")}` : "Not polled yet"}
-              {relay?.status === "unreachable" && relay?.lastOk && ` · Last reachable: ${format(new Date(relay.lastOk), "MMM d, h:mm a")}`}
+              {relay?.pushedAt
+                ? `Relay reported: ${format(new Date(relay.pushedAt), "MMM d, h:mm:ss a")}`
+                : relay?.lastPoll ? `Checked: ${format(new Date(relay.lastPoll), "h:mm:ss a")}` : "No report yet"}
+              {live && " · reachable directly"}
             </p>
           </div>
           <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ml-1 ${open ? "rotate-180" : ""}`} />
@@ -54,7 +60,7 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
         <div className="flex items-center gap-2 flex-shrink-0">
           {reachable ? (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Relay Online
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {live ? "Relay Online (direct)" : "Relay Reporting"}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-600">
@@ -82,19 +88,27 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
 
       {open && (
         <div className="px-5 pb-5 space-y-4">
-          {privateLan ? (
+          {stale ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-              This store's relay address <span className="font-mono">{store.relay_url}</span> is on a private LAN.
-              The portal now reaches relays from the cloud, and the cloud has no route into a store network — so the
-              live VM, printer and hardware panels stay empty and operations cannot be issued. The relay itself may be
-              perfectly healthy. To control it from here, give it a publicly resolvable HTTPS hostname (reverse proxy
-              or tunnel) and set that as the relay URL. Until then, Cloud Sync below is the reliable signal.
+              This store has not reported in since{" "}
+              <span className="font-medium">{relay?.pushedAt ? format(new Date(relay.pushedAt), "MMM d, h:mm a") : "an unknown time"}</span>.
+              The panels below show its last known state, not current truth. The relay reports upward on each sync
+              pass, so a gap means the relay is down, has no internet, or its sync key is wrong — check{" "}
+              <span className="font-mono">journalctl -u sureflow-relay -n 50</span> on the controller. Operations you
+              issue now are queued and will run as soon as it reports back.
             </div>
-          ) : relay?.status === "unreachable" && relay?.error ? (
+          ) : awaiting ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
-              Relay did not answer: <span className="font-mono">{relay.error}</span>. The portal reaches relays
-              server-side, so this is the relay or the network — not your browser. Check that the relay URL is the
-              store's backend address on port 3000 and that <span className="font-mono">sureflow-relay</span> is running.
+              This store has never pushed status up. The portal no longer reaches into store networks — each relay
+              reports its own health on its sync pass — so this store needs a valid{" "}
+              <span className="font-mono">CLOUD_SYNC_URL</span>, <span className="font-mono">STORE_ID</span> and{" "}
+              <span className="font-mono">CLOUD_API_KEY</span> in its <span className="font-mono">.env</span>, and the
+              relay running. Generate a sync key on the Cloud Sync card below if it has none.
+            </div>
+          ) : pushed ? (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-700">
+              Reporting normally over its outbound sync — no inbound access into the store network is used or needed.
+              Operations are queued and picked up on the next sync pass.
             </div>
           ) : null}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -115,6 +129,8 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
               credential={credential}
               newToken={newToken}
               onGenerateToken={onGenerateToken}
+              commands={commands}
+              onQueueCommand={onQueueCommand}
             />
             <StoreRedundancyCard store={store} onSaveHa={onSaveHa} onFailback={onFailback} />
             <LaneMaintenanceCard
@@ -141,6 +157,9 @@ export default function StoreSection({ store, relay, registers, setupSteps, last
                       relayLive={reachable}
                       onOverride={onOverride}
                       relayBase={store.relay_url || ""}
+                      store={store}
+                      direct={live}
+                      onQueueCommand={onQueueCommand}
                     />
                   ))}
                 </div>

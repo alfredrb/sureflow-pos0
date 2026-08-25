@@ -27,7 +27,7 @@ export default async function (req: Request): Promise<Response> {
     const action = String(body.action || '').trim();
 
     if (!storeId || !apiKey) return Response.json({ error: 'store_id and api_key are required' }, { status: 400 });
-    const ACTIONS = ['pull', 'push', 'update_result', 'operator_manage', 'lanes', 'hardware_profiles'];
+    const ACTIONS = ['pull', 'push', 'status', 'command_result', 'update_result', 'operator_manage', 'lanes', 'hardware_profiles'];
     if (!ACTIONS.includes(action)) {
       return Response.json({ error: `action must be one of: ${ACTIONS.join(', ')}` }, { status: 400 });
     }
@@ -37,6 +37,117 @@ export default async function (req: Request): Promise<Response> {
     if (!cred) return Response.json({ error: 'Invalid relay credentials for this store' }, { status: 401 });
 
     const now = new Date().toISOString();
+
+    // ---------------- Pushed status telemetry (rides ANY sync pass) ----------------
+    // The cloud cannot reach into a private store LAN, so the relay reports its own
+    // health upward instead of being polled. One record per store, overwritten every
+    // pass: the Command Center reads "what the store last said about itself".
+    const upsertSnapshot = async (payload: any) => {
+      if (!payload || typeof payload !== 'object') return;
+      const patch = {
+        store_id: storeId,
+        pushed_at: now,
+        vm_stats: payload.vm_stats || {},
+        printers: Array.isArray(payload.printers) ? payload.printers : [],
+        registers: Array.isArray(payload.registers) ? payload.registers : [],
+        sync: payload.sync || {},
+        phase: Number(payload.phase || 0) || undefined,
+        secured: !!payload.secured,
+        build: String(payload.build || ''),
+      };
+      const existing = await db.RelayStatusSnapshot.filter({ store_id: storeId });
+      if (existing.length > 0) await db.RelayStatusSnapshot.update(existing[0].id, patch);
+      else await db.RelayStatusSnapshot.create(patch);
+    };
+
+    // Hand the oldest pending command down and mark it claimed in the same pass. The
+    // claim is what guarantees a command is never executed twice, and only one goes
+    // down at a time so a queue of reboots cannot all fire at once.
+    const claimNextCommand = async () => {
+      const rows = await db.RelayCommand.filter({ store_id: storeId, status: 'pending' });
+      if (rows.length === 0) return null;
+      const sorted = rows.sort(
+        (a: any, b: any) =>
+          new Date(a.requested_at || a.created_date || 0).getTime() -
+          new Date(b.requested_at || b.created_date || 0).getTime()
+      );
+
+      // A command queued while the store was down must not surprise anyone days later.
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const fresh: any[] = [];
+      for (const c of sorted) {
+        const at = new Date(c.requested_at || c.created_date || 0).getTime();
+        if (at && at < cutoff) {
+          await db.RelayCommand.update(c.id, {
+            status: 'expired',
+            result: 'Not claimed within 24 hours — the relay was unreachable when it was queued.',
+            completed_at: now,
+          });
+        } else {
+          fresh.push(c);
+        }
+      }
+      if (fresh.length === 0) return null;
+
+      const next = fresh[0];
+      await db.RelayCommand.update(next.id, { status: 'claimed', claimed_at: now });
+      return {
+        command_id: next.id,
+        command_type: next.command_type,
+        register_id: next.register_id || '',
+        payload: next.payload || {},
+      };
+    };
+
+    if (body.status && typeof body.status === 'object') await upsertSnapshot(body.status);
+
+    // ---------------- STATUS: a status-only push, with any queued command in reply ----------------
+    if (action === 'status') {
+      const command = await claimNextCommand();
+      return Response.json({ ok: true, received_at: now, pending_commands: command ? [command] : [] });
+    }
+
+    // ---------------- COMMAND_RESULT: the relay reports what it did ----------------
+    if (action === 'command_result') {
+      const commandId = String(body.command_id || '').trim();
+      const result = String(body.result || '').trim();
+      if (!commandId || !['completed', 'failed'].includes(result)) {
+        return Response.json({ error: 'command_id and result (completed, failed) are required' }, { status: 400 });
+      }
+
+      const cmd = await db.RelayCommand.get(commandId).catch(() => null);
+      if (!cmd || cmd.store_id !== storeId) {
+        return Response.json({ error: 'Command not found for this store' }, { status: 404 });
+      }
+
+      const detail = String(body.detail || '').slice(0, 900);
+      await db.RelayCommand.update(commandId, { status: result, completed_at: now, result: detail });
+
+      await db.AuditTrail.create({
+        action: result === 'completed' ? 'Relay Command Completed' : 'Relay Command Failed',
+        category: 'system',
+        description: `Store #${storeId} ${result === 'completed' ? 'carried out' : 'could not carry out'} the queued relay command '${cmd.command_type}'${cmd.register_id ? ` on lane ${cmd.register_id}` : ''} (queued by ${cmd.requested_by || 'an admin'}). Relay reported: ${detail || 'no detail'}.`,
+        actor_name: `Local Relay (store ${storeId})`,
+        actor_role: 'system',
+        page: '/admin/hardware',
+        changes: [{ field: 'status', from: 'claimed', to: result }],
+      });
+
+      // A failed hardware operation is worth waking someone for — nobody is watching
+      // the queue when a nightly backup or self-update stops working.
+      if (result === 'failed') {
+        await db.SystemAlert.create({
+          alert_type: 'hardware',
+          severity: 'warning',
+          title: `Store ${storeId} failed a queued relay command`,
+          description: `'${cmd.command_type}'${cmd.register_id ? ` on lane ${cmd.register_id}` : ''} did not complete. Relay reported: ${detail || 'no detail'}.`,
+          source: `Store ${storeId}`,
+          status: 'active',
+        });
+      }
+
+      return Response.json({ ok: true, command_id: commandId, status: result });
+    }
 
     // ---------------- UPDATE_RESULT: the controller reports a cloud-pushed update ----------------
     // The controller has already staged the checkout, restarted and run its own health
@@ -357,10 +468,15 @@ export default async function (req: Request): Promise<Response> {
           }
         : null;
 
+      // The catalog pull is also the store's command-collection point, so a queued
+      // operation needs no extra round trip.
+      const command = await claimNextCommand();
+
       const payload = {
         cached_at: now,
         store_id: storeId,
         pending_update,
+        pending_commands: command ? [command] : [],
         products: storeProducts,
         operators: storeOperators,
         registers,

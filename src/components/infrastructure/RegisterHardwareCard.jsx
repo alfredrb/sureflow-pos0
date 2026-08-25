@@ -36,7 +36,7 @@ function HardwareRow({ icon: Icon, label, liveValue, manualValue, relayLive, onO
 
 // One register's hardware block. Live values come from the relay poll (matched by
 // register_id); the manual dropdowns remain as fallback when the relay is offline.
-export default function RegisterHardwareCard({ register, relayRegister, relayLive, onOverride, relayBase }) {
+export default function RegisterHardwareCard({ register, relayRegister, relayLive, onOverride, relayBase, store, direct = false, onQueueCommand }) {
   const sm = STATUS_META[register.status] || STATUS_META.offline;
   return (
     <div className="border border-gray-100 rounded-xl px-3 py-2.5 space-y-2">
@@ -64,7 +64,14 @@ export default function RegisterHardwareCard({ register, relayRegister, relayLiv
         <HardwareRow icon={Wallet} label="Drawer" liveValue={relayRegister?.cash_drawer_status} manualValue={register.cash_drawer_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "cash_drawer_status", v)} />
       </div>
       <div className="flex justify-end pt-0.5 border-t border-gray-50">
-        <LaneRebootButton register={register} relayBase={relayBase} disabled={!relayBase} />
+        <LaneRebootButton
+          register={register}
+          relayBase={relayBase}
+          store={store}
+          direct={direct}
+          onQueueCommand={onQueueCommand}
+          disabled={!store}
+        />
       </div>
     </div>
   );

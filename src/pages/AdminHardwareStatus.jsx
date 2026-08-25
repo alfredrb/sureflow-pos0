@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useRelayPolling } from "@/hooks/useRelayPolling";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { forceRelaySync, rebootRelayVm } from "@/lib/relayClient";
+import { queueRelayCommand, isFastPathAvailable, COMMAND_LABELS } from "@/lib/relayCommandQueue";
 import { HardDrive, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ export default function AdminHardwareStatus() {
   const [windows, setWindows] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [updateAssignments, setUpdateAssignments] = useState([]);
+  const [commands, setCommands] = useState([]);
   const [planning, setPlanning] = useState(false);
   const [savingOps, setSavingOps] = useState(false);
   const [testingOps, setTestingOps] = useState(false);
@@ -40,7 +42,7 @@ export default function AdminHardwareStatus() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [st, regs, sus, creds, logs, sets, wins, mtasks, upd] = await Promise.all([
+      const [st, regs, sus, creds, logs, sets, wins, mtasks, upd, cmds] = await Promise.all([
         base44.entities.Store.list(),
         base44.entities.Register.list(),
         base44.entities.StoreRelaySetup.list(),
@@ -50,8 +52,10 @@ export default function AdminHardwareStatus() {
         base44.entities.LaneMaintenanceWindow.list(),
         base44.entities.LaneMaintenanceTask.list("-created_date", 300),
         base44.entities.RelayUpdateAssignment.list("-created_date", 300),
+        base44.entities.RelayCommand.list("-created_date", 200),
       ]);
       setUpdateAssignments(upd);
+      setCommands(cmds);
       setSettings(sets.find((s) => !s.store_id) || sets[0] || null);
       setWindows(wins);
       setTasks(mtasks);
@@ -345,10 +349,44 @@ export default function AdminHardwareStatus() {
     }
   };
 
+  // ---- Hybrid operation dispatch ----
+  // A store whose relay answered the portal directly is commanded instantly. Every
+  // other store — the normal case, a relay on a private LAN the cloud cannot route to
+  // — gets the operation written to the command queue, which its relay collects on its
+  // next sync pass and runs locally.
+  const dispatchOperation = async (store, commandType, { registerId = "", payload = null, direct = null } = {}) => {
+    const relay = relayData[store.store_number];
+    const label = COMMAND_LABELS[commandType] || commandType;
+
+    if (direct && isFastPathAvailable(relay)) {
+      const out = await direct();
+      return { queued: false, output: out };
+    }
+
+    await queueRelayCommand({ store, commandType, registerId, payload });
+    load(true);
+    toast({
+      title: `${label} Queued`,
+      description: `${store.name} is not reachable from the cloud, so the command is queued. Its relay will run it on the next sync pass.`,
+    });
+    return { queued: true };
+  };
+
+  const handleQueueCommand = async (store, commandType, extras = {}) => {
+    try {
+      return await dispatchOperation(store, commandType, extras);
+    } catch (e) {
+      toast({ title: "Error", description: e.message || "Could not issue the operation", variant: "destructive" });
+      return { queued: false, error: e.message };
+    }
+  };
+
   // ---- Force an immediate relay sync ----
-  // Goes through relayClient, which routes cross-origin http:// relays through the
-  // relayProxy function instead of the browser (mixed content would block it).
   const handleForceSync = async (store) => {
+    if (!isFastPathAvailable(relayData[store.store_number])) {
+      await handleQueueCommand(store, "force_sync");
+      return;
+    }
     try {
       const data = await forceRelaySync(store.relay_url || "");
       if (data?.ok) {
@@ -375,6 +413,14 @@ export default function AdminHardwareStatus() {
     const store = rebootStore;
     if (!store) return;
     setRebooting(true);
+
+    if (!isFastPathAvailable(relayData[store.store_number])) {
+      await handleQueueCommand(store, "reboot_vm");
+      setRebooting(false);
+      setRebootStore(null);
+      return;
+    }
+
     let ok = false;
     try {
       await rebootRelayVm(store.relay_url || "");
@@ -385,7 +431,7 @@ export default function AdminHardwareStatus() {
     logAuditEvent({
       action: "Remote VM Reboot Issued",
       category: "system",
-      description: `Remote reboot of the Local Relay VM issued for ${store.name} (#${store.store_number}). Relay ${ok ? "accepted the command" : "did not confirm receipt"}.`,
+      description: `Remote reboot of the Local Relay VM issued directly to ${store.name} (#${store.store_number}). Relay ${ok ? "accepted the command" : "did not confirm receipt"}.`,
       page: "/admin/hardware",
     });
     toast(ok
@@ -408,7 +454,7 @@ export default function AdminHardwareStatus() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
             <HardDrive className="w-7 h-7 text-blue-600" /> Infrastructure Command Center
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Per-store Relay VM health, network printers, and register hardware. Relays are polled every 30 seconds.</p>
+          <p className="text-gray-500 text-sm mt-1">Per-store Relay VM health, network printers, and register hardware. Each relay reports its own status upward on its sync pass, so no inbound access into a store network is needed.</p>
         </div>
         <Button variant="outline" onClick={() => { load(true); pollNow(); }}><RefreshCw className="w-4 h-4 mr-2" /> Poll Now</Button>
       </div>
@@ -466,6 +512,8 @@ export default function AdminHardwareStatus() {
               maintenanceWindow={windows.find((w) => w.store_id === store.store_number)}
               maintenanceTasks={tasks.filter((t) => t.store_id === store.store_number)}
               updateAssignments={updateAssignments.filter((a) => a.store_id === store.store_number)}
+              commands={commands.filter((c) => c.store_id === store.store_number)}
+              onQueueCommand={handleQueueCommand}
               onSaveMaintenance={handleSaveMaintenance}
               onPlanMaintenance={handlePlanMaintenance}
               planningMaintenance={planning}
