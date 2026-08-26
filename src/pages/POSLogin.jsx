@@ -16,6 +16,7 @@ import { getLaneRegisterId, clearLaneRegisterId } from "@/lib/laneIdentity";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import LaneRelayDiagnostic from "@/components/pos/LaneRelayDiagnostic";
 import { resolveRelayFromStore } from "@/lib/laneRelayResolve";
+import { runSignOnUpdateNotices } from "@/lib/signOnUpdateNotice";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -302,6 +303,9 @@ export default function POSLogin() {
           return;
         }
         sessionStorage.setItem("pos_operator", JSON.stringify(op));
+        // 4960 behaviour: print the software-change notice before the register opens.
+        // Never throws, so a printer problem cannot keep a cashier from signing on.
+        await runSignOnUpdateNotices(op);
         navigate("/pos/register");
       }
     } catch (e) {
@@ -345,6 +349,7 @@ export default function POSLogin() {
         override_action: "Dual Register Login"
       });
       sessionStorage.setItem("pos_operator", JSON.stringify(op));
+      await runSignOnUpdateNotices(op);
       setConflict(null);
       setOverrideId(""); setOverridePin("");
       navigate("/pos/register");
@@ -378,6 +383,7 @@ export default function POSLogin() {
         override_action: "Lunch Lockout Override",
       });
       sessionStorage.setItem("pos_operator", JSON.stringify(op));
+      await runSignOnUpdateNotices(op);
       setLunchLockout(null);
       setOverrideId(""); setOverridePin("");
       navigate("/pos/register");

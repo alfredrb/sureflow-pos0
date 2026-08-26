@@ -1,0 +1,41 @@
+{
+  "name": "OperatorUpdateAck",
+  "type": "object",
+  "properties": {
+    "operator_id": {
+      "type": "string",
+      "description": "Operator this acknowledgement belongs to. One record per operator \u2014 it is what makes the sign-on update slip print once per person rather than once per lane."
+    },
+    "last_seen_app_version": {
+      "type": "string",
+      "description": "Cloud POS app version this operator had already been told about. A different current version at sign-on is what prints the 'update was applied' slip."
+    },
+    "last_seen_relay_build": {
+      "type": "string",
+      "description": "Store relay build stamp this operator had already been told about, taken from the store's RelayStatusSnapshot."
+    },
+    "last_pending_notice_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Work date this operator was last told an update is scheduled for tonight. Stops the 'update will be applied tonight' slip reprinting on every sign-on during the same day."
+    },
+    "last_signon_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this operator last signed on to a register."
+    }
+  },
+  "required": [
+    "operator_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
