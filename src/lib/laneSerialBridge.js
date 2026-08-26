@@ -33,6 +33,11 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="0b00", SYMLINK+="sureflow-pinpad", MODE="066
 SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="2303", SYMLINK+="sureflow-pole", MODE="0660", GROUP="dialout"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", SYMLINK+="sureflow-pole", MODE="0660", GROUP="dialout"
 SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="sureflow-pole", MODE="0660", GROUP="dialout"
+
+# The Toshiba TCx 2x20 pole (0f66:4524) is deliberately ABSENT here — it is a
+# HID-class device, not USB-serial, so no tty rule can ever match it. The Toshiba
+# VSP driver (vsd, baked into the image) claims it and creates a virtual serial
+# tty; the bridge unit's ExecStartPre points sureflow-pole at that node.
 `;
 
 // ser2net 4.x YAML. Each connection is raw TCP in, raw serial out — no telnet
@@ -68,11 +73,15 @@ connection: &pole
 export const BRIDGE_SYSTEMD_UNIT = `# /etc/systemd/system/sureflow-serial-bridge.service
 [Unit]
 Description=SureFlow lane serial bridge (USB peripherals to TCP)
-After=network-online.target
+After=network-online.target vsd.service
 Wants=network-online.target
 
 [Service]
 Type=simple
+# Toshiba VSP branch: a Toshiba TCx USB pole is a HID device no udev tty rule can
+# match, so vsd turns it into a virtual serial tty. Point the pole symlink at that
+# node when it exists; the leading '-' keeps a lane with no Toshiba pole booting.
+ExecStartPre=-/bin/sh -c '[ -e /dev/ttyVSP0 ] && ln -sf /dev/ttyVSP0 /dev/sureflow-pole'
 ExecStart=/usr/sbin/ser2net -n -c /etc/ser2net.yaml
 Restart=always
 RestartSec=3
@@ -97,8 +106,9 @@ export const BRIDGE_VALIDATION_STEPS = [
     step: "Confirm the device is a serial device",
     detail:
       "On the booted lane run lsusb and then ls -l /dev/serial/by-id/. A USB pinpad or pole that presents as a " +
-      "serial device (ttyUSB* or ttyACM*) can be bridged. If it only appears under /dev/hidraw*, it is a raw HID " +
-      "device — ser2net cannot bridge it and that peripheral needs lane-native control instead.",
+      "serial device (ttyUSB* or ttyACM*) can be bridged directly. If it only appears under /dev/hidraw*, it is a " +
+      "raw HID device that ser2net cannot bridge — the Toshiba TCx 2x20 pole is exactly this case, and the Toshiba " +
+      "VSP driver (vsd) is what turns it into a serial tty the bridge can then publish.",
   },
   {
     step: "Verify the stable symlinks",

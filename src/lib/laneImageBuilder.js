@@ -30,6 +30,7 @@ import {
   PRINTER_BRIDGE_UDEV_RULES,
   PRINTER_BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/lanePrinterBridge";
+import { VSD_CONFIG_XML, VSP_DEB_PATH } from "@/lib/toshibaVsp";
 
 export const LANE_ROOTS_DIR = "/srv/sureflow/roots";
 export const LANE_TFTP_DIR = "/srv/sureflow/tftp";
@@ -311,6 +312,40 @@ SFPRINTUNIT
   echo usblp > "\$root/etc/modules-load.d/sureflow-usblp.conf"
   rm -f "\$root"/etc/modprobe.d/*usblp*blacklist* 2>/dev/null
 
+  # Toshiba VSP driver — the transport layer for the Toshiba TCx 2x20 USB pole
+  # display (0f66:4524). That pole is a HID device, so no udev tty rule can ever
+  # reach it; vsd claims it via libusb and presents a virtual serial tty which the
+  # serial bridge above then publishes on port 9101. Baked into EVERY image so one
+  # shared root serves the fleet — on a lane with no Toshiba pole vsd just runs
+  # idle (~5MB) and its rules match nothing.
+  if [ -f "${VSP_DEB_PATH}" ]; then
+    install -D -m 644 "${VSP_DEB_PATH}" "\$root/tmp/toshiba-vsp-linux.deb"
+    cat >"\$root/tmp/VSDConfig.xml" <<'SFVSDXML'
+${VSD_CONFIG_XML}
+SFVSDXML
+    chroot "\$root" /bin/bash -s <<'VSPEOF' >/dev/null 2>&1
+set -uo pipefail
+export DEBIAN_FRONTEND=noninteractive
+# DKMS off: the packaged modules target integrated Toshiba PCI peripherals that
+# generic lanes do not have, and the USB pole needs no kernel module at all.
+echo 'DKMS_DISABLED=1' > /etc/default/tgcs-vsp
+# --force-depends skips libgtk-3-0, which only the GUI configurator needs — we
+# ship a hand-written VSDConfig.xml instead (sanctioned by the vendor guide).
+dpkg --force-depends -i /tmp/toshiba-vsp-linux.deb || true
+dpkg --configure --force-depends -a || true
+install -D -m 644 /tmp/VSDConfig.xml /opt/tgcs/vsp/VSDConfig.xml
+systemctl enable vsd || true
+rm -f /tmp/toshiba-vsp-linux.deb /tmp/VSDConfig.xml
+VSPEOF
+    if [ -x "\$root/opt/tgcs/vsp/bin/vsd" ]; then
+      log "  Toshiba VSP driver baked in (USB 2x20 pole display support)"
+    else
+      warn "The Toshiba VSP driver did not install cleanly — lanes with a Toshiba TCx 2x20 USB pole will show nothing on the display."
+    fi
+  else
+    warn "No Toshiba VSP driver at ${VSP_DEB_PATH} — lanes with a Toshiba TCx 2x20 USB pole display will show nothing. Drop the vendor .deb there and rebuild."
+  fi
+
   # The lane agent. Lanes sit on the isolated PXE VLAN and cannot be reached inbound, so
   # the agent's outbound poll is the ONLY proof a lane is alive and the only way a remote
   # reboot ever arrives. A root without it reads as "never seen" and cannot be rebooted.
@@ -506,5 +541,6 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "Saved keyboard maps are baked in automatically. The build renders each active Key Mapper layout whose model appears on this store's registers into /etc/udev/hwdb.d inside the root and rebuilds the hwdb database — a read-only lane cannot apply a scancode map at runtime, so this is the only way it can take effect. An uncalibrated layout is reported as a warning rather than silently baked as a no-op.",
   "/proc, /sys, /dev and /dev/pts are mounted for the whole chroot phase and released afterwards. debootstrap mounts them only for its own second stage, so without this the package postinst scripts printed 'Is /dev/pts mounted?' and '/proc/ is not mounted' warnings and systemd-tmpfiles silently skipped creating device and /run entries. The mounts are torn down on interrupt too — deleting a root with /dev still bind-mounted inside it would take the controller's own /dev with it.",
   "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
+  "The Toshiba VSP driver is baked into every image when its vendor .deb is present at /srv/sureflow/vendor/toshiba-vsp-linux.deb. It is what makes the Toshiba TCx 2x20 USB pole display work at all: the pole is a HID device no udev tty rule can match, and vsd turns it into a virtual serial tty the lane's serial bridge publishes on port 9101. Installed with DKMS disabled and --force-depends, because only the GUI configurator needs GTK and the USB pole path needs no kernel module. A lane with no Toshiba pole runs vsd idle with no effect.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
 ];

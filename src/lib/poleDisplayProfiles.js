@@ -57,19 +57,20 @@ export const POLE_DISPLAY_PROFILES = {
     key: "toshiba_usb_2x20",
     label: "Toshiba 2×20 Pole (USB)",
     vendor: "Toshiba",
-    // Reserved until its IBM/ADX frames are captured — but the TRANSPORT is
-    // solved: the pole's USB port is a serial device on the lane, and the lane's
-    // ser2net bridge publishes it as lane_ip:9101 so the relay can write to it
-    // exactly like a network pole. Set the pole IP to the LANE's own LAN IP.
-    supported: false,
+    // Supported through the Toshiba VSP driver: the pole is a HID device
+    // (0f66:4524) that vsd turns into a virtual serial tty on the lane, and the
+    // lane's ser2net bridge publishes that tty as lane_ip:9101 — so the relay
+    // writes it exactly like a network pole. Pole IP = the LANE's own LAN IP.
+    supported: true,
     transport: "lane_serial_bridge",
     port: 9101,
     columns: 20,
     rows: 2,
     notes:
-      "2×20 VFD on a USB (USB-serial) port, reached through the lane's serial bridge at lane_ip:9101 — set the pole " +
-      "IP to the LANE's LAN IP, not the printer. Same IBM/ADX command family as the chain poles, so it needs the same " +
-      "captured frames; run the pole frame-capture helper against the bridge port, then enable the profile.",
+      "Toshiba TCx 2×20 VFD (USB 0f66:4524), driven through the Toshiba VSP driver baked into the lane image: vsd " +
+      "presents the HID device as a virtual serial tty and the lane's serial bridge publishes it at lane_ip:9101 — " +
+      "set the pole IP to the LANE's LAN IP, not the printer. Command set is IBM/ADX (Reset 1F, Display Position " +
+      "10 nn), never ESC/POS, per the vendor Virtual Serial Drivers guide.",
   },
   logic_ld9900: {
     key: "logic_ld9900",
