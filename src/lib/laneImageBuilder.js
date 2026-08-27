@@ -31,6 +31,7 @@ import {
   PRINTER_BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/lanePrinterBridge";
 import { VSD_CONFIG_XML, VSP_DEB_PATH } from "@/lib/toshibaVsp";
+import { LANE_PROFILE_SCRIPT, LANE_PROFILE_UNIT } from "@/lib/laneProfilePersist";
 import {
   PLYMOUTH_THEME,
   PLYMOUTH_SCRIPT,
@@ -318,6 +319,17 @@ SFFSTAB
   install -d -m 755 "\$root/etc/X11"
   printf 'allowed_users=anybody\\nneeds_root_rights=yes\\n' > "\$root/etc/X11/Xwrapper.config"
 
+  # Persistent browser profile. The POS sits behind the platform login and the home
+  # directory is tmpfs, so without this a lane lost its session at every power-off and came
+  # back to the login screen instead of the POS. Only Chromium's profile is persisted.
+  cat >"\$root/usr/local/bin/sureflow-lane-profile" <<'SFPROFILE'
+${LANE_PROFILE_SCRIPT}
+SFPROFILE
+  chmod 755 "\$root/usr/local/bin/sureflow-lane-profile"
+  cat >"\$root/etc/systemd/system/sureflow-lane-profile.service" <<'SFPROFILEUNIT'
+${LANE_PROFILE_UNIT}
+SFPROFILEUNIT
+
   # DNS. debootstrap copies the BUILD HOST's /etc/resolv.conf into the root, so every lane
   # shipped with the controller's own backend-VLAN resolvers baked in — addresses a lane on
   # the isolated VLAN 40 cannot reach at all. Every lookup then failed and the kiosk showed
@@ -440,7 +452,7 @@ VSPEOF
     warn "Lane agent not found at \$AGENT_SRC — this image's lanes will show as 'never seen' and cannot be rebooted remotely. Re-run ./install from the controller tarball, then rebuild."
   fi
 
-  chroot "\$root" systemctl enable sureflow-kiosk sureflow-serial-bridge sureflow-printer-bridge sureflow-beep-ok >/dev/null 2>&1 || true
+  chroot "\$root" systemctl enable sureflow-kiosk sureflow-lane-profile sureflow-serial-bridge sureflow-printer-bridge sureflow-beep-ok >/dev/null 2>&1 || true
 }
 
 # ---------------------------------------------------------------------------

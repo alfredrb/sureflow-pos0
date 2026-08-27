@@ -103,8 +103,10 @@ export const KIOSK_SERVICE = `# \${ROOT}/etc/systemd/system/sureflow-kiosk.servi
 # relay URL) and opens the POS against this store's relay.
 [Unit]
 Description=SureFlow POS Kiosk
-After=network-online.target
+After=network-online.target sureflow-lane-profile.service
 Wants=network-online.target
+# NOT Requires= — a lane whose persistent profile cannot be mounted must still open the
+# POS (it just asks for the platform login again).
 # Audible failure alert on the PC speaker, so a lane that never reaches the POS is
 # obvious from the floor rather than only in the journal.
 OnFailure=sureflow-beep-fail.service
