@@ -31,6 +31,7 @@ import {
   PRINTER_BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/lanePrinterBridge";
 import { VSD_CONFIG_XML, VSP_DEB_PATH } from "@/lib/toshibaVsp";
+import { PLYMOUTH_THEME, PLYMOUTH_SCRIPT } from "@/lib/pxeBootSplash";
 
 export const LANE_ROOTS_DIR = "/srv/sureflow/roots";
 export const LANE_TFTP_DIR = "/srv/sureflow/tftp";
@@ -73,6 +74,9 @@ SUITE=bookworm
 CLOUD_SYNC_URL="\${CLOUD_SYNC_URL:-https://sure-flow-pos.base44.app/functions/relaySync}"
 PXE_SUBNET="\${PXE_SUBNET:-10.0.40.0/24}"
 SUMMARY=/srv/sureflow/.lane-image-summary
+# Normalized splash PNGs staged once per controller by sureflow-fetch-splash-assets.sh.
+SPLASH_DIR=/srv/sureflow/splash
+SPLASH_STATUS="not attempted"
 # Technician credential baked into the lane image. Override per store by adding
 # LANE_PASSWORD=... to /etc/sureflow/controller.conf before building.
 LANE_PASSWORD="\${LANE_PASSWORD:-sureflow}"
@@ -312,6 +316,36 @@ SFPRINTUNIT
   echo usblp > "\$root/etc/modules-load.d/sureflow-usblp.conf"
   rm -f "\$root"/etc/modprobe.d/*usblp*blacklist* 2>/dev/null
 
+  # SureFlow boot splash. The theme FILES are always baked in, but the theme is only
+  # SELECTED once the three PNG assets are present — Plymouth places sprites from each
+  # image's own dimensions, so a theme with missing assets draws a bare status line on
+  # a flat field, which looks worse than the stock spinner. Assets are staged once per
+  # controller (sureflow-fetch-splash-assets.sh), same pattern as the vendor drop.
+  install -d -m 755 "\$root/usr/share/plymouth/themes/sureflow"
+  cat >"\$root/usr/share/plymouth/themes/sureflow/sureflow.plymouth" <<'SFPLYTHEME'
+${PLYMOUTH_THEME}
+SFPLYTHEME
+  cat >"\$root/usr/share/plymouth/themes/sureflow/sureflow.script" <<'SFPLYSCRIPT'
+${PLYMOUTH_SCRIPT}
+SFPLYSCRIPT
+  if [ -f "\$SPLASH_DIR/background.png" ] && [ -f "\$SPLASH_DIR/logo.png" ] && [ -f "\$SPLASH_DIR/dot.png" ]; then
+    install -m 644 "\$SPLASH_DIR/background.png" "\$SPLASH_DIR/logo.png" "\$SPLASH_DIR/dot.png" \\
+      "\$root/usr/share/plymouth/themes/sureflow/"
+    # -R rebuilds the initramfs so the splash is present from the first second. The
+    # initramfs is rebuilt again in step 5 for NFS root, which keeps the theme.
+    if chroot "\$root" plymouth-set-default-theme -R sureflow >/dev/null 2>&1; then
+      SPLASH_STATUS="SureFlow splash applied"
+      log "  SureFlow boot splash applied (wave artwork, wordmark, cyclone spinner)"
+    else
+      SPLASH_STATUS="spinner fallback (theme selection failed)"
+      warn "plymouth-set-default-theme could not select the sureflow theme — the lanes will boot the generic spinner."
+      chroot "\$root" plymouth-set-default-theme -R spinner >/dev/null 2>&1 || true
+    fi
+  else
+    SPLASH_STATUS="spinner fallback (assets missing)"
+    warn "No splash assets at \$SPLASH_DIR — the lanes will boot the generic Debian spinner instead of the SureFlow splash. Run sureflow-fetch-splash-assets.sh on this controller, then rebuild."
+  fi
+
   # Toshiba VSP driver — the transport layer for the Toshiba TCx 2x20 USB pole
   # display (0f66:4524). That pole is a HID device, so no udev tty rule can ever
   # reach it; vsd claims it via libusb and presents a virtual serial tty which the
@@ -400,8 +434,9 @@ apt-get install -y --no-install-recommends \\
   plymouth plymouth-themes beep \$extra >/dev/null
 # Plymouth needs a theme SELECTED, not just installed. Without this the kernel's
 # 'splash' arg hands the screen to Plymouth, which has no theme to draw and shows a
-# flat grey field for the whole boot. -R rebuilds the initramfs so the theme is
-# present from the first second; the initramfs is rebuilt again in step 5 for NFS.
+# flat grey field for the whole boot. This is only the FALLBACK — the branded
+# SureFlow theme is selected in the fleet layer once its files and assets are in
+# place, because plymouth-set-default-theme fails on an incomplete theme dir.
 plymouth-set-default-theme -R spinner >/dev/null 2>&1 || true
 # Motherboard beeper for pre-POS boot feedback; minbase roots blacklist pcspkr.
 echo pcspkr > /etc/modules-load.d/sureflow-pcspkr.conf
@@ -504,6 +539,7 @@ echo "LANE_IMAGE_VARIANT=\$WHICH" >> "\$CONF"
   echo "Built:  \${BUILT:- none}"
   [ -n "\$FAILED" ] && echo "FAILED:\$FAILED"
   echo
+  echo "Boot splash: \$SPLASH_STATUS"
   echo "Keyboard maps baked:\${KEYBOARDS_BAKED:- none}"
   echo
   echo "Published:"
@@ -541,6 +577,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "Saved keyboard maps are baked in automatically. The build renders each active Key Mapper layout whose model appears on this store's registers into /etc/udev/hwdb.d inside the root and rebuilds the hwdb database — a read-only lane cannot apply a scancode map at runtime, so this is the only way it can take effect. An uncalibrated layout is reported as a warning rather than silently baked as a no-op.",
   "/proc, /sys, /dev and /dev/pts are mounted for the whole chroot phase and released afterwards. debootstrap mounts them only for its own second stage, so without this the package postinst scripts printed 'Is /dev/pts mounted?' and '/proc/ is not mounted' warnings and systemd-tmpfiles silently skipped creating device and /run entries. The mounts are torn down on interrupt too — deleting a root with /dev still bind-mounted inside it would take the controller's own /dev with it.",
   "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
+  "The branded SureFlow boot splash is baked in by the build: the theme files are always written, and the theme is selected only when the three normalized PNGs are staged at /srv/sureflow/splash (run sureflow-fetch-splash-assets.sh once per controller). Without them the build keeps the generic spinner rather than a half-drawn theme, and the summary's 'Boot splash:' line says which one a given image got.",
   "The Toshiba VSP driver is baked into every image when its vendor .deb is present at /srv/sureflow/vendor/toshiba-vsp-linux.deb. It is what makes the Toshiba TCx 2x20 USB pole display work at all: the pole is a HID device no udev tty rule can match, and vsd turns it into a virtual serial tty the lane's serial bridge publishes on port 9101. Installed with DKMS disabled and --force-depends, because only the GUI configurator needs GTK and the USB pole path needs no kernel module. A lane with no Toshiba pole runs vsd idle with no effect.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
 ];

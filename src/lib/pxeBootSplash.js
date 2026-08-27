@@ -8,7 +8,9 @@
 //
 // Consumed by PXEControllerGuide through the shared SetupStepDetail renderer.
 
-const PLYMOUTH_THEME = `# /usr/share/plymouth/themes/sureflow/sureflow.plymouth (inside the image)
+// Baked into every lane root by laneImageBuilder's fleet layer — exported so the
+// builder is the single installer rather than a hand-run documentation step.
+export const PLYMOUTH_THEME = `# /usr/share/plymouth/themes/sureflow/sureflow.plymouth (inside the image)
 # Two-step theme: the stock 'script' module draws our progress bar, so there is
 # no compiled plugin to maintain across Debian upgrades.
 [Plymouth Theme]
@@ -21,7 +23,7 @@ ImageDir=/usr/share/plymouth/themes/sureflow
 ScriptFile=/usr/share/plymouth/themes/sureflow/sureflow.script
 `;
 
-const PLYMOUTH_SCRIPT = `# /usr/share/plymouth/themes/sureflow/sureflow.script (inside the image)
+export const PLYMOUTH_SCRIPT = `# /usr/share/plymouth/themes/sureflow/sureflow.script (inside the image)
 # SureFlow Clean splash. 4690-style: the wave artwork fills the screen, the
 # wordmark sits bottom-right, and a cyclone spinner with a fixed status line
 # sits in the lower third. No progress bar — the spinner is the only motion,
@@ -175,8 +177,13 @@ const SPLASH_ASSET_FETCH = `#!/bin/bash
 #     does not scale logo.png or dot.png. A full-size dot.png renders as one
 #     screen-filling blue disc (eight of them stacked), which is what the lanes
 #     showed before these steps existed.
+#
+# Run this ONCE per controller. It stages the normalized assets where the lane
+# image builder looks for them (/srv/sureflow/splash, alongside the vendor drop at
+# /srv/sureflow/vendor), so every later build is deterministic and offline-safe
+# instead of re-fetching from the internet on each rebuild.
 set -eux
-DEST=/root/sureflow-splash
+DEST=/srv/sureflow/splash
 mkdir -p "$DEST"
 command -v convert >/dev/null || apt-get install -y imagemagick
 
@@ -219,7 +226,8 @@ export const BOOT_SPLASH_STEP = {
     "The splash is the 4690 pattern: the wave artwork fills the screen, the SureFlow POS wordmark sits bottom-right, and a cyclone spinner over the line 'Terminal is being initialized' sits in the lower third. There is deliberately no progress bar and no streaming unit names — the spinner is the single 'working, don't touch it' cue an operator needs.",
     "Because the status line is fixed, ESC is now the technician's readout: press it on a lane to drop to the live kernel messages without changing the image. Keep that in the tech's habits — it is the only way to see where a slow boot is actually stuck.",
     "Both boot entries pass 'quiet splash' so the text scroll stays behind the splash. On a failure Plymouth drops to the text console by itself, so diagnostics are never lost.",
-    "Plymouth needs the framebuffer early, which is why the legacy (SurePOS 700) entry keeps nomodeset and the fbdev driver — the splash renders at the console resolution rather than the panel's native mode there, which is expected. The theme scales the artwork to whatever mode came up, so it fills a 4:3 panel either way.",
+    "Plymouth needs a DRM device, so BOTH variants now run i915 KMS — nomodeset was REMOVED from the legacy profile. nomodeset stops KMS initialising, leaves no DRM device, and Plymouth then renders nothing but its flat fallback field (the 'grey splash') or drops straight to kernel text. The legacy entry pins the mode with video=1024x768 instead. The theme scales the artwork to whatever mode came up, so it fills a 4:3 panel either way.",
+    "The lane image builder installs this theme and the three assets automatically — stage the assets once with the fetch script below, then rebuild. The manual chroot commands here remain the fallback and the explanation of what the builder does.",
     "Three image assets live in the theme directory: background.png (the wave artwork, any resolution — it is scaled at runtime), logo.png (the wordmark) and dot.png (one small muted-blue disc, reused for all eight spinner dots). A missing background.png leaves the flat dark gradient rather than a black screen.",
     "The motherboard speaker (pcspkr) covers the pre-POS phase, the one window where the POS cannot make a sound. It is a beeper: single square-wave tones, no audio playback. sureflow-beep plays a long rising two-tone (800Hz then 1200Hz, ~0.7s each) when the lane reaches the POS and a falling tone when the kiosk fails, so a ready lane and a dead lane are both audible from the floor.",
     "In-app sounds stay in the browser — the PC speaker is only for 'is the hardware alive'. Keep the two separate so a muted terminal still reports boot failures.",
@@ -227,23 +235,22 @@ export const BOOT_SPLASH_STEP = {
     "Drop the theme, script and beep helper into the driver-library/build path rather than hand-editing a live image — the read-only NFS root means a lane cannot keep its own copy, and a rebuild would lose it.",
   ],
   commands: [
-    "# On the CONTROLLER — install Plymouth and the beeper into both images",
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V apt-get install -y --no-install-recommends plymouth plymouth-themes beep; done",
-    "# Install the SureFlow theme (files below) and select it",
-    "for V in legacy modern; do sudo install -d /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow; done",
-    "# Fetch the three approved SureFlow Clean assets onto the controller (see the asset block below)",
-    "sudo bash /root/sureflow-fetch-splash-assets.sh",
+    "# PREFERRED — stage the assets once, then let the builder bake the splash in",
+    "sudo bash /root/sureflow-fetch-splash-assets.sh   # writes /srv/sureflow/splash/{background,logo,dot}.png",
+    "ls -l /srv/sureflow/splash/                       # all three must be present, real PNGs",
+    "sudo sureflow-build-lane-image both               # summary reports 'Boot splash: SureFlow splash applied'",
+    "# --- FALLBACK: the manual per-image path (what the builder automates) ---",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V apt-get install -y --no-install-recommends plymouth plymouth-themes beep; done",
+    "for V in legacy modern; do sudo install -d /srv/sureflow/roots/sureflow-$V/usr/share/plymouth/themes/sureflow; done",
     "# Drop in the three image assets — without background.png the splash falls back to a flat gradient",
-    "for V in legacy modern; do sudo install -m 644 /root/sureflow-splash/{background.png,logo.png,dot.png} /srv/nfs/sureflow-$V/usr/share/plymouth/themes/sureflow/; done",
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V plymouth-set-default-theme -R sureflow; done",
+    "for V in legacy modern; do sudo install -m 644 /srv/sureflow/splash/{background.png,logo.png,dot.png} /srv/sureflow/roots/sureflow-$V/usr/share/plymouth/themes/sureflow/; done",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V plymouth-set-default-theme -R sureflow; done",
     "# The splash must be in the initramfs or the first seconds stay black",
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V update-initramfs -u -k all; done",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V update-initramfs -u -k all; done",
     "# Load the PC speaker module — minimal debootstrap roots often blacklist it",
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V /bin/bash -c 'echo pcspkr > /etc/modules-load.d/sureflow-pcspkr.conf; rm -f /etc/modprobe.d/*pcspkr*blacklist*'; done",
-    "sudo install -m 755 /dev/stdin /srv/nfs/sureflow-modern/usr/local/bin/sureflow-beep   # paste below, repeat for -legacy",
-    "for V in legacy modern; do sudo chroot /srv/nfs/sureflow-$V systemctl enable sureflow-beep-ok; done",
-    "# Republish kernel + initrd so the lanes boot the splash-enabled initramfs",
-    "sudo sureflow-build-image legacy && sudo sureflow-build-image modern",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V /bin/bash -c 'echo pcspkr > /etc/modules-load.d/sureflow-pcspkr.conf; rm -f /etc/modprobe.d/*pcspkr*blacklist*'; done",
+    "sudo install -m 755 /dev/stdin /srv/sureflow/roots/sureflow-modern/usr/local/bin/sureflow-beep   # paste below, repeat for -legacy",
+    "for V in legacy modern; do sudo chroot /srv/sureflow/roots/sureflow-$V systemctl enable sureflow-beep-ok; done",
   ],
   codeFiles: [
     { name: "fetch splash assets", code: SPLASH_ASSET_FETCH },
@@ -257,6 +264,7 @@ export const BOOT_SPLASH_STEP = {
     "Reboot a lane: expect the pxelinux handoff, then the SureFlow splash — wave artwork, wordmark bottom-right, spinner turning over 'Terminal is being initialized' — then the POS, and a long rising two-tone chime as it lands.",
     "Screen black instead of the splash? The initramfs was not rebuilt after the theme install, or the framebuffer came up late — run update-initramfs -u -k all in the chroot and confirm 'splash' is on the lane's cmdline (cat /proc/cmdline).",
     "Dark gradient but no artwork? background.png did not make it into the theme directory inside the image — the theme is working, the asset is missing.",
+    "Generic Debian spinner instead of the SureFlow splash? The build fell back because the staged assets were absent — read the 'Boot splash:' line on the build summary, run the fetch script to populate /srv/sureflow/splash, and rebuild.",
     "Spinner frozen while the boot clearly continues? The framebuffer is not taking refresh callbacks on that panel. Boot is unaffected, but the lane loses its 'alive' cue, so note the model and use the chime as the ready signal there.",
     "Spinner dots too large or too small for the panel? Resize dot.png and reinstall it — the script places the dots from the image's own dimensions, so nothing else has to change.",
     "Splash shows but no beep? Check the speaker exists: ls /dev/input/by-path | grep pcspkr on the lane. Nothing listed means the board has no beeper header — use the panel's own speaker or accept a silent boot.",
