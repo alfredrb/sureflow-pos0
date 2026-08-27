@@ -14,9 +14,11 @@
 // Where the image builder expects the vendor .deb on the controller.
 export const VSP_DEB_PATH = "/srv/sureflow/vendor/toshiba-vsp-linux.deb";
 
-// Best-guess vsd node name — CONFIRM on the first live lane (pole plugged in,
-// vsd running): ls -l /dev/ttyVSP* /dev/tgcs* ; journalctl -u vsd
-export const VSP_POLE_DEV = "/dev/ttyVSP0";
+// CONFIRMED on a live lane, and it is NOT a translating serial node: vsd creates
+// /dev/tgcsld0 as a PASSTHROUGH SYMLINK onto the raw HID device (hidraw0). It is
+// not a PTY, and writing IBM/ADX frames to it renders nothing — identical to
+// writing to /dev/hidraw0. Kept for reference only.
+export const VSP_POLE_DEV = "/dev/tgcsld0";
 
 // Hand-written VSDConfig.xml — the GUI VSDConfigTool needs GTK, which we skip.
 // Only the Line Display port is populated; everything else stays at installed
@@ -76,10 +78,12 @@ systemctl enable vsd || true
 `;
 
 export const VSP_INTEGRATION_NOTES = [
-  "The TCx 2x20 USB pole (0f66:4524) speaks the IBM/ADX (Logic Controls) command set — Reset 1F, Display Position 10 nn, DC1 11 — never ESC/POS. Every 1B-prefixed byte is a null command it silently ignores, which is why the earlier ESC/POS and raw-hidraw attempts drew nothing.",
+  "PROVEN ON A LIVE LANE: the VSP driver does NOT translate this pole's protocol. vsd starts, logs a single 'Started' line and nothing else, ignores the hand-written VSDConfig.xml, and creates only passthrough symlinks onto the raw device (/dev/tgcsld0 -> hidraw0). Writing IBM/ADX frames there is identical to writing to /dev/hidraw0 and renders nothing.",
+  "The toshiba_usb_2x20 relay profile is therefore RESERVED, and the Toshiba TCx 2x20 USB pole is unsupported until its real USB HID protocol is captured from a live unit (deferred — capture with usbmon against the vendor's own driver, not USBPcap).",
+  "vsd is deliberately KEPT in the lane images anyway: it is idle and harmless (~7 MB, matches nothing on a lane with no VSP peripheral), and an IBM pole arriving later may be a VSP-managed model, so keeping it avoids an image rebuild to get the driver back.",
+  "The TCx 2x20 USB pole (0f66:4524) speaks the IBM/ADX (Logic Controls) command set — Reset 1F, Display Position 10 nn, DC1 11 — never ESC/POS. That much is documented; what is missing is a transport that actually delivers those frames.",
   "Reset (1F) is the clear-and-home command. 0C (form feed) is not in this command set, which is why earlier clear attempts failed.",
   "The .deb installs with dpkg --force-depends: libgtk-3-0 is needed only by the GUI VSDConfigTool, which we replace with a hand-written VSDConfig.xml — sanctioned by Chapter 4 of the vendor guide.",
   "DKMS is disabled at install. The packaged modules (aipdcs3/4, aipeccd) target integrated Toshiba PCI peripherals absent on generic lanes; the USB pole needs no kernel module at all, so a skipped build is harmless by design.",
-  "vsd is baked into every lane image so one shared root serves the whole fleet. On a lane with no Toshiba pole it runs idle and its udev rules match nothing.",
-  "The exact /dev node vsd creates and the <LD_USB> port token are a best guess (ttyVSP0) until confirmed on the first live lane. The serial bridge's ExecStartPre links whatever node exists onto /dev/sureflow-pole, so only this one constant changes if the name differs.",
+  "vsd is baked into every lane image so one shared root serves the whole fleet. On a lane with no VSP peripheral it runs idle and its udev rules match nothing.",
 ];

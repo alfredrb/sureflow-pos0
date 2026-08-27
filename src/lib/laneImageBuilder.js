@@ -346,12 +346,11 @@ SFPLYSCRIPT
     warn "No splash assets at \$SPLASH_DIR — the lanes will boot the generic Debian spinner instead of the SureFlow splash. Run sureflow-fetch-splash-assets.sh on this controller, then rebuild."
   fi
 
-  # Toshiba VSP driver — the transport layer for the Toshiba TCx 2x20 USB pole
-  # display (0f66:4524). That pole is a HID device, so no udev tty rule can ever
-  # reach it; vsd claims it via libusb and presents a virtual serial tty which the
-  # serial bridge above then publishes on port 9101. Baked into EVERY image so one
-  # shared root serves the fleet — on a lane with no Toshiba pole vsd just runs
-  # idle (~5MB) and its rules match nothing.
+  # Toshiba VSP driver. NOTE: proven on a live lane NOT to translate the Toshiba TCx
+  # 2x20 USB pole (0f66:4524) — vsd only creates passthrough symlinks onto the raw
+  # HID device (/dev/tgcsld0 -> hidraw0), so that pole stays unsupported until its
+  # USB HID protocol is captured. It is kept in the image anyway: idle and harmless,
+  # and an IBM VSP-managed peripheral arriving later needs no image rebuild to use it.
   if [ -f "${VSP_DEB_PATH}" ]; then
     install -D -m 644 "${VSP_DEB_PATH}" "\$root/tmp/toshiba-vsp-linux.deb"
     cat >"\$root/tmp/VSDConfig.xml" <<'SFVSDXML'
@@ -372,12 +371,10 @@ systemctl enable vsd || true
 rm -f /tmp/toshiba-vsp-linux.deb /tmp/VSDConfig.xml
 VSPEOF
     if [ -x "\$root/opt/tgcs/vsp/bin/vsd" ]; then
-      log "  Toshiba VSP driver baked in (USB 2x20 pole display support)"
+      log "  Toshiba VSP driver baked in (idle — does NOT drive the TCx 2x20 USB pole)"
     else
-      warn "The Toshiba VSP driver did not install cleanly — lanes with a Toshiba TCx 2x20 USB pole will show nothing on the display."
+      log "  Toshiba VSP driver did not install cleanly — no effect on supported hardware"
     fi
-  else
-    warn "No Toshiba VSP driver at ${VSP_DEB_PATH} — lanes with a Toshiba TCx 2x20 USB pole display will show nothing. Drop the vendor .deb there and rebuild."
   fi
 
   # The lane agent. Lanes sit on the isolated PXE VLAN and cannot be reached inbound, so
@@ -430,7 +427,7 @@ apt-get install -y --no-install-recommends \\
   linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
   xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
   ca-certificates curl iproute2 iputils-ping sudo openssh-server \\
-  evtest kbd ser2net setserial socat \\
+  evtest kbd ser2net setserial socat netcat-openbsd \\
   plymouth plymouth-themes beep \$extra >/dev/null
 # Plymouth needs a theme SELECTED, not just installed. Without this the kernel's
 # 'splash' arg hands the screen to Plymouth, which has no theme to draw and shows a
@@ -453,6 +450,12 @@ systemctl enable ssh >/dev/null 2>&1 || true
 echo 'sureflow ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sureflow
 chmod 440 /etc/sudoers.d/sureflow
 echo 'ALL: kiosk' > /etc/sureflow-role
+# Without the local hostname in /etc/hosts, every sudo call stalls and prints
+# "unable to resolve host <name>: Temporary failure in name resolution" — the lanes
+# sit on an isolated VLAN with no DNS for their own name.
+printf '127.0.0.1\\tlocalhost\\n' > /etc/hosts
+H=\\\$(head -1 /etc/hostname 2>/dev/null)
+[ -n "\\\$H" ] && printf '127.0.1.1\\t%s %s\\n' "\\\$H" "\\\$H" >> /etc/hosts
 CHROOTEOF
   if [ \$? -ne 0 ]; then
     warn "The package install failed inside the \$variant root — the image is incomplete."
