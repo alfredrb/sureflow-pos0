@@ -105,6 +105,9 @@ export const KIOSK_SERVICE = `# \${ROOT}/etc/systemd/system/sureflow-kiosk.servi
 Description=SureFlow POS Kiosk
 After=network-online.target
 Wants=network-online.target
+# Audible failure alert on the PC speaker, so a lane that never reaches the POS is
+# obvious from the floor rather than only in the journal.
+OnFailure=sureflow-beep-fail.service
 
 [Service]
 User=sureflow

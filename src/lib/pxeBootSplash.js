@@ -97,7 +97,10 @@ fun set_status(text) {
 set_status("Terminal is being initialized");
 `;
 
-const BEEP_SCRIPT = `#!/bin/bash
+// Exported so the lane image builder BAKES these in. They were documentation only,
+// which is why images had the beep package and pcspkr module but no beep helper and
+// no unit to call it — an installed beeper that could never sound.
+export const BEEP_SCRIPT = `#!/bin/bash
 # /usr/local/bin/sureflow-beep (inside the image)
 # Motherboard speaker feedback for the pre-POS phase. The PC speaker is a
 # beeper, not a sound card: one square-wave tone at a time, no playback.
@@ -113,6 +116,34 @@ case "\${1:-ok}" in
   fail)      tone 320 260; tone 240 400 ;;    # falling: boot failed, see the console
   attention) tone 1000 120; tone 1000 120 ;;  # double blip: technician attention
 esac
+`;
+
+// The two units as SEPARATE installable files. The combined BEEP_UNITS blob below is
+// the documentation view only — it cannot be tee'd into place as one file.
+export const BEEP_OK_UNIT = `# /etc/systemd/system/sureflow-beep-ok.service
+# Sounds once the kiosk is up — the lane's audible "ready".
+[Unit]
+Description=SureFlow lane ready chime
+After=sureflow-kiosk.service
+Requires=sureflow-kiosk.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sureflow-beep ok
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+export const BEEP_FAIL_UNIT = `# /etc/systemd/system/sureflow-beep-fail.service
+# Sounds when the kiosk gives up, so a dead lane is audible from the floor.
+# Triggered by OnFailure= on sureflow-kiosk.service.
+[Unit]
+Description=SureFlow lane boot failure alert
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/sureflow-beep fail
 `;
 
 const BEEP_UNITS = `# \${ROOT}/etc/systemd/system/sureflow-beep-ok.service

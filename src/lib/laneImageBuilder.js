@@ -31,7 +31,13 @@ import {
   PRINTER_BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/lanePrinterBridge";
 import { VSD_CONFIG_XML, VSP_DEB_PATH } from "@/lib/toshibaVsp";
-import { PLYMOUTH_THEME, PLYMOUTH_SCRIPT } from "@/lib/pxeBootSplash";
+import {
+  PLYMOUTH_THEME,
+  PLYMOUTH_SCRIPT,
+  BEEP_SCRIPT,
+  BEEP_OK_UNIT,
+  BEEP_FAIL_UNIT,
+} from "@/lib/pxeBootSplash";
 
 export const LANE_ROOTS_DIR = "/srv/sureflow/roots";
 export const LANE_TFTP_DIR = "/srv/sureflow/tftp";
@@ -346,6 +352,22 @@ SFPLYSCRIPT
     warn "No splash assets at \$SPLASH_DIR — the lanes will boot the generic Debian spinner instead of the SureFlow splash. Run sureflow-fetch-splash-assets.sh on this controller, then rebuild."
   fi
 
+  # PC speaker feedback. The 'beep' package and the pcspkr module were already
+  # installed, but the helper and its units were never baked in — an installed
+  # beeper with nothing to sound it. Both units go in now: a rising two-tone when
+  # the kiosk comes up, a falling tone when it gives up (wired by OnFailure= on
+  # the kiosk unit), so a dead lane is audible from the floor.
+  cat >"\$root/usr/local/bin/sureflow-beep" <<'SFBEEP'
+${BEEP_SCRIPT}
+SFBEEP
+  chmod 755 "\$root/usr/local/bin/sureflow-beep"
+  cat >"\$root/etc/systemd/system/sureflow-beep-ok.service" <<'SFBEEPOK'
+${BEEP_OK_UNIT}
+SFBEEPOK
+  cat >"\$root/etc/systemd/system/sureflow-beep-fail.service" <<'SFBEEPFAIL'
+${BEEP_FAIL_UNIT}
+SFBEEPFAIL
+
   # Toshiba VSP driver. NOTE: proven on a live lane NOT to translate the Toshiba TCx
   # 2x20 USB pole (0f66:4524) — vsd only creates passthrough symlinks onto the raw
   # HID device (/dev/tgcsld0 -> hidraw0), so that pole stays unsupported until its
@@ -388,7 +410,7 @@ VSPEOF
     warn "Lane agent not found at \$AGENT_SRC — this image's lanes will show as 'never seen' and cannot be rebooted remotely. Re-run ./install from the controller tarball, then rebuild."
   fi
 
-  chroot "\$root" systemctl enable sureflow-kiosk sureflow-serial-bridge sureflow-printer-bridge >/dev/null 2>&1 || true
+  chroot "\$root" systemctl enable sureflow-kiosk sureflow-serial-bridge sureflow-printer-bridge sureflow-beep-ok >/dev/null 2>&1 || true
 }
 
 # ---------------------------------------------------------------------------
