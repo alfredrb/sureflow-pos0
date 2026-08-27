@@ -52,6 +52,7 @@ export const adminNavGroups = [
       { label: "Loss Prevention", path: "/admin/loss-prevention", icon: ShieldAlert },
       { label: "System Alerts", path: "/admin-system-alerts", icon: Siren },
       { label: "Announcements", path: "/admin-announcements", icon: Megaphone },
+      { label: "PCI Compliance", path: "/admin/pci-compliance", icon: ShieldCheck },
     ],
   },
   {

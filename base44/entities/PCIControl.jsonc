@@ -1,0 +1,80 @@
+{
+  "name": "PCIControl",
+  "type": "object",
+  "properties": {
+    "store_id": {
+      "type": "string",
+      "description": "Store number this control attestation belongs to. Blank = a chain-wide control owned by HQ, which is how most of the 12 requirements are actually held."
+    },
+    "requirement": {
+      "type": "number",
+      "description": "PCI DSS requirement number this control sits under (1 through 12). Drives the grouping on the dashboard."
+    },
+    "control_id": {
+      "type": "string",
+      "description": "Short stable identifier for the control (e.g. 'REQ-3', 'REQ-10'). Used to match a seeded control so re-seeding never duplicates it."
+    },
+    "title": {
+      "type": "string",
+      "description": "The requirement's plain-language title as it appears on the dashboard."
+    },
+    "description": {
+      "type": "string",
+      "description": "What this control actually means for THIS system \u2014 written for the person attesting, not copied from the standard."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "compliant",
+        "in_progress",
+        "not_compliant",
+        "not_applicable"
+      ],
+      "default": "in_progress",
+      "description": "Attested state of the control. not_applicable is legitimate and must be justified in evidence_notes \u2014 an unexplained N/A is what fails an assessment."
+    },
+    "owner_name": {
+      "type": "string",
+      "description": "Named person accountable for this control. An unowned control is the most common audit finding, so the dashboard flags blanks."
+    },
+    "last_reviewed": {
+      "type": "string",
+      "format": "date",
+      "description": "When this control was last reviewed and evidenced. PCI DSS expects at least annually, so the dashboard treats anything older than 12 months as stale."
+    },
+    "evidence_notes": {
+      "type": "string",
+      "description": "Where the evidence lives and what it shows \u2014 the note an assessor reads alongside the status."
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "Admin who last saved this attestation."
+    }
+  },
+  "required": [
+    "requirement",
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

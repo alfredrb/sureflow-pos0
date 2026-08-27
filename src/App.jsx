@@ -74,6 +74,7 @@ import AdminCustomerService from '@/pages/AdminCustomerService';
 import AdminControllerUpdates from '@/pages/AdminControllerUpdates';
 import AdminFacilityManagement from '@/pages/AdminFacilityManagement';
 import AdminCustomerDisplay from '@/pages/AdminCustomerDisplay';
+import AdminPCICompliance from '@/pages/AdminPCICompliance';
 import CustomerDisplay from '@/pages/CustomerDisplay';
 
 const AuthenticatedApp = () => {
@@ -166,6 +167,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/controller-updates" element={<AdminControllerUpdates />} />
           <Route path="/admin/facility" element={<AdminFacilityManagement />} />
           <Route path="/admin/customer-display" element={<AdminCustomerDisplay />} />
+          <Route path="/admin/pci-compliance" element={<AdminPCICompliance />} />
         </Route>
       </Route>
 
