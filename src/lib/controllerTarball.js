@@ -9,6 +9,7 @@
 import { CONTROLLER_INSTALL_SCRIPT, buildStoreInstallSheet } from "@/lib/controllerInstaller";
 import { CONTROLLER_MENU_SCRIPT, CONTROLLER_MENU_PROFILE } from "@/lib/controllerMenu";
 import { LANE_IMAGE_BUILD_SCRIPT } from "@/lib/laneImageBuilder";
+import { SPLASH_ASSET_FETCH } from "@/lib/pxeBootSplash";
 import {
   LANE_REBOOT_AGENT_CODE,
   LANE_REBOOT_AGENT_UNIT,
@@ -54,6 +55,19 @@ install -m 755 "$HERE/sureflow-controller-install" /usr/local/sbin/sureflow-cont
 install -m 755 "$HERE/sureflow-menu"              /usr/local/bin/sureflow-menu
 install -m 644 "$HERE/sureflow-menu.sh"           /etc/profile.d/sureflow-menu.sh
 install -m 755 "$HERE/sureflow-build-lane-image"  /usr/local/sbin/sureflow-build-lane-image
+install -m 755 "$HERE/sureflow-fetch-splash-assets" /usr/local/sbin/sureflow-fetch-splash-assets
+
+# Stage the boot splash assets NOW, before any image is built. The lane image builder
+# only selects the branded theme when all three PNGs are present at /srv/sureflow/splash,
+# so a box that never ran this produced spinner-fallback images every time. Best effort:
+# it needs the backend VLAN's internet route, and a failure must not stop the install.
+if /usr/local/sbin/sureflow-fetch-splash-assets >/tmp/sureflow-splash.log 2>&1; then
+  echo "Boot splash assets staged in /srv/sureflow/splash."
+else
+  echo "WARNING: could not fetch the boot splash assets (see /tmp/sureflow-splash.log)."
+  echo "         Lane images will boot the generic spinner. Re-run once this box has an"
+  echo "         internet route:  sudo sureflow-fetch-splash-assets"
+fi
 
 # The lane agent is NOT for this box — it is staged here so the same tarball can build a
 # lane root without a second download. See lane-agent/README-lane-agent.txt.
@@ -121,6 +135,8 @@ CONTENTS
   sureflow-menu                  the console menu (installs to /usr/local/bin)
   sureflow-menu.sh               login hook (installs to /etc/profile.d)
   sureflow-build-lane-image      the lane image builder (installs to /usr/local/sbin)
+  sureflow-fetch-splash-assets   stages the boot splash PNGs (installs to /usr/local/sbin,
+                                 and ./install runs it once so the first image is branded)
   lane-agent/                    for the diskless lane root, NOT this box — see its README
 ${store ? "  controller.conf                pre-seeded answers for this store\n" : ""}
 ${
@@ -182,6 +198,7 @@ export async function buildControllerTarball(store) {
     { name: `${dir}/sureflow-menu`, body: CONTROLLER_MENU_SCRIPT, mode: 0o755 },
     { name: `${dir}/sureflow-menu.sh`, body: CONTROLLER_MENU_PROFILE },
     { name: `${dir}/sureflow-build-lane-image`, body: LANE_IMAGE_BUILD_SCRIPT, mode: 0o755 },
+    { name: `${dir}/sureflow-fetch-splash-assets`, body: SPLASH_ASSET_FETCH, mode: 0o755 },
     { name: `${dir}/lane-agent/sureflow-lane-agent`, body: LANE_REBOOT_AGENT_CODE, mode: 0o755 },
     { name: `${dir}/lane-agent/sureflow-lane-agent.service`, body: LANE_REBOOT_AGENT_UNIT },
     { name: `${dir}/lane-agent/README-lane-agent.txt`, body: LANE_AGENT_README },

@@ -164,8 +164,11 @@ MENU COLOR SEL     7;37;40 #ff000000 #ffdddddd
 // alpha channel: both sit on empty flat background in the lower area of the artwork,
 // so the opaque field is invisible in place, and it avoids the legacy fbdev path
 // having to composite alpha on every spinner frame.
-const SPLASH_ASSET_FETCH = `#!/bin/bash
-# /root/sureflow-fetch-splash-assets.sh — run on the PXE CONTROLLER.
+// Exported so the controller tarball INSTALLS it rather than only documenting it.
+// It was previously a doc-only snippet, which is why a real controller had no
+// /root/sureflow-fetch-splash-assets.sh and every build fell back to the spinner.
+export const SPLASH_ASSET_FETCH = `#!/bin/bash
+# /usr/local/sbin/sureflow-fetch-splash-assets — run on the PXE CONTROLLER.
 #
 # Two things this script MUST do beyond downloading, both learned the hard way:
 #
@@ -227,6 +230,7 @@ export const BOOT_SPLASH_STEP = {
     "Because the status line is fixed, ESC is now the technician's readout: press it on a lane to drop to the live kernel messages without changing the image. Keep that in the tech's habits — it is the only way to see where a slow boot is actually stuck.",
     "Both boot entries pass 'quiet splash' so the text scroll stays behind the splash. On a failure Plymouth drops to the text console by itself, so diagnostics are never lost.",
     "Plymouth needs a DRM device, so BOTH variants now run i915 KMS — nomodeset was REMOVED from the legacy profile. nomodeset stops KMS initialising, leaves no DRM device, and Plymouth then renders nothing but its flat fallback field (the 'grey splash') or drops straight to kernel text. The legacy entry pins the mode with video=1024x768 instead. The theme scales the artwork to whatever mode came up, so it fills a 4:3 panel either way.",
+    "The controller tarball now INSTALLS the fetch script as /usr/local/sbin/sureflow-fetch-splash-assets and runs it once during ./install, so a freshly installed box has the assets before its first image build. It was previously documentation only, which is why real controllers had no such file and every build fell back to the spinner.",
     "The lane image builder installs this theme and the three assets automatically — stage the assets once with the fetch script below, then rebuild. The manual chroot commands here remain the fallback and the explanation of what the builder does.",
     "Three image assets live in the theme directory: background.png (the wave artwork, any resolution — it is scaled at runtime), logo.png (the wordmark) and dot.png (one small muted-blue disc, reused for all eight spinner dots). A missing background.png leaves the flat dark gradient rather than a black screen.",
     "The motherboard speaker (pcspkr) covers the pre-POS phase, the one window where the POS cannot make a sound. It is a beeper: single square-wave tones, no audio playback. sureflow-beep plays a long rising two-tone (800Hz then 1200Hz, ~0.7s each) when the lane reaches the POS and a falling tone when the kiosk fails, so a ready lane and a dead lane are both audible from the floor.",
@@ -236,7 +240,7 @@ export const BOOT_SPLASH_STEP = {
   ],
   commands: [
     "# PREFERRED — stage the assets once, then let the builder bake the splash in",
-    "sudo bash /root/sureflow-fetch-splash-assets.sh   # writes /srv/sureflow/splash/{background,logo,dot}.png",
+    "sudo sureflow-fetch-splash-assets                 # writes /srv/sureflow/splash/{background,logo,dot}.png",
     "ls -l /srv/sureflow/splash/                       # all three must be present, real PNGs",
     "sudo sureflow-build-lane-image both               # summary reports 'Boot splash: SureFlow splash applied'",
     "# --- FALLBACK: the manual per-image path (what the builder automates) ---",
