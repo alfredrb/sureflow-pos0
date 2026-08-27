@@ -145,6 +145,11 @@
       "default": 0,
       "description": "Rewards credit redeemed (applied as tender) on this sale"
     },
+    "rewards_confirmed_on_pinpad": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the customer themselves approved the rewards redemption on the lane's customer-facing pinpad before it was applied. False means the redemption was cashier-initiated only \u2014 either the lane has no pinpad, or the pad was unreachable and the operator confirmed on screen. Kept because a redemption the customer personally approved answers a 'my rewards were spent without me' dispute outright, which a cashier-only redemption cannot."
+    },
     "customer_id": {
       "type": "string",
       "description": "Customer ID recorded for no-receipt returns and manager override returns."

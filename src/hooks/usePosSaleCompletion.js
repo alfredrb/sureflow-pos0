@@ -13,6 +13,7 @@ export default function usePosSaleCompletion({
   storeConfig, trainingMode, isOffline, offlineTenders, refreshConnectivity,
   taxExemptAppliedId, setTaxExemptAppliedId, taxExemptProfile,
   loyaltyMember, setLoyaltyMember, loyaltyAppliedAmount, setLoyaltyAppliedAmount,
+  rewardsConfirmedOnPinpad = false, setRewardsConfirmedOnPinpad,
   setPaymentOpen, setReceiptData, setLastReceipt,
   poleContext, pinpadContext, writeLog, toast, loadData,
 }) {
@@ -30,6 +31,7 @@ export default function usePosSaleCompletion({
     setCart([]); setPaymentOpen(false); setAmountTendered("");
     setTenders([]); setGiftCardMode(false);
     setTaxExemptAppliedId(""); setLoyaltyMember(null); setLoyaltyAppliedAmount(0);
+    setRewardsConfirmedOnPinpad?.(false);
   };
 
   const completeSale = async () => {
@@ -100,7 +102,7 @@ export default function usePosSaleCompletion({
         cart, products, subtotal, tax, total,
         paymentMethod: method, amountTendered: tendered, changeDue, tenders,
         trainingMode, taxExemptId: taxExemptAppliedId,
-        loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
+        loyaltyMember, loyaltyAppliedAmount, rewardsEarned, rewardsConfirmedOnPinpad,
       });
       toast({ title: "Sale Complete", description: `Transaction ${txId} — Change: $${changeDue.toFixed(2)}` });
       writeLog("transaction", `Sale completed — ${cart.length} item(s)`, {
@@ -188,7 +190,7 @@ export default function usePosSaleCompletion({
         storeId: sessionStorage.getItem("pos_store_id") || "",
         cart, products, subtotal, tax, total,
         trainingMode, taxExemptId: taxExemptAppliedId,
-        loyaltyMember, loyaltyAppliedAmount, rewardsEarned,
+        loyaltyMember, loyaltyAppliedAmount, rewardsEarned, rewardsConfirmedOnPinpad,
       });
       toast({ title: "Sale Complete", description: `Transaction ${txId} — Paid with gift card` });
       writeLog("transaction", `Sale completed — ${cart.length} item(s)`, { transaction_id: txId, transaction_total: total, items: cart });

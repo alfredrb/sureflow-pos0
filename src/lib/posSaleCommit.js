@@ -60,6 +60,7 @@ export async function commitSaleTransaction({
   subtotal, tax, total, paymentMethod, amountTendered, changeDue, tenders = [],
   trainingMode = false, taxExemptId = "", loyaltyMember = null,
   loyaltyAppliedAmount = 0, rewardsEarned = 0, giftCardNumber = null,
+  rewardsConfirmedOnPinpad = false,
 }) {
   await base44.entities.Transaction.create({
     transaction_id: txId,
@@ -95,6 +96,8 @@ export async function commitSaleTransaction({
     loyalty_member_name: loyaltyMember?.name || null,
     rewards_earned: rewardsEarned,
     rewards_applied: loyaltyAppliedAmount,
+    // Only true when the customer themselves approved the redemption on the pad.
+    rewards_confirmed_on_pinpad: loyaltyAppliedAmount > 0 && rewardsConfirmedOnPinpad,
   });
   await decrementStock(cart, products);
   try { await recordSerializedSales({ items: cart, transactionId: txId, operator, storeId }); } catch {}

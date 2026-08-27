@@ -63,6 +63,21 @@
       "type": "string",
       "description": "Register ID where the member was enrolled"
     },
+    "consent_on_pinpad": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when THIS CUSTOMER agreed to the loyalty terms themselves on the lane's customer-facing pinpad, rather than the cashier ticking a box on their behalf. That distinction is the whole point of the field: it is a customer-attested consent, so a marketing-contact dispute can be answered with the customer's own action at the pad. False on a lane with no pinpad, where enrolment stays cashier-entered."
+    },
+    "consent_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the customer confirmed the loyalty terms on the pinpad. Blank when no pad consent was captured."
+    },
+    "phone_from_pinpad": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the phone number was keyed by the customer on the pinpad and confirmed by them, rather than read aloud and typed by the cashier. A pad-keyed number is materially more trustworthy for later lookups, so it is worth knowing which it was."
+    },
     "notes": {
       "type": "string"
     }

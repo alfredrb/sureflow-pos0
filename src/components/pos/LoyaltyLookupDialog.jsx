@@ -1,36 +1,51 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/data";
-import { Award } from "lucide-react";
+import { Award, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { keyPhoneOnPinpad, canKeyPhoneOnPinpad, formatPhone } from "@/lib/loyaltyPinpad";
 
-export default function LoyaltyLookupDialog({ open, onClose, onApply, onLink, canApply = false, toast }) {
+export default function LoyaltyLookupDialog({ open, onClose, onApply, onLink, canApply = false, pinpadContext, toast }) {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [padBusy, setPadBusy] = useState(false);
+  const padAvailable = canKeyPhoneOnPinpad(pinpadContext);
 
-  useEffect(() => {
-    if (open) { setQuery(""); setResult(null); }
-  }, [open]);
-
-  const lookup = async () => {
-    const q = query.trim();
-    if (!q) { toast?.({ title: "Enter a Loyalty ID", variant: "destructive" }); return; }
+  // Lookup takes its value as an argument so the pinpad path and the typed path
+  // share one search — the pad simply supplies the digits.
+  const runLookup = useCallback(async (value) => {
+    const q = String(value || "").trim();
+    if (!q) { toast?.({ title: "Enter a Loyalty ID or phone", variant: "destructive" }); return; }
     setLoading(true);
     try {
       let members = await base44.entities.LoyaltyMember.filter({ loyalty_id: q });
       if (members.length === 0) members = await base44.entities.LoyaltyMember.filter({ phone: q });
-      if (members.length === 0) {
-        setResult({ found: false });
-      } else {
-        setResult({ found: true, member: members[0] });
-      }
+      setResult(members.length === 0 ? { found: false } : { found: true, member: members[0] });
     } catch (e) {
       toast?.({ title: "Lookup failed", variant: "destructive" });
     }
     setLoading(false);
-  };
+  }, [toast]);
+
+  // The customer keys their own phone on the pad and confirms it, then the normal
+  // lookup runs. A lane with no pad never reaches here and just uses the field.
+  const askOnPinpad = useCallback(async () => {
+    setPadBusy(true);
+    const phone = await keyPhoneOnPinpad(pinpadContext);
+    setPadBusy(false);
+    if (!phone) return;
+    setQuery(phone);
+    runLookup(phone);
+  }, [pinpadContext, runLookup]);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery(""); setResult(null);
+    if (padAvailable) askOnPinpad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -40,19 +55,32 @@ export default function LoyaltyLookupDialog({ open, onClose, onApply, onLink, ca
         </DialogHeader>
         {!result ? (
           <>
-            <p className="text-blue-300/60 text-xs">Scan or enter a Loyalty ID or phone number</p>
+            {padBusy ? (
+              <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-4 text-center space-y-2">
+                <CreditCard className="w-6 h-6 text-sky-400 mx-auto animate-pulse" />
+                <p className="text-sky-300 text-sm font-bold">Customer is keying their phone</p>
+                <p className="text-blue-300/60 text-xs">Ask the customer to look at the pinpad.</p>
+              </div>
+            ) : (
+              <p className="text-blue-300/60 text-xs">Scan or enter a Loyalty ID or phone number</p>
+            )}
             <Input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && lookup()}
+              onKeyDown={e => e.key === "Enter" && runLookup(query)}
               autoFocus
               data-softkeyboard
               placeholder="LY-XXXXXXXX"
               className="bg-[#0a0e27] border-sky-500/20 text-white placeholder:text-blue-300/20"
             />
-            <Button onClick={lookup} disabled={loading || !query.trim()} className="w-full bg-sky-600 hover:bg-sky-500 text-white">
+            <Button onClick={() => runLookup(query)} disabled={loading || padBusy || !query.trim()} className="w-full bg-sky-600 hover:bg-sky-500 text-white">
               {loading ? "Searching..." : "Lookup"}
             </Button>
+            {padAvailable && (
+              <Button onClick={askOnPinpad} disabled={padBusy || loading} variant="outline" className="w-full border-sky-500/20 text-sky-300 hover:bg-sky-500/10">
+                <CreditCard className="w-4 h-4 mr-1" /> {padBusy ? "Waiting on pinpad..." : "Ask on Pinpad"}
+              </Button>
+            )}
           </>
         ) : result.found ? (
           <>
@@ -66,7 +94,7 @@ export default function LoyaltyLookupDialog({ open, onClose, onApply, onLink, ca
                 <p className="font-medium">{result.member.name}</p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><p className="text-blue-300/50">Phone</p><p>{result.member.phone || "—"}</p></div>
+                <div><p className="text-blue-300/50">Phone</p><p>{formatPhone(result.member.phone) || "—"}</p></div>
                 <div><p className="text-blue-300/50">Email</p><p className="truncate">{result.member.email || "—"}</p></div>
               </div>
               <div>

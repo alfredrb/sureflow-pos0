@@ -18,6 +18,7 @@ import POSSalePanel from "@/components/POSSalePanel";
 import POSItemList from "@/components/POSItemList";
 import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
 import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
+import { confirmRedemptionOnPinpad } from "@/lib/loyaltyPinpad";
 import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
@@ -152,6 +153,8 @@ export default function POSRegister() {
   const [taxExemptProfile, setTaxExemptProfile] = useState(null);
   const [loyaltyMember, setLoyaltyMember] = useState(null);
   const [loyaltyAppliedAmount, setLoyaltyAppliedAmount] = useState(0);
+  // True when the CUSTOMER approved this redemption on the pinpad, not just the cashier.
+  const [rewardsConfirmedOnPinpad, setRewardsConfirmedOnPinpad] = useState(false);
   const [loyaltyLookupOpen, setLoyaltyLookupOpen] = useState(false);
   const [loyaltySignupOpen, setLoyaltySignupOpen] = useState(false);
   const [idVerify, setIdVerify] = useState(null); // { product, age } — pending age verification
@@ -466,6 +469,7 @@ export default function POSRegister() {
     taxExemptAppliedId, setTaxExemptAppliedId, taxExemptProfile,
     loyaltyMember, setLoyaltyMember, loyaltyAppliedAmount, setLoyaltyAppliedAmount,
     setPaymentOpen, setReceiptData, setLastReceipt,
+    rewardsConfirmedOnPinpad, setRewardsConfirmedOnPinpad,
     poleContext, pinpadContext, writeLog, toast, loadData,
   });
 
@@ -711,10 +715,24 @@ export default function POSRegister() {
     setTaxExemptDialog(false);
   };
 
-  const applyLoyalty = (member, applyRewards) => {
-    const amt = applyRewards ? Math.min(member.rewards_balance || 0, total) : 0;
+  const applyLoyalty = async (member, applyRewards) => {
+    let amt = applyRewards ? Math.min(member.rewards_balance || 0, total) : 0;
+    // The customer approves their own redemption on the pad before it is applied.
+    // A lane with no pad, or a pad that cannot answer, falls through as approved so
+    // the cashier's confirmation stands and redemption is never blocked.
+    let confirmed = false;
+    if (amt > 0) {
+      const out = await confirmRedemptionOnPinpad(pinpadContext, amt);
+      if (out.asked && !out.approved) {
+        amt = 0;
+        toast({ title: "Rewards Declined", description: "The customer declined the redemption on the pinpad — loyalty linked without rewards." });
+      } else {
+        confirmed = out.asked;
+      }
+    }
     setLoyaltyMember(member);
     setLoyaltyAppliedAmount(amt);
+    setRewardsConfirmedOnPinpad(confirmed);
     writeLog("override", `Loyalty linked — ${member.name} (${member.loyalty_id})${amt > 0 ? ` · -$${amt.toFixed(2)} rewards` : ""}`);
     toast({ title: amt > 0 ? "Rewards Applied" : "Loyalty Member Linked", description: `${member.name} — ${member.loyalty_id}${amt > 0 ? ` (-$${amt.toFixed(2)})` : ""}` });
   };
@@ -1150,6 +1168,7 @@ export default function POSRegister() {
         open={loyaltyLookupOpen}
         onClose={() => setLoyaltyLookupOpen(false)}
         canApply={true}
+        pinpadContext={pinpadContext}
         onApply={(member) => applyLoyalty(member, true)}
         onLink={(member) => applyLoyalty(member, false)}
         toast={toast}
@@ -1158,6 +1177,7 @@ export default function POSRegister() {
         open={loyaltySignupOpen}
         onClose={() => setLoyaltySignupOpen(false)}
         operator={operator}
+        pinpadContext={pinpadContext}
         onCreated={(member) => { setLoyaltyMember(member); setLoyaltyAppliedAmount(0); }}
         toast={toast}
       />
