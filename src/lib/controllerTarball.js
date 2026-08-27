@@ -10,6 +10,7 @@ import { CONTROLLER_INSTALL_SCRIPT, buildStoreInstallSheet } from "@/lib/control
 import { CONTROLLER_MENU_SCRIPT, CONTROLLER_MENU_PROFILE } from "@/lib/controllerMenu";
 import { LANE_IMAGE_BUILD_SCRIPT } from "@/lib/laneImageBuilder";
 import { SPLASH_ASSET_FETCH } from "@/lib/pxeBootSplash";
+import { LANE_EGRESS_SCRIPT, LANE_EGRESS_UNIT } from "@/lib/laneEgress";
 import {
   LANE_REBOOT_AGENT_CODE,
   LANE_REBOOT_AGENT_UNIT,
@@ -56,6 +57,8 @@ install -m 755 "$HERE/sureflow-menu"              /usr/local/bin/sureflow-menu
 install -m 644 "$HERE/sureflow-menu.sh"           /etc/profile.d/sureflow-menu.sh
 install -m 755 "$HERE/sureflow-build-lane-image"  /usr/local/sbin/sureflow-build-lane-image
 install -m 755 "$HERE/sureflow-fetch-splash-assets" /usr/local/sbin/sureflow-fetch-splash-assets
+install -m 755 "$HERE/sureflow-lane-egress"       /usr/local/sbin/sureflow-lane-egress
+install -m 644 "$HERE/sureflow-lane-egress.service" /etc/systemd/system/sureflow-lane-egress.service
 
 # Stage the boot splash assets NOW, before any image is built. The lane image builder
 # only selects the branded theme when all three PNGs are present at /srv/sureflow/splash,
@@ -86,7 +89,22 @@ fi
 
 echo
 echo "Installed. Starting the wizard..."
-exec /usr/local/sbin/sureflow-controller-install
+/usr/local/sbin/sureflow-controller-install
+
+# Scoped egress for the lane VLAN. This runs AFTER the wizard on purpose: it reads the
+# store's addresses out of /etc/sureflow/controller.conf, which the wizard is what writes.
+# Without it a lane boots correctly and then shows a white screen, because the isolated
+# boot VLAN cannot reach the cloud POS at all.
+if [ -f /etc/sureflow/controller.conf ]; then
+  systemctl enable sureflow-lane-egress >/dev/null 2>&1 || true
+  if /usr/local/sbin/sureflow-lane-egress >/tmp/sureflow-egress.log 2>&1; then
+    echo "Lane VLAN egress applied — lanes can reach the cloud POS and this store's relay."
+  else
+    echo "WARNING: could not apply the lane VLAN egress (see /tmp/sureflow-egress.log)."
+    echo "         Lanes will load a WHITE SCREEN until this succeeds. Re-run:"
+    echo "           sudo sureflow-lane-egress"
+  fi
+fi
 `;
 
 const LANE_AGENT_README = `SureFlow lane agent — staged, not installed on this box
@@ -137,6 +155,12 @@ CONTENTS
   sureflow-build-lane-image      the lane image builder (installs to /usr/local/sbin)
   sureflow-fetch-splash-assets   stages the boot splash PNGs (installs to /usr/local/sbin,
                                  and ./install runs it once so the first image is branded)
+  sureflow-lane-egress           scoped egress for the lane VLAN (installs to /usr/local/sbin,
+                                 and ./install runs it after the wizard). Opens VLAN 40 to
+                                 the cloud POS and this store's relay ONLY — every other
+                                 backend host stays unreachable from a lane. Without it a
+                                 lane boots fine and then shows a white screen.
+  sureflow-lane-egress.service   re-applies those rules on every boot
   lane-agent/                    for the diskless lane root, NOT this box — see its README
 ${store ? "  controller.conf                pre-seeded answers for this store\n" : ""}
 ${
@@ -199,6 +223,8 @@ export async function buildControllerTarball(store) {
     { name: `${dir}/sureflow-menu.sh`, body: CONTROLLER_MENU_PROFILE },
     { name: `${dir}/sureflow-build-lane-image`, body: LANE_IMAGE_BUILD_SCRIPT, mode: 0o755 },
     { name: `${dir}/sureflow-fetch-splash-assets`, body: SPLASH_ASSET_FETCH, mode: 0o755 },
+    { name: `${dir}/sureflow-lane-egress`, body: LANE_EGRESS_SCRIPT, mode: 0o755 },
+    { name: `${dir}/sureflow-lane-egress.service`, body: LANE_EGRESS_UNIT },
     { name: `${dir}/lane-agent/sureflow-lane-agent`, body: LANE_REBOOT_AGENT_CODE, mode: 0o755 },
     { name: `${dir}/lane-agent/sureflow-lane-agent.service`, body: LANE_REBOOT_AGENT_UNIT },
     { name: `${dir}/lane-agent/README-lane-agent.txt`, body: LANE_AGENT_README },

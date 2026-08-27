@@ -258,6 +258,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="04b3", ENV{SUREFLOW_TOUCH}="1"
 `;
 
 import { BOOT_SPLASH_STEP } from "@/lib/pxeBootSplash";
+import { LANE_EGRESS_STEP } from "@/lib/laneEgress";
 import {
   BRIDGE_PORTS,
   BRIDGE_UDEV_RULES,
@@ -362,6 +363,7 @@ export const PXE_CONTROLLER_STEPS = [
     ],
     codeFiles: [{ name: "sureflow-pxe.conf", code: DNSMASQ_CONF }],
   },
+  LANE_EGRESS_STEP,
   {
     step_id: "pxe_build_images",
     label: "Build the diskless Debian images (legacy + modern)",
