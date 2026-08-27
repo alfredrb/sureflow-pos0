@@ -318,6 +318,14 @@ SFFSTAB
   install -d -m 755 "\$root/etc/X11"
   printf 'allowed_users=anybody\\nneeds_root_rights=yes\\n' > "\$root/etc/X11/Xwrapper.config"
 
+  # DNS. debootstrap copies the BUILD HOST's /etc/resolv.conf into the root, so every lane
+  # shipped with the controller's own backend-VLAN resolvers baked in — addresses a lane on
+  # the isolated VLAN 40 cannot reach at all. Every lookup then failed and the kiosk showed
+  # "This site can't be reached" even with egress working perfectly. The root is read-only,
+  # so the DHCP dns-server offer cannot rewrite this file either; it must be baked. The
+  # controller is the lane's gateway AND its scoped resolver, so that is the only entry.
+  printf 'nameserver %s\\n' "\${PXE_VIP:-\${PXE_IP:-10.0.40.10}}" > "\$root/etc/resolv.conf"
+
   # Serial bridge — publishes a USB pinpad / pole display as TCP on the lane's own IP so
   # the relay's existing socket write reaches a peripheral that has no LAN address.
   cat >"\$root/etc/udev/rules.d/60-sureflow-serial.rules" <<'SFSERIALRULES'
