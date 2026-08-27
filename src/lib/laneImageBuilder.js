@@ -290,6 +290,28 @@ SFBOOTENV
 ${KIOSK_SERVICE}
 SFKIOSKUNIT
 
+  # WRITABLE PATHS. This is the fix for "lane stops at the Linux login prompt": the
+  # NFS root is exported READ-ONLY and nothing was mounted writable over it, so
+  # startx could not create ~/.Xauthority, called Xorg with an EMPTY -auth argument,
+  # and Xorg answered with its usage text and exited — a crash loop that looks like
+  # X never trying. The same read-only root broke systemd-logind (no /var/lib state
+  # dir), the journal, utmp and /tmp/.X11-unix.
+  #
+  # A diskless lane keeps no state by design, so every writable path is a tmpfs and
+  # is deliberately discarded at power-off. /home/sureflow is mode 0777 rather than
+  # uid-owned so it does not depend on the sureflow account landing on uid 1000.
+  cat >"\$root/etc/fstab" <<'SFFSTAB'
+# /etc/fstab — diskless lane. The root arrives read-only over NFS from the
+# controller; these tmpfs mounts are the only writable storage on the lane and are
+# intentionally lost on reboot.
+tmpfs  /tmp               tmpfs  rw,nosuid,nodev,mode=1777,size=512M  0 0
+tmpfs  /var/tmp           tmpfs  rw,nosuid,nodev,mode=1777,size=64M   0 0
+tmpfs  /var/log           tmpfs  rw,nosuid,nodev,mode=0755,size=64M   0 0
+tmpfs  /var/lib/systemd   tmpfs  rw,nosuid,nodev,mode=0755,size=16M   0 0
+# Xorg's auth file and Chromium's whole profile live here — X cannot start without it.
+tmpfs  /home/sureflow     tmpfs  rw,nosuid,nodev,mode=0777,size=512M  0 0
+SFFSTAB
+
   # Xorg runs as the unprivileged 'sureflow' user through startx. Without BOTH the
   # setuid wrapper (xserver-xorg-legacy, in the package set) and this config, X can
   # never take vt7 and the lane crash-loops to a text login.
@@ -449,7 +471,7 @@ apt-get install -y --no-install-recommends \\
   linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
   xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
   ca-certificates curl iproute2 iputils-ping sudo openssh-server \\
-  evtest kbd ser2net setserial socat netcat-openbsd \\
+  evtest kbd ser2net setserial socat netcat-openbsd nodejs \\
   plymouth plymouth-themes beep \$extra >/dev/null
 # Plymouth needs a theme SELECTED, not just installed. Without this the kernel's
 # 'splash' arg hands the screen to Plymouth, which has no theme to draw and shows a
@@ -472,6 +494,15 @@ systemctl enable ssh >/dev/null 2>&1 || true
 echo 'sureflow ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/sureflow
 chmod 440 /etc/sudoers.d/sureflow
 echo 'ALL: kiosk' > /etc/sureflow-role
+# The ser2net PACKAGE ships its own always-enabled service that binds the very
+# ports our sureflow-serial-bridge unit binds, so both started and the loser
+# logged "Unable to startup network port pinpad: Address already in use" every
+# ten seconds forever. Only our unit may run.
+systemctl disable ser2net >/dev/null 2>&1 || true
+systemctl mask ser2net >/dev/null 2>&1 || true
+# pam_env complains "Unable to open env file: /etc/default/locale" on every login
+# and SSH session without this — minbase roots ship no locale default.
+printf 'LANG=C.UTF-8\\n' > /etc/default/locale
 # Without the local hostname in /etc/hosts, every sudo call stalls and prints
 # "unable to resolve host <name>: Temporary failure in name resolution" — the lanes
 # sit on an isolated VLAN with no DNS for their own name.
@@ -604,5 +635,8 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
   "The branded SureFlow boot splash is baked in by the build: the theme files are always written, and the theme is selected only when the three normalized PNGs are staged at /srv/sureflow/splash (run sureflow-fetch-splash-assets.sh once per controller). Without them the build keeps the generic spinner rather than a half-drawn theme, and the summary's 'Boot splash:' line says which one a given image got.",
   "The Toshiba VSP driver is baked into every image when its vendor .deb is present at /srv/sureflow/vendor/toshiba-vsp-linux.deb. It is what makes the Toshiba TCx 2x20 USB pole display work at all: the pole is a HID device no udev tty rule can match, and vsd turns it into a virtual serial tty the lane's serial bridge publishes on port 9101. Installed with DKMS disabled and --force-depends, because only the GUI configurator needs GTK and the USB pole path needs no kernel module. A lane with no Toshiba pole runs vsd idle with no effect.",
+  "The root arrives read-only over NFS, so the image now carries an /etc/fstab that mounts tmpfs over /tmp, /var/tmp, /var/log, /var/lib/systemd and /home/sureflow. Without those the lane stops at the Linux login prompt: startx cannot create ~/.Xauthority, so it calls Xorg with an empty -auth argument and Xorg answers with its usage text and exits, while systemd-logind, the journal and utmp fail for the same reason. Everything written to those paths is deliberately discarded at power-off, which is the diskless property.",
+  "nodejs is in the package set because the lane agent is a node program — without it the agent failed EXEC on /usr/bin/node every five seconds and the lane read as 'never seen' in the Lanes table.",
+  "The ser2net package's own service is disabled and masked in the image. It binds the same ports as sureflow-serial-bridge, so leaving it enabled meant whichever lost the race logged 'Address already in use' every ten seconds forever.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
 ];
