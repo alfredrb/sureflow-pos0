@@ -207,7 +207,15 @@ LANE_MAINT_POLL_SECONDS=60
 CURRENT_REF=$RELAY_REF
 EOF
 chmod 600 "$RELAY_DIR/.env"
-chown -R sureflow:sureflow /srv/sureflow
+# NEVER chown /srv/sureflow recursively — that walks INTO the lane roots under
+# /srv/sureflow/roots and gives every file in the diskless image to the sureflow user,
+# which also STRIPS THE SETUID BIT from /usr/bin/sudo and /usr/lib/xorg/Xorg.wrap. The
+# lane then refuses every sudo ("must be owned by uid 0") and Xorg dies with
+# "xf86OpenConsole: Cannot open virtual console (Permission denied)", crash-looping the
+# lane to a text login. Only the relay/agent payload is the sureflow user's to own.
+for d in relay lane-agent images; do
+  [ -e "/srv/sureflow/$d" ] && chown -R sureflow:sureflow "/srv/sureflow/$d"
+done
 # Record the running ref so the console menu and the update system agree on it.
 sed -i '/^CURRENT_REF=/d' "$CONF"; echo "CURRENT_REF=$RELAY_REF" >> "$CONF"
 
