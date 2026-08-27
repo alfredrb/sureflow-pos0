@@ -1,6 +1,8 @@
 // Turns a Register's hardware profile into the PXE / diskless boot artifacts the
 // store controller serves that terminal. Pure string builders — no side effects.
 
+import { buildCustomerMonitorXorg } from "@/lib/laneCustomerMonitor";
+
 const BOOT_IMAGES = {
   pxe_debian_legacy: {
     label: "PXE Debian — Legacy (SurePOS 700 class)",
@@ -114,6 +116,10 @@ export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles =
       // register with no on-screen picker. Required — the relay-served origin cannot
       // complete the platform login.
       `sureflow.pos_url=${POS_CLOUD_URL}`,
+      // Tells the kiosk launcher to open a SECOND fullscreen window on the lane's second
+      // Xorg output for the customer-facing monitor. Omitted entirely on a lane with no
+      // monitor, so the launcher's branch is simply never taken.
+      reg.customer_monitor_enabled ? `sureflow.customer_monitor=1` : "",
     ].filter(Boolean).join(" ")}`,
   ].join("\n");
 }
@@ -184,12 +190,17 @@ export function buildPeripheralRules(reg, profiles = []) {
 // straight from the matched driver profiles — baked into the read-only image.
 export function buildXorgConfig(reg, profiles = []) {
   const matched = matchedProfiles(reg, profiles).filter(p => (p.xorg_config || "").trim());
-  if (!matched.length) {
+  const blocks = matched.map(p =>
+    [`# --- ${p.model} (${p.device_type}) ---`, p.xorg_config.trim()].join("\n")
+  );
+  // A customer-facing monitor is a second OUTPUT rather than a driver profile, so its
+  // snippet is generated from the register itself. Without it the second panel is given
+  // no framebuffer and comes up black with nothing in the Xorg log to explain it.
+  if (reg.customer_monitor_enabled) blocks.push(buildCustomerMonitorXorg(reg));
+  if (!blocks.length) {
     return `# No Xorg snippets on the matched driver profiles for ${reg.register_id}.`;
   }
-  return matched
-    .map(p => [`# --- ${p.model} (${p.device_type}) ---`, p.xorg_config.trim()].join("\n"))
-    .join("\n\n");
+  return blocks.join("\n\n");
 }
 
 // Debian packages the image build needs for this terminal's peripherals.

@@ -7,6 +7,7 @@ import { searchDocumentation } from "@/lib/techDocSearchIndex";
 import DocumentLibrary from "@/components/techdocs/DocumentLibrary";
 import PinpadReference from "@/components/techdocs/PinpadReference";
 import PoleDisplayReference from "@/components/techdocs/PoleDisplayReference";
+import CustomerMonitorReference from "@/components/techdocs/CustomerMonitorReference";
 import BootStatusReference from "@/components/techdocs/BootStatusReference";
 import TerminalPortMap from "@/components/infrastructure/TerminalPortMap";
 import PXEControllerGuide from "@/components/infrastructure/PXEControllerGuide";
@@ -94,6 +95,7 @@ export default function AdminTechnicalDocs() {
           {active === "drawerbridge" && <LaneDrawerBridgeReference />}
           {active === "pinpad" && <PinpadReference />}
           {active === "poledisplay" && <PoleDisplayReference />}
+          {active === "customermonitor" && <CustomerMonitorReference />}
           {active === "bootstatus" && <BootStatusReference />}
           {active === "bridge" && <LaneSerialBridgeReference />}
           {active === "scanner" && <ScannerSuffixReference />}

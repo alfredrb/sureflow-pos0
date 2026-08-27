@@ -1,0 +1,105 @@
+{
+  "name": "CustomerDisplayState",
+  "type": "object",
+  "properties": {
+    "register_id": {
+      "type": "string",
+      "description": "Lane this state belongs to. Exactly ONE record per register \u2014 the POS upserts it, the customer monitor subscribes to it. This is the transport: the monitor runs in a SEPARATE browser window from the POS, so React state cannot reach it and the live cart has to travel through a record."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store number, so the monitor can pick the right idle slide rotation without a second lookup."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "idle",
+        "sale",
+        "thanks"
+      ],
+      "default": "idle",
+      "description": "What the customer monitor should be showing. idle = the store's promotion rotation. sale = the live itemized cart. thanks = the post-tender summary, which holds briefly and then returns to idle."
+    },
+    "items": {
+      "type": "array",
+      "description": "The live cart as the customer should see it. Deliberately a trimmed projection of the POS cart \u2014 name, qty and line total only, no cost, margin or internal flags ever reach a customer-facing screen.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "subtotal": {
+      "type": "number",
+      "default": 0
+    },
+    "tax": {
+      "type": "number",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "default": 0
+    },
+    "thanks": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Post-tender summary payload: total_paid, loyalty_points_earned, savings, change_due and a receipt note. Only populated while mode is thanks.",
+      "properties": {
+        "total_paid": {
+          "type": "number"
+        },
+        "loyalty_points_earned": {
+          "type": "number"
+        },
+        "loyalty_name": {
+          "type": "string"
+        },
+        "savings": {
+          "type": "number"
+        },
+        "change_due": {
+          "type": "number"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "training_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the lane is in training mode, so the monitor can mark itself as a training screen and a customer is never shown a practice sale as if it were real."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the POS last published. The monitor treats a very stale sale state as idle, so a lane whose POS window was closed mid-sale does not leave a customer's cart on screen indefinitely."
+    }
+  },
+  "required": [
+    "register_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

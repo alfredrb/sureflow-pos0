@@ -240,6 +240,29 @@
       "type": "string",
       "description": "Pole display serial number, for the hardware audit."
     },
+    "customer_monitor_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this lane has a second, customer-facing MONITOR fitted (not a pole). Deliberately separate from pole_display_model so a lane can run a pole, a monitor, or both \u2014 the pole profiles remain the reserve path while their serial/HID protocols are still being captured. When on, the lane's boot entry carries sureflow.customer_monitor=1 and the kiosk launcher opens a second fullscreen Chromium window on the second Xorg output at /customer-display?register_id=... The monitor is purely informational: payment, PIN and signature stay on the Ingenico pinpad."
+    },
+    "customer_monitor_resolution": {
+      "type": "string",
+      "default": "1920x1080",
+      "description": "Native resolution of the customer panel (e.g. 1920x1080). Used to size the combined X screen's Virtual line \u2014 too small a Virtual is the classic dual-head failure, where X starts, the operator panel is perfect and the customer panel is black with nothing at all in the Xorg log."
+    },
+    "customer_monitor_orientation": {
+      "type": "string",
+      "enum": [
+        "landscape",
+        "portrait"
+      ],
+      "default": "landscape",
+      "description": "Physical mounting of the customer panel. portrait adds a Rotate option to its Xorg Monitor section and swaps the width/height used for the combined framebuffer."
+    },
+    "customer_monitor_serial": {
+      "type": "string",
+      "description": "Customer monitor serial number, for the hardware audit."
+    },
     "store_id": {
       "type": "string",
       "description": "Store number this register belongs to. POS reads this to scope all data to the store."

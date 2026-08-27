@@ -73,6 +73,8 @@ import AdminCheckRegister from '@/pages/AdminCheckRegister';
 import AdminCustomerService from '@/pages/AdminCustomerService';
 import AdminControllerUpdates from '@/pages/AdminControllerUpdates';
 import AdminFacilityManagement from '@/pages/AdminFacilityManagement';
+import AdminCustomerDisplay from '@/pages/AdminCustomerDisplay';
+import CustomerDisplay from '@/pages/CustomerDisplay';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -106,6 +108,9 @@ const AuthenticatedApp = () => {
         <Route path="/pos" element={<POSLogin />} />
         <Route path="/pos/login" element={<POSLogin />} />
         <Route path="/pos/register" element={<POSRegister />} />
+        {/* Customer-facing second monitor on a lane — opened by the kiosk launcher as its
+            own fullscreen window. Read-only; it follows what the POS window publishes. */}
+        <Route path="/customer-display" element={<CustomerDisplay />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/training-center" element={<EmployeeTrainingCenter />} />
         <Route path="/admin/login" element={<AdminLogin />} />
@@ -160,6 +165,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/customer-service" element={<AdminCustomerService />} />
           <Route path="/admin/controller-updates" element={<AdminControllerUpdates />} />
           <Route path="/admin/facility" element={<AdminFacilityManagement />} />
+          <Route path="/admin/customer-display" element={<AdminCustomerDisplay />} />
         </Route>
       </Route>
 

@@ -63,6 +63,7 @@ import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
 import usePinpadCartMirror from "@/hooks/usePinpadCartMirror";
 import usePoleDisplayMirror from "@/hooks/usePoleDisplayMirror";
+import useCustomerDisplayMirror from "@/hooks/useCustomerDisplayMirror";
 import { showTotalDueOnPole } from "@/lib/poleDisplayFlow";
 import usePosSaleCompletion from "@/hooks/usePosSaleCompletion";
 import usePosSupervisorOverride from "@/hooks/usePosSupervisorOverride";
@@ -109,6 +110,8 @@ export default function POSRegister() {
   const [pinpadConfig, setPinpadConfig] = useState({ pinpad_model: "", pinpad_ip: "" });
   // Customer pole display on this lane (blank model = no pole fitted).
   const [poleConfig, setPoleConfig] = useState({ pole_display_model: "", pole_display_ip: "", printer_ip: "" });
+  // Second customer-facing MONITOR on this lane. Off = nothing is ever published.
+  const [customerMonitor, setCustomerMonitor] = useState(false);
   // Supervisor override for function keys
   const [supOverrideDialog, setSupOverrideDialog] = useState(false);
   const [supOverridePin, setSupOverridePin] = useState("");
@@ -340,6 +343,7 @@ export default function POSRegister() {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
           setPinpadConfig({ pinpad_model: regs[0].pinpad_model || "", pinpad_ip: regs[0].pinpad_ip || "" });
           setPoleConfig({ pole_display_model: regs[0].pole_display_model || "", pole_display_ip: regs[0].pole_display_ip || "", printer_ip: regs[0].printer_ip || "" });
+          setCustomerMonitor(!!regs[0].customer_monitor_enabled);
           setRegisterPaused(regs[0].paused || false);
           // NOTE: no IP auto-detection. The lane's identity is register_id, taken from
           // the PXE kernel command line. Across the PXE VLAN the relay only ever sees
@@ -437,6 +441,17 @@ export default function POSRegister() {
     poleConfig,
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
     cart, total,
+  });
+
+  // Customer-facing MONITOR on this lane: the live itemized sale, the store's idle
+  // rotation between customers, and the thank-you summary after payment. It runs in its
+  // own browser window on the lane's second output, so the sale travels through this
+  // lane's shared display-state record rather than through React state.
+  useCustomerDisplayMirror({
+    enabled: customerMonitor,
+    registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
+    storeId: sessionStorage.getItem("pos_store_id") || "",
+    cart, subtotal, tax, total, trainingMode, lastReceipt,
   });
 
   // Sale completion: split tenders, gift cards, training/offline paths, receipts.

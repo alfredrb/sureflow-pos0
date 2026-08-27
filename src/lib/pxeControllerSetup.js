@@ -169,6 +169,7 @@ for arg in \$(cat /proc/cmdline); do
     sureflow.relay=*)       RELAY="\${arg#*=}" ;;
     sureflow.pos_url=*)     POS_URL="\${arg#*=}" ;;
     sureflow.register_id=*) REGISTER_ID="\${arg#*=}" ;;
+    sureflow.customer_monitor=*) CUSTOMER_MONITOR="\${arg#*=}" ;;
   esac
 done
 if [ -n "\$POS_URL" ]; then
@@ -187,6 +188,8 @@ fi
 
 # Minimal window manager so Chromium can go fullscreen cleanly.
 openbox &
+
+${CUSTOMER_WINDOW_SNIPPET}
 
 # --force-device-scale-factor=0.8 is the TEMPORARY fix for the 12-inch IBM
 # monitors clipping the POS layout. Remove it once the POS UI is natively
@@ -261,6 +264,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="04b3", ENV{SUREFLOW_TOUCH}="1"
 
 import { BOOT_SPLASH_STEP } from "@/lib/pxeBootSplash";
 import { LANE_EGRESS_STEP } from "@/lib/laneEgress";
+import { CUSTOMER_MONITOR_STEP, CUSTOMER_WINDOW_SNIPPET } from "@/lib/laneCustomerMonitor";
 import {
   BRIDGE_PORTS,
   BRIDGE_UDEV_RULES,
@@ -429,6 +433,7 @@ export const PXE_CONTROLLER_STEPS = [
   },
   LANE_SERIAL_BRIDGE_STEP,
   LANE_PRINTER_BRIDGE_STEP,
+  CUSTOMER_MONITOR_STEP,
   BOOT_SPLASH_STEP,
   {
     step_id: "pxe_ha_failover",

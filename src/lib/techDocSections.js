@@ -127,6 +127,12 @@ export const SECTION_GROUPS = [
         keywords: "pole display line display dm-d110 2x20 rs485 4610 4820 9101 frame capture",
       },
       {
+        id: "customermonitor",
+        label: "Customer Monitor",
+        blurb: "Second customer-facing screen: dual-head Xorg, the second kiosk window and the live cart feed.",
+        keywords: "customer monitor second screen dual head display xorg xrandr rightof virtual kiosk window user-data-dir customer-display pole alternative idle slides promotion thank you",
+      },
+      {
         id: "bootstatus",
         label: "Boot Status Codes",
         blurb: "Boot-stage codes written to the lane's pole display — read where a lane stopped off the glass.",
