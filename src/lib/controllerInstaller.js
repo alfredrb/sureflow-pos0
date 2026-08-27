@@ -166,6 +166,11 @@ except-interface=lo
 dhcp-range=\${PXE_SUBNET%/*},static,255.255.255.0,12h
 dhcp-boot=pxelinux.0
 dhcp-option=66,$PXE_VIP
+# Lanes NAT out through this controller for the cloud POS and the relay, so their default
+# route must be the controller itself. MUST be written as 'option:router' — a bare
+# 'dhcp-option=router,...' is rejected and dnsmasq then refuses to start at all, which
+# takes DHCP, TFTP and lane DNS down together.
+dhcp-option=option:router,$PXE_VIP
 enable-tftp
 tftp-root=/srv/sureflow/tftp
 log-dhcp
