@@ -189,10 +189,12 @@ openbox &
 # --force-device-scale-factor=0.8 is the TEMPORARY fix for the 12-inch IBM
 # monitors clipping the POS layout. Remove it once the POS UI is natively
 # responsive at small sizes.
-// --disable-gpu: neither terminal family has a usable GL driver (ANGLE fails to
-// create a backing OpenGL context on both fbdev and i915 here), so the GPU process
-// spawned and exited on every launch. Software rendering is what actually drew the
-// POS anyway; disabling it removes the crash loop and the log noise.
+# --disable-gpu: neither terminal family has a usable GL driver (ANGLE fails to
+# create a backing OpenGL context on both fbdev and i915 here), so the GPU process
+# spawned and exited on every launch. Software rendering is what actually drew the
+# POS anyway; disabling it removes the crash loop and the log noise.
+# NOTE: this file is a SHELL script — comments must be '#'. A '//' comment here is
+# executed by bash, kills the launcher, and crash-loops the lane back to the console.
 exec chromium \\
   --kiosk "\$URL" \\
   --disable-gpu \\
