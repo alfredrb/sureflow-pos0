@@ -469,7 +469,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y --no-install-recommends \\
   linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
-  xserver-xorg xserver-xorg-legacy xinit openbox chromium udev usbutils cups-client \\
+  xserver-xorg xserver-xorg-legacy xinit xauth openbox chromium udev usbutils cups-client \\
   ca-certificates curl iproute2 iputils-ping sudo openssh-server \\
   evtest kbd ser2net setserial socat netcat-openbsd nodejs \\
   plymouth plymouth-themes beep \$extra >/dev/null
@@ -636,6 +636,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "The branded SureFlow boot splash is baked in by the build: the theme files are always written, and the theme is selected only when the three normalized PNGs are staged at /srv/sureflow/splash (run sureflow-fetch-splash-assets.sh once per controller). Without them the build keeps the generic spinner rather than a half-drawn theme, and the summary's 'Boot splash:' line says which one a given image got.",
   "The Toshiba VSP driver is baked into every image when its vendor .deb is present at /srv/sureflow/vendor/toshiba-vsp-linux.deb. It is what makes the Toshiba TCx 2x20 USB pole display work at all: the pole is a HID device no udev tty rule can match, and vsd turns it into a virtual serial tty the lane's serial bridge publishes on port 9101. Installed with DKMS disabled and --force-depends, because only the GUI configurator needs GTK and the USB pole path needs no kernel module. A lane with no Toshiba pole runs vsd idle with no effect.",
   "The root arrives read-only over NFS, so the image now carries an /etc/fstab that mounts tmpfs over /tmp, /var/tmp, /var/log, /var/lib/systemd and /home/sureflow. Without those the lane stops at the Linux login prompt: startx cannot create ~/.Xauthority, so it calls Xorg with an empty -auth argument and Xorg answers with its usage text and exits, while systemd-logind, the journal and utmp fail for the same reason. Everything written to those paths is deliberately discarded at power-off, which is the diskless property.",
+  "xauth is named explicitly in the package set. xinit only RECOMMENDS it and the build installs with --no-install-recommends, so it was absent: startx ran xauth to create the auth cookie, xauth did not exist, and startx then called Xorg with an empty -auth argument. Xorg answered with its usage text and exited, which is the second half of the 'lane stops at the Linux login prompt' failure and looks identical to the read-only-root cause.",
   "nodejs is in the package set because the lane agent is a node program — without it the agent failed EXEC on /usr/bin/node every five seconds and the lane read as 'never seen' in the Lanes table.",
   "The ser2net package's own service is disabled and masked in the image. It binds the same ports as sureflow-serial-bridge, so leaving it enabled meant whichever lost the race logged 'Address already in use' every ten seconds forever.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
