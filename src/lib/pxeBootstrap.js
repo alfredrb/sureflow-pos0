@@ -53,6 +53,13 @@ export function matchedProfiles(reg, profiles = []) {
 }
 
 // MAC formatted the way pxelinux.cfg expects: 01-aa-bb-cc-dd-ee-ff
+// The PUBLISHED POS address baked into every lane's boot entry. This is deliberately
+// a constant and NOT window.location.origin: an entry generated from the builder's
+// preview baked the preview-sandbox hostname into the lane, which the lane cannot
+// use — it is a build-time origin, not the store-facing app. A lane must always boot
+// the published app.
+export const POS_CLOUD_URL = "https://sure-flow-pos.base44.app";
+
 export function pxeConfigFileName(reg) {
   const mac = (reg.mac_address || "").replace(/[^0-9a-fA-F]/g, "").toLowerCase();
   if (mac.length !== 12) return "pxelinux.cfg/default";
@@ -106,7 +113,7 @@ export function buildPxelinuxConfig(reg, controllerIp = "10.0.30.10", profiles =
       // /pos/login?register_id=... to it, which is how the terminal selects its own
       // register with no on-screen picker. Required — the relay-served origin cannot
       // complete the platform login.
-      `sureflow.pos_url=${typeof window !== "undefined" ? window.location.origin : ""}`,
+      `sureflow.pos_url=${POS_CLOUD_URL}`,
     ].filter(Boolean).join(" ")}`,
   ].join("\n");
 }
