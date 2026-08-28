@@ -151,6 +151,12 @@ export const SECTION_GROUPS = [
         keywords: "printer bridge usb socat 9100 ub-u06 single cable fallback ethernet",
       },
       {
+        id: "drawerstatus",
+        label: "Cash Drawer Status",
+        blurb: "Reading the drawer's open/closed sense line so the lane can hold the next sale.",
+        keywords: "cash drawer status open closed sense dle eot 2 10 04 02 reed switch dk port pin 3 sdl rj11 close cash drawer prompt block 3aa01464900",
+      },
+      {
         id: "drawerbridge",
         label: "USB Drawer Bridge",
         blurb: "Reserved contingency for a native USB cash drawer.",

@@ -23,6 +23,7 @@ import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
 import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
+import useDrawerStatus from "@/hooks/useDrawerStatus";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { executeFunctionKeyAction } from "@/lib/posFunctionKeyExec";
@@ -185,11 +186,21 @@ export default function POSRegister() {
   // 4690-style keypad buzzer — a click on every keystroke and screen touch.
   useKeyClick();
 
+  // The lane's physical cash drawer, read off the printer's DK sense line. A drawer
+  // left open holds the next sale, and past a minute it is logged for Loss Prevention.
+  const drawerStatus = useDrawerStatus({ enabled: !!operator, writeLog: (t, d) => writeLog(t, d) });
+
+  // Holds item entry and tender while the drawer is standing open. Silent — the
+  // operator prompt line already says CLOSE CASH DRAWER, so a toast would only
+  // push that message off the line it is displayed on.
+  const drawerHold = () => drawerStatus.open;
+
   // Phase 3 — report this lane's health to the store relay for live telemetry.
   useRegisterHeartbeat({
     operator,
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
     offline: isOffline,
+    drawerState: drawerStatus.state,
   });
 
   // While offline only cash/check tender is permitted — snap off a blocked method.
@@ -564,6 +575,7 @@ export default function POSRegister() {
     // Sale mode rings the entry up as an item; Returns / Exchange run it through
     // Look Up Transaction instead.
     onEnter: (code) => {
+      if (drawerHold()) return;
       if (posMode === "sale") { addByCode(code); return; }
       const lookup = panelLookupRef.current;
       if (lookup) lookup(code);
@@ -940,12 +952,13 @@ export default function POSRegister() {
             onRemove={removeFromCart}
             onEditPrice={openPriceEdit}
             onOpenLoyalty={() => setLoyaltyLookupOpen(true)}
-            onPay={() => cart.length > 0 && setPaymentOpen(true)}
+            onPay={() => !drawerHold() && cart.length > 0 && setPaymentOpen(true)}
             statusLine={
               <POSStatusLine
                 entryHint={posMode === "sale" ? "Enter = item  ·  Action Code key = code" : "Enter = look up transaction  ·  Action Code key = code"}
                 actionCodeBuffer={actionCodeBuffer}
                 message={latestMessage}
+                drawerOpen={drawerStatus.open}
                 remotePending={remoteRequestSent}
                 onCancelRemotePending={cancelRemoteOverride}
               />
@@ -1011,7 +1024,7 @@ export default function POSRegister() {
         setSelectedCat={setSelectedCat}
         itemSearch={itemSearch}
         setItemSearch={setItemSearch}
-        onAdd={(p) => { if (addToCart(p)) { setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); } }}
+        onAdd={(p) => { if (drawerHold()) return; if (addToCart(p)) { setItemListOpen(false); setItemSearch(""); setSelectedCat("All"); } }}
       />
 
       {/* Payment Dialog */}

@@ -98,6 +98,13 @@ export const printReceiptViaRelay = (receipt, base = "") =>
 export const openCashDrawer = (printer_ip) =>
   relayFetch("/api/drawer", { method: "POST", body: JSON.stringify({ printer_ip }) }, 8000);
 
+// Is the cash drawer open right now? The drawer's open/closed sense line is wired
+// to the printer's DK port, so the relay asks the printer with ESC/POS DLE EOT 2.
+// Returns { open: true|false|null } — null means the printer did not answer, which
+// the POS treats as "unknown" and never as open.
+export const fetchDrawerStatus = (printer_ip, base = "") =>
+  relayFetch("/api/drawer/status", { method: "POST", body: JSON.stringify({ printer_ip }) }, 6000, base);
+
 // RESERVED — pop a native USB drawer bridged at the lane. The relay writes the
 // model's own open command straight to the lane's drawer bridge socket instead of
 // routing ESC p through the printer.

@@ -11,6 +11,28 @@ const STATUS_META = {
 
 const HW_DOT = { connected: "bg-emerald-500", disconnected: "bg-red-500", unknown: "bg-gray-300" };
 
+// Physical drawer state read off the printer's DK sense line and carried up on the
+// lane's heartbeat. Green closed / amber open / grey unknown, matching the language
+// already used by the connected-disconnected rows above it.
+function DrawerStateRow({ open }) {
+  const meta = open === true
+    ? { dot: "bg-amber-500", label: "Open" }
+    : open === false
+      ? { dot: "bg-emerald-500", label: "Closed" }
+      : { dot: "bg-gray-300", label: "Unknown" };
+  return (
+    <div className="flex items-center gap-2">
+      <Wallet className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+      <span className="text-[11px] text-gray-600 w-20 flex-shrink-0">Drawer state</span>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+      <span className="text-[11px] text-gray-700">
+        {meta.label}
+        {open !== null && open !== undefined && <span className="text-emerald-500 font-medium"> · live</span>}
+      </span>
+    </div>
+  );
+}
+
 function HardwareRow({ icon: Icon, label, liveValue, manualValue, relayLive, onOverride }) {
   const value = relayLive && liveValue ? liveValue : manualValue || "unknown";
   return (
@@ -62,6 +84,7 @@ export default function RegisterHardwareCard({ register, relayRegister, relayLiv
         <HardwareRow icon={Printer} label="Printer" liveValue={relayRegister?.printer_status} manualValue={register.printer_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "printer_status", v)} />
         <HardwareRow icon={ScanLine} label="Scanner" liveValue={relayRegister?.scanner_status} manualValue={register.scanner_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "scanner_status", v)} />
         <HardwareRow icon={Wallet} label="Drawer" liveValue={relayRegister?.cash_drawer_status} manualValue={register.cash_drawer_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "cash_drawer_status", v)} />
+        {relayLive && relayRegister && <DrawerStateRow open={relayRegister.drawer_open ?? null} />}
       </div>
       <div className="flex justify-end pt-0.5 border-t border-gray-50">
         <LaneRebootButton

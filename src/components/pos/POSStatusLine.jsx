@@ -4,7 +4,18 @@ import RemoteOverrideWaitLine from "@/components/pos/RemoteOverrideWaitLine";
 // 4690-style operator prompt line at the foot of the Current Transaction panel.
 // Shows the action code being keyed in and the latest system message, instead of
 // a floating corner toast.
-export default function POSStatusLine({ actionCodeBuffer, message, remotePending, onCancelRemotePending, entryHint }) {
+export default function POSStatusLine({ actionCodeBuffer, message, remotePending, onCancelRemotePending, entryHint, drawerOpen }) {
+  // Highest priority: the lane is held until the drawer is physically closed, so this
+  // line must not be pushed aside by an action-code buffer or an older system message.
+  if (drawerOpen) {
+    return (
+      <div className="bg-red-700 px-3 py-2 flex-shrink-0 border-t border-red-400/30 animate-pulse">
+        <p className="text-white font-mono text-sm font-bold uppercase tracking-wide">Close Cash Drawer</p>
+        <p className="text-red-100/80 text-[11px] leading-snug">The next sale is held until the drawer is closed.</p>
+      </div>
+    );
+  }
+
   if (remotePending) {
     return <RemoteOverrideWaitLine remotePending={remotePending} onCancel={onCancelRemotePending} />;
   }

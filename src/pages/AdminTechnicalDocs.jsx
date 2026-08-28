@@ -19,6 +19,7 @@ import CheckStationDiagnostics from "@/components/techdocs/CheckStationDiagnosti
 import LaneSerialBridgeReference from "@/components/techdocs/LaneSerialBridgeReference";
 import LanePrinterBridgeReference from "@/components/techdocs/LanePrinterBridgeReference";
 import LaneDrawerBridgeReference from "@/components/techdocs/LaneDrawerBridgeReference";
+import DrawerStatusReference from "@/components/techdocs/DrawerStatusReference";
 import CheckDualSideInvestigation from "@/components/techdocs/CheckDualSideInvestigation";
 import RelayUpdateWalkthrough from "@/components/techdocs/RelayUpdateWalkthrough";
 import ScannerSuffixReference from "@/components/techdocs/ScannerSuffixReference";
@@ -92,6 +93,7 @@ export default function AdminTechnicalDocs() {
           {active === "check" && <CheckStationDiagnostics />}
           {active === "check" && <CheckDualSideInvestigation />}
           {active === "printerbridge" && <LanePrinterBridgeReference />}
+          {active === "drawerstatus" && <DrawerStatusReference />}
           {active === "drawerbridge" && <LaneDrawerBridgeReference />}
           {active === "pinpad" && <PinpadReference />}
           {active === "poledisplay" && <PoleDisplayReference />}

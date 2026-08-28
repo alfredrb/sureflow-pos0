@@ -13,9 +13,10 @@
         "no_sale",
         "register_change",
         "robbery",
-        "cash_request"
+        "cash_request",
+        "drawer_open"
       ],
-      "description": "Type of event logged"
+      "description": "Type of event logged. drawer_open = the lane's cash drawer was detected still open past the allowed threshold after a sale, read from the printer's drawer-sense line. It is logged once per open instance, not on every poll."
     },
     "operator_id": {
       "type": "string"
