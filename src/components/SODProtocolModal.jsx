@@ -29,7 +29,7 @@ export default function SODProtocolModal({ isOpen, registerId, registerName, ope
           ? await base44.entities.TillCheckout.filter({ register_id: recordId, status: "checked_out" }, "-checkout_date", 1)
           : [];
         if (!cancelled) setTill(tills[0] || null);
-        kickDrawer().catch(() => {});
+        kickDrawer("till").catch(() => {});
       } catch (e) {
         if (!cancelled) setTill(null);
       }

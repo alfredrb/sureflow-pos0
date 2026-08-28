@@ -104,7 +104,7 @@ export default function CSCheckCashingDialog({ open, onClose, operator, toast, c
           ? { signature_url: signature.url, signature_captured_at: new Date().toISOString() }
           : { signature_skipped_reason: signature.skipped || "" }),
       });
-      await kickDrawer();
+      await kickDrawer("customer_service");
       await logCsEvent({
         action: "Check Cashed",
         description: `Check ${fields.check_number} cashed for $${amount.toFixed(2)} — cash paid to ${fields.customer_name || "customer"} (acct ***${last4(fields.account)}), approved by ${manager?.full_name || "manager"}`,

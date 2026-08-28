@@ -27,7 +27,7 @@ export default function CSGiftCardReloadDialog({ open, onClose, operator, toast,
     setBusy(true);
     try {
       const { balance } = await reloadCard(card, added, operator);
-      await kickDrawer();
+      await kickDrawer("customer_service");
       promptOnPinpad(pinpadContext, "GIFT CARD RELOADED", [`CARD ${card.card_number}`, `NEW BALANCE $${balance.toFixed(2)}`]);
       await logCsEvent({
         action: "Gift Card Reload",

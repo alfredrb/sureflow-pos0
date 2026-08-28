@@ -10,6 +10,7 @@
 import { base44 } from "@/api/base44Client";
 import { openCashDrawer, openUsbDrawer } from "@/lib/relayClient";
 import { DRAWER_BRIDGE_PORT, drawerOpenHex } from "@/lib/drawerProfiles";
+import { announceDrawerOpen } from "@/lib/drawerActivity";
 
 let cachedRegister;
 
@@ -40,11 +41,13 @@ async function resolveOpenHex(model) {
 // Every kick arms the lane's drawer-status watch. Broadcasting it means every path
 // that pops the drawer (sale, no-sale, pickup, till checkout) is covered without
 // each caller having to know the watch exists.
-function announceKick() {
-  try { window.dispatchEvent(new CustomEvent("sureflow-drawer-kick")); } catch {}
+// The reason travels with the kick so the watch can tell a cash pickup from an
+// unattributed release when it writes the Loss Prevention record.
+function announceKick(reason) {
+  announceDrawerOpen(reason);
 }
 
-export async function kickDrawer() {
+export async function kickDrawer(reason = "manual") {
   try {
     const reg = await resolveRegister();
 
@@ -57,12 +60,12 @@ export async function kickDrawer() {
         command_hex: await resolveOpenHex(reg.drawer_model),
         transport_hint: reg.drawer_transport_hint || "",
       });
-      announceKick();
+      announceKick(reason);
       return true;
     }
 
     await openCashDrawer(reg?.printer_ip || "");
-    announceKick();
+    announceKick(reason);
     return true;
   } catch (e) {
     console.warn("Cash drawer kick failed:", e.message);

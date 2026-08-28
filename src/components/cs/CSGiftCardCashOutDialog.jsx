@@ -21,7 +21,7 @@ export default function CSGiftCardCashOutDialog({ open, onClose, operator, toast
     setBusy(true);
     try {
       const paid = await cashOutCard(card, operator, manager);
-      await kickDrawer();
+      await kickDrawer("customer_service");
       await logCsEvent({
         action: "Gift Card Cash Out",
         description: `Gift card ${card.card_number} cashed out for $${paid.toFixed(2)} — approved by ${manager.full_name}`,

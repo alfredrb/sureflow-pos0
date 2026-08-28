@@ -189,7 +189,7 @@ export default function POSRegister() {
 
   // The lane's physical cash drawer, read off the printer's DK sense line. A drawer
   // left open holds the next sale, and past a minute it is logged for Loss Prevention.
-  const drawerStatus = useDrawerStatus({ enabled: !!operator, writeLog: (t, d) => writeLog(t, d) });
+  const drawerStatus = useDrawerStatus({ enabled: !!operator });
 
   // Holds item entry and tender while the drawer is standing open. Silent — the
   // operator prompt line already says CLOSE CASH DRAWER, so a toast would only

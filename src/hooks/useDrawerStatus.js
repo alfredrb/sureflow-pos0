@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { readDrawerState } from "@/lib/drawerStatus";
+import { DRAWER_KICK_EVENT } from "@/lib/drawerActivity";
+import { recordDrawerOpen, finalizeDrawerOpen } from "@/lib/drawerAuditLog";
 
 const POLL_MS = 2000;          // while the drawer is being watched
 const IDLE_EVERY = 15;         // otherwise every 15th tick (~30s) to keep the badge fresh
@@ -9,33 +11,42 @@ const ARM_GRACE_MS = 10000;    // how long to wait for the drawer to physically 
 /**
  * Watches this lane's physical cash drawer.
  *
- * Armed by any drawer kick (drawerKick broadcasts it), then polled every 2 seconds so
- * closing the drawer clears the lane within seconds with no operator action. Between
- * customers it drops to a slow poll purely so the portal's live badge is not stale.
+ * Armed by any drawer release — a cash sale's receipt kick, the No Sale key, a cash
+ * pickup, a till check-out — each of which announces WHY it opened. The watch then
+ * polls every 2 seconds so closing the drawer clears the lane within seconds with no
+ * operator action. Between customers it drops to a slow poll purely so the portal's
+ * live badge is not stale.
+ *
+ * Every open instance produces exactly one Loss Prevention record: written the moment
+ * it passes the alarm threshold (so a drawer standing open is visible while it is
+ * happening), then finalized with the real duration when it closes. An open with no
+ * sale behind it is flagged, which is what the workbench reports on.
  *
  * "unknown" is never treated as open — a printer that cannot answer must not be able
  * to stop a lane from selling.
  */
-export default function useDrawerStatus({ enabled = true, writeLog } = {}) {
+export default function useDrawerStatus({ enabled = true } = {}) {
   const [state, setState] = useState("unknown");
   const armed = useRef(false);
   const armedAt = useRef(0);
   const sawOpen = useRef(false);
   const openedAt = useRef(0);
-  const logged = useRef(false);
-  const log = useRef(writeLog);
-  log.current = writeLog;
+  const reason = useRef("manual");
+  const meta = useRef({});
+  const logId = useRef(null);
 
   useEffect(() => {
-    const onKick = () => {
+    const onKick = (e) => {
       armed.current = true;
       armedAt.current = Date.now();
       sawOpen.current = false;
       openedAt.current = 0;
-      logged.current = false;
+      logId.current = null;
+      reason.current = e?.detail?.reason || "manual";
+      meta.current = e?.detail?.meta || {};
     };
-    window.addEventListener("sureflow-drawer-kick", onKick);
-    return () => window.removeEventListener("sureflow-drawer-kick", onKick);
+    window.addEventListener(DRAWER_KICK_EVENT, onKick);
+    return () => window.removeEventListener(DRAWER_KICK_EVENT, onKick);
   }, []);
 
   useEffect(() => {
@@ -56,10 +67,10 @@ export default function useDrawerStatus({ enabled = true, writeLog } = {}) {
         sawOpen.current = true;
         if (!openedAt.current) openedAt.current = Date.now();
         const seconds = Math.round((Date.now() - openedAt.current) / 1000);
-        if (seconds >= OPEN_LIMIT_SECONDS && !logged.current) {
-          // Once per open instance — the poll keeps running, the log does not repeat.
-          logged.current = true;
-          log.current?.("drawer_open", `Cash drawer left open ${seconds}s after the drawer was released — operator was held from starting the next sale.`);
+        if (seconds >= OPEN_LIMIT_SECONDS && !logId.current) {
+          // Written once while it is still open; finalized below when it closes.
+          logId.current = await recordDrawerOpen({ seconds, reason: reason.current, meta: meta.current, stillOpen: true })
+            || "pending";
         }
         return;
       }
@@ -67,8 +78,17 @@ export default function useDrawerStatus({ enabled = true, writeLog } = {}) {
       // Confirmed closed after having been open, or it never opened within the grace
       // window (a kick that did not physically release the drawer) — stop watching.
       if (sawOpen.current || Date.now() - armedAt.current > ARM_GRACE_MS) {
+        if (sawOpen.current && openedAt.current) {
+          const seconds = Math.round((Date.now() - openedAt.current) / 1000);
+          if (logId.current && logId.current !== "pending") {
+            await finalizeDrawerOpen(logId.current, { seconds, reason: reason.current });
+          } else {
+            await recordDrawerOpen({ seconds, reason: reason.current, meta: meta.current });
+          }
+        }
         armed.current = false;
         openedAt.current = 0;
+        logId.current = null;
       }
     };
 

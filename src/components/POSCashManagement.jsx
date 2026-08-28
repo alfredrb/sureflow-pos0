@@ -69,7 +69,7 @@ export default function POSCashManagement({ operator, isOpen, onClose }) {
       });
 
       // Cash is physically moving in or out of the till — pop the drawer.
-      kickDrawer();
+      kickDrawer("cash_management");
 
       // Set print data
       setPrintData({

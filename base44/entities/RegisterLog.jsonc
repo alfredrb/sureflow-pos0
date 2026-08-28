@@ -16,7 +16,7 @@
         "cash_request",
         "drawer_open"
       ],
-      "description": "Type of event logged. drawer_open = the lane's cash drawer was detected still open past the allowed threshold after a sale, read from the printer's drawer-sense line. It is logged once per open instance, not on every poll."
+      "description": "Type of event logged. drawer_open = one cash drawer open instance on the lane, read from the printer's drawer-sense line. Exactly one record per open: written when it passes the alarm threshold and finalized with the real duration when it closes."
     },
     "operator_id": {
       "type": "string"
@@ -36,6 +36,27 @@
     "detail": {
       "type": "string",
       "description": "Human-readable detail about the event"
+    },
+    "drawer_open_seconds": {
+      "type": "number",
+      "description": "How long the cash drawer stood open, in seconds, for a drawer_open event. Written when the drawer closes, so it is the real duration rather than the moment the alarm threshold was crossed."
+    },
+    "drawer_reason": {
+      "type": "string",
+      "enum": [
+        "sale",
+        "no_sale",
+        "cash_management",
+        "till",
+        "customer_service",
+        "manual"
+      ],
+      "description": "What released the drawer. manual = nothing in the POS claimed it, which is the unexplained open Loss Prevention cares about."
+    },
+    "drawer_no_sale": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the drawer opened with no operator action accounting for it. This is the till-skim signature the Drawer Activity report ranks operators on."
     },
     "transaction_id": {
       "type": "string",

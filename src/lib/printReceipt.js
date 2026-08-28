@@ -3,6 +3,7 @@
 import { printReceiptViaRelay } from "@/lib/relayClient";
 import { buildReceiptHtml } from "@/lib/receiptHtml";
 import { base44 } from "@/api/base44Client";
+import { announceDrawerOpen } from "@/lib/drawerActivity";
 
 // The lane's receipt printer address lives on its Register record (printer_ip —
 // the printer's own LAN IP, or the lane's IP for a USB-bridged printer). The
@@ -96,6 +97,12 @@ export async function printReceipt(props) {
   if (!payload.printer_ip) payload.printer_ip = await resolveLanePrinterIp();
   try {
     await printReceiptViaRelay(payload, props.relayBase || "");
+    // A cash sale releases the drawer through the printer's own ESC p on the receipt,
+    // not through kickDrawer — so this is where that open is announced to the lane's
+    // drawer watch, with the sale attached to it.
+    if (payload.open_drawer) {
+      announceDrawerOpen("sale", { transaction_id: payload.transaction_id || "", transaction_total: payload.total || 0 });
+    }
     return;
   } catch (e) {
     console.warn("Relay print unavailable, falling back to browser print:", e.message);

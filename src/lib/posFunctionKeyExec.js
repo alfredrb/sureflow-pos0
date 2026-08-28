@@ -45,7 +45,7 @@ export function executeFunctionKeyAction(fkey, ctx) {
       setPaymentOpen(true);
       break;
     case "quantity": setQtyDialog(true); break;
-    case "no_sale": kickDrawer(); writeLog("no_sale", "No Sale — cash drawer opened"); break;
+    case "no_sale": kickDrawer("no_sale"); writeLog("no_sale", "No Sale — cash drawer opened"); break;
     case "cash_management": setCashMgmtDialog(true); break;
     case "reprint_receipt":
       if (lastReceipt) {
