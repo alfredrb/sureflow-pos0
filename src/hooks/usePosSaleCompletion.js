@@ -126,7 +126,7 @@ export default function usePosSaleCompletion({
       collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {
-      toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
+      toast({ title: "Unable to Process Sale", description: e?.message || "Failed to process sale", variant: "destructive" });
     }
   };
 
@@ -202,7 +202,7 @@ export default function usePosSaleCompletion({
       collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {
-      toast({ title: "Error", description: "Failed to process gift card sale", variant: "destructive" });
+      toast({ title: "Unable to Process Sale", description: e?.message || "Failed to process gift card sale", variant: "destructive" });
     }
   };
 
