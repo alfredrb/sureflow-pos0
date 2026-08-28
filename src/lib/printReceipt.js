@@ -2,6 +2,24 @@
 // the relay's raw ESC/POS printer and the browser fallback window.
 import { printReceiptViaRelay } from "@/lib/relayClient";
 import { buildReceiptHtml } from "@/lib/receiptHtml";
+import { base44 } from "@/api/base44Client";
+
+// The lane's receipt printer address lives on its Register record (printer_ip —
+// the printer's own LAN IP, or the lane's IP for a USB-bridged printer). The
+// drawer kick already resolves it this way; without it the relay falls back to
+// its default PRINTER_IPS entry, which may not be this lane's printer at all.
+let cachedPrinterIp;
+async function resolveLanePrinterIp() {
+  if (cachedPrinterIp !== undefined) return cachedPrinterIp;
+  try {
+    const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
+    const regs = await base44.entities.Register.filter({ register_id: registerId });
+    cachedPrinterIp = regs[0]?.printer_ip || "";
+  } catch {
+    cachedPrinterIp = "";
+  }
+  return cachedPrinterIp;
+}
 
 export function buildReceiptPayload(p) {
   return {
@@ -75,6 +93,7 @@ export async function printOnSlip(props) {
 
 export async function printReceipt(props) {
   const payload = buildReceiptPayload(props);
+  if (!payload.printer_ip) payload.printer_ip = await resolveLanePrinterIp();
   try {
     await printReceiptViaRelay(payload, props.relayBase || "");
     return;
