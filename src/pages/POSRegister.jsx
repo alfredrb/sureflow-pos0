@@ -24,6 +24,7 @@ import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
 import useDrawerStatus from "@/hooks/useDrawerStatus";
+import usePrinterHealth from "@/hooks/usePrinterHealth";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import { executeFunctionKeyAction } from "@/lib/posFunctionKeyExec";
@@ -195,12 +196,17 @@ export default function POSRegister() {
   // push that message off the line it is displayed on.
   const drawerHold = () => drawerStatus.open;
 
+  // The receipt printer's own condition (paper low/out, cover, error) — a slow poll
+  // that feeds the prompt line and the heartbeat. Informational only, never blocking.
+  const printerHealth = usePrinterHealth({ enabled: !!operator });
+
   // Phase 3 — report this lane's health to the store relay for live telemetry.
   useRegisterHeartbeat({
     operator,
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
     offline: isOffline,
     drawerState: drawerStatus.state,
+    printerHealth: printerHealth.health,
   });
 
   // While offline only cash/check tender is permitted — snap off a blocked method.
@@ -959,6 +965,7 @@ export default function POSRegister() {
                 actionCodeBuffer={actionCodeBuffer}
                 message={latestMessage}
                 drawerOpen={drawerStatus.open}
+                printerAlert={printerHealth.alert}
                 remotePending={remoteRequestSent}
                 onCancelRemotePending={cancelRemoteOverride}
               />

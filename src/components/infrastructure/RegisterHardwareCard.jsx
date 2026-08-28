@@ -11,6 +11,32 @@ const STATUS_META = {
 
 const HW_DOT = { connected: "bg-emerald-500", disconnected: "bg-red-500", unknown: "bg-gray-300" };
 
+// Printer condition from the lane's DLE EOT health probes, worst state first —
+// a printer can be low on paper AND erroring, but one badge is enough to act on.
+function PrinterHealthRow({ health }) {
+  if (!health) return null;
+  const meta = health.paper_out
+    ? { dot: "bg-red-500", label: "Paper out" }
+    : health.online === false
+      ? { dot: "bg-red-500", label: "Offline / cover" }
+      : health.error
+        ? { dot: "bg-amber-500", label: "Error" }
+        : health.paper_low
+          ? { dot: "bg-amber-500", label: "Paper low" }
+          : { dot: "bg-emerald-500", label: "Healthy" };
+  return (
+    <div className="flex items-center gap-2">
+      <Printer className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+      <span className="text-[11px] text-gray-600 w-20 flex-shrink-0">Paper / health</span>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+      <span className="text-[11px] text-gray-700">
+        {meta.label}
+        <span className="text-emerald-500 font-medium"> · live</span>
+      </span>
+    </div>
+  );
+}
+
 // Physical drawer state read off the printer's DK sense line and carried up on the
 // lane's heartbeat. Green closed / amber open / grey unknown, matching the language
 // already used by the connected-disconnected rows above it.
@@ -85,6 +111,7 @@ export default function RegisterHardwareCard({ register, relayRegister, relayLiv
         <HardwareRow icon={ScanLine} label="Scanner" liveValue={relayRegister?.scanner_status} manualValue={register.scanner_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "scanner_status", v)} />
         <HardwareRow icon={Wallet} label="Drawer" liveValue={relayRegister?.cash_drawer_status} manualValue={register.cash_drawer_status} relayLive={relayLive} onOverride={(v) => onOverride(register, "cash_drawer_status", v)} />
         {relayLive && relayRegister && <DrawerStateRow open={relayRegister.drawer_open ?? null} />}
+        {relayLive && relayRegister && <PrinterHealthRow health={relayRegister.printer_health} />}
       </div>
       <div className="flex justify-end pt-0.5 border-t border-gray-50">
         <LaneRebootButton

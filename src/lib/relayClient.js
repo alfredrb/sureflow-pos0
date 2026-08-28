@@ -105,6 +105,13 @@ export const openCashDrawer = (printer_ip) =>
 export const fetchDrawerStatus = (printer_ip, base = "") =>
   relayFetch("/api/drawer/status", { method: "POST", body: JSON.stringify({ printer_ip }) }, 6000, base);
 
+// The receipt printer's own condition: { reachable, online, error, paper_low,
+// paper_out }, read with the DLE EOT real-time status probes. reachable:false =
+// the printer did not answer at all, which the POS shows as nothing (never a
+// fabricated alert).
+export const fetchPrinterHealth = (printer_ip, base = "") =>
+  relayFetch("/api/printer/health", { method: "POST", body: JSON.stringify({ printer_ip }) }, 8000, base);
+
 // RESERVED — pop a native USB drawer bridged at the lane. The relay writes the
 // model's own open command straight to the lane's drawer bridge socket instead of
 // routing ESC p through the printer.

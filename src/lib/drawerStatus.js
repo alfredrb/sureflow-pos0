@@ -16,7 +16,7 @@ let cachedPrinterIp;
 // Same resolution the receipt path uses — the lane's own printer, not just the
 // first entry in the relay's PRINTER_IPS list (a USB-bridged lane publishes its
 // printer on its own address).
-async function resolvePrinterIp() {
+export async function resolvePrinterIp() {
   if (cachedPrinterIp !== undefined) return cachedPrinterIp;
   try {
     const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";

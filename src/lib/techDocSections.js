@@ -157,6 +157,12 @@ export const SECTION_GROUPS = [
         keywords: "cash drawer status open closed sense dle eot 2 10 04 02 reed switch dk port pin 3 sdl rj11 close cash drawer prompt block 3aa01464900",
       },
       {
+        id: "printerhealth",
+        label: "Printer Health",
+        blurb: "Paper low/out, cover open and error sensing via DLE EOT status probes.",
+        keywords: "printer health paper low out near end cover open offline error cutter dle eot 1 3 4 10 04 roll sensor prompt tm-h6000",
+      },
+      {
         id: "drawerbridge",
         label: "USB Drawer Bridge",
         blurb: "Reserved contingency for a native USB cash drawer.",

@@ -112,6 +112,9 @@ function recordHeartbeat(body = {}) {
     // null = the lane could not tell (no answer from the printer), which the portal
     // shows as unknown rather than guessing.
     drawer_open: typeof body.drawer_open === "boolean" ? body.drawer_open : null,
+    // Printer condition ({ online, error, paper_low, paper_out }) from the lane's
+    // DLE EOT health probes. null = the lane could not read it.
+    printer_health: body.printer_health && typeof body.printer_health === "object" ? body.printer_health : null,
     printer_ip: body.printer_ip || null,
     app_version: body.app_version || null,
     offline_mode: !!body.offline_mode,

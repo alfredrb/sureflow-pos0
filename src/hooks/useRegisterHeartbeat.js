@@ -8,13 +8,13 @@ const BEAT_MS = 60000;
  * minute so the Infrastructure Command Center can show live register status.
  * Silent no-op when no relay answers (cloud-hosted terminal).
  */
-export function useRegisterHeartbeat({ operator, registerId, offline, drawerState }) {
+export function useRegisterHeartbeat({ operator, registerId, offline, drawerState, printerHealth }) {
   const payload = useRef({});
-  payload.current = { operator, registerId, offline, drawerState };
+  payload.current = { operator, registerId, offline, drawerState, printerHealth };
 
   useEffect(() => {
     const beat = () => {
-      const { operator: op, registerId: rid, offline: off, drawerState: drawer } = payload.current;
+      const { operator: op, registerId: rid, offline: off, drawerState: drawer, printerHealth: ph } = payload.current;
       if (!rid) return;
       sendRegisterHeartbeat({
         register_id: rid,
@@ -26,6 +26,9 @@ export function useRegisterHeartbeat({ operator, registerId, offline, drawerStat
         // Physical drawer state from the printer's DK sense line. Omitted as null when
         // the lane could not read it, so the portal shows unknown instead of guessing.
         drawer_open: drawer === "open" ? true : drawer === "closed" ? false : null,
+        // Printer condition from the DLE EOT health probes. null = not readable,
+        // shown as unknown by the portal rather than guessed.
+        printer_health: ph || null,
         offline_mode: !!off,
       }).catch(() => {});
     };
