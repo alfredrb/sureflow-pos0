@@ -113,18 +113,7 @@
       }
     },
     "read": null,
-    "update": {
-      "$or": [
-        {
-          "created_by_id": "{{user.id}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
-    },
+    "update": null,
     "delete": {
       "user_condition": {
         "role": "admin"
