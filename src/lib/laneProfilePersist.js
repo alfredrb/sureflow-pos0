@@ -36,13 +36,27 @@ SRV=\$(sed -n 's/.*nfsroot=\\([0-9.]*\\):.*/\\1/p' /proc/cmdline | head -1)
 [ -n "\$SRV" ] || SRV=\$(ip -o -4 route show default | awk '{print \$3; exit}')
 [ -n "\$SRV" ] || { echo "No state server found — running with a throwaway profile."; exit 0; }
 
-LANE=\$(hostname)
+# WHICH KEY: register_id off the kernel command line, NOT the hostname. A PXE lane's
+# hostname is not a stable identity here (it can arrive from DHCP or fall back to the
+# image default), and a lane that comes up under a different name gets a brand new
+# profile directory — which is exactly how a signed-in lane "loses" its login on
+# reboot. register_id is the identity the whole fleet already keys on.
+LANE=\$(sed -n 's/.*sureflow.register_id=\\([^ ]*\\).*/\\1/p' /proc/cmdline | head -1 | tr -cd 'A-Za-z0-9_-')
+[ -n "\$LANE" ] || LANE=\$(hostname)
+[ -n "\$LANE" ] || { echo "No lane identity — running with a throwaway profile."; exit 0; }
 
 install -d -m 755 "\$MOUNT"
 if ! mountpoint -q "\$MOUNT"; then
   # soft + a short timeo so a controller that is down costs seconds, not a hung boot.
   mount -t nfs -o rw,nolock,soft,timeo=50,retrans=2 "\$SRV:\$EXPORT_PATH" "\$MOUNT" 2>/dev/null || {
     echo "Could not mount \$SRV:\$EXPORT_PATH — running with a throwaway profile."; exit 0; }
+fi
+
+# A lane that previously persisted under its hostname keeps that session: adopt the
+# old directory once instead of signing the lane in again.
+OLD=\$(hostname)
+if [ -n "\$OLD" ] && [ "\$OLD" != "\$LANE" ] && [ -d "\$MOUNT/\$OLD/chromium" ] && [ ! -d "\$MOUNT/\$LANE/chromium" ]; then
+  mv "\$MOUNT/\$OLD" "\$MOUNT/\$LANE" 2>/dev/null && echo "Adopted existing profile from \$OLD as \$LANE"
 fi
 
 mkdir -p "\$MOUNT/\$LANE/chromium" 2>/dev/null || {
@@ -65,7 +79,9 @@ export const LANE_PROFILE_UNIT = `# /etc/systemd/system/sureflow-lane-profile.se
 # the kiosk unit: a lane with no reachable state export must still open the POS.
 [Unit]
 Description=SureFlow lane persistent browser profile
-After=network-online.target
+# local-fs matters: /home/sureflow is a tmpfs from fstab, and binding the profile in
+# before that tmpfs is mounted silently loses it under the new mount.
+After=local-fs.target network-online.target
 Wants=network-online.target
 Before=sureflow-kiosk.service
 
@@ -79,9 +95,11 @@ WantedBy=multi-user.target
 `;
 
 export const LANE_PROFILE_NOTES = [
-  "A lane keeps its platform login across reboots because Chromium's profile is bind-mounted from the controller's writable overlay export, under the lane's own hostname. Sign the lane in once at install and it stays signed in.",
+  "A lane keeps its platform login across reboots because Chromium's profile is bind-mounted from the controller's writable overlay export, under the lane's register_id. Sign the lane in once at install and it stays signed in.",
+  "The directory is keyed on sureflow.register_id from the kernel command line, NOT the hostname. A PXE lane's hostname can arrive from DHCP or fall back to the image default, and a lane that came up under a different name got a fresh profile — which is why a signed-in lane appeared to lose its login after a reboot. An existing hostname-keyed directory is adopted automatically on the next boot, so no lane has to be signed in again.",
   "Only the browser profile is persistent. The rest of the lane — /tmp, /var/log, the Xorg auth file — stays tmpfs and is discarded at power-off, so the diskless property still holds and a corrupted session cannot survive a reboot.",
   "Best effort on purpose: if the state export is unreachable the lane still boots the POS, it just asks for the platform login again. A missing profile must never be the reason a lane is dead.",
   "Per-lane directories mean two lanes never share a session, so a signed-in lane cannot be impersonated by re-imaging another terminal on the same VLAN.",
-  "To force a lane back to a clean session, remove /srv/sureflow/overlay/<hostname>/chromium on the controller and reboot the lane.",
+  "To force a lane back to a clean session, remove /srv/sureflow/overlay/<register_id>/chromium on the controller and reboot the lane.",
+  "To check a lane is actually persisting: on the controller, ls /srv/sureflow/overlay — you should see one directory per register_id, each with a chromium/Default holding Cookies. On the lane, journalctl -u sureflow-lane-profile shows which key and export it mounted, or the reason it fell back to a throwaway profile.",
 ];
