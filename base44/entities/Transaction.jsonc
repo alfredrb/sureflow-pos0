@@ -123,6 +123,15 @@
       "default": false,
       "description": "True when the sale was captured on a store's Local Relay VM while its internet connection was down, then uploaded to the cloud by the relay sync worker. Offline sales are cash/check only."
     },
+    "self_checkout": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this sale was completed by the CUSTOMER at a self-checkout lane rather than by a cashier. Lets reporting, EOD and Loss Prevention split SCO volume from cashiered volume without inferring it from the register."
+    },
+    "self_checkout_register_id": {
+      "type": "string",
+      "description": "The self-checkout lane that took the sale. Matches register_id; kept as an explicit flag + id pair so SCO reports filter on one field."
+    },
     "tax_exempt_id": {
       "type": "string",
       "description": "Tax Exempt ID verified at the POS that removed tax from this sale"

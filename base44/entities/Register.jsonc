@@ -47,6 +47,20 @@
       "default": false,
       "description": "Enable Item Exchange on this register"
     },
+    "feature_self_checkout": {
+      "type": "boolean",
+      "default": false,
+      "description": "This lane is a customer-operated SELF-CHECKOUT: it boots into the /sco customer screen instead of the cashier register. Card + gift card tenders only in v1 (no cash hardware, no check). Restricted items (ID-required, recalled, blocked, serialized) lock the lane and call the attendant instead of opening cashier dialogs."
+    },
+    "attendant_register_id": {
+      "type": "string",
+      "description": "register_id of the CASHIERED lane that oversees this self-checkout lane. That lane's Attendant panel lists this lane's live state and resolves its assistance requests. Only meaningful when feature_self_checkout is on."
+    },
+    "feature_attendant": {
+      "type": "boolean",
+      "default": false,
+      "description": "This cashiered lane is an ATTENDANT STATION: the POS register gains the Attendant side panel listing every self-checkout lane whose attendant_register_id points here, with one-tap remote approve / release, alongside normal cashiering."
+    },
     "paused": {
       "type": "boolean",
       "default": false,

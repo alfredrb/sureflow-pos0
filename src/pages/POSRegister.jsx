@@ -43,6 +43,7 @@ import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog"
 import POSTransferDialog from "@/components/pos/POSTransferDialog";
 import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
 import PinpadMirrorTile from "@/components/pos/PinpadMirrorTile";
+import SCOAttendantOverlay from "@/components/pos/SCOAttendantOverlay";
 import POSSupervisorOverrideDialog from "@/components/pos/POSSupervisorOverrideDialog";
 import POSRemoteOverrideStatus from "@/components/pos/POSRemoteOverrideStatus";
 import POSSwitchGuardDialog from "@/components/pos/POSSwitchGuardDialog";
@@ -108,7 +109,7 @@ export default function POSRegister() {
   const [priceOverrideActive, setPriceOverrideActive] = useState(false);
   const [priceEditSku, setPriceEditSku] = useState(null);
   const [priceEditValue, setPriceEditValue] = useState("");
-  const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false });
+  const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false, feature_attendant: false });
   // Customer-facing Ingenico pinpad on this lane (blank model = no pad fitted).
   const [pinpadConfig, setPinpadConfig] = useState({ pinpad_model: "", pinpad_ip: "" });
   // Customer pole display on this lane (blank model = no pole fitted).
@@ -360,7 +361,7 @@ export default function POSRegister() {
           savePosReceiptContext({ storeInfo: resolved, storeConfig: config[0] || null });
         } catch (storeErr) { console.error("Store info unavailable:", storeErr); }
         if (regs.length > 0) {
-          setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false });
+          setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false, feature_attendant: regs[0].feature_attendant || false });
           setPinpadConfig({ pinpad_model: regs[0].pinpad_model || "", pinpad_ip: regs[0].pinpad_ip || "" });
           setPoleConfig({ pole_display_model: regs[0].pole_display_model || "", pole_display_ip: regs[0].pole_display_ip || "", printer_ip: regs[0].printer_ip || "" });
           setCustomerMonitor(!!regs[0].customer_monitor_enabled);
@@ -1020,6 +1021,11 @@ export default function POSRegister() {
           <PinpadMirrorTile pinpadContext={pinpadContext} cart={cart} subtotal={subtotal} tax={tax} total={total} />
         )}
       </div>
+
+      {/* Attendant panel — this cashiered lane oversees nearby self-checkout lanes */}
+      {registerFeatures.feature_attendant && posMode !== "diagnostics" && (
+        <SCOAttendantOverlay registerId={sessionStorage.getItem("pos_register_num") || "REG-001"} />
+      )}
 
       {/* Item List Dialog */}
       <POSItemList

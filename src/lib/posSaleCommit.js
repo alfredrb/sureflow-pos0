@@ -60,7 +60,7 @@ export async function commitSaleTransaction({
   subtotal, tax, total, paymentMethod, amountTendered, changeDue, tenders = [],
   trainingMode = false, taxExemptId = "", loyaltyMember = null,
   loyaltyAppliedAmount = 0, rewardsEarned = 0, giftCardNumber = null,
-  rewardsConfirmedOnPinpad = false,
+  rewardsConfirmedOnPinpad = false, selfCheckout = false,
 }) {
   await base44.entities.Transaction.create({
     transaction_id: txId,
@@ -98,6 +98,9 @@ export async function commitSaleTransaction({
     rewards_applied: loyaltyAppliedAmount,
     // Only true when the customer themselves approved the redemption on the pad.
     rewards_confirmed_on_pinpad: loyaltyAppliedAmount > 0 && rewardsConfirmedOnPinpad,
+    // Customer-operated sale at a self-checkout lane — lets reports and LP split
+    // SCO volume from cashiered volume on one field.
+    ...(selfCheckout ? { self_checkout: true, self_checkout_register_id: registerId } : {}),
   });
   await decrementStock(cart, products);
   try { await recordSerializedSales({ items: cart, transactionId: txId, operator, storeId }); } catch {}

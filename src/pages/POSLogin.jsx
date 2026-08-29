@@ -84,6 +84,9 @@ export default function POSLogin() {
           if (reg.store_id) sessionStorage.setItem("pos_store_id", reg.store_id);
           // Authoritative relay address — survives the auth redirect losing the boot URL.
           resolveRelayFromStore(reg.store_id).catch(() => {});
+          // A self-checkout lane never shows the cashier login — it boots
+          // straight into the customer-facing SCO screen.
+          if (reg.feature_self_checkout) { navigate("/sco"); return; }
           setRegisterNum(reg.register_id);
           if (reg.ip_address) {
             setRegisterIp(reg.ip_address);
@@ -106,6 +109,7 @@ export default function POSLogin() {
         } else {
           const reg = results[0];
           resolveRelayFromStore(reg.store_id).catch(() => {});
+          if (reg.feature_self_checkout) { navigate("/sco"); return; }
           if (reg.ip_address) {
             setRegisterIp(reg.ip_address);
             sessionStorage.setItem("pos_register_ip", reg.ip_address);

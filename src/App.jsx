@@ -76,6 +76,7 @@ import AdminFacilityManagement from '@/pages/AdminFacilityManagement';
 import AdminCustomerDisplay from '@/pages/AdminCustomerDisplay';
 import AdminPCICompliance from '@/pages/AdminPCICompliance';
 import CustomerDisplay from '@/pages/CustomerDisplay';
+import SCOLane from '@/pages/SCOLane';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -112,6 +113,8 @@ const AuthenticatedApp = () => {
         {/* Customer-facing second monitor on a lane — opened by the kiosk launcher as its
             own fullscreen window. Read-only; it follows what the POS window publishes. */}
         <Route path="/customer-display" element={<CustomerDisplay />} />
+        {/* Customer-operated self-checkout lane — card + gift card only, attendant-supervised */}
+        <Route path="/sco" element={<SCOLane />} />
         <Route path="/vendor-dashboard" element={<VendorDashboard />} />
         <Route path="/training-center" element={<EmployeeTrainingCenter />} />
         <Route path="/admin/login" element={<AdminLogin />} />
