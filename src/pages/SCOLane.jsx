@@ -95,6 +95,8 @@ export default function SCOLane() {
     cart, subtotal, tax, total,
     trainingMode: false,
     lastReceipt: receipt,
+    // Lets the attendant panel show PAYING while the customer is on the pay screen.
+    lanePhase: phase,
   });
 
   // ── Scanning ───────────────────────────────────────────────────────────────

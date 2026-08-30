@@ -43,8 +43,9 @@ import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog"
 import POSTransferDialog from "@/components/pos/POSTransferDialog";
 import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
 import PinpadMirrorTile from "@/components/pos/PinpadMirrorTile";
-import SCOAttendantOverlay from "@/components/pos/SCOAttendantOverlay";
 import SCOAttendantPanel from "@/components/pos/SCOAttendantPanel";
+import SCOAlertButton from "@/components/pos/SCOAlertButton";
+import useScoAttendantLanes from "@/hooks/useScoAttendantLanes";
 import POSSupervisorOverrideDialog from "@/components/pos/POSSupervisorOverrideDialog";
 import POSRemoteOverrideStatus from "@/components/pos/POSRemoteOverrideStatus";
 import POSSwitchGuardDialog from "@/components/pos/POSSwitchGuardDialog";
@@ -433,6 +434,24 @@ export default function POSRegister() {
     writeLog, toast, loadData,
   });
   const receiptTaxExempt = receiptData?.taxExempt || taxExemptProfile;
+
+  // Self-checkout lanes this station oversees — drives the header SCO button's
+  // badge and alerts the operator the moment a lane calls for help.
+  const scoOversight = useScoAttendantLanes(
+    registerFeatures.feature_attendant ? (sessionStorage.getItem("pos_register_num") || "REG-001") : ""
+  );
+  const scoPendingRef = React.useRef(0);
+  useEffect(() => {
+    if (scoOversight.pending > scoPendingRef.current) {
+      const req = scoOversight.requests[0];
+      toast({
+        title: "Self-Checkout Needs Help",
+        description: `${req?.register_id || "A lane"} is locked — open the Self-Checkout tab.`,
+        variant: "destructive",
+      });
+    }
+    scoPendingRef.current = scoOversight.pending;
+  }, [scoOversight.pending]);
 
   // Robbery reporting + CSM help paging.
   const {
@@ -891,6 +910,15 @@ export default function POSRegister() {
         newsCount={newsAnnouncements.length}
         onOpenNews={() => setNewsOpen(true)}
         onLogout={logout}
+        scoButton={
+          registerFeatures.feature_attendant ? (
+            <SCOAlertButton
+              pending={scoOversight.pending}
+              active={posMode === "sco"}
+              onClick={() => setPosMode("sco")}
+            />
+          ) : null
+        }
         helpMenu={
           <POSHelpMenu
             open={helpMenuOpen}
@@ -1027,11 +1055,6 @@ export default function POSRegister() {
           <PinpadMirrorTile pinpadContext={pinpadContext} cart={cart} subtotal={subtotal} tax={tax} total={total} />
         )}
       </div>
-
-      {/* Attendant panel — this cashiered lane oversees nearby self-checkout lanes */}
-      {registerFeatures.feature_attendant && !["diagnostics", "sco"].includes(posMode) && (
-        <SCOAttendantOverlay registerId={sessionStorage.getItem("pos_register_num") || "REG-001"} />
-      )}
 
       {/* Item List Dialog */}
       <POSItemList

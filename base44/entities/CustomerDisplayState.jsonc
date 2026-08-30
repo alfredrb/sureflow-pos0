@@ -20,6 +20,18 @@
       "default": "idle",
       "description": "What the customer monitor should be showing. idle = the store's promotion rotation. sale = the live itemized cart. thanks = the post-tender summary, which holds briefly and then returns to idle."
     },
+    "lane_phase": {
+      "type": "string",
+      "enum": [
+        "",
+        "welcome",
+        "scanning",
+        "paying",
+        "thanks"
+      ],
+      "default": "",
+      "description": "Where a SELF-CHECKOUT lane's customer actually is in the flow, published alongside mode. mode alone cannot tell scanning from paying \u2014 both are a live cart \u2014 so the attendant panel reads this to show PAYING while the customer is on the pay screen. Blank on a cashiered lane, which has no customer-driven phase."
+    },
     "items": {
       "type": "array",
       "description": "The live cart as the customer should see it. Deliberately a trimmed projection of the POS cart \u2014 name, qty and line total only, no cost, margin or internal flags ever reach a customer-facing screen.",

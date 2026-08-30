@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertTriangle, CheckCircle, XCircle, DollarSign, Eye } from "lucide-react";
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 import CSMApprovalStatus, { getActiveCsmApprovals } from "@/components/admin/CSMApprovalStatus";
+import SCOLanesSection from "@/components/remote/SCOLanesSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -468,6 +469,10 @@ export default function AdminRemoteWorkstation() {
   };
 
   const pendingRequests = requests.filter(r => r.status === "pending");
+  // Self-checkout lanes are watched, not operated — they get their own section
+  // instead of sitting in the cashiered register grid.
+  const scoLanes = registers.filter(r => r.feature_self_checkout);
+  const cashieredRegisters = registers.filter(r => !r.feature_self_checkout);
   const newAudits = getNewlyRequestedAudits();
   // Cash pickup/advance requests logged from the POS (active within last 15 minutes)
   const cashRequests = logs.filter(l => l.event_type === "cash_request" && !l.acknowledged);
@@ -769,11 +774,14 @@ export default function AdminRemoteWorkstation() {
         </div>
       )}
 
-      {/* Register Status Grid */}
+      {/* Self-checkout lanes — live cart, customer state, help calls */}
+      <SCOLanesSection lanes={scoLanes} />
+
+      {/* Register Status Grid — cashiered lanes */}
       <div className="flex-shrink-0">
         <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3">Register Status</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {registers.map(reg => {
+          {cashieredRegisters.map(reg => {
             const tx = getRegisterTransaction(reg.register_id);
             const pending = getRegisterPendingRequests(reg.register_id);
             const currentOp = getCurrentOperator(reg.register_id);
@@ -932,10 +940,10 @@ export default function AdminRemoteWorkstation() {
               </div>
             );
           })}
-          {registers.length === 0 && (
+          {cashieredRegisters.length === 0 && (
             <div className="col-span-3 text-center py-12 text-gray-400">
               <Monitor className="w-10 h-10 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No registers configured</p>
+              <p className="text-sm">No cashiered registers configured</p>
             </div>
           )}
         </div>

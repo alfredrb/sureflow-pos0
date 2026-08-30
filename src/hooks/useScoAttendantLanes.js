@@ -11,6 +11,7 @@ export default function useScoAttendantLanes(registerId) {
   const [states, setStates] = useState({});
 
   const load = useCallback(async () => {
+    if (!registerId) { setLanes([]); setRequests([]); setStates({}); return; }
     try {
       invalidateEntity("SCOAssistanceRequest");
       invalidateEntity("CustomerDisplayState");

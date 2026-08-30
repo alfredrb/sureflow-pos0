@@ -3,6 +3,7 @@ import { Users } from "lucide-react";
 import useScoAttendantLanes from "@/hooks/useScoAttendantLanes";
 import SCOAttendantTiles from "@/components/pos/SCOAttendantTiles";
 import SCOAttendantLaneCard from "@/components/pos/SCOAttendantLaneCard";
+import SCOAttendantCartCard from "@/components/pos/SCOAttendantCartCard";
 import SCOAttendantApproveDialog from "@/components/pos/SCOAttendantApproveDialog";
 
 // Full POS mode panel for an attendant station: every self-checkout lane this
@@ -40,14 +41,16 @@ export default function SCOAttendantPanel({ registerId }) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {lanes.map((lane) => (
-            <SCOAttendantLaneCard
-              key={lane.id}
-              lane={lane}
-              state={states[lane.register_id]}
-              request={requests.find((q) => q.register_id === lane.register_id)}
-              onApprove={(req) => setAction({ request: req, status: "approved" })}
-              onRelease={(req) => setAction({ request: req, status: "released" })}
-            />
+            <div key={lane.id} className="space-y-2">
+              <SCOAttendantLaneCard
+                lane={lane}
+                state={states[lane.register_id]}
+                request={requests.find((q) => q.register_id === lane.register_id)}
+                onApprove={(req) => setAction({ request: req, status: "approved" })}
+                onRelease={(req) => setAction({ request: req, status: "released" })}
+              />
+              <SCOAttendantCartCard state={states[lane.register_id]} />
+            </div>
           ))}
         </div>
       )}

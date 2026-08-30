@@ -12,7 +12,7 @@ const ROLE_BADGE = {
 // operator-side controls (lunch flag, news, help menu, logout).
 export default function POSTopBar({
   operator, registerNum, currentTime, modeTabs, posMode, onSelectMode,
-  lunchUpcoming, onOpenLunch, newsCount, onOpenNews, helpMenu, onLogout,
+  lunchUpcoming, onOpenLunch, newsCount, onOpenNews, helpMenu, onLogout, scoButton,
 }) {
   const badge = ROLE_BADGE[operator?.role] || ROLE_BADGE.cashier;
 
@@ -69,6 +69,7 @@ export default function POSTopBar({
             <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">{newsCount}</span>
           )}
         </button>
+        {scoButton}
         {helpMenu}
         {/* Logout sits in the same bubble style as News so it is an easy target
             on the 12-inch lane screens. */}

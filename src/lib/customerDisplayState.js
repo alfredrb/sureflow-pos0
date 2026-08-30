@@ -39,10 +39,11 @@ async function upsert(registerId, patch) {
 }
 
 // The running sale, as the customer should see it.
-export function publishSale({ registerId, storeId, cart, subtotal, tax, total, trainingMode }) {
+export function publishSale({ registerId, storeId, cart, subtotal, tax, total, trainingMode, lanePhase = "" }) {
   return upsert(registerId, {
     store_id: storeId || "",
     mode: "sale",
+    lane_phase: lanePhase,
     items: publicItems(cart),
     subtotal: +(subtotal || 0),
     tax: +(tax || 0),
@@ -53,10 +54,11 @@ export function publishSale({ registerId, storeId, cart, subtotal, tax, total, t
 }
 
 // Between customers — the monitor runs the store's promotion rotation.
-export function publishIdle({ registerId, storeId, trainingMode }) {
+export function publishIdle({ registerId, storeId, trainingMode, lanePhase = "" }) {
   return upsert(registerId, {
     store_id: storeId || "",
     mode: "idle",
+    lane_phase: lanePhase,
     items: [],
     subtotal: 0,
     tax: 0,

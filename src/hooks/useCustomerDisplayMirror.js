@@ -10,7 +10,7 @@ import { publishSale, publishIdle, publishThanks, THANKS_HOLD_MS } from "@/lib/c
 // Lanes with no monitor fitted publish NOTHING at all: enabled is false and every effect
 // returns early, so this costs a lane without the hardware exactly one boolean check.
 export default function useCustomerDisplayMirror({
-  enabled, registerId, storeId, cart, subtotal, tax, total, trainingMode, lastReceipt,
+  enabled, registerId, storeId, cart, subtotal, tax, total, trainingMode, lastReceipt, lanePhase = "",
 }) {
   const thanksTimerRef = useRef(null);
   const shownReceiptRef = useRef(null);
@@ -22,11 +22,11 @@ export default function useCustomerDisplayMirror({
     // here would cut the summary off the instant the sale completed.
     if (thanksTimerRef.current && cart.length === 0) return;
     if (cart.length === 0) {
-      publishIdle({ registerId, storeId, trainingMode }).catch(() => {});
+      publishIdle({ registerId, storeId, trainingMode, lanePhase }).catch(() => {});
       return;
     }
-    publishSale({ registerId, storeId, cart, subtotal, tax, total, trainingMode }).catch(() => {});
-  }, [enabled, registerId, storeId, cart, subtotal, tax, total, trainingMode]);
+    publishSale({ registerId, storeId, cart, subtotal, tax, total, trainingMode, lanePhase }).catch(() => {});
+  }, [enabled, registerId, storeId, cart, subtotal, tax, total, trainingMode, lanePhase]);
 
   // Completed sale — thank the customer, hold, then hand the screen back to idle.
   // Keyed on the receipt id so a re-render never re-triggers it.
