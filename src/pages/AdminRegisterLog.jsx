@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getAdminAccess } from "@/lib/adminAccess";
-import { buildRegisterScope, scopeByRegister } from "@/lib/cashScope";
+import { buildRegisterScope } from "@/lib/cashScope";
 
 const exportToCSV = (data, filename) => {
   const keys = ["event_type", "operator_name", "operator_id", "register_id", "detail", "transaction_id", "transaction_total", "created_date"];
@@ -80,10 +80,16 @@ export default function AdminRegisterLog() {
 
   // Log entries name a register but no store, so the store is resolved through the
   // register — a store-scoped admin or LP investigator only sees their own lanes.
-  const scopedLogs = useMemo(
-    () => scopeByRegister(buildRegisterScope(access, allRegisters), logs),
-    [access, allRegisters, logs]
-  );
+  // Logs from a register that has since been DELETED (e.g. a removed SCO lane) can no
+  // longer be resolved to any store, so strict scoping silently erased their history.
+  // Keep them visible: an audit trail for a lane that no longer exists is exactly the
+  // history worth reading.
+  const scopedLogs = useMemo(() => {
+    const scope = buildRegisterScope(access, allRegisters);
+    if (scope.all) return logs;
+    const known = new Set((allRegisters || []).flatMap(r => [r.id, r.register_id].filter(Boolean)));
+    return logs.filter(l => l.register_id && (scope.keys.has(l.register_id) || !known.has(l.register_id)));
+  }, [access, allRegisters, logs]);
 
   const registers = ["all", ...new Set(scopedLogs.map(l => l.register_id).filter(Boolean))];
 
