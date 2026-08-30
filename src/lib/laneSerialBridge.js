@@ -44,12 +44,16 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="s
 // ser2net 4.x YAML. Each connection is raw TCP in, raw serial out — no telnet
 // negotiation, because the relay writes binary frames (STX/ETX/LRC, ESC codes)
 // that telnet IAC escaping would corrupt.
+// Device paths are written INLINE in each connector line. They must not go through
+// a YAML anchor: `define: &poledev /dev/sureflow-pole` + `connector: serialdev,*poledev,...`
+// looks right but is broken, because YAML only resolves an alias in a node position,
+// never inside a comma-joined scalar. ser2net then receives the literal text
+// "*poledev" as the device name and every connection fails with
+// "Device open failure: Value or file not found" even though the symlink exists and
+// the TCP port answers — which reads on the lane as dead hardware.
 export const BRIDGE_SER2NET_CONFIG = `# /etc/ser2net.yaml
 %YAML 1.1
 ---
-define: &pinpaddev /dev/sureflow-pinpad
-define: &poledev   /dev/sureflow-pole
-
 # Ingenico iSC250 pinpad — the relay's pinpad module connects here.
 connection: &pinpad
   accepter: tcp,${BRIDGE_PORTS.pinpad}
@@ -57,7 +61,7 @@ connection: &pinpad
   options:
     kickolduser: true
     telnet-brk-on-sync: false
-  connector: serialdev,*pinpaddev,115200n81,local,nobreak
+  connector: serialdev,/dev/sureflow-pinpad,115200n81,local,nobreak
 
 # USB pole display — the relay's pole module connects here when the lane's pole
 # profile uses the lane_serial_bridge transport.
@@ -66,7 +70,7 @@ connection: &pole
   enable: on
   options:
     kickolduser: true
-  connector: serialdev,*poledev,9600n81,local,nobreak
+  connector: serialdev,/dev/sureflow-pole,9600n81,local,nobreak
 `;
 
 // ser2net must not die when a peripheral is unplugged or a lane boots with no pad
