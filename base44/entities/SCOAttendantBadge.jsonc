@@ -1,0 +1,72 @@
+{
+  "name": "SCOAttendantBadge",
+  "type": "object",
+  "properties": {
+    "badge_code": {
+      "type": "string",
+      "description": "The scannable code printed on the badge slip (CODE128). Scanning it at a self-checkout lane signs that operator on as the lane's attendant, instead of keying an ID and PIN in front of customers."
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operator the badge signs on."
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "operator_role": {
+      "type": "string",
+      "description": "Role captured at issue time, so a later demotion cannot be scanned around."
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store the badge was issued at. A badge is only honoured at its own store."
+    },
+    "issued_register_id": {
+      "type": "string",
+      "description": "Register the badge slip was printed from."
+    },
+    "shift_id": {
+      "type": "string",
+      "description": "Shift the badge belongs to. A badge is tied to one shift by design \u2014 it dies with that shift and a new one must be printed next shift."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the badge stops working \u2014 the end of the issuing operator's scheduled shift, or end of day when they have no scheduled shift. This is the whole point of the badge: a printed slip that walks out of the building with someone at the end of their shift must not still sign them on the next morning."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "expired",
+        "revoked"
+      ],
+      "default": "active",
+      "description": "active = scannable. expired = past expires_at, stamped the first time it is presented after that. revoked = superseded, because issuing a new badge retires the operator's previous one so only ever one printed slip is live per person."
+    },
+    "last_used_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last time this badge was scanned to sign on at a lane."
+    }
+  },
+  "required": [
+    "badge_code",
+    "operator_id",
+    "expires_at"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

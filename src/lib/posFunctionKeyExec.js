@@ -22,7 +22,7 @@ export function executeFunctionKeyAction(fkey, ctx) {
     setReadingOpen, pinpadContext, calculateStolenAmount,
     diagnosticsMode, trainingMode, trainingLocked, setTrainingMode, setTrainingModeDialog,
     requestDiagnostics, setPosMode, setSidePreview, registerFeatures,
-    suspendTransaction, setResumeOpen,
+    suspendTransaction, setResumeOpen, generateScoBadge,
   } = ctx;
   const registerId = sessionStorage.getItem("pos_register_num") || "REG-001";
 
@@ -182,6 +182,8 @@ export function executeFunctionKeyAction(fkey, ctx) {
       if (!registerFeatures.feature_returns) { toast({ title: "Returns Disabled", description: "Returns are not enabled on this register", variant: "destructive" }); break; }
       setPosMode("returns"); setSidePreview(null);
       break;
+    // AC 860 — print this operator's self-checkout attendant badge.
+    case "sco_badge": generateScoBadge?.(); break;
     case "suspend": suspendTransaction(); break;
     case "resume": setResumeOpen(true); break;
     case "repeat_last":

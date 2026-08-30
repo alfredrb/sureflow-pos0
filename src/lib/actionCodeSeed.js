@@ -67,6 +67,9 @@ export const ACTION_CODE_SEED = [
   { code: 218, label: "CSM — Need Check Approval", action: "csm_need", action_param: "NEED CHECK APPROVAL", requires_role: "none", status: "active", notes: "AC_CSM_NEED_CHECK_APPROVAL" },
   { code: 219, label: "CSM — Need Bags",           action: "csm_need", action_param: "NEED BAGS",       requires_role: "none", status: "active", notes: "AC_CSM_NEED_BAGS" },
 
+  // ── Self-checkout attendant badge ─────────────────────────────────────────
+  { code: 860, label: "Generate SCO Badge",        action: "sco_badge",        requires_role: "none",    status: "active", notes: "Prints a barcoded self-checkout attendant badge for the signed-on operator. Scanned at an SCO lane to sign on as its attendant instead of keying credentials in front of customers. The badge expires at the end of that operator's shift, so a new one is printed each shift." },
+
   // ── Technician print / station tests ──────────────────────────────────────
   { code: 901, label: "Print Test Slip",           action: "print_test_slip",  requires_role: "none",    status: "active", notes: "AC_PRINT_TEST_SLIP — 40-column test pattern plus a scannable barcode to prove the receipt station." },
 

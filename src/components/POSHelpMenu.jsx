@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy, Barcode } from "lucide-react";
 import RebootCountdownOverlay from "@/components/pos/RebootCountdownOverlay";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
@@ -7,7 +7,7 @@ import VersionLogDialog from "@/components/VersionLogDialog";
 import POSFeedbackDialog from "@/components/pos/POSFeedbackDialog";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
-export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics, operator }) {
+export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics, operator, onGenerateScoBadge }) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -59,6 +59,9 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           </button>
           <button onClick={() => { setRebootOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-red-600 transition-colors border-b border-red-500/10">
             <Power className="w-4 h-4" /> Reboot Lane
+          </button>
+          <button onClick={() => { onGenerateScoBadge?.(); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
+            <Barcode className="w-4 h-4" /> Generate Barcode (SCO Badge)
           </button>
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM

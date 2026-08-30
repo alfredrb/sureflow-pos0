@@ -75,6 +75,8 @@ import usePosSaleCompletion from "@/hooks/usePosSaleCompletion";
 import usePosSupervisorOverride from "@/hooks/usePosSupervisorOverride";
 import usePosSecurity from "@/hooks/usePosSecurity";
 import usePosDiagnostics from "@/hooks/usePosDiagnostics";
+import { issueScoBadge } from "@/lib/scoBadge";
+import { printScoBadgeSlip } from "@/lib/scoBadgeSlip";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -530,7 +532,7 @@ export default function POSRegister() {
     setReadingOpen, pinpadContext, calculateStolenAmount,
     diagnosticsMode, trainingMode, trainingLocked, setTrainingMode, setTrainingModeDialog,
     requestDiagnostics, setPosMode, setSidePreview, registerFeatures,
-    suspendTransaction, setResumeOpen,
+    suspendTransaction, setResumeOpen, generateScoBadge,
   });
 
   // Supervisor PIN overrides + remote (Remote Workstation) override requests.
@@ -656,6 +658,26 @@ export default function POSRegister() {
     operator_name: operator?.full_name || "",
     operator_pin: operator?.pin || "",
     training_mode: trainingMode,
+  };
+
+  // Prints the signed-on operator's self-checkout attendant badge. It is tied to
+  // today's shift, so it dies when that shift ends and a new one must be printed
+  // next shift — a slip that walks out of the building is useless the next day.
+  const generateScoBadge = async () => {
+    if (!operator) return;
+    try {
+      const badge = await issueScoBadge({
+        operator,
+        shift: todayShift,
+        storeId: sessionStorage.getItem("pos_store_id") || "",
+        registerId: sessionStorage.getItem("pos_register_num") || "",
+      });
+      await printScoBadgeSlip(badge, operator);
+      writeLog("override", `Self-checkout attendant badge issued — ${badge.badge_code}, expires ${new Date(badge.expires_at).toLocaleString()}`);
+      toast({ title: "Badge Printed", description: `Expires ${new Date(badge.expires_at).toLocaleTimeString()} — any earlier badge is now void.` });
+    } catch (e) {
+      toast({ title: "Badge Failed", description: "The self-checkout badge could not be printed.", variant: "destructive" });
+    }
   };
 
   const handleFunctionKey = (fkey) => {
@@ -934,6 +956,7 @@ export default function POSRegister() {
               if (trainingMode) { setTrainingMode(false); setHelpMenuOpen(false); toast({ title: "Training Mode Disabled", description: "Normal operations resumed" }); }
               else { setTrainingModeDialog(true); setHelpMenuOpen(false); }
             }}
+            onGenerateScoBadge={generateScoBadge}
             onRequestCSM={requestCSM}
             onReportRobbery={calculateStolenAmount}
             robberyLoading={robberyLoading}
