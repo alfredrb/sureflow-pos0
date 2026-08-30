@@ -66,6 +66,11 @@
       "default": 25,
       "description": "Dollar value at or above which a CUSTOMER removing a line from their own self-checkout order locks the lane for attendant approval, instead of the item simply coming off. This is the classic self-checkout shrink route \u2014 scan an expensive item, then void it back off before paying \u2014 so a high-value void is treated as an exception rather than a customer action. 0 = every void needs an attendant; a very high number effectively lets the customer void anything."
     },
+    "sco_price_override_threshold": {
+      "type": "number",
+      "default": 10,
+      "description": "Dollar amount that an ATTENDANT price override may take off a self-checkout line before it stops being the attendant's own call. Below this the markdown is applied under the attendant signed on at the lane; at or above it the lane demands CSM/Manager credentials on the spot. Measured on the whole line (unit reduction \u00d7 quantity), because five dollars off each of ten units is not a small markdown. 0 = every price override needs a supervisor."
+    },
     "sco_closed": {
       "type": "boolean",
       "default": false,

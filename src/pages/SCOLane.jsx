@@ -21,6 +21,7 @@ import SCOThanks from "@/components/sco/SCOThanks";
 import SCOAttendantBar from "@/components/sco/SCOAttendantBar";
 import SCOLaneClosedScreen from "@/components/sco/SCOLaneClosedScreen";
 import SCOPicklist from "@/components/sco/SCOPicklist";
+import SCOPriceOverrideDialog from "@/components/sco/SCOPriceOverrideDialog";
 import POSSoftKeyboard from "@/components/pos/POSSoftKeyboard";
 import { setLanePaused, setLaneClosed } from "@/lib/scoLaneControl";
 import { makeSuspendId, createSuspendRecord } from "@/lib/posSuspend";
@@ -53,6 +54,7 @@ export default function SCOLane() {
   // the sale still commits as Self Checkout.
   const [attendant, setAttendant] = useState(null);
   const [picklistOpen, setPicklistOpen] = useState(false);
+  const [overrideSku, setOverrideSku] = useState(null);
   const thanksTimer = useRef(null);
 
   const registerId = useMemo(() => {
@@ -61,7 +63,7 @@ export default function SCOLane() {
   }, []);
   const storeId = register?.store_id || "";
 
-  const { cart, scanCode, commitApproved, removeItem, clear, subtotal, tax, total } = useScoCart({ products, discounts });
+  const { cart, scanCode, commitApproved, removeItem, overridePrice, clear, subtotal, tax, total } = useScoCart({ products, discounts });
   const amountDue = Math.max(0, +(total - loyaltyApplied).toFixed(2));
 
   // Load the lane's register, catalog, discounts and receipt config.
@@ -371,6 +373,29 @@ export default function SCOLane() {
     );
   };
 
+  // Attendant price override on a line. Small markdowns go under the attendant
+  // signed on at the lane; at or over the threshold the dialog collects CSM/Manager
+  // credentials first. Either way it is written to the register log by name.
+  const priceOverrideThreshold = register?.sco_price_override_threshold ?? 10;
+  const applyPriceOverride = ({ price, reduction, approver }) => {
+    const item = cart.find((i) => i.sku === overrideSku);
+    if (!item) return;
+    overridePrice(item.sku, price);
+    setOverrideSku(null);
+    base44.entities.RegisterLog.create({
+      event_type: "override",
+      operator_id: approver?.operator_id || "SCO",
+      operator_name: approver?.full_name || "Self Checkout",
+      operator_role: approver?.role || "sco",
+      register_id: registerId,
+      detail: `Self-checkout price override — ${item.name}: $${item.price.toFixed(2)} → $${price.toFixed(2)} (-$${reduction.toFixed(2)})${reduction >= priceOverrideThreshold ? " · supervisor approved" : ""}`,
+      override_operator_id: approver?.operator_id || "",
+      override_operator_name: approver?.full_name || "",
+      override_action: "SCO Price Override",
+    }).catch(() => {});
+    setMessage(`${item.name} price overridden by ${approver?.full_name || "attendant"}`);
+  };
+
   // Walking away from a started order needs an attendant too, so a full basket is
   // never abandoned unseen.
   const requestCancel = () => {
@@ -465,8 +490,19 @@ export default function SCOLane() {
           onCancel={requestCancel}
           onManualCode={handleCode}
           onOpenPicklist={() => setPicklistOpen(true)}
+          onPriceOverride={attendant ? setOverrideSku : null}
         />
       )}
+
+      {/* Attendant line price override, with a CSM/Manager gate past the threshold */}
+      <SCOPriceOverrideDialog
+        open={!!overrideSku}
+        item={cart.find((i) => i.sku === overrideSku) || null}
+        threshold={priceOverrideThreshold}
+        attendant={attendant}
+        onClose={() => setOverrideSku(null)}
+        onApply={applyPriceOverride}
+      />
 
       {/* Pick an item that will not scan — routed through the same scan path */}
       <SCOPicklist

@@ -3,7 +3,7 @@ import { HelpCircle, ScanLine, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import SCOItemRow from "@/components/sco/SCOItemRow";
 
-export default function SCOCartPanel({ cart, subtotal, tax, amountDue, loyaltyApplied, message, onRemove, onPay, onHelp, onCancel, onManualCode, onOpenPicklist }) {
+export default function SCOCartPanel({ cart, subtotal, tax, amountDue, loyaltyApplied, message, onRemove, onPay, onHelp, onCancel, onManualCode, onOpenPicklist, onPriceOverride }) {
   const [code, setCode] = useState("");
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -19,7 +19,7 @@ export default function SCOCartPanel({ cart, subtotal, tax, amountDue, loyaltyAp
               Scan an item to add it to your order
             </div>
           )}
-          {cart.map((i) => <SCOItemRow key={i.sku} item={i} onRemove={onRemove} />)}
+          {cart.map((i) => <SCOItemRow key={i.sku} item={i} onRemove={onRemove} onPriceOverride={onPriceOverride} />)}
         </div>
         <form
           className="mt-4 flex gap-2"

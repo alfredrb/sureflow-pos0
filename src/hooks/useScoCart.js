@@ -67,11 +67,23 @@ export default function useScoCart({ products, discounts }) {
   const commitApproved = (product, serial = null) => commitAdd(product, serial);
 
   const removeItem = (sku) => setCart((prev) => prev.filter((i) => i.sku !== sku));
+
+  // Attendant price override at the lane. Keeps the item's first-seen price in
+  // original_price so the receipt and Loss Prevention can still see what it rang at.
+  const overridePrice = (sku, price) => setCart((prev) => prev.map((i) => i.sku === sku ? {
+    ...i,
+    price,
+    total: +(price * i.qty).toFixed(2),
+    original_price: i.original_price ?? i.price,
+    discount_type: "price_override",
+    discount_percentage: 0,
+  } : i));
+
   const clear = () => setCart([]);
 
   const subtotal = cart.reduce((s, i) => s + i.total, 0);
   const tax = cart.reduce((s, i) => s + i.total * ((i.tax_rate || 0) / 100), 0);
   const total = subtotal + tax;
 
-  return { cart, scanCode, addProduct, commitApproved, removeItem, clear, subtotal, tax, total };
+  return { cart, scanCode, addProduct, commitApproved, removeItem, overridePrice, clear, subtotal, tax, total };
 }

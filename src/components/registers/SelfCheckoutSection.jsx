@@ -52,6 +52,15 @@ export default function SelfCheckoutSection({ form, setForm, registers }) {
               className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm"
             />
             <p className="text-xs text-gray-400 mt-1">A customer removing a line worth this much or more locks the lane for attendant approval.</p>
+            <label className="text-sm font-medium text-gray-700 mt-3 mb-1 block">Price override approval threshold ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.sco_price_override_threshold ?? 10}
+              onChange={(e) => setForm({ ...form, sco_price_override_threshold: parseFloat(e.target.value) || 0 })}
+              className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">An attendant markdown taking this much or more off a line needs CSM/Manager credentials at the lane.</p>
           </div>
         )}
         <Toggle
