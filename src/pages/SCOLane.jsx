@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { base44 } from "@/api/data";
+import { base44, invalidateEntity } from "@/api/data";
 import { Monitor } from "lucide-react";
 import { getLaneRegisterId } from "@/lib/laneIdentity";
 import { scopeCatalogToStore } from "@/lib/storeCatalog";
@@ -90,16 +90,23 @@ export default function SCOLane() {
 
   // The lane follows its own register record, so a pause / close done from the
   // attendant panel on another lane takes effect here immediately.
+  // The cached copy has to be dropped first — without it the re-read returns the
+  // pre-change record and the lane looks like it ignored the attendant.
   const refreshRegister = useCallback(async () => {
     if (!registerId) return;
+    invalidateEntity("Register");
     const rows = await base44.entities.Register.filter({ register_id: registerId });
     if (rows[0]) setRegister(rows[0]);
   }, [registerId]);
 
+  // Subscription for the instant case, plus a slow poll so an unlock still lands
+  // if the lane's socket dropped — a customer must never be left on a stale
+  // Lane Closed screen waiting for someone to refresh the browser.
   useEffect(() => {
     if (!register) return;
     const unsub = base44.entities.Register.subscribe(() => refreshRegister());
-    return unsub;
+    const poll = setInterval(refreshRegister, 5000);
+    return () => { unsub(); clearInterval(poll); };
   }, [!!register, refreshRegister]);
 
   // Customer pinpad on this lane — mirrors the cart, takes confirms/signature.
@@ -149,6 +156,7 @@ export default function SCOLane() {
     const reqId = assist?.request?.id;
     if (!reqId) return;
     const check = async () => {
+      invalidateEntity("SCOAssistanceRequest");
       const rows = await base44.entities.SCOAssistanceRequest.filter({ id: reqId });
       const r = rows[0];
       if (!r || r.status === "pending") return;
@@ -186,8 +194,9 @@ export default function SCOLane() {
       }
     };
     const unsub = base44.entities.SCOAssistanceRequest.subscribe(() => check());
+    const poll = setInterval(check, 3000);
     check();
-    return unsub;
+    return () => { unsub(); clearInterval(poll); };
   }, [assist?.request?.id]);
 
   // Walk-over: the attendant keys credentials on this lane's locked screen.
