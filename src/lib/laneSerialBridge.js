@@ -83,9 +83,15 @@ Type=simple
 # match, so vsd turns it into a real pty. The image's baked VSDConfig.xml assigns
 # that pole to /dev/ttyS20 (the full path the VSP tool itself writes — a bare
 # 'ttyVSP0' token leaves vsd with no pty and the pole dark), so point the pole
-# symlink there. The -e test plus the leading '-' keep a lane with no Toshiba pole
-# booting normally, and 9600 8N1 matches the pole connector line in ser2net.yaml.
-ExecStartPre=-/bin/sh -c '[ -e /dev/ttyS20 ] && ln -sf /dev/ttyS20 /dev/sureflow-pole && stty -F /dev/ttyS20 9600 cs8 -cstopb -parenb raw -echo'
+# symlink there. 9600 8N1 matches the pole connector line in ser2net.yaml.
+#
+# The WAIT LOOP is load-bearing, not defensive padding. After=vsd.service only
+# orders service START — vsd forks, enumerates USB and creates the pty a moment
+# later, so a bare [ -e /dev/ttyS20 ] test loses the race, exits 1, and the pole
+# symlink is never made. ser2net then answers on 9101 but fails every write with
+# "Device open failure", which looks exactly like a dead pole. Poll for up to 15s
+# instead. The leading '-' still lets a lane with no Toshiba pole boot normally.
+ExecStartPre=-/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/ttyS20 ] && break; sleep 0.5; done; [ -e /dev/ttyS20 ] || exit 0; ln -sf /dev/ttyS20 /dev/sureflow-pole; stty -F /dev/ttyS20 9600 cs8 -cstopb -parenb raw -echo'
 ExecStart=/usr/sbin/ser2net -n -c /etc/ser2net.yaml
 Restart=always
 RestartSec=3
