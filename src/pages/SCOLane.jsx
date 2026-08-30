@@ -20,6 +20,8 @@ import SCOHelpScreen from "@/components/sco/SCOHelpScreen";
 import SCOThanks from "@/components/sco/SCOThanks";
 import SCOAttendantBar from "@/components/sco/SCOAttendantBar";
 import SCOLaneClosedScreen from "@/components/sco/SCOLaneClosedScreen";
+import SCOPicklist from "@/components/sco/SCOPicklist";
+import POSSoftKeyboard from "@/components/pos/POSSoftKeyboard";
 import { setLanePaused, setLaneClosed } from "@/lib/scoLaneControl";
 import { makeSuspendId, createSuspendRecord } from "@/lib/posSuspend";
 import { makeTransferId, createTransferRecord } from "@/lib/posTransfer";
@@ -50,6 +52,7 @@ export default function SCOLane() {
   // Attendant signed on at this lane (top-bar menu). Never the sale's operator —
   // the sale still commits as Self Checkout.
   const [attendant, setAttendant] = useState(null);
+  const [picklistOpen, setPicklistOpen] = useState(false);
   const thanksTimer = useRef(null);
 
   const registerId = useMemo(() => {
@@ -461,8 +464,17 @@ export default function SCOLane() {
           onHelp={() => raiseAssist("attendant_help")}
           onCancel={requestCancel}
           onManualCode={handleCode}
+          onOpenPicklist={() => setPicklistOpen(true)}
         />
       )}
+
+      {/* Pick an item that will not scan — routed through the same scan path */}
+      <SCOPicklist
+        open={picklistOpen}
+        onClose={() => setPicklistOpen(false)}
+        products={products}
+        onPick={handleCode}
+      />
       {!register.sco_closed && !register.paused && phase === "paying" && (
         <SCOPayPanel
           amountDue={amountDue}
@@ -484,6 +496,10 @@ export default function SCOLane() {
           onCancel={assist.request.reason === "attendant_help" ? cancelHelp : null}
         />
       )}
+
+      {/* Same on-screen keyboard the POS uses — attaches only to fields flagged
+          data-softkeyboard, so the pinpad and numeric entry are untouched. */}
+      <POSSoftKeyboard />
     </div>
   );
 }

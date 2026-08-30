@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { HelpCircle, ScanLine } from "lucide-react";
+import { HelpCircle, ScanLine, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import SCOItemRow from "@/components/sco/SCOItemRow";
 
-export default function SCOCartPanel({ cart, subtotal, tax, amountDue, loyaltyApplied, message, onRemove, onPay, onHelp, onCancel, onManualCode }) {
+export default function SCOCartPanel({ cart, subtotal, tax, amountDue, loyaltyApplied, message, onRemove, onPay, onHelp, onCancel, onManualCode, onOpenPicklist }) {
   const [code, setCode] = useState("");
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -28,11 +28,18 @@ export default function SCOCartPanel({ cart, subtotal, tax, amountDue, loyaltyAp
           <Input
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            inputMode="numeric"
+            data-softkeyboard
             placeholder="No barcode? Type the item code"
             className="bg-[#0a0e27] border-blue-500/20 text-white h-12 text-lg"
           />
           <button type="submit" className="px-6 rounded-xl bg-[#1a1f4a] text-white border border-blue-500/10 font-semibold active:scale-95 transition-transform">Add</button>
+          <button
+            type="button"
+            onClick={onOpenPicklist}
+            className="px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-2 active:scale-95 transition-transform"
+          >
+            <List className="w-4 h-4" /> Look Up Item
+          </button>
         </form>
       </div>
 
