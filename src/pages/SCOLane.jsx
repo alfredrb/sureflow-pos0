@@ -18,6 +18,11 @@ import SCOCartPanel from "@/components/sco/SCOCartPanel";
 import SCOPayPanel from "@/components/sco/SCOPayPanel";
 import SCOHelpScreen from "@/components/sco/SCOHelpScreen";
 import SCOThanks from "@/components/sco/SCOThanks";
+import SCOAttendantBar from "@/components/sco/SCOAttendantBar";
+import SCOLaneClosedScreen from "@/components/sco/SCOLaneClosedScreen";
+import { setLanePaused, setLaneClosed } from "@/lib/scoLaneControl";
+import { makeSuspendId, createSuspendRecord } from "@/lib/posSuspend";
+import { makeTransferId, createTransferRecord } from "@/lib/posTransfer";
 
 // The sale is committed under this synthetic operator so every report can see
 // exactly which sales were customer-operated.
@@ -42,6 +47,9 @@ export default function SCOLane() {
   const [loyaltyApplied, setLoyaltyApplied] = useState(0);
   const [rewardsConfirmed, setRewardsConfirmed] = useState(false);
   const [receipt, setReceipt] = useState(null);
+  // Attendant signed on at this lane (top-bar menu). Never the sale's operator —
+  // the sale still commits as Self Checkout.
+  const [attendant, setAttendant] = useState(null);
   const thanksTimer = useRef(null);
 
   const registerId = useMemo(() => {
@@ -80,6 +88,20 @@ export default function SCOLane() {
     })();
   }, [registerId]);
 
+  // The lane follows its own register record, so a pause / close done from the
+  // attendant panel on another lane takes effect here immediately.
+  const refreshRegister = useCallback(async () => {
+    if (!registerId) return;
+    const rows = await base44.entities.Register.filter({ register_id: registerId });
+    if (rows[0]) setRegister(rows[0]);
+  }, [registerId]);
+
+  useEffect(() => {
+    if (!register) return;
+    const unsub = base44.entities.Register.subscribe(() => refreshRegister());
+    return unsub;
+  }, [!!register, refreshRegister]);
+
   // Customer pinpad on this lane — mirrors the cart, takes confirms/signature.
   const pinpadContext = usePinpadCartMirror({
     pinpadConfig: { pinpad_model: register?.pinpad_model || "", pinpad_ip: register?.pinpad_ip || "" },
@@ -100,13 +122,15 @@ export default function SCOLane() {
   });
 
   // ── Scanning ───────────────────────────────────────────────────────────────
-  const raiseAssist = useCallback(async (reason, product, detail = "") => {
+  // action/payload let a request stand for something other than an item add —
+  // a high-value void or a whole-order cancellation the attendant must approve.
+  const raiseAssist = useCallback(async (reason, product, detail = "", action = null, payload = null) => {
     const req = await createAssistanceRequest({
       registerId, storeId, reason, detail,
       sku: product?.sku || "", productName: product?.name || "",
     });
     setUnlockError("");
-    setAssist({ request: req, product: product || null });
+    setAssist({ request: req, product: product || null, action, payload });
   }, [registerId, storeId]);
 
   const handleCode = useCallback((code) => {
@@ -129,8 +153,23 @@ export default function SCOLane() {
       const r = rows[0];
       if (!r || r.status === "pending") return;
       const product = assist?.product;
+      const action = assist?.action;
+      const payload = assist?.payload;
       setAssist(null);
       setUnlockError("");
+      // Exception requests the customer raised on their own order: the attendant's
+      // approval is what carries out the void / cancellation, a release leaves the
+      // order exactly as it was.
+      if (action === "void") {
+        if (r.status === "approved") { removeItem(payload.sku); setMessage(`${payload.name} removed by ${r.attendant_name || "attendant"}`); }
+        else setMessage("The item stays on your order — continue shopping");
+        return;
+      }
+      if (action === "cancel") {
+        if (r.status === "approved") { clearOrder(); setMessage(""); }
+        else setMessage("Your order was kept — continue shopping");
+        return;
+      }
       if (r.status === "approved" && product) {
         if (r.reason === "serialized") {
           if (r.serial_number) commitApproved(product, r.serial_number);
@@ -298,12 +337,56 @@ export default function SCOLane() {
     setPayBusy(false);
   };
 
-  const cancelOrder = () => {
+  const clearOrder = () => {
     clear();
     setLoyaltyMember(null); setLoyaltyApplied(0); setRewardsConfirmed(false);
     setMessage(""); setPayMessage("");
     setPhase("welcome");
   };
+
+  // ── Customer exceptions an attendant has to sign off ───────────────────────
+  // Voiding a high-value line is the classic self-checkout shrink route, so at or
+  // above the lane's threshold the item stays put until an attendant approves.
+  const voidThreshold = register?.sco_void_threshold ?? 25;
+  const requestVoid = (sku) => {
+    const item = cart.find((i) => i.sku === sku);
+    if (!item) return;
+    if (item.total < voidThreshold) { removeItem(sku); setMessage(`${item.name} removed`); return; }
+    raiseAssist(
+      "void_review", null,
+      `${item.name} — $${item.total.toFixed(2)} removal requested`,
+      "void", { sku, name: item.name },
+    );
+  };
+
+  // Walking away from a started order needs an attendant too, so a full basket is
+  // never abandoned unseen.
+  const requestCancel = () => {
+    if (cart.length === 0) { clearOrder(); return; }
+    raiseAssist(
+      "cancel_review", null,
+      `${cart.length} item(s), $${total.toFixed(2)} on the order`,
+      "cancel", null,
+    );
+  };
+
+  // ── Attendant menu actions (signed on at the lane) ─────────────────────────
+  const parkOrder = async (kind) => {
+    const id = kind === "transfer" ? makeTransferId() : makeSuspendId();
+    const args = {
+      storeId, registerId, operator: attendant || SCO_OPERATOR, cart,
+      subtotal, tax, total, itemCount: cart.reduce((s, i) => s + i.qty, 0),
+      taxExemptId: null, loyaltyMember, trainingMode: false,
+    };
+    if (kind === "transfer") await createTransferRecord({ transferId: id, ...args });
+    else await createSuspendRecord({ suspendId: id, ...args });
+    clearOrder();
+    setMessage(kind === "transfer"
+      ? `Order ${id} sent to ${register?.attendant_register_id} — retrieve it there with AC 851`
+      : `Order suspended as ${id} — resume it at any register`);
+  };
+
+  const laneAction = async (fn) => { await fn(); await refreshRegister(); };
 
   useEffect(() => () => { if (thanksTimer.current) clearTimeout(thanksTimer.current); }, []);
 
@@ -335,24 +418,43 @@ export default function SCOLane() {
           </div>
           <span className="text-white font-bold">{storeConfig?.store_name || "SureFlow"} Self Checkout</span>
         </div>
-        <span className="text-blue-300/40 font-mono text-sm">{register.register_id}</span>
+        <div className="flex items-center gap-3">
+          <SCOAttendantBar
+            register={register}
+            attendant={attendant}
+            setAttendant={setAttendant}
+            hasItems={cart.length > 0}
+            itemCount={products.length}
+            onSuspend={() => parkOrder("suspend")}
+            onSendToRegister={() => parkOrder("transfer")}
+            onPause={() => laneAction(() => setLanePaused(register, true, attendant))}
+            onResume={() => laneAction(() => setLanePaused(register, false, attendant))}
+            onCloseLane={(reason) => laneAction(() => setLaneClosed(register, true, { reason, attendant }))}
+            onOpenLane={() => laneAction(() => setLaneClosed(register, false, { attendant }))}
+          />
+          <span className="text-blue-300/40 font-mono text-sm">{register.register_id}</span>
+        </div>
       </div>
 
-      {phase === "welcome" && (
+      {(register.sco_closed || register.paused) && (
+        <SCOLaneClosedScreen closed={!!register.sco_closed} reason={register.sco_closed_reason} />
+      )}
+
+      {!register.sco_closed && !register.paused && phase === "welcome" && (
         <SCOWelcome storeName={storeConfig?.store_name} onStart={() => setPhase("scanning")} />
       )}
-      {phase === "scanning" && (
+      {!register.sco_closed && !register.paused && phase === "scanning" && (
         <SCOCartPanel
           cart={cart} subtotal={subtotal} tax={tax} amountDue={amountDue}
           loyaltyApplied={loyaltyApplied} message={message}
-          onRemove={removeItem}
+          onRemove={requestVoid}
           onPay={() => cart.length > 0 && setPhase("paying")}
           onHelp={() => raiseAssist("attendant_help")}
-          onCancel={cancelOrder}
+          onCancel={requestCancel}
           onManualCode={handleCode}
         />
       )}
-      {phase === "paying" && (
+      {!register.sco_closed && !register.paused && phase === "paying" && (
         <SCOPayPanel
           amountDue={amountDue}
           loyaltyMember={loyaltyMember} loyaltyApplied={loyaltyApplied}
@@ -361,7 +463,7 @@ export default function SCOLane() {
           onBack={() => { setPayMessage(""); setPhase("scanning"); }}
         />
       )}
-      {phase === "thanks" && <SCOThanks receipt={receipt} onDone={resetLane} />}
+      {!register.sco_closed && !register.paused && phase === "thanks" && <SCOThanks receipt={receipt} onDone={resetLane} />}
 
       {assist && (
         <SCOHelpScreen

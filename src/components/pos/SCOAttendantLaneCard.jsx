@@ -1,10 +1,11 @@
 import React from "react";
-import { AlertTriangle, ShoppingCart, Moon, CreditCard } from "lucide-react";
+import { AlertTriangle, ShoppingCart, Moon, CreditCard, Lock, PauseCircle } from "lucide-react";
 import { SCO_REASONS, SUPERVISOR_REQUIRED } from "@/lib/scoAssist";
+import SCOLaneControlButtons from "@/components/pos/SCOLaneControlButtons";
 
 // One overseen self-checkout lane in the attendant panel: live state plus the
 // pending assistance request with one-tap remote actions.
-export default function SCOAttendantLaneCard({ lane, state, request, onApprove, onRelease }) {
+export default function SCOAttendantLaneCard({ lane, state, request, onApprove, onRelease, onPause, onResume, onCloseLane, onOpenLane }) {
   const inSale = state?.mode === "sale";
   // The lane publishes where the customer actually is, so paying reads as PAYING
   // rather than as another in-sale lane.
@@ -17,6 +18,10 @@ export default function SCOAttendantLaneCard({ lane, state, request, onApprove, 
         <p className="text-white font-semibold text-sm">{lane.name} <span className="text-blue-300/40 font-mono text-xs">{lane.register_id}</span></p>
         {request ? (
           <span className="text-orange-300 text-[10px] font-bold uppercase flex items-center gap-1 animate-pulse"><AlertTriangle className="w-3 h-3" /> Needs help</span>
+        ) : lane.sco_closed ? (
+          <span className="text-red-300 text-[10px] font-bold uppercase flex items-center gap-1"><Lock className="w-3 h-3" /> Closed</span>
+        ) : lane.paused ? (
+          <span className="text-amber-300 text-[10px] font-bold uppercase flex items-center gap-1"><PauseCircle className="w-3 h-3" /> Paused</span>
         ) : paying ? (
           <span className="text-emerald-300 text-[10px] font-bold uppercase flex items-center gap-1"><CreditCard className="w-3 h-3" /> Paying · ${(state?.total || 0).toFixed(2)}</span>
         ) : inSale ? (
@@ -43,6 +48,13 @@ export default function SCOAttendantLaneCard({ lane, state, request, onApprove, 
           </div>
         </div>
       )}
+      <SCOLaneControlButtons
+        lane={lane}
+        onPause={onPause}
+        onResume={onResume}
+        onCloseLane={onCloseLane}
+        onOpenLane={onOpenLane}
+      />
     </div>
   );
 }

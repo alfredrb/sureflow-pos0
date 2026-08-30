@@ -43,6 +43,15 @@ export default function SelfCheckoutSection({ form, setForm, registers }) {
               </SelectContent>
             </Select>
             <p className="text-xs text-gray-400 mt-1">Assistance requests from this SCO lane appear on that lane's Attendant panel.</p>
+            <label className="text-sm font-medium text-gray-700 mt-3 mb-1 block">Void approval threshold ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.sco_void_threshold ?? 25}
+              onChange={(e) => setForm({ ...form, sco_void_threshold: parseFloat(e.target.value) || 0 })}
+              className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">A customer removing a line worth this much or more locks the lane for attendant approval.</p>
           </div>
         )}
         <Toggle

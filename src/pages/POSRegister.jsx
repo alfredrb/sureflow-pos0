@@ -1042,7 +1042,7 @@ export default function POSRegister() {
           )}
 
           {posMode === "sco" && (
-            <SCOAttendantPanel registerId={sessionStorage.getItem("pos_register_num") || "REG-001"} />
+            <SCOAttendantPanel registerId={sessionStorage.getItem("pos_register_num") || "REG-001"} operator={operator} />
           )}
 
           {posMode === "diagnostics" && (

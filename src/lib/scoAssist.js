@@ -13,6 +13,8 @@ export const SCO_REASONS = {
   unscannable: "Item would not scan",
   serialized: "Serialized item — attendant required",
   attendant_help: "Customer called for help",
+  void_review: "High-value item removal — approval required",
+  cancel_review: "Order cancellation — approval required",
   other: "Assistance needed",
 };
 

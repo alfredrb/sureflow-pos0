@@ -5,26 +5,34 @@ import { Loader2 } from "lucide-react";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
 import { resolveAssistanceRequest, SCO_REASONS, SUPERVISOR_REQUIRED } from "@/lib/scoAssist";
 
-// Remote resolution from the attendant lane: the attendant keys their own ID +
-// PIN, the credentials are verified, and the request resolves over the same
-// realtime loop the SCO lane is watching.
-export default function SCOAttendantApproveDialog({ action, onClose, onResolved }) {
+// Remote resolution from the attendant lane. The operator already signed on to
+// this register, so they are the attendant — no second ID + PIN. Credentials are
+// only asked for when the reason needs a supervisor and the signed-on operator
+// is not one.
+export default function SCOAttendantApproveDialog({ action, operator, onClose, onResolved }) {
   const [operatorId, setOperatorId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const request = action?.request;
   if (!request) return null;
+
   const needsSupervisor = SUPERVISOR_REQUIRED.includes(request.reason);
+  const signedOnQualifies = !!operator && (!needsSupervisor || SUPERVISOR_ROLES.includes(operator.role));
+
+  const finish = async (attendant) => {
+    await resolveAssistanceRequest(request, { status: action.status, attendant, via: "remote" });
+    setLoading(false);
+    setOperatorId(""); setPin("");
+    onResolved(attendant);
+  };
 
   const submit = async () => {
     setError(""); setLoading(true);
-    const res = await verifyOperatorCredentials(operatorId, pin, needsSupervisor ? { roles: SUPERVISOR_ROLES } : { requireActive: true });
+    if (signedOnQualifies) { await finish(operator); return; }
+    const res = await verifyOperatorCredentials(operatorId, pin, { roles: SUPERVISOR_ROLES });
     if (!res.ok) { setError(res.error); setLoading(false); return; }
-    await resolveAssistanceRequest(request, { status: action.status, attendant: res.operator, via: "remote" });
-    setLoading(false);
-    setOperatorId(""); setPin("");
-    onResolved(res.operator);
+    await finish(res.operator);
   };
 
   return (
@@ -36,11 +44,19 @@ export default function SCOAttendantApproveDialog({ action, onClose, onResolved 
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
             {SCO_REASONS[request.reason] || request.reason}
-            {request.product_name ? ` — ${request.product_name}` : ""}.
-            {action.status === "approved" ? " The item will continue into the sale." : " The lane resumes without the item."}
+            {request.product_name ? ` — ${request.product_name}` : ""}
+            {request.detail ? ` (${request.detail})` : ""}.
+            {action.status === "approved" ? " The lane continues." : " The lane resumes without the item."}
           </p>
-          <Input value={operatorId} onChange={(e) => setOperatorId(e.target.value)} placeholder={needsSupervisor ? "CSM / Manager Operator ID" : "Attendant Operator ID"} className="font-mono" />
-          <Input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="font-mono" onKeyDown={(e) => e.key === "Enter" && submit()} />
+          {signedOnQualifies ? (
+            <p className="text-xs text-gray-400">Recorded against {operator.full_name} ({operator.operator_id}).</p>
+          ) : (
+            <>
+              <p className="text-xs text-amber-600">This reason needs a CSM / Manager.</p>
+              <Input value={operatorId} onChange={(e) => setOperatorId(e.target.value)} placeholder="CSM / Manager Operator ID" className="font-mono" />
+              <Input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="font-mono" onKeyDown={(e) => e.key === "Enter" && submit()} />
+            </>
+          )}
           {error && <p className="text-red-600 text-xs">{error}</p>}
           <button
             onClick={submit}

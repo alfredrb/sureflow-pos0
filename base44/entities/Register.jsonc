@@ -61,6 +61,20 @@
       "default": false,
       "description": "This cashiered lane is an ATTENDANT STATION: the POS register gains the Attendant side panel listing every self-checkout lane whose attendant_register_id points here, with one-tap remote approve / release, alongside normal cashiering."
     },
+    "sco_void_threshold": {
+      "type": "number",
+      "default": 25,
+      "description": "Dollar value at or above which a CUSTOMER removing a line from their own self-checkout order locks the lane for attendant approval, instead of the item simply coming off. This is the classic self-checkout shrink route \u2014 scan an expensive item, then void it back off before paying \u2014 so a high-value void is treated as an exception rather than a customer action. 0 = every void needs an attendant; a very high number effectively lets the customer void anything."
+    },
+    "sco_closed": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when an attendant has CLOSED this self-checkout lane from the lane's own attendant menu or the attendant panel. The lane shows a 'Lane Closed' screen and refuses to start a new order until it is reopened. Distinct from paused: closed is a deliberate 'this lane is out of service for now' state, whereas paused is a short hold on a lane that is otherwise in use."
+    },
+    "sco_closed_reason": {
+      "type": "string",
+      "description": "Why the self-checkout lane was closed (printer out of paper, no attendant on the floor, end of night). Shown to the customer on the closed screen and recorded in the register log."
+    },
     "paused": {
       "type": "boolean",
       "default": false,

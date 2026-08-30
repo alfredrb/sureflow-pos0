@@ -5,13 +5,15 @@ import SCOAttendantTiles from "@/components/pos/SCOAttendantTiles";
 import SCOAttendantLaneCard from "@/components/pos/SCOAttendantLaneCard";
 import SCOAttendantCartCard from "@/components/pos/SCOAttendantCartCard";
 import SCOAttendantApproveDialog from "@/components/pos/SCOAttendantApproveDialog";
+import { setLanePaused, setLaneClosed } from "@/lib/scoLaneControl";
 
 // Full POS mode panel for an attendant station: every self-checkout lane this
 // register oversees, its live state, and one-tap remote approve / release for
 // whichever lanes are locked waiting for help.
-export default function SCOAttendantPanel({ registerId }) {
+export default function SCOAttendantPanel({ registerId, operator }) {
   const { lanes, requests, states, reload, pending } = useScoAttendantLanes(registerId);
   const [action, setAction] = useState(null); // { request, status }
+  const control = (fn) => async (...args) => { await fn(...args); reload(); };
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -48,6 +50,10 @@ export default function SCOAttendantPanel({ registerId }) {
                 request={requests.find((q) => q.register_id === lane.register_id)}
                 onApprove={(req) => setAction({ request: req, status: "approved" })}
                 onRelease={(req) => setAction({ request: req, status: "released" })}
+                onPause={control(() => setLanePaused(lane, true, operator))}
+                onResume={control(() => setLanePaused(lane, false, operator))}
+                onCloseLane={control((reason) => setLaneClosed(lane, true, { reason, attendant: operator }))}
+                onOpenLane={control(() => setLaneClosed(lane, false, { attendant: operator }))}
               />
               <SCOAttendantCartCard state={states[lane.register_id]} />
             </div>
@@ -58,6 +64,7 @@ export default function SCOAttendantPanel({ registerId }) {
       {action && (
         <SCOAttendantApproveDialog
           action={action}
+          operator={operator}
           onClose={() => setAction(null)}
           onResolved={() => { setAction(null); reload(); }}
         />
