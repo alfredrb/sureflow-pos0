@@ -67,12 +67,12 @@ export const POLE_DISPLAY_PROFILES = {
     columns: 20,
     rows: 2,
     notes:
-      "Toshiba TCx 2×20 VFD (USB 0f66:4524), proven working through the Toshiba VSP driver. The pole must be assigned " +
-      "a port on the VSP config tool's Line Display tab (VID 0f66 / PID 4524) — vsd then owns a real pty and symlinks " +
-      "it (e.g. /dev/ttyS20 -> /dev/pts/N), and the lane's serial bridge publishes it at lane_ip:9101. Set the pole IP " +
-      "to the LANE's LAN IP, not the printer. Command set is IBM/ADX (Reset 1F, Display Position 10 nn — 00 line 1, " +
-      "14 line 2), never ESC/POS. A pole that draws nothing is almost always missing that Line Display assignment, " +
-      "which leaves vsd with only a passthrough symlink onto hidraw.",
+      "Toshiba TCx 2×20 VFD (USB 0f66:4524), proven working through the Toshiba VSP driver. The Line Display " +
+      "assignment (VID 0f66 / PID 4524 → /dev/ttyS20) is BAKED into the lane image, so a freshly built lane comes up " +
+      "with the pole already bound — no per-lane config tool step. vsd owns a real pty at /dev/ttyS20 and the lane's " +
+      "serial bridge publishes it at lane_ip:9101. Set the pole IP to the LANE's LAN IP, not the printer. Command set " +
+      "is IBM/ADX (Reset 1F, Display Position 10 nn — 00 line 1, 14 line 2) at 9600 8N1, never ESC/POS. A pole that " +
+      "draws nothing: check /dev/ttyS20 exists and /dev/sureflow-pole points at it; garbage glyphs mean the baud is wrong.",
   },
   logic_ld9900: {
     key: "logic_ld9900",

@@ -36,8 +36,9 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="s
 
 # The Toshiba TCx 2x20 pole (0f66:4524) is deliberately ABSENT here — it is a
 # HID-class device, not USB-serial, so no tty rule can ever match it. The Toshiba
-# VSP driver (vsd, baked into the image) claims it and creates a virtual serial
-# tty; the bridge unit's ExecStartPre points sureflow-pole at that node.
+# VSP driver (vsd, baked into the image) claims it and, with the baked Line Display
+# assignment, presents a real pty at /dev/ttyS20 that translates IBM/ADX frames.
+# The bridge unit's ExecStartPre points sureflow-pole at that node.
 `;
 
 // ser2net 4.x YAML. Each connection is raw TCP in, raw serial out — no telnet
@@ -79,9 +80,12 @@ Wants=network-online.target
 [Service]
 Type=simple
 # Toshiba VSP branch: a Toshiba TCx USB pole is a HID device no udev tty rule can
-# match, so vsd turns it into a virtual serial tty. Point the pole symlink at that
-# node when it exists; the leading '-' keeps a lane with no Toshiba pole booting.
-ExecStartPre=-/bin/sh -c '[ -e /dev/ttyVSP0 ] && ln -sf /dev/ttyVSP0 /dev/sureflow-pole'
+# match, so vsd turns it into a real pty. The image's baked VSDConfig.xml assigns
+# that pole to /dev/ttyS20 (the full path the VSP tool itself writes — a bare
+# 'ttyVSP0' token leaves vsd with no pty and the pole dark), so point the pole
+# symlink there. The -e test plus the leading '-' keep a lane with no Toshiba pole
+# booting normally, and 9600 8N1 matches the pole connector line in ser2net.yaml.
+ExecStartPre=-/bin/sh -c '[ -e /dev/ttyS20 ] && ln -sf /dev/ttyS20 /dev/sureflow-pole && stty -F /dev/ttyS20 9600 cs8 -cstopb -parenb raw -echo'
 ExecStart=/usr/sbin/ser2net -n -c /etc/ser2net.yaml
 Restart=always
 RestartSec=3

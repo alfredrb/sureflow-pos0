@@ -410,11 +410,13 @@ SFBEEPOK
 ${BEEP_FAIL_UNIT}
 SFBEEPFAIL
 
-  # Toshiba VSP driver. NOTE: proven on a live lane NOT to translate the Toshiba TCx
-  # 2x20 USB pole (0f66:4524) — vsd only creates passthrough symlinks onto the raw
-  # HID device (/dev/tgcsld0 -> hidraw0), so that pole stays unsupported until its
-  # USB HID protocol is captured. It is kept in the image anyway: idle and harmless,
-  # and an IBM VSP-managed peripheral arriving later needs no image rebuild to use it.
+  # Toshiba VSP driver — the transport for the Toshiba TCx 2x20 USB pole (0f66:4524).
+  # PROVEN WORKING on a live lane: the baked VSDConfig.xml assigns that pole a Line
+  # Display port of /dev/ttyS20, vsd owns a real pty there and translates IBM/ADX
+  # frames into the pole's HID reports, and the lane's serial bridge publishes it on
+  # port 9101. Baking the assignment is what removes the per-lane GUI step (the config
+  # tool needs GTK and a display, so it cannot be driven over plain SSH). On a lane
+  # with no Toshiba pole vsd runs idle and harmless.
   if [ -f "${VSP_DEB_PATH}" ]; then
     install -D -m 644 "${VSP_DEB_PATH}" "\$root/tmp/toshiba-vsp-linux.deb"
     cat >"\$root/tmp/VSDConfig.xml" <<'SFVSDXML'
