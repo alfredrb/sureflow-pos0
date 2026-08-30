@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { ShoppingCart, RotateCcw, Headphones, ArrowLeftRight, Wrench } from "lucide-react";
+import { ShoppingCart, RotateCcw, Headphones, ArrowLeftRight, Wrench, Users } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { useToast } from "@/components/ui/use-toast";
 import POSTopBar from "@/components/pos/POSTopBar";
@@ -44,6 +44,7 @@ import POSTransferDialog from "@/components/pos/POSTransferDialog";
 import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
 import PinpadMirrorTile from "@/components/pos/PinpadMirrorTile";
 import SCOAttendantOverlay from "@/components/pos/SCOAttendantOverlay";
+import SCOAttendantPanel from "@/components/pos/SCOAttendantPanel";
 import POSSupervisorOverrideDialog from "@/components/pos/POSSupervisorOverrideDialog";
 import POSRemoteOverrideStatus from "@/components/pos/POSRemoteOverrideStatus";
 import POSSwitchGuardDialog from "@/components/pos/POSSwitchGuardDialog";
@@ -844,6 +845,7 @@ export default function POSRegister() {
     ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
     ...(registerFeatures.feature_exchange ? [{ id: "exchange", label: "Exchange", icon: ArrowLeftRight, activeColor: "bg-teal-600 text-white", inactiveColor: "bg-[#0a0e27] text-teal-300/50 border border-teal-500/10 hover:border-teal-500/30" }] : []),
     ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "Customer Service", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
+    ...(registerFeatures.feature_attendant ? [{ id: "sco", label: "Self-Checkout", icon: Users, activeColor: "bg-emerald-600 text-white", inactiveColor: "bg-[#0a0e27] text-emerald-300/50 border border-emerald-500/10 hover:border-emerald-500/30" }] : []),
     ...((operator?.role === "technician" || diagnosticsMode) ? [{ id: "diagnostics", label: "Diagnostics", icon: Wrench, activeColor: "bg-slate-600 text-white", inactiveColor: "bg-[#0a0e27] text-slate-300/50 border border-slate-500/10 hover:border-slate-500/30" }] : []),
   ];
 
@@ -945,8 +947,8 @@ export default function POSRegister() {
       {/* Main body */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* LEFT — Current Transaction (hidden in diagnostics mode) */}
-        {posMode !== "diagnostics" && (
+        {/* LEFT — Current Transaction (hidden in diagnostics / SCO oversight) */}
+        {!["diagnostics", "sco"].includes(posMode) && (
           <POSTransactionSummary
             posMode={posMode}
             cart={cart}
@@ -1011,19 +1013,23 @@ export default function POSRegister() {
             />
           )}
 
+          {posMode === "sco" && (
+            <SCOAttendantPanel registerId={sessionStorage.getItem("pos_register_num") || "REG-001"} />
+          )}
+
           {posMode === "diagnostics" && (
             <POSTechnicianPanel operator={operator} loadData={loadData} writeLog={writeLog} toast={toast} registerFeatures={registerFeatures} onUpdateFeatures={handleUpdateFeatures} />
           )}
         </div>
 
         {/* What the customer is seeing on the lane's pinpad (hidden with no pad) */}
-        {posMode !== "diagnostics" && (
+        {!["diagnostics", "sco"].includes(posMode) && (
           <PinpadMirrorTile pinpadContext={pinpadContext} cart={cart} subtotal={subtotal} tax={tax} total={total} />
         )}
       </div>
 
       {/* Attendant panel — this cashiered lane oversees nearby self-checkout lanes */}
-      {registerFeatures.feature_attendant && posMode !== "diagnostics" && (
+      {registerFeatures.feature_attendant && !["diagnostics", "sco"].includes(posMode) && (
         <SCOAttendantOverlay registerId={sessionStorage.getItem("pos_register_num") || "REG-001"} />
       )}
 
