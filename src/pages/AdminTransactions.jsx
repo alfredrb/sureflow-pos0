@@ -74,7 +74,12 @@ function TxRow({ tx, onView, onPrint }) {
         <p className="text-sm font-medium leading-tight">{tx.operator_name || "—"}</p>
         <p className="text-[11px] text-gray-400">{tx.operator_id}</p>
       </td>
-      <td className="px-3 py-3 text-gray-500 text-sm">{tx.register_id}</td>
+      <td className="px-3 py-3 text-gray-500 text-sm">
+        <span>{tx.register_id}</span>
+        {tx.self_checkout && (
+          <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 align-middle">SCO</span>
+        )}
+      </td>
       <td className="px-3 py-3 text-gray-500 capitalize text-sm">{tx.payment_method}</td>
       <td className="px-3 py-3">
         {tx.no_receipt || tx.manager_override_return
@@ -121,6 +126,9 @@ export default function AdminTransactions() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Cashiered vs customer-operated self-checkout volume, split without inferring it
+  // from the register.
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [detail, setDetail] = useState(null);
   const [detailSerialMap, setDetailSerialMap] = useState({});
   const [registers, setRegisters] = useState([]);
@@ -165,8 +173,12 @@ export default function AdminTransactions() {
       t.operator_id?.toLowerCase().includes(search.toLowerCase()) ||
       t.customer_id?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || t.status === statusFilter || t.refund_type === statusFilter;
-    return matchSearch && matchStatus;
+    const matchSource = sourceFilter === "all"
+      || (sourceFilter === "sco" ? !!t.self_checkout : !t.self_checkout);
+    return matchSearch && matchStatus && matchSource;
   });
+
+  const scoCount = scopedTransactions.filter(t => t.self_checkout && !t.training_mode).length;
 
   const groups = groupByDate(filtered);
   const olderKeys = Object.keys(groups.Older).sort((a, b) => moment(b, "MMMM D, YYYY") - moment(a, "MMMM D, YYYY"));
@@ -213,7 +225,10 @@ export default function AdminTransactions() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Transaction Logs</h1>
-          <p className="text-gray-500 text-sm mt-1">{scopedTransactions.length} transactions</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {scopedTransactions.length} transactions
+            {scoCount > 0 && <span className="text-blue-600"> · {scoCount} self-checkout</span>}
+          </p>
         </div>
         <Button onClick={() => exportToCSV(filtered, "transactions.csv")} variant="outline" className="border-gray-300 w-full sm:w-auto"><Download className="w-4 h-4 mr-2" /> Export</Button>
       </div>
@@ -223,6 +238,14 @@ export default function AdminTransactions() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input placeholder="Search by TX ID, operator name or ID..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
         </div>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Source" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Lanes</SelectItem>
+            <SelectItem value="register">Cashiered Registers</SelectItem>
+            <SelectItem value="sco">Self-Checkout</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
@@ -286,7 +309,13 @@ export default function AdminTransactions() {
                   <span className="font-medium">{detail.operator_name || "—"}</span>
                   <span className="text-gray-400 text-xs ml-1">({detail.operator_id})</span>
                 </div>
-                <div><span className="text-gray-500 block text-xs">Register</span><span className="font-medium">{detail.register_id}</span></div>
+                <div>
+                  <span className="text-gray-500 block text-xs">Register</span>
+                  <span className="font-medium">{detail.register_id}</span>
+                  {detail.self_checkout && (
+                    <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">SELF-CHECKOUT</span>
+                  )}
+                </div>
                 <div><span className="text-gray-500 block text-xs">Payment</span><span className="font-medium capitalize">{detail.payment_method}</span></div>
                 <div>
                   <span className="text-gray-500 block text-xs">Status</span>
