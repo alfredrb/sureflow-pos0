@@ -42,7 +42,6 @@ import usePosParkedSales from "@/hooks/usePosParkedSales";
 import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog";
 import POSTransferDialog from "@/components/pos/POSTransferDialog";
 import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
-import PinpadMirrorTile from "@/components/pos/PinpadMirrorTile";
 import SCOAttendantPanel from "@/components/pos/SCOAttendantPanel";
 import SCOAlertButton from "@/components/pos/SCOAlertButton";
 import useScoAttendantLanes from "@/hooks/useScoAttendantLanes";
@@ -1073,10 +1072,6 @@ export default function POSRegister() {
           )}
         </div>
 
-        {/* What the customer is seeing on the lane's pinpad (hidden with no pad) */}
-        {!["diagnostics", "sco"].includes(posMode) && (
-          <PinpadMirrorTile pinpadContext={pinpadContext} cart={cart} subtotal={subtotal} tax={tax} total={total} />
-        )}
       </div>
 
       {/* Item List Dialog */}
