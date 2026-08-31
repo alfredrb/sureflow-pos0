@@ -35,6 +35,17 @@
 export const DEVICE_CHAIN_MODULE = "aipdcs4";
 export const DEVICE_CHAIN_VERSION = "6.0.1";
 
+// WHICH DEVICE NODE. Read straight out of the driver source rather than guessed:
+//
+//   aipdcs4.c:68  #define DEV_NAME  "aipdcs"
+//
+// The module registers its char device under that base name, so once it binds PCI
+// 1014:0295 the node appears as /dev/aipdcs (single controller) or /dev/aipdcs0.
+// Confirm which on a rebuilt lane before wiring the relay's pole transport to it —
+// this is the write path the RS-485 pole has never had.
+export const DEVICE_CHAIN_DEV_NAME = "aipdcs";
+export const DEVICE_CHAIN_DEV_GLOB = "/dev/aipdcs*";
+
 // Runs INSIDE the lane image chroot, legacy variant only, after the VSP .deb is installed.
 //
 // The kernel version is read from /lib/modules in the ROOT, never from uname -r: inside a
@@ -89,5 +100,6 @@ export const DEVICE_CHAIN_NOTES = [
   "aipeccd is not built either — it includes aiptc825.h and targets different hardware entirely.",
   "The build reads its kernel version from /lib/modules inside the image root, never from uname -r. In a chroot uname reports the CONTROLLER's kernel, so a build keyed on it compiles against the wrong headers and installs a module the lane silently refuses to load.",
   "A failed module build never fails the image. The build logs the reason and carries on, because a lane with a dark pole still sells and a lane with no image does not.",
-  "Verify on a rebuilt lane: lsmod | grep aipdcs4, then re-run the sysfs PCI loop and confirm 0000:11:06.0 now reports driver=aipdcs4 instead of NONE. The module registers a char device via device_create, so a node appears once it binds — capture its name before wiring the relay's pole transport to it.",
+  "The device node base name is 'aipdcs', taken from DEV_NAME at aipdcs4.c line 68 — so the node lands at /dev/aipdcs or /dev/aipdcs0 once the module binds. That is the write path the RS-485 pole has never had, and the relay's pole transport is still not wired to it.",
+  "Verify on a REBUILT LANE, not on the controller. The controller was never built from the lane image and has no SurePOS 700 peripheral, so 'lsmod | grep aipdcs4' returning nothing there is expected and means nothing — only the lane's own output counts. On the lane: lsmod | grep aipdcs4, re-run the sysfs PCI loop and confirm 0000:11:06.0 now reports driver=aipdcs4 instead of NONE, then ls -l /dev/aipdcs*.",
 ];
