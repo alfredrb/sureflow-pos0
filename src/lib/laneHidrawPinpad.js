@@ -217,6 +217,37 @@ WantedBy=multi-user.target
 
 // The report size and the pad's actual frame layout are the only unknowns here.
 // This is how a technician reads them off the pad rather than guessing.
+// STOP GUESSING BYTE 0. The report descriptor is the device's own declaration of
+// its report IDs and their exact sizes, so it answers in one command what three
+// framing modes could not. Run this BEFORE any further framing experiment.
+export const HID_PINPAD_DESCRIPTOR_STEPS = `# 1. THE REPORT DESCRIPTOR — the authoritative answer on report id and size.
+sudo mount -t debugfs none /sys/kernel/debug 2>/dev/null
+ls /sys/kernel/debug/hid/
+sudo cat /sys/kernel/debug/hid/0003:0B00:0074.0001/rdesc
+
+# Read from the dump:
+#   Report ID (85 xx)      -> whether byte 0 is an id AT ALL, and its value.
+#                             NO 85 item means the device has no report ids and
+#                             every prefix byte we sent was corrupting the frame.
+#   Report Count / Size    -> the true report length (may not be 64).
+#   Output vs Feature      -> whether host->pad data goes as an OUTPUT report
+#                             (what write() does) or a FEATURE report (which
+#                             needs HIDIOCSFEATURE, NOT a plain write).
+# A FEATURE-only device explains everything at once: our writes would be
+# accepted by the kernel and never delivered.
+
+# 2. DID THE BYTES REACH THE WIRE? usbmon sees the actual USB transfer, which is
+# the only way to tell "kernel accepted it" from "pad received it".
+sudo modprobe usbmon
+lsusb -t | grep -i -B2 ingenico          # note the bus number
+sudo timeout 15 cat /sys/kernel/debug/usb/usbmon/<bus>u | grep -i -A1 "0b00\\|Co\\|Io" &
+# ...now run the health check from the controller, then read the capture above.
+
+# 3. WHICH ENDPOINTS EXIST. An interrupt OUT endpoint is required for hidraw
+# writes to go anywhere; if the pad only has interrupt IN, writes are dead.
+sudo lsusb -v -d 0b00: 2>/dev/null | grep -A4 "bEndpointAddress"
+`;
+
 export const HID_PINPAD_PROBE_STEPS = `# Confirm the pad is present as a HID device and has a stable symlink
 lsusb | grep -i ingenico
 ls -l /dev/sureflow-pinpad-hid /dev/hidraw*
@@ -246,6 +277,8 @@ export const HID_PINPAD_NOTES = [
   "The remaining explanation is the pad's own state, not the lane. It sits on 'LANE CLOSE' / screen 24.0, an idle RBA application that does not talk to a host until it is given a session-start command we do not have. No invented tag can reach it from that state, so the ONLY paths forward are the Ingenico RBA Programmer's Guide for its firmware, or a serial capture of the original 4690 host driving one of these pads. Note that lsusb is no help for the firmware version: the unit reports bcdDevice 0.00, iProduct 'Ingenico iSC250', iSerial 80770133 — the RBA version has to be read off the pad's own menu.",
   "TREAT THE 24.0 FRAME AS UNVERIFIED. The frame 01 08 02 32 34 2e 30 08 03 13 is what the report-ID fix was derived from, but it could not be reproduced on REG-005 by any means once the direct hidraw read was tried. The report-ID reasoning still stands on its own (byte 0 of a hidraw transfer is transport), yet nothing should be built on that frame's contents until a pad reproduces it.",
   "RBA'S OWN HEALTH CHECK WAS ALSO SILENT. On REG-005 the frame 02 30 38 2E 30 03 15 ([STX]08.0[ETX][LRC]) — vendor-documented, byte-perfect, correct LRC — got no reply. Since the message layer is now known to be right, the fault must be BELOW it, in how bytes are packed into fixed 64-byte HID reports. RBA specifies the message, not the chunking, so byte 0 of each transfer is the last untested variable.",
+  "ALL THREE FRAMING MODES ARE SILENT. On REG-005 the RBA health check was sent with byte 0 as a report id (0x01), as a data length, and with no prefix at all. The pad answered none of them. Three mutually exclusive readings of byte 0 cannot all be wrong in the same way, so byte 0 is NOT the fault and further framing experiments are wasted effort. Combined with the earlier direct hidraw read that produced nothing even while keys were pressed, the pad is silent in both directions, which points at the HID TRANSPORT itself rather than at any message we compose.",
+  "NEXT STEP IS THE REPORT DESCRIPTOR, NOT ANOTHER GUESS — see HID_PINPAD_DESCRIPTOR_STEPS. Dumping /sys/kernel/debug/hid/0003:0B00:0074.0001/rdesc makes the device state its own report ids and sizes, and critically whether host-to-pad data is an OUTPUT report (which a plain write delivers) or a FEATURE report (which needs HIDIOCSFEATURE and is silently discarded by a write). A feature-only or IN-only endpoint layout would explain every symptom at once: the kernel accepts all 64 bytes, and nothing ever reaches the pad. usbmon then confirms whether the bytes hit the wire.",
   "Byte 0 is now selectable with PINPAD_FRAME_MODE, so it is tested rather than assumed: report_id (fixed 0x01, the original guess), length (the count of data bytes in that report), or raw (no prefix). The length reading is the strongest suspect precisely because it explains the silence — a 0x01 prefix would declare a ONE-byte message, so the pad reads a lone STX and discards the command, which is indistinguishable from ignoring it. Inbound parsing mirrors whichever mode is set.",
   "Refusing a connection when no pad is present is deliberate. Accepting bytes into a void is what made this fault so expensive to find the first time.",
 ];
