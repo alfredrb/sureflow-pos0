@@ -32,6 +32,7 @@ const { printerTelemetry, recordHeartbeat, liveRegisters } = require("./telemetr
 const checkReader = require("./checkReader");   // check-reader-build 5 (two-pass endorsement)
 const pinpad = require("./pinpad");             // pinpad-build 1
 const pole = require("./poledisplay");          // pole-build 1
+const poleCapture = require("./polecapture");   // pole-capture-build 1 (IBM/ADX frame recorder)
 const { queueReboot, claimReboot, listPending } = require("./laneReboot"); // lane-reboot-build 2
 
 const app = express();
@@ -74,6 +75,7 @@ app.get("/status", async (req, res) => {
     check_reader: checkReader.BUILD,
     pinpad: pinpad.BUILD,
     pole: pole.BUILD,
+    pole_capture: "pole-capture-build 1",
     lane_reboot: "lane-reboot-build 2",
     vm_stats: vmStats(),
     printers,
@@ -155,6 +157,20 @@ for (const route of ["show", "idle"]) {
   });
 }
 
+// ───────────────────── POLE FRAME CAPTURE (technician use) ─────────────────────
+// Records the IBM/ADX byte frames a reserved pole profile needs, off a live unit
+// driven by a known-good controller. Take the lane out of service first — if the
+// relay is also writing display updates the capture records its own frames too.
+app.post("/api/pole/capture/start", (req, res) => {
+  try { res.json(poleCapture.start(req.body || {})); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.get("/api/pole/capture/status", (req, res) => {
+  try { res.json(poleCapture.status(req.query.capture_id)); } catch (e) { res.status(404).json({ error: e.message }); }
+});
+app.post("/api/pole/capture/stop", (req, res) => {
+  try { res.json(poleCapture.stop(req.body || {})); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ───────────────────────── LANE REBOOT (claim side) ─────────────────────────
 // OPEN on purpose: the lane agent polling this has no relay token, and the route only
 // ever returns that lane's own flag, which is consumed on read.
@@ -225,7 +241,7 @@ process.on("uncaughtException", (e) => console.error("[relay] uncaught exception
 
 app.listen(PORT, () => {
   console.log("SureFlow relay (complete) for store " + process.env.STORE_ID + " on :" + PORT);
-  console.log(checkReader.BUILD + " | " + pinpad.BUILD + " | " + pole.BUILD + " | lane-reboot-build 2");
+  console.log(checkReader.BUILD + " | " + pinpad.BUILD + " | " + pole.BUILD + " | pole-capture-build 1 | lane-reboot-build 2");
   console.log("privileged routes " + (tokenConfigured() ? "secured with RELAY_ACCESS_TOKEN" : "OPEN — set RELAY_ACCESS_TOKEN"));
   startSync();
 });
@@ -242,18 +258,21 @@ node --check /opt/sureflow-relay/server.js
 
 # 2. Every module this server.js requires must exist, or it dies on boot.
 cd /opt/sureflow-relay
-ls -1 api.js sync.js auth.js telemetry.js checkReader.js pinpad.js poledisplay.js laneReboot.js
+ls -1 api.js sync.js auth.js telemetry.js checkReader.js pinpad.js poledisplay.js polecapture.js laneReboot.js
 
 # 3. Restart and read the stamps off one line.
 sudo systemctl restart sureflow-relay
 journalctl -u sureflow-relay -n 20 --no-pager
-# expect: check-reader-build 5 | pinpad-build 1 | pole-build 1 | lane-reboot-build 2
+# expect: check-reader-build 5 | pinpad-build 1 | pole-build 1 | pole-capture-build 1 | lane-reboot-build 2
 
 # 4. Prove the routes are ABOVE the SPA catch-all. JSON = correct.
 #    HTML back = the route is below the catch-all, or the file did not reload.
 curl -s http://localhost:3000/status | head -c 200; echo
 curl -s "http://localhost:3000/lane/reboot-pending?register_id=REG-005"   # {"reboot":false}
 curl -s -H "X-Relay-Token: $RELAY_ACCESS_TOKEN" http://localhost:3000/lane/reboot-queue
+
+# 4b. Capture endpoints are mounted (JSON error = route live; HTML = below catch-all).
+curl -s "http://localhost:3000/api/pole/capture/status?capture_id=none"   # {"error":"No such capture: none"}
 
 # 5. Token gate is live: this must be 401, not 200.
 curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:3000/lane/reboot \\
