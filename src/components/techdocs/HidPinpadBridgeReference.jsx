@@ -14,20 +14,28 @@ import {
 // diskless image, but a diagnosis loop cannot wait 25 minutes per iteration — this is
 // the path that puts a changed bridge on ONE lane now. It is lost on the next reboot,
 // which is correct: the image is the source of truth, this is a bench tool.
-const HAND_DEPLOY = `# On the LANE (not the controller). The root is read-only NFS, so /usr/local/bin
-# cannot be written directly — run the bridge from tmpfs instead.
+// Step 1. Confirm which box you are on FIRST. Lane images carry the controller's
+// hostname, so the prompt cannot be trusted — only the kernel command line can.
+const HAND_DEPLOY_1 = `cat /proc/cmdline
+# LANE     -> contains nfsroot= and sureflow.register_id=
+# CONTROLLER -> contains neither. Stop: the pad hangs off a LANE, and the bridge
+#               does not exist on the controller.
+
 sudo systemctl stop sureflow-pinpad-bridge
+cat > /tmp/pinpad-bridge <<'SFEOF'`;
 
-# Paste the bridge source below into a writable path and run it by hand.
-cat > /tmp/pinpad-bridge <<'EOF'
-<paste "Bridge daemon" from this page>
-EOF
-chmod +x /tmp/pinpad-bridge
+// Step 3. Closing the heredoc is deliberately its own block, so the paste in
+// between is the bridge source and nothing else.
+const HAND_DEPLOY_3 = `SFEOF
+# Sanity check before running: the first line must be the node shebang, NOT a
+# placeholder. If it is anything else, the paste went wrong.
+head -1 /tmp/pinpad-bridge
+node --check /tmp/pinpad-bridge && echo "syntax OK"
+
 sudo /usr/bin/node /tmp/pinpad-bridge
-
-# In a second session, re-run the probe from the CONTROLLER and watch this one log.
-# Reboot undoes all of it. Once a change is proven, rebuild the image so the whole
-# fleet gets it: sudo sureflow-build-lane-image both`;
+# Leave it in the foreground. In a SECOND session, probe from the CONTROLLER and
+# watch this log. Reboot undoes all of it; once a change is proven, ship it to the
+# fleet with: sudo sureflow-build-lane-image both`;
 
 export default function HidPinpadBridgeReference() {
   return (
@@ -74,12 +82,42 @@ export default function HidPinpadBridgeReference() {
         note="Restart=always so a pad unplugged mid-shift, or a lane booted with no pad fitted, still comes back."
         code={HID_PINPAD_SYSTEMD_UNIT}
       />
-      <CodeBlock
-        title="Try a bridge change on ONE lane without rebuilding the image"
-        filename="lane shell"
-        note="The bridge is normally baked in by sureflow-build-lane-image, which is a 25-minute build plus a lane reboot — far too slow for a diagnosis loop. This runs a changed bridge from tmpfs on a single lane. It is deliberately lost at reboot; the image stays the source of truth."
-        code={HAND_DEPLOY}
-      />
+      <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5">
+        <p className="text-sm font-semibold text-cyan-900">
+          Try a bridge change on ONE lane without rebuilding the image
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-cyan-800">
+          The bridge is normally baked in by <span className="font-mono">sureflow-build-lane-image</span> — a 25-minute
+          build plus a lane reboot, far too slow for a diagnosis loop. This runs a changed bridge from tmpfs on one lane.
+          It is deliberately lost at reboot; the image stays the source of truth.
+        </p>
+        <p className="mt-2 rounded-lg border border-cyan-200 bg-white p-2 text-xs leading-relaxed text-cyan-900">
+          <b>Three separate copies, in order.</b> Copy step 1, then copy the <b>Bridge daemon</b> block at the top of this
+          page (its own Copy button) as step 2, then copy step 3. Do not copy them as one block — the middle step is the
+          bridge source itself, which is why it is not reproduced here.
+        </p>
+        <div className="mt-3 space-y-3">
+          <CodeBlock
+            title="Step 1 — confirm the box, stop the service, open the heredoc"
+            filename="lane shell"
+            note="The prompt lies: lane images carry the controller's hostname sfc-001-a, so /proc/cmdline is the only reliable way to tell a lane from the controller."
+            code={HAND_DEPLOY_1}
+          />
+          <div className="rounded-xl border border-dashed border-cyan-300 bg-white p-3">
+            <p className="text-xs font-semibold text-cyan-900">Step 2 — paste the bridge source</p>
+            <p className="mt-1 text-xs leading-relaxed text-cyan-700">
+              Scroll up to <b>Bridge daemon</b>, press its Copy button, and paste into the still-open heredoc. Nothing is
+              typed by hand here.
+            </p>
+          </div>
+          <CodeBlock
+            title="Step 3 — close the heredoc, verify, run"
+            filename="lane shell"
+            note="node --check catches a bad paste in a second, instead of it surfacing as a SyntaxError at run time."
+            code={HAND_DEPLOY_3}
+          />
+        </div>
+      </div>
       <CodeBlock
         title="Read what the pad actually sends"
         filename="lane shell"
