@@ -95,7 +95,12 @@ Type=simple
 # symlink is never made. ser2net then answers on 9101 but fails every write with
 # "Device open failure", which looks exactly like a dead pole. Poll for up to 15s
 # instead. The leading '-' still lets a lane with no Toshiba pole boot normally.
-ExecStartPre=-/bin/sh -c 'for i in $(seq 1 30); do [ -e /dev/ttyS20 ] && break; sleep 0.5; done; [ -e /dev/ttyS20 ] || exit 0; ln -sf /dev/ttyS20 /dev/sureflow-pole; stty -F /dev/ttyS20 9600 cs8 -cstopb -parenb raw -echo'
+# A REAL USB-SERIAL POLE WINS. udev creates /dev/sureflow-pole for a PL2303 / FTDI /
+# CH341 pole, and this line used to 'ln -sf' straight over it the moment vsd's pty
+# existed — so a lane carrying both poles always drove the Toshiba USB one and the
+# serial pole stayed dark, because there is only one pole port (9101). Adopt vsd's pty
+# ONLY when udev matched no real serial pole.
+ExecStartPre=-/bin/sh -c 'if [ -e /dev/sureflow-pole ]; then echo "serial pole present — leaving /dev/sureflow-pole alone"; exit 0; fi; for i in $(seq 1 30); do [ -e /dev/ttyS20 ] && break; sleep 0.5; done; [ -e /dev/ttyS20 ] || exit 0; ln -sf /dev/ttyS20 /dev/sureflow-pole; stty -F /dev/ttyS20 9600 cs8 -cstopb -parenb raw -echo'
 ExecStart=/usr/sbin/ser2net -n -c /etc/ser2net.yaml
 Restart=always
 RestartSec=3
