@@ -3,6 +3,7 @@ import { Check, Copy, PenLine } from "lucide-react";
 import { PINPAD_PROFILES } from "@/lib/pinpadProfiles";
 import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE, RELAY_PINPAD_RAW_CODE } from "@/lib/relayPinpad";
 import HidPinpadBridgeReference from "@/components/techdocs/HidPinpadBridgeReference";
+import RbaProtocolReference from "@/components/techdocs/RbaProtocolReference";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -79,6 +80,10 @@ export default function PinpadReference() {
           ))}
         </div>
       </div>
+
+      {/* The pad's real protocol. Sits ABOVE the legacy warning below, because it
+          supersedes it: the command tags in the profiles are now known to be fiction. */}
+      <RbaProtocolReference />
 
       <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
         <p className="text-sm font-semibold text-rose-900">Unverified on hardware — read before trusting the profiles</p>
