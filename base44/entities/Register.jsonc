@@ -263,11 +263,11 @@
         "logic_ld9900"
       ],
       "default": "",
-      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile and transport the relay uses. SUPPORTED TODAY: epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer. RESERVED (not yet supported \u2014 a lane assigned one behaves as if no pole is fitted): ibm_4610_2x20 / toshiba_4820_2x20 = IBM and Toshiba 2x20 poles on the 4610/4820 RS-485 device chain, awaiting frame capture from a live unit with the pole capture helper; toshiba_usb_2x20 = Toshiba TCx 2x20 USB pole (0f66:4524), reserved pending USB protocol capture \u2014 the Toshiba VSP driver was proven on a live lane NOT to translate its HID framing (vsd only symlinks the raw hidraw device), so no transport currently reaches it; logic_ld9900 = Logic Controls LD9900 over a serial-device server. Blank or a reserved profile = every display update is skipped silently."
+      "description": "Customer-facing pole display (line display) on this lane. Selects the command profile and transport the relay uses. SUPPORTED TODAY: toshiba_usb_2x20 = Toshiba TCx 2x20 USB pole (0f66:4524) \u2014 the FLEET STANDARD for both legacy and modern lanes, since powered USB carries power and data on one cable and the part is easy to source. Proven working end to end: the Toshiba VSP driver's baked Line Display assignment gives it a real pty at /dev/ttyS20 and the lane's serial bridge publishes it on port 9101, so set pole_display_ip to the LANE's own LAN IP. epson_dmd110 = Epson DM-D110 driven pass-through via the lane's receipt printer. NOT SUPPORTED: ibm_4610_2x20 / toshiba_4820_2x20 = the integrated 2x20 poles on the IBM 4610/4820 RS-485 device chain. These cannot be driven on Linux at all \u2014 the only drivers that exist (aipdcs3/aipdcs4) search the PCI bus for Toshiba vendor 0x11D9 and never for the IBM 0x1014:0x0295 device-chain controller these terminals actually carry, so nothing can bind it. The profiles remain only so a hardware audit records what is physically fitted; fit a USB pole instead. logic_ld9900 = Logic Controls LD9900 over a serial-device server, reserved for a future rollout. Blank or an unsupported profile = every display update is skipped silently."
     },
     "pole_display_ip": {
       "type": "string",
-      "description": "LAN IP the relay writes pole display frames to. Leave blank for the DM-D110 and the IBM / Toshiba RS-485 chain poles \u2014 they hang off the receipt printer and the relay routes through printer_ip. Set it to the LANE's own LAN IP for a USB pole (the lane's serial bridge publishes it on port 9101), or to the device's own address for a pole on a serial-device server."
+      "description": "LAN IP the relay writes pole display frames to. Set it to the LANE's own LAN IP for a USB pole \u2014 the lane's serial bridge publishes it on port 9101 \u2014 which is the fleet standard. Leave it blank for the Epson DM-D110, which hangs off the receipt printer and is routed through printer_ip. A pole on a serial-device server uses that device's own address."
     },
     "pole_display_serial": {
       "type": "string",
@@ -276,7 +276,7 @@
     "customer_monitor_enabled": {
       "type": "boolean",
       "default": false,
-      "description": "True when this lane has a second, customer-facing MONITOR fitted (not a pole). Deliberately separate from pole_display_model so a lane can run a pole, a monitor, or both \u2014 the pole profiles remain the reserve path while their serial/HID protocols are still being captured. When on, the lane's boot entry carries sureflow.customer_monitor=1 and the kiosk launcher opens a second fullscreen Chromium window on the second Xorg output at /customer-display?register_id=... The monitor is purely informational: payment, PIN and signature stay on the Ingenico pinpad."
+      "description": "True when this lane has a second, customer-facing MONITOR fitted (not a pole). Deliberately separate from pole_display_model so a lane can run a pole, a monitor, or both. When on, the lane's boot entry carries sureflow.customer_monitor=1 and the kiosk launcher opens a second fullscreen Chromium window on the second Xorg output at /customer-display?register_id=... The monitor is purely informational: payment, PIN and signature stay on the Ingenico pinpad."
     },
     "customer_monitor_resolution": {
       "type": "string",

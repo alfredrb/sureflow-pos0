@@ -34,9 +34,11 @@ export const POLE_DISPLAY_PROFILES = {
     columns: 20,
     rows: 2,
     notes:
-      "IBM SurePOS 2×20 VFD on the 4610 printer's RS-485 device chain (single-pole straight RJ45; Y-cable only for " +
-      "mirrored dual displays). Addressed on the chain rather than by ESC = peripheral select, so it needs its own " +
-      "relay profile block with the IBM/ADX display command frames captured from a live unit. Profile reserved.",
+      "IBM SurePOS 2×20 VFD on the 4610/4820 RS-485 device chain. NOT SUPPORTED ON LINUX, and not pending work: the " +
+      "chain hangs off the IBM device-chain controller at PCI 1014:0295, and the only drivers that exist for that class " +
+      "(aipdcs3/aipdcs4) look up Toshiba vendor 0x11D9 exclusively — neither ever searches for the IBM id, and neither " +
+      "registers as a PCI bus driver, so nothing can bind it. Kept only so a hardware audit records what is fitted. " +
+      "Fit a USB pole (toshiba_usb_2x20) instead.",
   },
   toshiba_4820_2x20: {
     key: "toshiba_4820_2x20",
@@ -50,12 +52,13 @@ export const POLE_DISPLAY_PROFILES = {
     columns: 20,
     rows: 2,
     notes:
-      "Toshiba-badged 2×20 VFD on the 4610/4820 RS-485 device chain — same command family as the IBM pole, kept as a " +
-      "separate profile so the hardware audit shows what is actually fitted. Profile reserved pending captured frames.",
+      "Toshiba-badged 2×20 VFD on the 4610/4820 RS-485 device chain — same electrical path as the IBM pole and NOT " +
+      "SUPPORTED for the same reason (no driver can claim the IBM 1014:0295 device-chain controller these terminals " +
+      "carry). Kept as its own profile so the hardware audit shows what is actually fitted. Fit a USB pole instead.",
   },
   toshiba_usb_2x20: {
     key: "toshiba_usb_2x20",
-    label: "Toshiba 2×20 Pole (USB)",
+    label: "Toshiba 2×20 Pole (USB) — fleet standard",
     vendor: "Toshiba",
     // Supported through the Toshiba VSP driver: the pole is a HID device
     // (0f66:4524) that vsd turns into a virtual serial tty on the lane, and the
