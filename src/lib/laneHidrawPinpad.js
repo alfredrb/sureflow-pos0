@@ -57,6 +57,15 @@ const HID_DEV = "/dev/sureflow-pinpad-hid";  // the iSC250's hidraw node
 // split across reports when longer. 64 is the iSC250's interrupt endpoint size;
 // override per store if a different pad turns up.
 const REPORT = Number(process.env.PINPAD_REPORT_SIZE || 64);
+// HID REPORT ID. This is byte 0 of every hidraw transfer and is NOT part of the
+// message. The pad's own frames arrive as:
+//     01 08 02 32 34 2e 30 08 03 13
+//     ^^ report id
+// so writes must carry the SAME leading 0x01 or the kernel delivers them as a
+// report the pad does not have and it discards them before parsing anything.
+// That is what made every command silent under BOTH RBA and relay framing: the
+// framing A/B was decided one layer below where it was being tested.
+const REPORT_ID = Number(process.env.PINPAD_REPORT_ID || 1);
 
 function log(msg) {
   process.stdout.write("[pinpad-bridge] " + msg + "\\n");
@@ -68,17 +77,26 @@ function devicePath() {
   return null;
 }
 
-// Outbound: pad or split to the report size for hidraw; pass bytes straight
-// through for a real tty, which has no framing constraint.
+// Outbound: prefix the report id, then pad or split to the report size for
+// hidraw; pass bytes straight through for a real tty, which has neither
+// constraint. Only REPORT-1 bytes of message fit per transfer because byte 0 is
+// spent on the report id.
 function framesFor(buf, hid) {
   if (!hid) return [buf];
+  const body = REPORT - 1;
   const out = [];
-  for (let i = 0; i < buf.length; i += REPORT) {
+  for (let i = 0; i < buf.length; i += body) {
     const chunk = Buffer.alloc(REPORT);
-    buf.copy(chunk, 0, i, Math.min(i + REPORT, buf.length));
+    chunk[0] = REPORT_ID;
+    buf.copy(chunk, 1, i, Math.min(i + body, buf.length));
     out.push(chunk);
   }
-  return out.length ? out : [Buffer.alloc(REPORT)];
+  if (!out.length) {
+    const empty = Buffer.alloc(REPORT);
+    empty[0] = REPORT_ID;
+    out.push(empty);
+  }
+  return out;
 }
 
 const server = net.createServer((sock) => {
@@ -118,7 +136,13 @@ const server = net.createServer((sock) => {
     fs.read(fd, readBuf, 0, REPORT, null, (err, bytes) => {
       if (closed) return;
       if (err) { log("read error: " + err.message); shutdown(); return; }
-      if (bytes > 0) sock.write(Buffer.from(readBuf.slice(0, bytes)));
+      // Strip the inbound report id for the same reason it is added outbound:
+      // it is transport, not message. Left in place it puts a stray 0x01 in
+      // front of every STX, which the relay's frame parser cannot match.
+      if (bytes > 0) {
+        const start = dev.hid && readBuf[0] === REPORT_ID ? 1 : 0;
+        if (bytes > start) sock.write(Buffer.from(readBuf.slice(start, bytes)));
+      }
       pump();
     });
   };
@@ -191,6 +215,7 @@ export const HID_PINPAD_NOTES = [
   "ser2net must NOT own port 12000 any more. It bound the port over a device that never existed, so the relay connected successfully and then failed every write with 'Device open failure' — a silent failure indistinguishable from unplugged hardware. The pinpad connection was removed from ser2net.yaml and this bridge owns the port instead.",
   "A serial pad still works. The bridge prefers /dev/sureflow-pinpad (a real tty) over the hidraw node, so a future CDC-firmware pad needs no change and the fleet keeps one pinpad port.",
   "HID transfers are fixed size, unlike a serial stream. Outbound frames are zero-padded to the report size (64 bytes for the iSC250) and split across reports when longer, because writing a short buffer to hidraw returns EINVAL on most devices. Override with PINPAD_REPORT_SIZE if a different pad appears.",
+  "EVERY hidraw transfer carries a REPORT ID in byte 0, and it is transport rather than message. This was the real reason the pad ignored every command in silence: writes went out starting at STX, so the kernel delivered them as report 0x02, a report the pad does not have, and it discarded them before looking at the framing at all. That is also why the RBA-vs-relay framing A/B came back SILENT both ways — the test was decided one layer below where it was aimed. The pad's own frames prove the value: 01 08 02 32 34 2e 30 08 03 13 leads with 0x01. Outbound now prefixes 0x01 (PINPAD_REPORT_ID) and inbound strips it, so the relay still sees clean STX-framed messages and needs no change. Payload space per report is REPORT-1 bytes, not REPORT.",
   "Nothing in the relay or the POS changed. The bridge listens on the same port 12000 the relay's pinpad module already writes to, and the register's pinpad_ip stays the LANE's own LAN IP.",
   "The pad's frame LAYOUT is still unknown and is not guessed at here — the bridge is a faithful byte pipe. Read the real reports with the od command in the probe steps while pressing keys on the pad, then encode them in the relay's pinpad profile.",
   "Refusing a connection when no pad is present is deliberate. Accepting bytes into a void is what made this fault so expensive to find the first time.",
