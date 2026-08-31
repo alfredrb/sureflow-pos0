@@ -137,8 +137,94 @@ module.exports = {
 };
 `;
 
+// Raw frame probe — technician use only, and the ONLY honest way to find this pad's
+// real command set. Everything in PROFILES above was written speculatively before any
+// iSC250 was on a bench; a live test then showed the pad ignores it completely. Rather
+// than guess another tag letter per 85-second timeout, this sends arbitrary bytes and
+// reports whatever comes back.
+//
+// Wrapper bytes are applied to match the pad's OWN frames, which are the only ground
+// truth we have. A captured idle frame reads:
+//     01 08 02 32 34 2e 30 08 03 13
+//     ^report ^wrap ^STX  "24.0"  ^wrap ^ETX ^LRC
+// so 0x08 sits before STX and before ETX, and the LRC covers the body INCLUDING the
+// trailing 0x08 (verified: XOR of "24.0" + 0x08 + ETX = 0x13). frame() above omits both
+// 0x08 bytes, which is the leading suspect for the pad's silence.
+export const RELAY_PINPAD_RAW_CODE = `// pinpadraw.js — send arbitrary frames to a pinpad and report the reply
+const net = require("net");
+
+const STX = "\\x02", ETX = "\\x03", WRAP = "\\x08";
+
+function lrc(body) {
+  let acc = 0;
+  for (const ch of body) acc ^= ch.charCodeAt(0);
+  return String.fromCharCode(acc);
+}
+
+// wrap=true reproduces the pad's own framing exactly (0x08 either side).
+// wrap=false reproduces the relay's current framing, for an A/B comparison.
+function build(payload, wrap) {
+  const body = wrap ? WRAP + payload + WRAP : payload;
+  return STX + body + ETX + lrc(body + ETX);
+}
+
+const hex = (s) => Array.from(s).map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join(" ");
+const ascii = (s) => Array.from(s).map((c) => { const b = c.charCodeAt(0); return b >= 32 && b < 127 ? c : "."; }).join("");
+
+// Holds the socket open and returns EVERYTHING the pad says, unparsed — no profile,
+// no tag assumptions. Silence is itself a result and is reported as such.
+function probe({ pinpad_ip, port, payload, raw_hex, wrap = true, timeout_ms = 8000 }) {
+  if (!pinpad_ip) throw new Error("pinpad_ip is required");
+  const out = raw_hex
+    ? raw_hex.trim().split(/[\\s,]+/).map((h) => String.fromCharCode(parseInt(h, 16))).join("")
+    : build(payload || "", wrap);
+
+  return new Promise((resolve, reject) => {
+    const sock = new net.Socket();
+    let buf = "", done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { sock.destroy(); } catch (e) {}
+      resolve({
+        sent_hex: hex(out),
+        sent_ascii: ascii(out),
+        replied: buf.length > 0,
+        reply_hex: hex(buf),
+        reply_ascii: ascii(buf),
+        reply_bytes: buf.length,
+        // The three outcomes that actually distinguish the hypotheses.
+        verdict: buf.length === 0 ? "SILENT — pad could not parse the frame (framing suspect)"
+          : buf === "\\x15" ? "NAK — framing understood, command content refused (tag suspect)"
+          : buf === "\\x06" ? "ACK — framing and command both accepted"
+          : "REPLY — pad answered with data, see reply_ascii",
+      });
+    };
+    // Deliberately NOT closing on first data: a screen-change notification may follow
+    // an ACK as a second frame, and half-closing early is exactly what hid the pad's
+    // answer on the fire-and-forget routes.
+    const timer = setTimeout(finish, timeout_ms);
+    sock.once("error", (e) => { if (!done) { done = true; clearTimeout(timer); reject(e); } });
+    sock.on("data", (d) => { buf += d.toString("binary"); });
+    sock.connect(port || Number(process.env.PINPAD_PORT || 12000), pinpad_ip, () => {
+      sock.write(Buffer.from(out, "binary"));
+    });
+  });
+}
+
+module.exports = { probe, build, lrc };
+`;
+
 export const RELAY_PINPAD_ROUTES_CODE = `// server.js — pinpad routes (mount next to /api/check/*)
 const pinpad = require("./pinpad");
+const pinpadraw = require("./pinpadraw");
+
+// Raw probe — technician diagnosis. Returns the pad's reply verbatim plus a verdict.
+app.post("/api/pinpad/raw", async (req, res) => {
+  try { res.json({ ok: true, ...(await pinpadraw.probe(req.body || {})) }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
 
 // Screen updates: never allowed to hold up the lane.
 for (const [route, fn] of [["cart", "cart"], ["display", "display"], ["clear", "clear"], ["cancel", "cancel"]]) {
