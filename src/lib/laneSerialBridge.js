@@ -26,7 +26,12 @@ export const BRIDGE_UDEV_RULES = `# /etc/udev/rules.d/60-sureflow-serial.rules
 # idProduct pairs with the values 'lsusb' reports on the lane — the ones below are
 # the common USB-serial bridge chips found inside these devices.
 
-# Ingenico iSC250 (USB-CDC / ACM). Some firmware presents as ttyACM instead of ttyUSB.
+# Ingenico pinpad, ONLY if a firmware presents a real serial interface. The iSC250
+# in this fleet does NOT: it is HID-class only (bInterfaceClass 3, claimed by
+# hid-generic as hidraw0), so this rule never matches it and no tty appears. That
+# pad is published by sureflow-pinpad-bridge from its hidraw node instead — see
+# @/lib/laneHidrawPinpad. The rule stays for a future CDC/ACM pad, which the
+# bridge prefers over hidraw automatically.
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0b00", SYMLINK+="sureflow-pinpad", MODE="0660", GROUP="dialout"
 
 # USB pole display (Prolific PL2303 / FTDI / CH341 inside the pole's USB port).
@@ -54,14 +59,14 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="s
 export const BRIDGE_SER2NET_CONFIG = `# /etc/ser2net.yaml
 %YAML 1.1
 ---
-# Ingenico iSC250 pinpad — the relay's pinpad module connects here.
-connection: &pinpad
-  accepter: tcp,${BRIDGE_PORTS.pinpad}
-  enable: on
-  options:
-    kickolduser: true
-    telnet-brk-on-sync: false
-  connector: serialdev,/dev/sureflow-pinpad,115200n81,local,nobreak
+# NO PINPAD CONNECTION HERE, deliberately. ser2net used to bind port
+# ${BRIDGE_PORTS.pinpad} to /dev/sureflow-pinpad, but the fleet's iSC250 is HID-class only
+# and that device node NEVER EXISTS — so the port bound over nothing, the relay
+# connected successfully, and every write then failed with "Device open failure".
+# Silent, and indistinguishable from unplugged hardware at the POS. The pinpad is
+# now published on ${BRIDGE_PORTS.pinpad} by sureflow-pinpad-bridge, which reads the pad's
+# hidraw node and still prefers a real tty if one is ever fitted. Re-adding a
+# pinpad connection here would fight it for the port.
 
 # USB pole display — the relay's pole module connects here when the lane's pole
 # profile uses the lane_serial_bridge transport.

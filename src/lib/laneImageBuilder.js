@@ -30,6 +30,11 @@ import {
   PRINTER_BRIDGE_UDEV_RULES,
   PRINTER_BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/lanePrinterBridge";
+import {
+  HID_PINPAD_BRIDGE_CODE,
+  HID_PINPAD_UDEV_RULES,
+  HID_PINPAD_SYSTEMD_UNIT,
+} from "@/lib/laneHidrawPinpad";
 import { VSD_CONFIG_XML, VSP_DEB_PATH } from "@/lib/toshibaVsp";
 import { LANE_PROFILE_SCRIPT, LANE_PROFILE_UNIT } from "@/lib/laneProfilePersist";
 import {
@@ -356,6 +361,21 @@ SFSER2NET
 ${BRIDGE_SYSTEMD_UNIT}
 SFSERIALUNIT
 
+  # HID pinpad bridge — the ONLY way the fleet's Ingenico iSC250 can be reached.
+  # That pad is HID-class only (no ttyACM/ttyUSB ever appears), so ser2net cannot
+  # serve it; this daemon publishes its hidraw node on the same port 12000 the
+  # relay's pinpad module already writes to, so no relay or POS change is needed.
+  cat >"\$root/etc/udev/rules.d/62-sureflow-pinpad-hid.rules" <<'SFPINHIDRULES'
+${HID_PINPAD_UDEV_RULES}
+SFPINHIDRULES
+  cat >"\$root/usr/local/bin/sureflow-pinpad-bridge" <<'SFPINHIDCODE'
+${HID_PINPAD_BRIDGE_CODE}
+SFPINHIDCODE
+  chmod 755 "\$root/usr/local/bin/sureflow-pinpad-bridge"
+  cat >"\$root/etc/systemd/system/sureflow-pinpad-bridge.service" <<'SFPINHIDUNIT'
+${HID_PINPAD_SYSTEMD_UNIT}
+SFPINHIDUNIT
+
   # Printer bridge — same idea for a USB receipt printer, on the port the relay already
   # prints to, so no relay configuration changes for a single-cable lane.
   cat >"\$root/etc/udev/rules.d/61-sureflow-printer.rules" <<'SFPRINTRULES'
@@ -469,7 +489,7 @@ VSPEOF
     warn "Lane agent not found at \$AGENT_SRC — this image's lanes will show as 'never seen' and cannot be rebooted remotely. Re-run ./install from the controller tarball, then rebuild."
   fi
 
-  chroot "\$root" systemctl enable sureflow-kiosk sureflow-lane-profile sureflow-serial-bridge sureflow-printer-bridge sureflow-beep-ok >/dev/null 2>&1 || true
+  chroot "\$root" systemctl enable sureflow-kiosk sureflow-lane-profile sureflow-serial-bridge sureflow-pinpad-bridge sureflow-printer-bridge sureflow-beep-ok >/dev/null 2>&1 || true
 }
 
 # ---------------------------------------------------------------------------
@@ -678,6 +698,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "dbus, dbus-x11, fontconfig and fonts-dejavu-core are in the package set for the kiosk browser. Without fontconfig and a font, Chromium logged 'Cannot load default config file' and could not draw text at all; without dbus it failed every bus call on startup. Both are recommends rather than depends, so --no-install-recommends left them out.",
   "xauth is named explicitly in the package set. xinit only RECOMMENDS it and the build installs with --no-install-recommends, so it was absent: startx ran xauth to create the auth cookie, xauth did not exist, and startx then called Xorg with an empty -auth argument. Xorg answered with its usage text and exited, which is the second half of the 'lane stops at the Linux login prompt' failure and looks identical to the read-only-root cause.",
   "nodejs is in the package set because the lane agent is a node program — without it the agent failed EXEC on /usr/bin/node every five seconds and the lane read as 'never seen' in the Lanes table.",
+  "The Ingenico iSC250 pinpad is served by sureflow-pinpad-bridge, NOT by ser2net. That pad is HID-class only — verified on a live lane as bInterfaceClass 3 claimed by hid-generic, with no ttyACM, no ttyUSB and no /dev/serial/by-id — so no udev tty rule can ever name it. ser2net previously bound port 12000 over that missing device, which made the relay connect successfully and then fail every write with 'Device open failure': silent, and identical to unplugged hardware. The pinpad connection is gone from ser2net.yaml and the bridge owns the port, still preferring a real tty if a CDC-firmware pad is ever fitted.",
   "The ser2net package's own service is disabled and masked in the image. It binds the same ports as sureflow-serial-bridge, so leaving it enabled meant whichever lost the race logged 'Address already in use' every ten seconds forever.",
   "Per-lane pxelinux.cfg entries are still generated on the Registers page. They are keyed to each terminal's MAC, which the controller has no way of knowing at build time.",
 ];
