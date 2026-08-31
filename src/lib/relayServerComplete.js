@@ -31,6 +31,7 @@ const { printerTelemetry, recordHeartbeat, liveRegisters } = require("./telemetr
 // Peripheral + control modules (added since)
 const checkReader = require("./checkReader");   // check-reader-build 5 (two-pass endorsement)
 const pinpad = require("./pinpad");             // pinpad-build 1
+const pinpadraw = require("./pinpadraw");       // raw frame probe (technician diagnosis)
 const pole = require("./poledisplay");          // pole-build 1
 const poleCapture = require("./polecapture");   // pole-capture-build 1 (IBM/ADX frame recorder)
 const { queueReboot, claimReboot, listPending } = require("./laneReboot"); // lane-reboot-build 2
@@ -132,6 +133,15 @@ app.post("/api/check/eject", async (req, res) => {
 });
 
 // ───────────────────────── PINPAD ─────────────────────────
+// Raw frame probe — TECHNICIAN DIAGNOSIS, and the only route here that reports what
+// the pad actually said. Everything below is fire-and-forget or profile-parsed, so a
+// pad ignoring every command still answers 200. This one returns the reply verbatim
+// with a SILENT / NAK / ACK / REPLY verdict, which is what the iSC250 RBA work needs.
+app.post("/api/pinpad/raw", async (req, res) => {
+  try { res.json({ ok: true, ...(await pinpadraw.probe(req.body || {})) }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 // Screen updates: fire-and-forget, never allowed to hold up the lane.
 for (const route of ["cart", "display", "clear", "cancel"]) {
   app.post("/api/pinpad/" + route, async (req, res) => {
@@ -258,7 +268,11 @@ node --check /opt/sureflow-relay/server.js
 
 # 2. Every module this server.js requires must exist, or it dies on boot.
 cd /opt/sureflow-relay
-ls -1 api.js sync.js auth.js telemetry.js checkReader.js pinpad.js poledisplay.js polecapture.js laneReboot.js
+ls -1 api.js sync.js auth.js telemetry.js checkReader.js pinpad.js pinpadraw.js poledisplay.js polecapture.js laneReboot.js
+# A MISSING MODULE TAKES THE WHOLE RELAY DOWN, not just its own feature. That is
+# exactly how the store lost every lane earlier: server.js required ./polecapture
+# before the file was deployed, so the service crash-looped. Deploy pinpadraw.js
+# BEFORE this server.js, or drop its require line until you do.
 
 # 3. Restart and read the stamps off one line.
 sudo systemctl restart sureflow-relay
@@ -273,6 +287,14 @@ curl -s -H "X-Relay-Token: $RELAY_ACCESS_TOKEN" http://localhost:3000/lane/reboo
 
 # 4b. Capture endpoints are mounted (JSON error = route live; HTML = below catch-all).
 curl -s "http://localhost:3000/api/pole/capture/status?capture_id=none"   # {"error":"No such capture: none"}
+
+# 4c. Raw pinpad probe is mounted. JSON back = live. A page of HTML = it landed under
+#     the SPA catch-all, which reads as "the probe is broken" and is not.
+curl -s -X POST http://localhost:3000/api/pinpad/raw \\
+  -H 'Content-Type: application/json' \\
+  -d '{"pinpad_ip":"10.0.40.105","raw_hex":"02 08 32 34 2e 30 08 03 13","timeout_ms":6000}'
+# Read "verdict": SILENT = the pad could not parse it; NAK = framing understood,
+# command refused; ACK/REPLY = the pad accepted it.
 
 # 5. Token gate is live: this must be 401, not 200.
 curl -s -o /dev/null -w '%{http_code}\\n' -X POST http://localhost:3000/lane/reboot \\
