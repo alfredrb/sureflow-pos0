@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ChevronDown, ChevronRight, Rocket, AlertTriangle } from "lucide-react";
 import CodeBlock from "@/components/techdocs/CodeBlock";
 import { RELAY_CHECK_READER_CODE, RELAY_CHECK_ROUTES_CODE } from "@/lib/relayCheckReader";
-import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE } from "@/lib/relayPinpad";
+import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_RAW_CODE } from "@/lib/relayPinpad";
 import { RELAY_POLE_CODE, RELAY_POLE_ROUTES_CODE } from "@/lib/relayPoleDisplay";
 import { RELAY_SERVER_COMPLETE_CODE, RELAY_SERVER_COMPLETE_VERIFY } from "@/lib/relayServerComplete";
 import { PRINTER_BRIDGE_UDEV_RULES, PRINTER_BRIDGE_SYSTEMD_UNIT, PRINTER_BRIDGE_BUILD_STEPS, LANE_BRIDGE_PORT_MAP } from "@/lib/lanePrinterBridge";
@@ -58,10 +58,11 @@ CLOUD_API_KEY=<paste from Infrastructure Command Center>`,
   {
     title: "Paste in the relay modules",
     blurb:
-      "Copy each file below into the relay app directory, next to printer.js. Nothing is compiled — these are plain Node files. checkReader.js is the important one this round: it must be check-reader-build 5, the two-pass endorsement build.",
+      "Copy each file below into the relay app directory, next to printer.js. Nothing is compiled — these are plain Node files. checkReader.js is the important one this round: it must be check-reader-build 5, the two-pass endorsement build. Paste EVERY file here before the server.js in step 4: that server.js requires each of them at startup, and a single missing file crash-loops the relay and takes the whole store's lanes down — which is exactly what a missing polecapture.js already did at store 001.",
     blocks: [
       { title: "Cheque station — two-pass MICR read and endorsement", filename: "/opt/sureflow-relay/checkReader.js", code: RELAY_CHECK_READER_CODE },
       { title: "Ingenico pinpad — signature, prompts, cart mirror, rating", filename: "/opt/sureflow-relay/pinpad.js", code: RELAY_PINPAD_CODE },
+      { title: "Pinpad raw frame probe — technician diagnosis, required by the complete server.js", filename: "/opt/sureflow-relay/pinpadraw.js", code: RELAY_PINPAD_RAW_CODE },
       { title: "Pole display — customer line display", filename: "/opt/sureflow-relay/poledisplay.js", code: RELAY_POLE_CODE },
     ],
     after: `cd /opt/sureflow-relay && grep -n "check-reader-build" checkReader.js`,
