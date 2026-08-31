@@ -45,7 +45,14 @@ LANE=\$(sed -n 's/.*sureflow.register_id=\\([^ ]*\\).*/\\1/p' /proc/cmdline | he
 [ -n "\$LANE" ] || LANE=\$(hostname)
 [ -n "\$LANE" ] || { echo "No lane identity — running with a throwaway profile."; exit 0; }
 
-install -d -m 755 "\$MOUNT"
+# The mount point is BAKED INTO THE IMAGE — mount(8) never creates its target and the
+# lane root is read-only, so a lane cannot make it here. Say so precisely rather than
+# failing on into a mount error that reads like a network or export problem.
+if [ ! -d "\$MOUNT" ]; then
+  echo "\$MOUNT does not exist in this image — rebuild the lane image. Running with a throwaway profile."
+  exit 0
+fi
+
 if ! mountpoint -q "\$MOUNT"; then
   # soft + a short timeo so a controller that is down costs seconds, not a hung boot.
   mount -t nfs -o rw,nolock,soft,timeo=50,retrans=2 "\$SRV:\$EXPORT_PATH" "\$MOUNT" 2>/dev/null || {

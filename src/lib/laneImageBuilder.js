@@ -322,6 +322,12 @@ SFFSTAB
   # Persistent browser profile. The POS sits behind the platform login and the home
   # directory is tmpfs, so without this a lane lost its session at every power-off and came
   # back to the login screen instead of the POS. Only Chromium's profile is persisted.
+  # The mount point MUST exist in the image. mount(8) will not create its own target and
+  # the lane root is read-only NFS, so a lane could not mkdir it at boot — the profile
+  # service failed with "cannot change permissions of /mnt/lane-state: No such file or
+  # directory" and every lane silently fell back to a throwaway profile, which is exactly
+  # the "login does not survive reboot" symptom this feature exists to fix.
+  install -d -m 755 "\$root/mnt/lane-state"
   cat >"\$root/usr/local/bin/sureflow-lane-profile" <<'SFPROFILE'
 ${LANE_PROFILE_SCRIPT}
 SFPROFILE
