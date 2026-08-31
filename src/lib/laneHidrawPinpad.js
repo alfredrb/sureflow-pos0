@@ -52,11 +52,17 @@ const fs = require("fs");
 const PORT = Number(process.env.PINPAD_BRIDGE_PORT || ${HID_PINPAD_PORT});
 const TTY_DEV = "/dev/sureflow-pinpad";      // serial pad, if one is ever fitted
 const HID_DEV = "/dev/sureflow-pinpad-hid";  // the iSC250's hidraw node
-// HID transfers are FIXED SIZE. Writing a short buffer to hidraw returns EINVAL
-// on most devices, so outbound frames are zero-padded up to the report size and
-// split across reports when longer. 64 is the iSC250's interrupt endpoint size;
-// override per store if a different pad turns up.
-const REPORT = Number(process.env.PINPAD_REPORT_SIZE || 64);
+// REPORT GEOMETRY IS NOT GUESSED — it is read from the pad's own HID report
+// descriptor (see HID_PINPAD_DESCRIPTOR_STEPS). The iSC250 declares:
+//
+//   85 01 ... 95 1f 81 06    Report ID 1, Report Count 31, INPUT
+//   85 02 ... 95 1f 91 06    Report ID 2, Report Count 31, OUTPUT
+//
+// So each transfer is 1 id byte + 31 data bytes = 32 bytes, and host->pad data
+// is an OUTPUT report under ID 2. Endpoints confirm the path exists: EP 4 OUT
+// and EP 5 IN, both interrupt.
+const PAYLOAD = Number(process.env.PINPAD_PAYLOAD_SIZE || 31);
+const REPORT = PAYLOAD + 1;
 // HID REPORT ID. This is byte 0 of every hidraw transfer and is NOT part of the
 // message. The pad's own frames arrive as:
 //     01 08 02 32 34 2e 30 08 03 13
@@ -65,16 +71,12 @@ const REPORT = Number(process.env.PINPAD_REPORT_SIZE || 64);
 // report the pad does not have and it discards them before parsing anything.
 // That is what made every command silent under BOTH RBA and relay framing: the
 // framing A/B was decided one layer below where it was being tested.
-const REPORT_ID = Number(process.env.PINPAD_REPORT_ID || 1);
-// WHAT BYTE 0 ACTUALLY MEANS is the open question, and RBA does not answer it —
-// RBA defines the message, not how it is chunked into fixed 64-byte reports.
-// Three possibilities, so the bridge can be told which rather than assuming:
-//   report_id = byte 0 is a HID report id (0x01). The original assumption.
-//   length    = byte 0 is the COUNT OF DATA BYTES in this report. Under this
-//               scheme a 0x01 prefix declares a 1-byte message, so the pad reads
-//               only the STX and discards the command — silent, exactly as seen.
-//   raw       = no prefix at all; the message starts at byte 0.
-const FRAME_MODE = process.env.PINPAD_FRAME_MODE || "report_id";
+// TWO DIFFERENT IDS, and conflating them is what made the pad look dead. ID 1 is
+// declared INPUT ONLY, so a write tagged 0x01 is a report the device has no
+// output definition for and it is discarded — accepted by the kernel, dropped by
+// the pad, silent at the POS. Outbound must be 0x02.
+const REPORT_ID_OUT = Number(process.env.PINPAD_REPORT_ID_OUT || 2);
+const REPORT_ID_IN = Number(process.env.PINPAD_REPORT_ID_IN || 1);
 
 function log(msg) {
   process.stdout.write("[pinpad-bridge] " + msg + "\\n");
@@ -92,22 +94,13 @@ function devicePath() {
 // spent on the report id.
 function framesFor(buf, hid) {
   if (!hid) return [buf];
-  const raw = FRAME_MODE === "raw";
-  const body = raw ? REPORT : REPORT - 1;
   const out = [];
-  for (let i = 0; i < buf.length; i += body) {
+  for (let i = 0; i < buf.length; i += PAYLOAD) {
     const chunk = Buffer.alloc(REPORT);
-    const n = Math.min(body, buf.length - i);
-    if (raw) {
-      buf.copy(chunk, 0, i, i + n);
-    } else {
-      // report_id writes a fixed id; length writes how many data bytes follow.
-      chunk[0] = FRAME_MODE === "length" ? n : REPORT_ID;
-      buf.copy(chunk, 1, i, i + n);
-    }
+    chunk[0] = REPORT_ID_OUT;
+    buf.copy(chunk, 1, i, Math.min(i + PAYLOAD, buf.length));
     out.push(chunk);
   }
-  if (!out.length) out.push(Buffer.alloc(REPORT));
   return out;
 }
 
@@ -154,15 +147,8 @@ const server = net.createServer((sock) => {
       if (bytes > 0) {
         // Mirror the outbound decision. In length mode byte 0 is a count, so it
         // both bounds the payload and must not be forwarded as data.
-        let start = 0;
-        let end = bytes;
-        if (dev.hid && FRAME_MODE === "length") {
-          start = 1;
-          end = Math.min(bytes, 1 + readBuf[0]);
-        } else if (dev.hid && FRAME_MODE === "report_id" && readBuf[0] === REPORT_ID) {
-          start = 1;
-        }
-        if (end > start) sock.write(Buffer.from(readBuf.slice(start, end)));
+        const start = dev.hid && readBuf[0] === REPORT_ID_IN ? 1 : 0;
+        if (bytes > start) sock.write(Buffer.from(readBuf.slice(start, bytes)));
       }
       pump();
     });
@@ -203,9 +189,6 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/node /usr/local/bin/sureflow-pinpad-bridge
-# How byte 0 of each 64-byte HID report is used: report_id | length | raw.
-# Set once the health check (RBA command 08) answers under one of them.
-Environment=PINPAD_FRAME_MODE=report_id
 # A pad unplugged mid-shift, or a lane that boots with no pad fitted, must not
 # leave the port dead once one is plugged in.
 Restart=always
@@ -269,7 +252,7 @@ export const HID_PINPAD_NOTES = [
   "The Ingenico iSC250 in this fleet is a HID-class device, not a serial one — verified on a live lane: bNumInterfaces 1, bInterfaceClass 3, bound by hid-generic to hiddev0/hidraw0, with no ttyACM, no ttyUSB and no /dev/serial/by-id at all. Every attempt to reach it through a udev tty rule or usbserial is wasted effort.",
   "ser2net must NOT own port 12000 any more. It bound the port over a device that never existed, so the relay connected successfully and then failed every write with 'Device open failure' — a silent failure indistinguishable from unplugged hardware. The pinpad connection was removed from ser2net.yaml and this bridge owns the port instead.",
   "A serial pad still works. The bridge prefers /dev/sureflow-pinpad (a real tty) over the hidraw node, so a future CDC-firmware pad needs no change and the fleet keeps one pinpad port.",
-  "HID transfers are fixed size, unlike a serial stream. Outbound frames are zero-padded to the report size (64 bytes for the iSC250) and split across reports when longer, because writing a short buffer to hidraw returns EINVAL on most devices. Override with PINPAD_REPORT_SIZE if a different pad appears.",
+  "HID transfers are fixed size, unlike a serial stream. Outbound frames are zero-padded to the report size and split across reports when longer. For the iSC250 that size is 32 bytes total: 1 report id + 31 data bytes, as the descriptor declares — NOT the 64-byte endpoint packet size, which is what it was wrongly assumed to be.",
   "EVERY hidraw transfer carries a REPORT ID in byte 0, and it is transport rather than message. This was the real reason the pad ignored every command in silence: writes went out starting at STX, so the kernel delivered them as report 0x02, a report the pad does not have, and it discarded them before looking at the framing at all. That is also why the RBA-vs-relay framing A/B came back SILENT both ways — the test was decided one layer below where it was aimed. The pad's own frames prove the value: 01 08 02 32 34 2e 30 08 03 13 leads with 0x01. Outbound now prefixes 0x01 (PINPAD_REPORT_ID) and inbound strips it, so the relay still sees clean STX-framed messages and needs no change. Payload space per report is REPORT-1 bytes, not REPORT.",
   "Nothing in the relay or the POS changed. The bridge listens on the same port 12000 the relay's pinpad module already writes to, and the register's pinpad_ip stays the LANE's own LAN IP.",
   "The pad's frame LAYOUT is still unknown and is not guessed at here — the bridge is a faithful byte pipe. Read the real reports with the od command in the probe steps while pressing keys on the pad, then encode them in the relay's pinpad profile.",
@@ -277,8 +260,10 @@ export const HID_PINPAD_NOTES = [
   "The remaining explanation is the pad's own state, not the lane. It sits on 'LANE CLOSE' / screen 24.0, an idle RBA application that does not talk to a host until it is given a session-start command we do not have. No invented tag can reach it from that state, so the ONLY paths forward are the Ingenico RBA Programmer's Guide for its firmware, or a serial capture of the original 4690 host driving one of these pads. Note that lsusb is no help for the firmware version: the unit reports bcdDevice 0.00, iProduct 'Ingenico iSC250', iSerial 80770133 — the RBA version has to be read off the pad's own menu.",
   "TREAT THE 24.0 FRAME AS UNVERIFIED. The frame 01 08 02 32 34 2e 30 08 03 13 is what the report-ID fix was derived from, but it could not be reproduced on REG-005 by any means once the direct hidraw read was tried. The report-ID reasoning still stands on its own (byte 0 of a hidraw transfer is transport), yet nothing should be built on that frame's contents until a pad reproduces it.",
   "RBA'S OWN HEALTH CHECK WAS ALSO SILENT. On REG-005 the frame 02 30 38 2E 30 03 15 ([STX]08.0[ETX][LRC]) — vendor-documented, byte-perfect, correct LRC — got no reply. Since the message layer is now known to be right, the fault must be BELOW it, in how bytes are packed into fixed 64-byte HID reports. RBA specifies the message, not the chunking, so byte 0 of each transfer is the last untested variable.",
-  "ALL THREE FRAMING MODES ARE SILENT. On REG-005 the RBA health check was sent with byte 0 as a report id (0x01), as a data length, and with no prefix at all. The pad answered none of them. Three mutually exclusive readings of byte 0 cannot all be wrong in the same way, so byte 0 is NOT the fault and further framing experiments are wasted effort. Combined with the earlier direct hidraw read that produced nothing even while keys were pressed, the pad is silent in both directions, which points at the HID TRANSPORT itself rather than at any message we compose.",
-  "NEXT STEP IS THE REPORT DESCRIPTOR, NOT ANOTHER GUESS — see HID_PINPAD_DESCRIPTOR_STEPS. Dumping /sys/kernel/debug/hid/0003:0B00:0074.0001/rdesc makes the device state its own report ids and sizes, and critically whether host-to-pad data is an OUTPUT report (which a plain write delivers) or a FEATURE report (which needs HIDIOCSFEATURE and is silently discarded by a write). A feature-only or IN-only endpoint layout would explain every symptom at once: the kernel accepts all 64 bytes, and nothing ever reaches the pad. usbmon then confirms whether the bytes hit the wire.",
-  "Byte 0 is now selectable with PINPAD_FRAME_MODE, so it is tested rather than assumed: report_id (fixed 0x01, the original guess), length (the count of data bytes in that report), or raw (no prefix). The length reading is the strongest suspect precisely because it explains the silence — a 0x01 prefix would declare a ONE-byte message, so the pad reads a lone STX and discards the command, which is indistinguishable from ignoring it. Inbound parsing mirrors whichever mode is set.",
+  "RESOLVED BY THE REPORT DESCRIPTOR. The pad declares '85 01 ... 95 1f 81 06' and '85 02 ... 95 1f 91 06' — Report ID 1 is INPUT with 31 data bytes, Report ID 2 is OUTPUT with 31 data bytes. The bridge was writing 64-byte transfers tagged 0x01: both the id and the size were wrong, and 0x01 has NO output definition at all, so the kernel accepted every write (EP 4 OUT and EP 5 IN both exist as interrupt endpoints) and the pad discarded it. That is the entire fault, and it sat one layer below every protocol question that was chased. Outbound is now id 0x02 with 31-byte payloads; inbound strips id 0x01.",
+  "READ THE DESCRIPTOR FIRST NEXT TIME. One debugfs command stated the report ids and sizes as fact and would have replaced days of framing, command-tag and RBA-version speculation. HID geometry is declared by the device; it must never be inferred from a capture or from the endpoint packet size.",
+  "SUPERSEDED — all three framing modes were silent. On REG-005 the RBA health check was sent with byte 0 as a report id (0x01), as a data length, and with no prefix at all. The pad answered none of them. Three mutually exclusive readings of byte 0 cannot all be wrong in the same way, so byte 0 is NOT the fault and further framing experiments are wasted effort. Combined with the earlier direct hidraw read that produced nothing even while keys were pressed, the pad is silent in both directions, which points at the HID TRANSPORT itself rather than at any message we compose.",
+  "SUPERSEDED (this is how the answer was found) — see HID_PINPAD_DESCRIPTOR_STEPS. Dumping /sys/kernel/debug/hid/0003:0B00:0074.0001/rdesc makes the device state its own report ids and sizes, and critically whether host-to-pad data is an OUTPUT report (which a plain write delivers) or a FEATURE report (which needs HIDIOCSFEATURE and is silently discarded by a write). A feature-only or IN-only endpoint layout would explain every symptom at once: the kernel accepts all 64 bytes, and nothing ever reaches the pad. usbmon then confirms whether the bytes hit the wire.",
+  "PINPAD_FRAME_MODE has been REMOVED. It existed to test three readings of byte 0, and the descriptor made the question moot: byte 0 is a report id, and the id simply has to differ by direction (2 out, 1 in). Size and ids are overridable via PINPAD_PAYLOAD_SIZE / PINPAD_REPORT_ID_OUT / PINPAD_REPORT_ID_IN for a future pad that declares different geometry.",
   "Refusing a connection when no pad is present is deliberate. Accepting bytes into a void is what made this fault so expensive to find the first time.",
 ];
