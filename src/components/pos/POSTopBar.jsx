@@ -17,45 +17,47 @@ export default function POSTopBar({
   const badge = ROLE_BADGE[operator?.role] || ROLE_BADGE.cashier;
 
   return (
-    <div className="bg-[#111638] border-b border-blue-500/10 px-3 py-1.5 flex items-center justify-between flex-shrink-0">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
+    <div className="bg-[#111638] border-b border-blue-500/10 px-2 xl:px-3 py-1.5 flex items-center justify-between gap-2 flex-shrink-0 min-w-0">
+      <div className="flex items-center gap-2 xl:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
             <ShoppingCart className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="text-white font-bold text-sm">SureFlow POS</span>
+          {/* Brand text only fits on the 15-inch class screens */}
+          <span className="hidden xl:block text-white font-bold text-sm">SureFlow POS</span>
           <div className="text-right leading-tight">
             <span className="text-blue-300/40 text-[10px] block">{registerNum}</span>
             <span className="text-blue-300/25 text-[9px] block">OP: {operator?.operator_id || "—"}</span>
           </div>
           <div className="text-left leading-tight pointer-events-none pl-1.5 border-l border-blue-500/10">
             <p className="text-white text-sm font-bold tabular-nums">{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
-            <p className="text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</p>
+            <p className="hidden xl:block text-blue-300/40 text-[10px]">{currentTime.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 min-w-0">
           {modeTabs.map(({ id, label, icon: Icon, activeColor, inactiveColor }) => (
             <button
               key={id}
               onClick={() => onSelectMode(id)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${posMode === id ? activeColor : inactiveColor}`}
+              className={`flex items-center gap-1 px-1.5 xl:px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${posMode === id ? activeColor : inactiveColor}`}
             >
-              <Icon className="w-3 h-3" />
-              {label}
+              <Icon className="w-3 h-3 flex-shrink-0" />
+              {/* On 12-inch screens only the active tab carries its label */}
+              <span className={posMode === id ? "" : "hidden xl:inline"}>{label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 xl:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 xl:gap-2 min-w-0">
           {lunchUpcoming && (
             <button onClick={onOpenLunch} title="Upcoming scheduled lunch" className="text-amber-400 hover:text-amber-300 transition-colors">
               <AlertTriangle className="w-3.5 h-3.5" />
             </button>
           )}
-          <span className="text-blue-200/60 text-xs">{operator?.full_name}</span>
+          <span className="text-blue-200/60 text-xs truncate max-w-[7rem] xl:max-w-none">{operator?.full_name}</span>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.label}</span>
         </div>
         <button
@@ -64,7 +66,7 @@ export default function POSTopBar({
           title="Store Announcements"
         >
           <Megaphone className="w-3.5 h-3.5" />
-          News
+          <span className="hidden xl:inline">News</span>
           {newsCount > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">{newsCount}</span>
           )}
@@ -79,7 +81,7 @@ export default function POSTopBar({
           title="Sign out of this register"
         >
           <LogOut className="w-3.5 h-3.5" />
-          Logout
+          <span className="hidden xl:inline">Logout</span>
         </button>
       </div>
     </div>
