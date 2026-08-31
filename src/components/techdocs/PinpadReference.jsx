@@ -118,7 +118,7 @@ export default function PinpadReference() {
       <CodeBlock
         title="Relay pinpad routes"
         filename="server.js (excerpt)"
-        note="Mount alongside the cheque station routes."
+        note="Mount alongside the cheque station routes. Includes /api/pinpad/raw for the probe module above — it must be registered before the SPA catch-all, or a POST to it returns the POS index.html instead of JSON."
         code={RELAY_PINPAD_ROUTES_CODE}
       />
       <CodeBlock
