@@ -31,7 +31,6 @@ import {
   PRINTER_BRIDGE_SYSTEMD_UNIT,
 } from "@/lib/lanePrinterBridge";
 import { VSD_CONFIG_XML, VSP_DEB_PATH } from "@/lib/toshibaVsp";
-import { DEVICE_CHAIN_BUILD_STEPS } from "@/lib/toshibaDeviceChain";
 import { LANE_PROFILE_SCRIPT, LANE_PROFILE_UNIT } from "@/lib/laneProfilePersist";
 import {
   PLYMOUTH_THEME,
@@ -449,24 +448,14 @@ VSPEOF
       log "  Toshiba VSP driver did not install cleanly — no effect on supported hardware"
     fi
 
-    # RS-485 DEVICE CHAIN (legacy / SurePOS 700 class only). The integrated IBM
-    # device-chain controller at PCI 1014:0295 is what the green 2x20 pole hangs off, and
-    # nothing in the stock kernel claims it — on a live lane it showed as driver=NONE, so
-    # no device node existed and the pole idled at "U001" whatever was written to any UART.
-    # The aipdcs4 module in this .deb claims that id; it was only ever missing because
-    # DKMS was disabled at install. Modern Elo-class lanes have no such peripheral, so the
-    # build stays off for them.
-    if [ "\$variant" = "legacy" ]; then
-      log "  Building the RS-485 device-chain module (aipdcs4) for SurePOS 700 class hardware"
-      chroot "\$root" /bin/bash -s <<'DCSEOF' | while read -r l; do log "    \$l"; done
-${DEVICE_CHAIN_BUILD_STEPS}
-DCSEOF
-      if [ -f "\$root/etc/modules-load.d/sureflow-aipdcs4.conf" ]; then
-        log "  RS-485 device-chain module baked in — PCI 1014:0295 will bind at boot"
-      else
-        warn "The RS-485 device-chain module (aipdcs4) did NOT build — the integrated 2x20 pole on SurePOS 700 lanes will stay dark. The USB pole and every other peripheral are unaffected."
-      fi
-    fi
+    # NO RS-485 DEVICE CHAIN BUILD. The integrated IBM device-chain controller at PCI
+    # 1014:0295 stays unclaimed on purpose: reading both vendor sources on a live lane
+    # showed aipdcs3 AND aipdcs4 only ever call
+    #   pci_get_device(TCX_VENDOR_ID /* 0x11D9, Toshiba */, SIO_4900_ID, ...)
+    # so neither module searches for IBM 0x1014:0x0295 at all. SIO_4800_ID 0x0295 is
+    # defined in both, but only to REPORT an AdapterID back through ioctl. Building
+    # either one taints the kernel and adds DKMS + headers + build time for a driver
+    # that provably cannot bind this hardware. The USB pole path is unaffected.
   fi
 
   # The lane agent. Lanes sit on the isolated PXE VLAN and cannot be reached inbound, so
@@ -683,7 +672,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "/proc, /sys, /dev and /dev/pts are mounted for the whole chroot phase and released afterwards. debootstrap mounts them only for its own second stage, so without this the package postinst scripts printed 'Is /dev/pts mounted?' and '/proc/ is not mounted' warnings and systemd-tmpfiles silently skipped creating device and /run entries. The mounts are torn down on interrupt too — deleting a root with /dev still bind-mounted inside it would take the controller's own /dev with it.",
   "Kernel boot args cannot live inside a root — they belong on the command line the Registers page emits per lane. The build publishes them to /srv/sureflow/tftp/debian-<variant>/boot-args and warns, so the two can be reconciled.",
   "The branded SureFlow boot splash is baked in by the build: the theme files are always written, and the theme is selected only when the three normalized PNGs are staged at /srv/sureflow/splash (run sureflow-fetch-splash-assets.sh once per controller). Without them the build keeps the generic spinner rather than a half-drawn theme, and the summary's 'Boot splash:' line says which one a given image got.",
-  "The legacy image also builds the aipdcs4 kernel module from the DKMS tree inside that same .deb. It is what claims the integrated IBM device-chain controller at PCI 1014:0295 — the RS-485 bus the green 2x20 pole hangs off. On a live SurePOS 700 that controller showed driver=NONE, so no device node existed and the pole idled at 'U001' no matter what was written to any UART; the four 16550A ports are a separate PCI serial function and are not the RS-485 bus. The module only ever went missing because the builder wrote DKMS_DISABLED=1 before dpkg ran, which is correct for Elo-class lanes and wrong for SurePOS 700 — so the disable is now lifted for legacy only. aipdcs3 is deliberately not built (it claims the same PCI id and would race aipdcs4; they differ by kernel generation, 3.0.13 vs 5.10.78 baselines, and the lanes run 6.1). A failed build warns and never fails the image.",
+  "The integrated RS-485 pole on a SurePOS 700 is NOT driven by this image, and no kernel module is built for it. Reading both vendor sources on a live lane showed aipdcs3 and aipdcs4 each look up only pci_get_device(TCX_VENDOR_ID 0x11D9, SIO_4900_ID) — Toshiba TCx hardware. The controller on this terminal is IBM 0x1014:0x0295, which neither module ever searches for, so it can never bind and the pole stays dark. Fit a USB pole (proven working through the VSP driver and the lane's serial bridge) rather than expecting the integrated one. HISTORICAL NOTE, kept so this is not re-attempted: aipdcs4 WAS briefly built here from the DKMS tree inside that same .deb, on the theory that PCI 1014:0295 showing driver=NONE meant the module was simply missing. It built and loaded cleanly and still changed nothing, because neither module registers as a PCI bus driver at all — so the absent driver symlink was never the fault — and its init lookups target Toshiba TCx IDs only. Writes to the /dev/aipdcs node it created returned EINVAL, since the char major is registered at module load with no hardware behind it. The four 16550A ports on the box are a separate PCI serial function (1014:0297) and are not the RS-485 bus either, which is why hand-testing them at 9600 and 187500 also produced nothing.",
   "The Toshiba VSP driver is baked into every image when its vendor .deb is present at /srv/sureflow/vendor/toshiba-vsp-linux.deb. It is what makes the Toshiba TCx 2x20 USB pole display work at all: the pole is a HID device no udev tty rule can match, and vsd turns it into a virtual serial tty the lane's serial bridge publishes on port 9101. Installed with DKMS disabled and --force-depends, because only the GUI configurator needs GTK and the USB pole path needs no kernel module. A lane with no Toshiba pole runs vsd idle with no effect.",
   "The root arrives read-only over NFS, so the image now carries an /etc/fstab that mounts tmpfs over /tmp, /var/tmp, /var/log, /var/lib/systemd and /home/sureflow. Without those the lane stops at the Linux login prompt: startx cannot create ~/.Xauthority, so it calls Xorg with an empty -auth argument and Xorg answers with its usage text and exits, while systemd-logind, the journal and utmp fail for the same reason. Everything written to those paths is deliberately discarded at power-off, which is the diskless property.",
   "dbus, dbus-x11, fontconfig and fonts-dejavu-core are in the package set for the kiosk browser. Without fontconfig and a font, Chromium logged 'Cannot load default config file' and could not draw text at all; without dbus it failed every bus call on startup. Both are recommends rather than depends, so --no-install-recommends left them out.",
