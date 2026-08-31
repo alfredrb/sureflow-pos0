@@ -45,8 +45,11 @@ export default function LaneSerialBridgeReference() {
         <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
           The bridge only works for devices that present as <b>serial</b> (<span className="font-mono">ttyUSB*</span> /
           <span className="font-mono"> ttyACM*</span>). A peripheral that appears only under
-          <span className="font-mono"> /dev/hidraw*</span> is raw HID and cannot be bridged — check this before
-          ordering hardware.
+          <span className="font-mono"> /dev/hidraw*</span> is raw HID and cannot be served by{" "}
+          <span className="font-mono">ser2net</span> at all — it binds the port over a device that does not exist, so the
+          relay connects and then fails every write, which looks exactly like unplugged hardware. The fleet's Ingenico
+          iSC250 is one of these: it is served by the separate <b>Lane HID Pinpad Bridge</b>, documented under Customer
+          Pinpad. Check which kind a peripheral is before ordering hardware.
         </p>
       </div>
 

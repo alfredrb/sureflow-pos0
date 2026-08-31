@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Check, Copy, PenLine } from "lucide-react";
 import { PINPAD_PROFILES } from "@/lib/pinpadProfiles";
 import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE, RELAY_PINPAD_RAW_CODE } from "@/lib/relayPinpad";
+import HidPinpadBridgeReference from "@/components/techdocs/HidPinpadBridgeReference";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -127,6 +128,11 @@ export default function PinpadReference() {
         note="The pad's TCP port. Set the pad's own COM setting to Ethernet first (on the iSC250: 2-6-3-4, Enter, then +)."
         code={RELAY_PINPAD_ENV_CODE}
       />
+
+      {/* The lane side of the same port. A USB iSC250 is HID-only, so the relay's
+          frames only reach it through this bridge — it belongs with the pad, not
+          buried in the image builder. */}
+      <HidPinpadBridgeReference />
     </div>
   );
 }
