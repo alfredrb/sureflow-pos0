@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Check, Copy, PenLine } from "lucide-react";
 import { PINPAD_PROFILES } from "@/lib/pinpadProfiles";
-import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE } from "@/lib/relayPinpad";
+import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE, RELAY_PINPAD_RAW_CODE } from "@/lib/relayPinpad";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -79,6 +79,36 @@ export default function PinpadReference() {
         </div>
       </div>
 
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
+        <p className="text-sm font-semibold text-rose-900">Unverified on hardware — read before trusting the profiles</p>
+        <p className="mt-1 text-xs leading-relaxed text-rose-700">
+          The <span className="font-mono">isc250</span> command tags below (<span className="font-mono">W0/W1/S0/I0/C0/R0</span>)
+          were written before any iSC250 was on a bench and have <b>never produced a response from a real pad</b>. On lane
+          REG-005 the framing and LRC were confirmed correct against the pad's own bytes, and the bridge delivers, but every
+          command so far has been ignored in silence.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-rose-700">
+          Current working theory: the pad runs Ingenico <b>RBA</b> (Retail Base Application). Its idle frame carries{" "}
+          <span className="font-mono">24.0</span>, which reads as “screen 24, status 0” and matches the{" "}
+          <span className="font-mono">LANE CLOSE</span> screen on the glass — meaning these invented tags would be rejected
+          under any framing. Use the raw probe below to establish the real command set; the vendor's RBA Programmer's Guide
+          or a capture from the original 4690 host is the fallback.
+        </p>
+        <p className="mt-2 rounded-lg border border-rose-200 bg-white p-2 text-xs text-rose-800">
+          Also note: a <span className="font-mono">200 {"{"}"ok":true{"}"}</span> from{" "}
+          <span className="font-mono">/display</span>, <span className="font-mono">/cart</span>,{" "}
+          <span className="font-mono">/clear</span> or <span className="font-mono">/cancel</span> proves only that bytes were
+          written to the socket. Those routes are fire-and-forget and never inspect a reply, so they cannot tell a working
+          pad from one discarding every frame.
+        </p>
+      </div>
+
+      <CodeBlock
+        title="Raw frame probe (technician diagnosis)"
+        filename="pinpadraw.js"
+        note="Sends arbitrary bytes and returns the pad's reply verbatim with a SILENT / NAK / ACK / REPLY verdict. wrap:true reproduces the pad's own 0x08 framing, wrap:false the relay's current framing — sending one payload both ways separates a framing fault from a wrong command in two calls. Mount with the /api/pinpad/raw route below."
+        code={RELAY_PINPAD_RAW_CODE}
+      />
       <CodeBlock
         title="Relay pinpad module"
         filename="pinpad.js"
