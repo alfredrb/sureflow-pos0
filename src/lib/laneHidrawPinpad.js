@@ -66,6 +66,15 @@ const REPORT = Number(process.env.PINPAD_REPORT_SIZE || 64);
 // That is what made every command silent under BOTH RBA and relay framing: the
 // framing A/B was decided one layer below where it was being tested.
 const REPORT_ID = Number(process.env.PINPAD_REPORT_ID || 1);
+// WHAT BYTE 0 ACTUALLY MEANS is the open question, and RBA does not answer it —
+// RBA defines the message, not how it is chunked into fixed 64-byte reports.
+// Three possibilities, so the bridge can be told which rather than assuming:
+//   report_id = byte 0 is a HID report id (0x01). The original assumption.
+//   length    = byte 0 is the COUNT OF DATA BYTES in this report. Under this
+//               scheme a 0x01 prefix declares a 1-byte message, so the pad reads
+//               only the STX and discards the command — silent, exactly as seen.
+//   raw       = no prefix at all; the message starts at byte 0.
+const FRAME_MODE = process.env.PINPAD_FRAME_MODE || "report_id";
 
 function log(msg) {
   process.stdout.write("[pinpad-bridge] " + msg + "\\n");
@@ -83,19 +92,22 @@ function devicePath() {
 // spent on the report id.
 function framesFor(buf, hid) {
   if (!hid) return [buf];
-  const body = REPORT - 1;
+  const raw = FRAME_MODE === "raw";
+  const body = raw ? REPORT : REPORT - 1;
   const out = [];
   for (let i = 0; i < buf.length; i += body) {
     const chunk = Buffer.alloc(REPORT);
-    chunk[0] = REPORT_ID;
-    buf.copy(chunk, 1, i, Math.min(i + body, buf.length));
+    const n = Math.min(body, buf.length - i);
+    if (raw) {
+      buf.copy(chunk, 0, i, i + n);
+    } else {
+      // report_id writes a fixed id; length writes how many data bytes follow.
+      chunk[0] = FRAME_MODE === "length" ? n : REPORT_ID;
+      buf.copy(chunk, 1, i, i + n);
+    }
     out.push(chunk);
   }
-  if (!out.length) {
-    const empty = Buffer.alloc(REPORT);
-    empty[0] = REPORT_ID;
-    out.push(empty);
-  }
+  if (!out.length) out.push(Buffer.alloc(REPORT));
   return out;
 }
 
@@ -140,8 +152,17 @@ const server = net.createServer((sock) => {
       // it is transport, not message. Left in place it puts a stray 0x01 in
       // front of every STX, which the relay's frame parser cannot match.
       if (bytes > 0) {
-        const start = dev.hid && readBuf[0] === REPORT_ID ? 1 : 0;
-        if (bytes > start) sock.write(Buffer.from(readBuf.slice(start, bytes)));
+        // Mirror the outbound decision. In length mode byte 0 is a count, so it
+        // both bounds the payload and must not be forwarded as data.
+        let start = 0;
+        let end = bytes;
+        if (dev.hid && FRAME_MODE === "length") {
+          start = 1;
+          end = Math.min(bytes, 1 + readBuf[0]);
+        } else if (dev.hid && FRAME_MODE === "report_id" && readBuf[0] === REPORT_ID) {
+          start = 1;
+        }
+        if (end > start) sock.write(Buffer.from(readBuf.slice(start, end)));
       }
       pump();
     });
@@ -182,6 +203,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/node /usr/local/bin/sureflow-pinpad-bridge
+# How byte 0 of each 64-byte HID report is used: report_id | length | raw.
+# Set once the health check (RBA command 08) answers under one of them.
+Environment=PINPAD_FRAME_MODE=report_id
 # A pad unplugged mid-shift, or a lane that boots with no pad fitted, must not
 # leave the port dead once one is plugged in.
 Restart=always
@@ -221,5 +245,7 @@ export const HID_PINPAD_NOTES = [
   "PROBING IS EXHAUSTED — do not repeat it. On REG-005, with the report-ID fix in place, the bridge opened /dev/sureflow-pinpad-hid and wrote all 64 bytes with NO write error, under BOTH the pad's own 0x08 framing and the relay's framing, and the pad replied to neither. Reading the device directly with 'od -An -tx1 -w64 /dev/sureflow-pinpad-hid' while pressing number keys and Enter produced NOTHING AT ALL. So the pad is silent in both directions: outbound bytes are accepted by the kernel and discarded by the pad, and inbound nothing is ever emitted. That rules out framing, the report ID, the report size and the command tags all at once — a pad that ignored only our tags would still send keypresses.",
   "The remaining explanation is the pad's own state, not the lane. It sits on 'LANE CLOSE' / screen 24.0, an idle RBA application that does not talk to a host until it is given a session-start command we do not have. No invented tag can reach it from that state, so the ONLY paths forward are the Ingenico RBA Programmer's Guide for its firmware, or a serial capture of the original 4690 host driving one of these pads. Note that lsusb is no help for the firmware version: the unit reports bcdDevice 0.00, iProduct 'Ingenico iSC250', iSerial 80770133 — the RBA version has to be read off the pad's own menu.",
   "TREAT THE 24.0 FRAME AS UNVERIFIED. The frame 01 08 02 32 34 2e 30 08 03 13 is what the report-ID fix was derived from, but it could not be reproduced on REG-005 by any means once the direct hidraw read was tried. The report-ID reasoning still stands on its own (byte 0 of a hidraw transfer is transport), yet nothing should be built on that frame's contents until a pad reproduces it.",
+  "RBA'S OWN HEALTH CHECK WAS ALSO SILENT. On REG-005 the frame 02 30 38 2E 30 03 15 ([STX]08.0[ETX][LRC]) — vendor-documented, byte-perfect, correct LRC — got no reply. Since the message layer is now known to be right, the fault must be BELOW it, in how bytes are packed into fixed 64-byte HID reports. RBA specifies the message, not the chunking, so byte 0 of each transfer is the last untested variable.",
+  "Byte 0 is now selectable with PINPAD_FRAME_MODE, so it is tested rather than assumed: report_id (fixed 0x01, the original guess), length (the count of data bytes in that report), or raw (no prefix). The length reading is the strongest suspect precisely because it explains the silence — a 0x01 prefix would declare a ONE-byte message, so the pad reads a lone STX and discards the command, which is indistinguishable from ignoring it. Inbound parsing mirrors whichever mode is set.",
   "Refusing a connection when no pad is present is deliberate. Accepting bytes into a void is what made this fault so expensive to find the first time.",
 ];
