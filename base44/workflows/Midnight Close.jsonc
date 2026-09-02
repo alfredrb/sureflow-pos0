@@ -1,0 +1,59 @@
+{
+  "description": "Store close at midnight Eastern, in order: consolidate the day's transactions into the EOD report, then archive each store's daily cash Quick Report and print it on that store's receipt printer.",
+  "name": "Midnight Close",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 0 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "midnight_close",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "consolidate_eod": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "consolidateEOD",
+            "args": {}
+          },
+          "then": "cash_report",
+          "x-base44": {
+            "title": "EOD consolidation",
+            "description": "Day's transactions -> EOD report"
+          }
+        }
+      },
+      {
+        "cash_report": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "consolidateCashReport",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Cash Quick Report",
+            "description": "Archive + print per store"
+          }
+        }
+      }
+    ]
+  }
+}
