@@ -1,0 +1,91 @@
+{
+  "description": "The whole midnight window in one run: plans staggered lane reboots per store and defers any lane with a parked sale or an operator still clocked in; if anything was deferred, waits 30 minutes and gives those lanes one more chance, then leaves anything still busy alone rather than forcing it down.",
+  "name": "Nightly Lane Maintenance",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "nightly_lane_maintenance",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "plan_lanes": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "nightlyLaneMaintenance",
+            "args": {
+              "pass": "initial"
+            }
+          },
+          "then": "any_deferred",
+          "x-base44": {
+            "title": "Plan lane reboots",
+            "description": "Per store, defer busy lanes"
+          }
+        }
+      },
+      {
+        "any_deferred": {
+          "switch": [
+            {
+              "when": "${ any((.plan_lanes.results // [])[]; ((.deferred_or_skipped // []) | length) > 0) }",
+              "then": "wait_for_lanes"
+            },
+            {
+              "when": "${ true }",
+              "then": "end"
+            }
+          ],
+          "x-base44": {
+            "title": "Any lanes deferred?",
+            "description": "Nothing busy = done"
+          }
+        }
+      },
+      {
+        "wait_for_lanes": {
+          "wait": "PT30M",
+          "then": "retry_deferred",
+          "x-base44": {
+            "title": "Wait 30 minutes",
+            "description": "Let parked sales / shifts clear"
+          }
+        }
+      },
+      {
+        "retry_deferred": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "nightlyLaneMaintenance",
+            "args": {
+              "pass": "retry"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Retry deferred lanes",
+            "description": "Still busy = left alone"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "20 0 * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
