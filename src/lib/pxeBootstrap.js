@@ -5,7 +5,7 @@ import { buildCustomerMonitorXorg } from "@/lib/laneCustomerMonitor";
 
 const BOOT_IMAGES = {
   pxe_debian_legacy: {
-    label: "PXE Debian — Legacy (SurePOS 700 class)",
+    label: "PXE Debian — Legacy (SurePOS 746 / 700 class)",
     kernel: "debian-legacy/vmlinuz",
     initrd: "debian-legacy/initrd.img",
     // Must match the builder's LANE_ROOTS_DIR — a lane cannot mount a root that is
@@ -19,7 +19,9 @@ const BOOT_IMAGES = {
     extra: "i8042.nomux=1 i8042.reset video=1024x768 quiet splash",
   },
   pxe_debian_modern: {
-    label: "PXE Debian — Modern (Elo EPS00E2 class)",
+    // SurePOS 786 belongs HERE, not on legacy: DisplayPort panel on Intel i915 KMS with
+    // no video= pin. The legacy entry's fbdev + video=1024x768 is wrong for it.
+    label: "PXE Debian — Modern (SurePOS 786, Elo EPS00E2 class)",
     kernel: "debian-modern/vmlinuz",
     initrd: "debian-modern/initrd.img",
     nfsroot: "/srv/sureflow/roots/sureflow-modern",

@@ -499,7 +499,7 @@ build_variant() {
   local variant="\$1" root extra pf
   root="\$ROOTS/sureflow-\$variant"
 
-  # Legacy = IBM SurePOS 700 class (fbdev, no KMS). Modern = Elo EPS00E2 class.
+  # Legacy = IBM SurePOS 746 / 700 class (fbdev, no KMS). Modern = IBM SurePOS 786 and Elo EPS00E2 class (Intel i915 KMS).
   if [ "\$variant" = "legacy" ]; then extra="xserver-xorg-video-fbdev"; else extra="xserver-xorg-video-intel"; fi
 
   log "=== Building the \$variant lane image at \$root ==="
@@ -683,7 +683,7 @@ exit 0
 // Shown in the Technical Docs so a technician understands what the build produces before
 // spending half an hour on it.
 export const LANE_IMAGE_BUILD_NOTES = [
-  "Two variants cover the fleet: legacy for IBM SurePOS 700 class terminals (fbdev video, i8042 quirks) and modern for Elo EPS00E2 class hardware. Build only the ones the store actually has.",
+  "Two variants cover the fleet: legacy for IBM SurePOS 746 / 700 class terminals (fbdev video, i8042 quirks, video=1024x768 pin) and modern for IBM SurePOS 786 and Elo EPS00E2 class hardware (DisplayPort on Intel i915 KMS, no video args). A 786 must NOT be put on the legacy profile — it would get the framebuffer driver and a hard-pinned 4:3 mode on a native-Intel panel. Build only the variants the store actually has.",
   "Budget 15 to 30 minutes per variant. debootstrap pulls a full Debian root over the BACKEND VLAN, which is the only side with an internet route — a box whose backend address is not up yet cannot build an image at all.",
   "Re-running is how the fleet is patched. The build is destructive by design: the existing root is removed first, so every build is reproducible rather than an accumulation of hand edits. Lanes pick up the new root on their next reboot.",
   "The cloud profile step is optional on purpose. With no relay API key or no cloud route the build still produces a bootable base + fleet image and says so on the summary; re-run once the route is up to layer the profiles in.",

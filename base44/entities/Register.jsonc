@@ -199,7 +199,7 @@
     },
     "terminal_model": {
       "type": "string",
-      "description": "POS terminal / computer make and model (e.g. IBM SurePOS 700, Elo EPS00E2)"
+      "description": "POS terminal / computer make and model, matched EXACTLY against a HardwareLibrary terminal profile (e.g. 'IBM SurePOS 746', 'IBM SurePOS 786', 'Elo EPS00E2'). The 746 belongs on the legacy boot profile; the 786 and the Elo belong on the modern one."
     },
     "terminal_serial": {
       "type": "string",
@@ -217,7 +217,7 @@
         "local_disk"
       ],
       "default": "local_disk",
-      "description": "Which boot image the store's PXE controller serves this terminal. pxe_debian_legacy = IBM SurePOS 700 class hardware; pxe_debian_modern = Elo EPS00E2 class hardware; local_disk = terminal boots from its own disk."
+      "description": "Which boot image the store's PXE controller serves this terminal. pxe_debian_legacy = IBM SurePOS 746 / 700 class hardware (fbdev video, i8042 quirks, video=1024x768 pin). pxe_debian_modern = IBM SurePOS 786 and Elo EPS00E2 class hardware (DisplayPort panel on Intel i915 KMS, no video args) \u2014 a 786 must NOT go on legacy or it gets the framebuffer driver and a pinned 4:3 mode. local_disk = terminal boots from its own disk."
     },
     "keyboard_model": {
       "type": "string",

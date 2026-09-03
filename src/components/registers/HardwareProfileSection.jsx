@@ -4,8 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import HardwareModelSelect from "@/components/registers/HardwareModelSelect";
 
 const BOOT_PROFILES = [
-  { value: "pxe_debian_legacy", label: "PXE Debian — Legacy (SurePOS 700)" },
-  { value: "pxe_debian_modern", label: "PXE Debian — Modern (Elo EPS00E2)" },
+  { value: "pxe_debian_legacy", label: "PXE Debian — Legacy (SurePOS 746 / 700 class)" },
+  { value: "pxe_debian_modern", label: "PXE Debian — Modern (SurePOS 786, Elo EPS00E2)" },
   { value: "local_disk", label: "Local Disk (no PXE)" },
 ];
 
