@@ -30,7 +30,7 @@ const { printerTelemetry, recordHeartbeat, liveRegisters } = require("./telemetr
 
 // Peripheral + control modules (added since)
 const checkReader = require("./checkReader");   // check-reader-build 5 (two-pass endorsement)
-const pinpad = require("./pinpad");             // pinpad-build 1
+const pinpad = require("./pinpad");             // pinpad-build 2 (verified iSC250 framing + link ACK)
 const pinpadraw = require("./pinpadraw");       // raw frame probe (technician diagnosis)
 const pole = require("./poledisplay");          // pole-build 1
 const poleCapture = require("./polecapture");   // pole-capture-build 1 (IBM/ADX frame recorder)
@@ -150,9 +150,10 @@ for (const route of ["cart", "display", "clear", "cancel"]) {
   });
 }
 
-// Blocking customer interactions. The POS calls these with long client timeouts and
-// shows its own "look at the pinpad" prompt while they run.
-for (const route of ["signature", "input", "confirm", "rating"]) {
+// Blocking customer interactions, plus the VERIFIED 08.0 health check (/status).
+// status is the one command proven against RBA Retail Base 08.5016 — use it to confirm
+// a pad is reachable and speaking before blaming a sale flow.
+for (const route of ["status", "signature", "input", "confirm", "rating"]) {
   app.post("/api/pinpad/" + route, async (req, res) => {
     try { res.json({ ok: true, ...(await pinpad[route](req.body || {})) }); }
     catch (e) { res.status(502).json({ error: e.message }); }

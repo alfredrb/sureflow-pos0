@@ -10,7 +10,7 @@
 export const RELAY_PINPAD_CODE = `// pinpad.js — Ingenico customer-facing pinpad (signature, prompts, entry, rating)
 const net = require("net");
 
-const BUILD = "pinpad-build 1";
+const BUILD = "pinpad-build 2";
 const DEFAULT_PORT = Number(process.env.PINPAD_PORT || 12000);
 
 const SOH = "\\x01", STX = "\\x02", ETX = "\\x03", ACK = "\\x06", NAK = "\\x15";
