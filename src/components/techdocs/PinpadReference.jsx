@@ -4,7 +4,7 @@ import { PINPAD_PROFILES } from "@/lib/pinpadProfiles";
 import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE, RELAY_PINPAD_RAW_CODE } from "@/lib/relayPinpad";
 import HidPinpadBridgeReference from "@/components/techdocs/HidPinpadBridgeReference";
 import RbaProtocolReference from "@/components/techdocs/RbaProtocolReference";
-import PinpadSweepReference from "@/components/techdocs/PinpadSweepReference";
+import RbaMessageMapPanel from "@/components/techdocs/RbaMessageMapPanel";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -86,14 +86,19 @@ export default function PinpadReference() {
           supersedes it: the command tags in the profiles are now known to be fiction. */}
       <RbaProtocolReference />
 
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
-        <p className="text-sm font-semibold text-rose-900">Transport verified — sale-flow command tags are still wrong</p>
-        <p className="mt-1 text-xs leading-relaxed text-rose-700">
-          <b>Verified end to end on REG-091</b> (pad 10.0.40.191 via the lane HID bridge): the health check{" "}
-          <span className="font-mono">08.0</span> returns RBA <span className="font-mono">08.5016</span>, model{" "}
-          <span className="font-mono">iSC250</span>, board serial <span className="font-mono">2215267SC010318</span>, status{" "}
-          <span className="font-mono">OK</span> — delivered once under the host's SOH+ACK, so the link layer is right too.
-          HID bridge, 32-byte reports, frame anatomy, LRC and multi-packet reply assembly are all settled.
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+        <p className="text-sm font-semibold text-emerald-900">Protocol resolved — build 5 runs the real RBA message set</p>
+        <p className="mt-1 text-xs leading-relaxed text-emerald-800">
+          <b>Transport verified on REG-091</b> (pad 10.0.40.191 via the lane HID bridge): <span className="font-mono">08.0</span>{" "}
+          returns RBA <span className="font-mono">08.5016</span>, model <span className="font-mono">iSC250</span>, board serial{" "}
+          <span className="font-mono">2215267SC010318</span>, status <span className="font-mono">OK</span> — delivered under the
+          host's SOH+ACK. HID bridge, 32-byte reports, frame anatomy, LRC and multi-packet reply assembly are all settled and
+          are carried into build 5 unchanged.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-emerald-800">
+          The sale flow is now settled too. The invented tags (<span className="font-mono">W0/W1/W2/S0/I0/C0/R0/X0</span>) have
+          been replaced with the documented RBA messages below, and the blocking calls restructured to the pad's real
+          request → ACK → poll pattern. Bench-validate each command once on a closed lane before it reaches a live register.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-rose-700">
           What is <b>not</b> settled is the sale flow. The <span className="font-mono">isc250</span> tags below
@@ -121,7 +126,7 @@ export default function PinpadReference() {
       <CodeBlock
         title="Relay pinpad module"
         filename="pinpad.js"
-        note="Drop next to checkReader.js on the relay. All model-specific framing lives in PROFILES — add the Lane/7000 block there when the first unit lands."
+        note="Build 5. Drop next to checkReader.js on the relay. Message payloads come from the RBA guide; the M{} table holds every message builder, so adding a model means adjusting form names, not inventing tags."
         code={RELAY_PINPAD_CODE}
       />
       <CodeBlock
@@ -137,9 +142,8 @@ export default function PinpadReference() {
         code={RELAY_PINPAD_ENV_CODE}
       />
 
-      {/* How the real command set gets established, now that the transport under it
-          is proven and a NAK is a meaningful negative rather than noise. */}
-      <PinpadSweepReference />
+      {/* The documented message set that replaced the invented tags, plus the flow change. */}
+      <RbaMessageMapPanel />
 
       {/* The lane side of the same port. A USB iSC250 is HID-only, so the relay's
           frames only reach it through this bridge — it belongs with the pad, not
