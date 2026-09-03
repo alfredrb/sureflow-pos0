@@ -10,7 +10,7 @@
 export const RELAY_PINPAD_CODE = `// pinpad.js — Ingenico customer-facing pinpad (signature, prompts, entry, rating)
 const net = require("net");
 
-const BUILD = "pinpad-build 2";
+const BUILD = "pinpad-build 3";
 const DEFAULT_PORT = Number(process.env.PINPAD_PORT || 12000);
 
 const SOH = "\\x01", STX = "\\x02", ETX = "\\x03", ACK = "\\x06", NAK = "\\x15";
@@ -40,6 +40,13 @@ function frame(body) {
 const linkAck = () => SOH + ACK;
 const isLinkAck = (s) => s === SOH + ACK || s === ACK;
 const isLinkNak = (s) => s === SOH + NAK || s === NAK;
+
+// A USB pad reached through the lane's HID bridge arrives PADDED: every report is
+// zero-filled to its fixed length, so a pad that said nothing still delivers a run of
+// 0x00. Those bytes are transport padding, never protocol, and must be stripped before
+// anything else looks at the stream — otherwise padding is mistaken for a reply and a
+// silent pad reports success with a body of NULs.
+const strip = (s) => s.replace(/\\x00+/g, "");
 
 // Splits a stream into complete pad data packets, dropping the link bytes.
 function dataPackets(buf) {
@@ -78,8 +85,11 @@ const PROFILES = {
     // Replies arrive as STX <tag> <payload> ETX LRC. Signature payload is the
     // pad's bitmap, base64 encoded by the pad firmware.
     parse(raw) {
-      const packets = dataPackets(raw);
-      const body = packets.length ? packets[0] : raw.replace(/^\\x02/, "").replace(/\\x03[\\s\\S]*$/, "");
+      const clean = strip(raw);
+      // Nothing but padding came back: the pad never answered this frame.
+      if (!clean) return { silent: true, note: "Pad returned only HID padding — no protocol reply" };
+      const packets = dataPackets(clean);
+      const body = packets.length ? packets[0] : clean.replace(/^\\x02/, "").replace(/\\x03[\\s\\S]*$/, "");
       // Identity / health reply: FS-separated fields opening with the 08.5 response id.
       if (body.startsWith("08.5")) {
         const f = body.split(FS);
@@ -132,7 +142,7 @@ function send(ip, port, payload) {
 // Request/response — hold the socket open while the customer acts on the pad.
 // Like the cheque reader, the pad streams and then stops, so the read settles on a
 // quiet period rather than a terminator.
-function ask(ip, port, payload, profile, timeoutMs) {
+function ask(ip, port, payload, profile, timeoutMs, silentMsg) {
   const target = resolveIp(ip);
   return new Promise((resolve, reject) => {
     const sock = new net.Socket();
@@ -146,12 +156,16 @@ function ask(ip, port, payload, profile, timeoutMs) {
     };
     const timer = setTimeout(() => {
       try { sock.write(Buffer.from(profile.cancel(), "binary")); } catch (e) {}
-      finish(reject, new Error("Customer did not respond on the pinpad"));
+      finish(reject, new Error(silentMsg || "Customer did not respond on the pinpad"));
     }, timeoutMs);
 
     sock.once("error", (e) => finish(reject, e));
     sock.on("data", (d) => {
-      buf += d.toString("binary");
+      // Drop HID padding at the door. A bridge streaming zero-filled reports would
+      // otherwise reset the quiet timer forever and settle the read on nothing.
+      const chunk = strip(d.toString("binary"));
+      if (!chunk) return;
+      buf += chunk;
       if (isLinkAck(buf)) { buf = ""; return; }        // command accepted, keep waiting
       if (isLinkNak(buf)) return finish(reject, new Error("Pinpad rejected the command"));
       // Acknowledge inbound data at the link layer, or the pad retries the packet.
@@ -171,7 +185,8 @@ function ask(ip, port, payload, profile, timeoutMs) {
 
 module.exports = {
   BUILD,
-  status:    (b) => { const p = profileFor(b.profile); return ask(b.pinpad_ip, p.port, p.status(), p, 8000); },
+  status:    (b) => { const p = profileFor(b.profile); return ask(b.pinpad_ip, p.port, p.status(), p, 8000,
+                        "Pad did not answer the 08.0 health check — reachable but not speaking RBA on this frame"); },
   clear:     (b) => { const p = profileFor(b.profile); return send(resolveIp(b.pinpad_ip), p.port, p.clear()); },
   display:   (b) => { const p = profileFor(b.profile); return send(resolveIp(b.pinpad_ip), p.port, p.display(b)); },
   cart:      (b) => { const p = profileFor(b.profile); return send(resolveIp(b.pinpad_ip), p.port, p.cart(b)); },
