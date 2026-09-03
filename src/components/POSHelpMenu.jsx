@@ -61,7 +61,7 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
             <Power className="w-4 h-4" /> Reboot Lane
           </button>
           <button onClick={() => { onGenerateScoBadge?.(); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
-            <Barcode className="w-4 h-4" /> Generate Barcode (SCO Badge)
+            <Barcode className="w-4 h-4" /> Generate Barcode
           </button>
           <button onClick={onRequestCSM} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             Request CSM
