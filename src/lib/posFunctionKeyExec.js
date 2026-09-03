@@ -6,6 +6,7 @@ import { kickDrawer } from "@/lib/drawerKick";
 import { printConfigSlip } from "@/lib/configSlip";
 import { printTillCountSlip } from "@/lib/tillCountSlip";
 import { printTestSlip } from "@/lib/testSlip";
+import { printBasicActionCodeList, printAdvancedActionCodeList } from "@/lib/actionCodeListSlip";
 import { showEodSummary } from "@/lib/eodPadSummary";
 import { isTenderAction, tenderMethodFor } from "@/lib/tenderKeys";
 
@@ -158,6 +159,20 @@ export function executeFunctionKeyAction(fkey, ctx) {
         })
         .catch(() => toast({ title: "Summary Failed", description: "The end of day summary could not be produced.", variant: "destructive" }));
       writeLog("register_change", "End of day summary displayed and printed (AC 401)");
+      break;
+    // AC 99 — cashier's action code list (active codes only).
+    case "print_action_codes":
+      printBasicActionCodeList(operator)
+        .then(n => toast({ title: "Action Code List Printed", description: `${n} active code(s) — basic list.` }))
+        .catch(() => toast({ title: "Print Failed", description: "The action code list could not be printed.", variant: "destructive" }));
+      writeLog("register_change", "Basic action code list printed (AC 99)");
+      break;
+    // AC 904 — full technician reference: every code, action, role and notes.
+    case "print_action_codes_advanced":
+      printAdvancedActionCodeList(operator)
+        .then(n => toast({ title: "Action Code List Printed", description: `${n} code(s) — advanced list.` }))
+        .catch(() => toast({ title: "Print Failed", description: "The action code list could not be printed.", variant: "destructive" }));
+      writeLog("register_change", "Advanced action code list printed (AC 904)");
       break;
     case "print_config":
       printConfigSlip(operator)

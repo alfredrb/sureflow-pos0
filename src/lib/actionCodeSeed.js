@@ -71,6 +71,8 @@ export const ACTION_CODE_SEED = [
   { code: 860, label: "Generate SCO Badge",        action: "sco_badge",        requires_role: "none",    status: "active", notes: "Prints a barcoded self-checkout attendant badge for the signed-on operator. Scanned at an SCO lane to sign on as its attendant instead of keying credentials in front of customers. The badge expires at the end of that operator's shift, so a new one is printed each shift." },
 
   // ── Technician print / station tests ──────────────────────────────────────
+  { code: 99,  label: "Action Code List (Basic)",    action: "print_action_codes",          requires_role: "none", status: "active", notes: "AC_PRINT_HELP_MSGS — prints the codes that are live on this lane today: code, function and whether it needs CSM or manager approval. The list an operator keeps at the register." },
+  { code: 904, label: "Action Code List (Advanced)", action: "print_action_codes_advanced",  requires_role: "csm",  status: "active", notes: "AC_PRINT_ALL_PROMPTS — prints every configured code grouped by status (active, not built yet, reference only) with its internal action, required role and notes. Technician reference." },
   { code: 901, label: "Print Test Slip",           action: "print_test_slip",  requires_role: "none",    status: "active", notes: "AC_PRINT_TEST_SLIP — 40-column test pattern plus a scannable barcode to prove the receipt station." },
 
   // ── Known codes whose SureFlow function is not built yet ───────────────────

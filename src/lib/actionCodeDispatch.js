@@ -20,6 +20,8 @@ export const ACTION_LABELS = {
   export_cash: "Cash History Export", supervisor_override: "Supervisor Override",
   csm_approval: "CSM Key Approval", print_config: "Print POS Configuration",
   register_tender_reading: "Register Reading Slip", eod_summary: "End Of Day Summary",
+  print_action_codes: "Print Action Code List (Basic)",
+  print_action_codes_advanced: "Print Action Code List (Advanced)",
   none: "None",
 };
 
