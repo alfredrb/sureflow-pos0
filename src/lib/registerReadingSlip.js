@@ -3,6 +3,7 @@
 // the consolidated EOD figures, so a CSM can take a reading at any point in the day.
 import { printNoticeSlip } from "@/lib/noticeSlip";
 import { buildRegisterReading, READING_TENDERS } from "@/lib/tenderReading";
+import { laneNumber } from "@/lib/registerLabel";
 
 const money = (n) => `$${Number(n || 0).toFixed(2)}`;
 // 42-column receipt: label left, amount right.
@@ -13,7 +14,7 @@ export async function printRegisterReadingSlip(registerId, operator) {
   const lines = [
     "REGISTER READING",
     "",
-    row("REGISTER", `${r.registerId}`),
+    row("REGISTER", laneNumber(r.registerId)),
     row("NAME", (r.register?.name || "—").toUpperCase().slice(0, 15)),
     row("TAKEN BY", (operator?.full_name || "—").toUpperCase().slice(0, 15)),
     "",

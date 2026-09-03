@@ -3,6 +3,8 @@
 // fallback and the relay's raw ESC/POS output look identical.
 
 import { checkTenderLines } from "@/lib/checkReceiptLine";
+// Receipts print a lane as its bare number; the REG- identity stays internal.
+import { laneNumber } from "@/lib/registerLabel";
 
 export const RECEIPT_WIDTH = 42;
 
@@ -74,7 +76,7 @@ export function buildReceiptTokens(r) {
 
   push(
     "center",
-    `ST# ${r.store_number || "0000"}  OP# ${r.operator_pin || ""}  REG# ${r.register_id || "00"}`
+    `ST# ${r.store_number || "0000"}  OP# ${r.operator_pin || ""}  REG# ${laneNumber(r.register_id) || "00"}`
   );
 
   // Maintenance notice slips print a heading + wrapped message block

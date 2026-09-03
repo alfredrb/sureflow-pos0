@@ -4,6 +4,7 @@
 import { base44 } from "@/api/data";
 import { printNoticeSlip, wrapNotice } from "@/lib/noticeSlip";
 import { bootImageLabel } from "@/lib/pxeBootstrap";
+import { laneNumber } from "@/lib/registerLabel";
 
 const val = (v) => (v === undefined || v === null || v === "" ? "—" : String(v));
 const row = (label, v) => `${label.padEnd(13)}${val(v)}`;
@@ -24,7 +25,7 @@ export async function printConfigSlip(operator) {
       "",
       "-- IDENTITY --",
       row("STORE", `${val(store.store_number || storeId)} ${store.name || ""}`.trim()),
-      row("REGISTER", `${val(reg.register_id || registerId)} — ${val(reg.name)}`),
+      row("REGISTER", `${val(laneNumber(reg.register_id || registerId))} — ${val(reg.name)}`),
       row("LOCATION", reg.location),
       row("STATUS", reg.status),
       row("OPERATOR", (operator?.full_name || "").toUpperCase()),
