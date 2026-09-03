@@ -249,7 +249,7 @@ export default function AdminLayout() {
             {!collapsed && <span>Open POS</span>}
           </Link>
           )}
-          <button onClick={() => { sessionStorage.removeItem("admin_operator"); base44.auth.logout("/"); }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full">
+          <button onClick={() => { sessionStorage.removeItem("admin_operator"); navigate("/admin/login"); }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full">
             <LogOut className="w-4 h-4 flex-shrink-0" />
             {!collapsed && <span>Logout</span>}
           </button>
