@@ -4,6 +4,7 @@ import { PINPAD_PROFILES } from "@/lib/pinpadProfiles";
 import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE, RELAY_PINPAD_RAW_CODE } from "@/lib/relayPinpad";
 import HidPinpadBridgeReference from "@/components/techdocs/HidPinpadBridgeReference";
 import RbaProtocolReference from "@/components/techdocs/RbaProtocolReference";
+import PinpadSweepReference from "@/components/techdocs/PinpadSweepReference";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -86,19 +87,21 @@ export default function PinpadReference() {
       <RbaProtocolReference />
 
       <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
-        <p className="text-sm font-semibold text-rose-900">Unverified on hardware — read before trusting the profiles</p>
+        <p className="text-sm font-semibold text-rose-900">Transport verified — sale-flow command tags are still wrong</p>
         <p className="mt-1 text-xs leading-relaxed text-rose-700">
-          The <span className="font-mono">isc250</span> command tags below (<span className="font-mono">W0/W1/S0/I0/C0/R0</span>)
-          were written before any iSC250 was on a bench and have <b>never produced a response from a real pad</b>. On lane
-          REG-005 the framing and LRC were confirmed correct against the pad's own bytes, and the bridge delivers, but every
-          command so far has been ignored in silence.
+          <b>Verified end to end on REG-091</b> (pad 10.0.40.191 via the lane HID bridge): the health check{" "}
+          <span className="font-mono">08.0</span> returns RBA <span className="font-mono">08.5016</span>, model{" "}
+          <span className="font-mono">iSC250</span>, board serial <span className="font-mono">2215267SC010318</span>, status{" "}
+          <span className="font-mono">OK</span> — delivered once under the host's SOH+ACK, so the link layer is right too.
+          HID bridge, 32-byte reports, frame anatomy, LRC and multi-packet reply assembly are all settled.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-rose-700">
-          Current working theory: the pad runs Ingenico <b>RBA</b> (Retail Base Application). Its idle frame carries{" "}
-          <span className="font-mono">24.0</span>, which reads as “screen 24, status 0” and matches the{" "}
-          <span className="font-mono">LANE CLOSE</span> screen on the glass — meaning these invented tags would be rejected
-          under any framing. Use the raw probe below to establish the real command set; the vendor's RBA Programmer's Guide
-          or a capture from the original 4690 host is the fallback.
+          What is <b>not</b> settled is the sale flow. The <span className="font-mono">isc250</span> tags below
+          (<span className="font-mono">W0/W1/W2/S0/I0/C0/R0</span>) were invented before any pad was on a bench and are now
+          known to be fiction: RBA message IDs are two digits, a dot and a subfield — as the pad's own{" "}
+          <span className="font-mono">24.0</span> idle frame and the working <span className="font-mono">08.0</span> both
+          show. This is the sole remaining reason the glass sits on <span className="font-mono">LANE CLOSE</span> during a
+          sale. Map the real IDs with the sweep below, and get the RBA Programmer's Guide for 08.5016 for the field layouts.
         </p>
         <p className="mt-2 rounded-lg border border-rose-200 bg-white p-2 text-xs text-rose-800">
           Also note: a <span className="font-mono">200 {"{"}"ok":true{"}"}</span> from{" "}
@@ -133,6 +136,10 @@ export default function PinpadReference() {
         note="The pad's TCP port. Set the pad's own COM setting to Ethernet first (on the iSC250: 2-6-3-4, Enter, then +)."
         code={RELAY_PINPAD_ENV_CODE}
       />
+
+      {/* How the real command set gets established, now that the transport under it
+          is proven and a NAK is a meaningful negative rather than noise. */}
+      <PinpadSweepReference />
 
       {/* The lane side of the same port. A USB iSC250 is HID-only, so the relay's
           frames only reach it through this bridge — it belongs with the pad, not
