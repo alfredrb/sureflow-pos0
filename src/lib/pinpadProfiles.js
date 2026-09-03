@@ -19,10 +19,17 @@ export const PINPAD_PROFILES = {
     port: 12000,
     // Which customer-facing flows this pad can serve.
     capabilities: ["display", "cart_mirror", "signature", "numeric_entry", "rating", "confirm"],
+    // Bench-verified on RBA Retail Base 08.5016 (unit serial 80770133).
+    firmware_verified: "08.5016",
+    framing: "08 STX <data> CR ETX LRC — the 08 prefix is OUTSIDE the LRC, which covers data+CR+ETX",
     notes:
-      "Ethernet or USB — identical frames either way. For a USB pad, the lane's serial bridge publishes it as " +
-      "lane_ip:12000, so set the pinpad IP to the LANE's own LAN IP. Signature capture returns a bitmap the relay " +
-      "converts to PNG. Set the pad's COM setting to the interface in use (2-6-3-4 on the pad, then Enter, then +).",
+      "Ethernet or USB — identical frames either way. For a USB pad, the lane's HID bridge publishes it as " +
+      "lane_ip:12000, so set the pinpad IP to the LANE's own LAN IP. VERIFIED FRAMING: host frames must carry the " +
+      "0x08 prefix AND the CR before ETX — omitting either gets a NAK or silence. The pad replies SOH+ACK / SOH+NAK " +
+      "at the link layer and sends data as RS+STX <FS-separated fields> ETX LRC; the host MUST ACK inbound packets " +
+      "or the pad retries. 'LANE CLOSE' (screen 24.0) is the pad's normal idle screen, not a fault. The 08.0 health " +
+      "check is confirmed working; the display/signature/entry/rating tags still need the RBA Programmer's Guide for " +
+      "08.5016. Set the pad's COM setting to the interface in use (2-6-3-4 on the pad, then Enter, then +).",
   },
   lane_7000: {
     key: "lane_7000",

@@ -13,7 +13,8 @@ const net = require("net");
 const BUILD = "pinpad-build 1";
 const DEFAULT_PORT = Number(process.env.PINPAD_PORT || 12000);
 
-const STX = "\\x02", ETX = "\\x03", ACK = "\\x06", NAK = "\\x15";
+const SOH = "\\x01", STX = "\\x02", ETX = "\\x03", ACK = "\\x06", NAK = "\\x15";
+const CR = "\\x0d", PREFIX = "\\x08", RS = "\\x1e", FS = "\\x1c";
 
 // LRC over the frame body, as Ingenico's serial framing expects.
 function lrc(body) {
@@ -21,7 +22,29 @@ function lrc(body) {
   for (const ch of body) acc ^= ch.charCodeAt(0);
   return String.fromCharCode(acc);
 }
-function frame(body) { return STX + body + ETX + lrc(body + ETX); }
+
+// VERIFIED on iSC250 / RBA Retail Base 08.5016 (bench-confirmed, not inferred):
+//   host -> pad:  08 STX <data> CR ETX LRC
+// The 0x08 prefix sits OUTSIDE the checksum; the LRC covers <data> + CR + ETX.
+// Proof: the pad's own idle frame 08 02 "24.0" 0d 03 16 checksums exactly, and the
+// health check 08 02 "08.0" 0d 03 18 was ACKed, while the same frame WITHOUT the
+// prefix+CR was NAKed. Both omissions were separate faults in the old builder.
+function frame(body) {
+  const checked = body + CR + ETX;
+  return PREFIX + STX + checked + lrc(checked);
+}
+
+// The pad ACKs/NAKs at the link layer with SOH + ACK|NAK, and sends data packets as
+// RS + STX <fields, FS-separated> ETX LRC. It RETRIES an unacknowledged packet, so the
+// host MUST answer every inbound data packet with SOH ACK or the pad floods and times out.
+const linkAck = () => SOH + ACK;
+const isLinkAck = (s) => s === SOH + ACK || s === ACK;
+const isLinkNak = (s) => s === SOH + NAK || s === NAK;
+
+// Splits a stream into complete pad data packets, dropping the link bytes.
+function dataPackets(buf) {
+  return buf.split(RS).slice(1).map((p) => p.replace(/^\\x02/, "").replace(/\\x03[\\s\\S]*$/, "")).filter(Boolean);
+}
 
 // ── Model command profiles ────────────────────────────────────────────────────
 // Each profile turns a POS intent into one or more frames, and parses the reply.
@@ -31,6 +54,12 @@ const PROFILES = {
   isc250: {
     port: DEFAULT_PORT,
     // Screen control
+    // Health check / identity — VERIFIED against a live pad. Returns the RBA
+    // application version, model, serials, build date and status.
+    status:     () => frame("08.0"),
+    // NOTE: the commands below are NOT yet verified against RBA 08.5016. The framing
+    // they are wrapped in now IS correct, so a NAK from here means the command tag is
+    // wrong (fix from the RBA Programmer's Guide for 08.5016), not the transport.
     clear:      () => frame("W0"),
     display:    (p) => frame("W1" + [p.title || "", ...(p.lines || [])].join("|").slice(0, 240)),
     cart:       (p) => frame("W2" + [
@@ -49,7 +78,19 @@ const PROFILES = {
     // Replies arrive as STX <tag> <payload> ETX LRC. Signature payload is the
     // pad's bitmap, base64 encoded by the pad firmware.
     parse(raw) {
-      const body = raw.replace(/^\\x02/, "").replace(/\\x03.*$/, "");
+      const packets = dataPackets(raw);
+      const body = packets.length ? packets[0] : raw.replace(/^\\x02/, "").replace(/\\x03[\\s\\S]*$/, "");
+      // Identity / health reply: FS-separated fields opening with the 08.5 response id.
+      if (body.startsWith("08.5")) {
+        const f = body.split(FS);
+        return {
+          status_reply: true,
+          rba_version: f[0],
+          model: f[6] || "",
+          board_serial: f[7] || "",
+          fields: f,
+        };
+      }
       const tag = body.slice(0, 2);
       const payload = body.slice(2);
       if (tag === "SR") return { image_base64: payload, format: "png" };
@@ -111,8 +152,12 @@ function ask(ip, port, payload, profile, timeoutMs) {
     sock.once("error", (e) => finish(reject, e));
     sock.on("data", (d) => {
       buf += d.toString("binary");
-      if (buf === ACK) { buf = ""; return; }          // command accepted, keep waiting
-      if (buf === NAK) return finish(reject, new Error("Pinpad rejected the command"));
+      if (isLinkAck(buf)) { buf = ""; return; }        // command accepted, keep waiting
+      if (isLinkNak(buf)) return finish(reject, new Error("Pinpad rejected the command"));
+      // Acknowledge inbound data at the link layer, or the pad retries the packet.
+      if (buf.includes(RS) && buf.includes(ETX)) {
+        try { sock.write(Buffer.from(linkAck(), "binary")); } catch (e) {}
+      }
       clearTimeout(quiet);
       quiet = setTimeout(() => {
         const out = profile.parse(buf);
@@ -126,6 +171,7 @@ function ask(ip, port, payload, profile, timeoutMs) {
 
 module.exports = {
   BUILD,
+  status:    (b) => { const p = profileFor(b.profile); return ask(b.pinpad_ip, p.port, p.status(), p, 8000); },
   clear:     (b) => { const p = profileFor(b.profile); return send(resolveIp(b.pinpad_ip), p.port, p.clear()); },
   display:   (b) => { const p = profileFor(b.profile); return send(resolveIp(b.pinpad_ip), p.port, p.display(b)); },
   cart:      (b) => { const p = profileFor(b.profile); return send(resolveIp(b.pinpad_ip), p.port, p.cart(b)); },
@@ -236,7 +282,7 @@ for (const [route, fn] of [["cart", "cart"], ["display", "display"], ["clear", "
 
 // Blocking customer interactions. The POS calls these with long client timeouts
 // and shows its own "look at the pinpad" prompt while they run.
-for (const route of ["signature", "input", "confirm", "rating"]) {
+for (const route of ["status", "signature", "input", "confirm", "rating"]) {
   app.post("/api/pinpad/" + route, async (req, res) => {
     try { const out = await pinpad[route](req.body || {}); res.json({ ok: true, ...out }); }
     catch (e) { res.status(502).json({ error: e.message }); }
