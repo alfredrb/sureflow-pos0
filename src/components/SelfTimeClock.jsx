@@ -26,7 +26,7 @@ function elapsedLabel(ms) {
   return `${h}h ${m}m`;
 }
 
-export default function SelfTimeClock({ open, onOpenChange, operators }) {
+export default function SelfTimeClock({ open, onOpenChange, operators, onClockedIn }) {
   const { toast } = useToast();
   const [operator, setOperator] = useState(null);
   const [entry, setEntry] = useState(null);
@@ -85,7 +85,7 @@ export default function SelfTimeClock({ open, onOpenChange, operators }) {
     setLoading(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      await base44.entities.TimeClockEntry.create({
+      const created = await base44.entities.TimeClockEntry.create({
         operator_id: operator.operator_id,
         operator_name: operator.full_name,
         role: operator.role,
@@ -93,12 +93,17 @@ export default function SelfTimeClock({ open, onOpenChange, operators }) {
         clock_in: new Date().toISOString(),
         status: "open"
       });
+      // Show the entry we just created instead of re-reading it. A read straight
+      // after the write does not always return the new record yet, which is what
+      // left the screen saying "not clocked in" until the page was reloaded.
+      if (created) setEntry(created);
+      // Tell the login screen this operator is now clocked in, for the same reason.
+      onClockedIn?.(operator.operator_id);
       toast({ title: "Clocked in", description: operator.full_name });
       // Print any pending pre/post maintenance notice slips (once per operator per notice)
       printMaintenanceNotices(operator).catch(() => {});
       // Print critical store announcement slips not yet given to this operator
       printAnnouncementSlips(operator).catch(() => {});
-      await refresh();
     } catch (e) {
       toast({ title: "Error clocking in", variant: "destructive" });
     }

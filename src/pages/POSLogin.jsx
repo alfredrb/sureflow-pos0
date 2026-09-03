@@ -39,6 +39,10 @@ export default function POSLogin() {
   const [forceConfig, setForceConfig] = useState(false);
   const [showShiftLookup, setShowShiftLookup] = useState(false);
   const [showTimeClock, setShowTimeClock] = useState(false);
+  // Operators who clocked in at THIS screen just now. The clock-in record is not
+  // always returned by the very next read, which used to make the login reject them
+  // as "not clocked in" until the page was reloaded.
+  const clockedInHere = React.useRef(new Set());
   const [operators, setOperators] = useState([]);
   const [conflict, setConflict] = useState(null); // { operator, otherRegister }
   const [overrideId, setOverrideId] = useState("");
@@ -265,7 +269,13 @@ export default function POSLogin() {
         // Clock-in and lunch enforcement
         const today = new Date().toISOString().split("T")[0];
         const tcEntries = await base44.entities.TimeClockEntry.filter({ operator_id: op.operator_id }, "-created_date", 50);
-        const activeEntry = tcEntries.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
+        let activeEntry = tcEntries.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
+        // Just clocked in here but the record has not surfaced in a read yet — look
+        // once more before turning them away.
+        if (!activeEntry && clockedInHere.current.has(op.operator_id)) {
+          const retry = await base44.entities.TimeClockEntry.filter({ operator_id: op.operator_id }, "-created_date", 50);
+          activeEntry = retry.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
+        }
         if (!activeEntry) {
           toast({ title: "Operator Not Clocked In", description: "Clock in at the time clock before logging into the register.", variant: "destructive" });
           setStep("id"); setOperatorId(""); setPin("");
@@ -575,7 +585,12 @@ export default function POSLogin() {
       <ShiftLookupDialog open={showShiftLookup} onOpenChange={setShowShiftLookup} operators={operators} />
 
       {/* Self-Service Time Clock Modal */}
-      <SelfTimeClock open={showTimeClock} onOpenChange={setShowTimeClock} operators={operators} />
+      <SelfTimeClock
+        open={showTimeClock}
+        onOpenChange={setShowTimeClock}
+        operators={operators}
+        onClockedIn={(opId) => clockedInHere.current.add(opId)}
+      />
 
       {/* Config Modal */}
       {showConfig && (

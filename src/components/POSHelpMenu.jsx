@@ -20,6 +20,20 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
   useEffect(() => { getLatestVersionString().then(setVersion).catch(() => {}); }, []);
   useEffect(() => () => { if (holdTimer.current) clearTimeout(holdTimer.current); }, []);
 
+  // Tapping anywhere off the menu closes it, the way the other POS dropdowns behave.
+  // Bound only while it is open so it never intercepts anything on a closed menu.
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+    };
+  }, [open, setOpen]);
+
   const startHold = () => {
     holdTriggered.current = false;
     if (holdTimer.current) clearTimeout(holdTimer.current);
@@ -33,7 +47,7 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       {/* Same bubble shape as News and Logout so the three header controls match. */}
       <button
         onClick={() => setOpen(!open)}
