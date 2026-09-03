@@ -10,7 +10,7 @@
 export const RELAY_PINPAD_CODE = `// pinpad.js — Ingenico customer-facing pinpad (signature, prompts, entry, rating)
 const net = require("net");
 
-const BUILD = "pinpad-build 3";
+const BUILD = "pinpad-build 4";
 const DEFAULT_PORT = Number(process.env.PINPAD_PORT || 12000);
 
 const SOH = "\\x01", STX = "\\x02", ETX = "\\x03", ACK = "\\x06", NAK = "\\x15";
@@ -90,14 +90,24 @@ const PROFILES = {
       if (!clean) return { silent: true, note: "Pad returned only HID padding — no protocol reply" };
       const packets = dataPackets(clean);
       const body = packets.length ? packets[0] : clean.replace(/^\\x02/, "").replace(/\\x03[\\s\\S]*$/, "");
-      // Identity / health reply: FS-separated fields opening with the 08.5 response id.
+      // Identity / health reply: opens with the 08.5 response id.
+      // VERIFIED on RBA 08.5016: the identity spans THREE RS-delimited packets, not one
+      // (version block, then model/serial block, then app/date/status block), so the
+      // fields must be assembled across every packet. Reading only the first packet
+      // returns a correct version with an empty model, which reads like a half-broken pad.
       if (body.startsWith("08.5")) {
-        const f = body.split(FS);
+        // 0x19 appears mid-string in the app name ("Retail Ba\\x19se") as a transport
+        // artefact; drop control bytes before splitting so fields read cleanly.
+        const f = packets.join(FS).replace(/[\\x19]/g, "").split(FS).map((s) => s.trim()).filter(Boolean);
+        const model = f.find((v) => /^(iSC|iPP|Lane|iUC)/i.test(v)) || "";
+        const mi = f.indexOf(model);
         return {
           status_reply: true,
           rba_version: f[0],
-          model: f[6] || "",
-          board_serial: f[7] || "",
+          model,
+          board_serial: mi >= 0 ? (f[mi + 1] || "") : "",
+          app_name: f.find((v) => /^Retail/i.test(v)) || "",
+          pad_status: f.includes("OK") ? "OK" : "",
           fields: f,
         };
       }
