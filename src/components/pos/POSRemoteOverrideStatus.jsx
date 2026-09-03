@@ -1,6 +1,9 @@
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+// Vector icons rather than emoji: the lane image ships no emoji font, so an
+// emoji glyph renders as a blank box on lane Chromium.
+import { Check, Clock, X } from "lucide-react";
 
 // Outcome dialog for a remote override request. The "waiting for approval" state
 // is shown on the 4690-style status line under Current Transaction.
@@ -11,7 +14,13 @@ export default function POSRemoteOverrideStatus({ result, onCloseResult }) {
         <DialogContent className={`bg-[#111638] text-white max-w-xs ${result?.approved ? "border-green-500/30" : "border-red-500/30"}`}>
           <DialogHeader>
             <DialogTitle className={`text-sm flex items-center gap-2 ${result?.approved ? "text-green-400" : "text-red-400"}`}>
-              {result?.approved ? "✓ Remote Override Approved" : result?.expired ? "⏱ Override Request Expired" : "✕ Remote Override Declined"}
+              {result?.approved ? (
+                <><Check className="w-4 h-4" /> Remote Override Approved</>
+              ) : result?.expired ? (
+                <><Clock className="w-4 h-4" /> Override Request Expired</>
+              ) : (
+                <><X className="w-4 h-4" /> Remote Override Declined</>
+              )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">

@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from "react";
+// Vector icon rather than an emoji: the lane image ships no emoji font, so an
+// emoji glyph renders as a blank box on lane Chromium.
+import { X } from "lucide-react";
 
 // 4690-style waiting prompt for a remote override: a dot is added every 2 seconds
 // up to eight, then it resets to one. Backspace / Clear / Escape or the X cancels.
@@ -30,7 +33,7 @@ export default function RemoteOverrideWaitLine({ remotePending, onCancel }) {
         </p>
         <p className="text-violet-100/80 text-[10px] truncate">Waiting for approval of "{remotePending.action}" — press Clear to cancel</p>
       </div>
-      <button onClick={onCancel} className="w-5 h-5 grid place-items-center rounded-md text-violet-200 hover:text-white hover:bg-white/10 text-xs flex-shrink-0">✕</button>
+      <button onClick={onCancel} className="w-5 h-5 grid place-items-center rounded-md text-violet-200 hover:text-white hover:bg-white/10 flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
     </div>
   );
 }

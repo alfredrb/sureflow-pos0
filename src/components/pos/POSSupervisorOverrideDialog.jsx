@@ -2,6 +2,9 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+// Vector icon rather than an emoji: the lane image ships DejaVu only, with no
+// emoji font, so an emoji glyph renders as a blank box on lane Chromium.
+import { Satellite } from "lucide-react";
 
 // CSM / Manager authorization prompt for a protected function key, with the
 // fallback option of sending a remote override request to the admin panel.
@@ -46,7 +49,7 @@ export default function POSSupervisorOverrideDialog({
         <div className="border-t border-blue-500/10 pt-3">
           <p className="text-blue-300/40 text-[10px] text-center mb-2">No one present to authorize?</p>
           <Button onClick={onSendRemote} variant="outline" className="w-full border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-xs">
-            📡 Send Remote Override Request
+            <Satellite className="w-3.5 h-3.5 mr-1.5" /> Send Remote Override Request
           </Button>
         </div>
       </DialogContent>
