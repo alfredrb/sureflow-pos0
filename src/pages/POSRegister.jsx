@@ -114,7 +114,10 @@ export default function POSRegister() {
   const [priceEditValue, setPriceEditValue] = useState("");
   const [registerFeatures, setRegisterFeatures] = useState({ feature_returns: false, feature_customer_service: false, feature_exchange: false, feature_attendant: false });
   // Customer-facing Ingenico pinpad on this lane (blank model = no pad fitted).
-  const [pinpadConfig, setPinpadConfig] = useState({ pinpad_model: "", pinpad_ip: "" });
+  // customer_monitor rides along here because it is the SURFACE FLAG for the shared
+  // customer context: a lane with a touch monitor asks the customer there instead of on
+  // the pad, and every prompt call site already receives this context.
+  const [pinpadConfig, setPinpadConfig] = useState({ pinpad_model: "", pinpad_ip: "", customer_monitor: false });
   // Customer pole display on this lane (blank model = no pole fitted).
   const [poleConfig, setPoleConfig] = useState({ pole_display_model: "", pole_display_ip: "", printer_ip: "" });
   // Second customer-facing MONITOR on this lane. Off = nothing is ever published.
@@ -365,7 +368,11 @@ export default function POSRegister() {
         } catch (storeErr) { console.error("Store info unavailable:", storeErr); }
         if (regs.length > 0) {
           setRegisterFeatures({ feature_returns: regs[0].feature_returns || false, feature_customer_service: regs[0].feature_customer_service || false, feature_exchange: regs[0].feature_exchange || false, feature_attendant: regs[0].feature_attendant || false });
-          setPinpadConfig({ pinpad_model: regs[0].pinpad_model || "", pinpad_ip: regs[0].pinpad_ip || "" });
+          setPinpadConfig({
+            pinpad_model: regs[0].pinpad_model || "",
+            pinpad_ip: regs[0].pinpad_ip || "",
+            customer_monitor: !!regs[0].customer_monitor_enabled,
+          });
           setPoleConfig({ pole_display_model: regs[0].pole_display_model || "", pole_display_ip: regs[0].pole_display_ip || "", printer_ip: regs[0].printer_ip || "" });
           setCustomerMonitor(!!regs[0].customer_monitor_enabled);
           setRegisterPaused(regs[0].paused || false);

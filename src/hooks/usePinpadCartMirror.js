@@ -7,7 +7,7 @@ import { showCartOnPinpad, idlePinpad } from "@/lib/pinpadFlow";
 export default function usePinpadCartMirror({ pinpadConfig, registerId, cart, subtotal, tax, total }) {
   const context = useMemo(
     () => ({ ...pinpadConfig, register_id: registerId }),
-    [pinpadConfig.pinpad_model, pinpadConfig.pinpad_ip, registerId]
+    [pinpadConfig.pinpad_model, pinpadConfig.pinpad_ip, pinpadConfig.customer_monitor, registerId]
   );
 
   useEffect(() => {

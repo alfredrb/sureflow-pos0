@@ -12,6 +12,9 @@ import {
 } from "@/lib/relayClient";
 import { pinpadReady, pinpadSupports } from "@/lib/pinpadProfiles";
 import { setPinpadStatus } from "@/lib/pinpadStatus";
+import {
+  usesCustomerScreen, signatureOnScreen, numberOnScreen, confirmOnScreen, ratingOnScreen,
+} from "@/lib/customerSurface";
 
 // Common envelope: which pad, which command profile.
 function target(ctx) {
@@ -21,6 +24,18 @@ function target(ctx) {
 export function hasPinpad(ctx) {
   return pinpadReady(ctx);
 }
+
+// Whether this lane can ask the customer ANYTHING — on its touch monitor or on a pad.
+// UI that offers a "have the customer do this" control gates on THIS, not on hasPinpad,
+// or a monitor lane would never be offered the flow.
+export function hasCustomerSurface(ctx) {
+  return usesCustomerScreen(ctx) || pinpadReady(ctx);
+}
+
+// What to call the surface in operator-facing copy, so a lane with no pad is not told to
+// look at one.
+export const customerSurfaceLabel = (ctx) =>
+  usesCustomerScreen(ctx) ? "customer screen" : "pinpad";
 
 // ── Display (fire-and-forget) ───────────────────────────────────────────────
 export async function showCartOnPinpad(ctx, { items = [], subtotal = 0, tax = 0, total = 0 }) {
@@ -76,6 +91,13 @@ export async function cancelPinpad(ctx) {
 
 // Signature capture. Returns { url } once stored, or { skipped: reason }.
 export async function captureSignatureOnPinpad(ctx, { title = "PLEASE SIGN", lines = [] } = {}) {
+  // A lane with a customer monitor signs there — it is a touch panel and it works today.
+  if (usesCustomerScreen(ctx)) {
+    setPinpadStatus("interactive", "Customer is signing");
+    const out = await signatureOnScreen(ctx, { title: "Please sign below", lines });
+    setPinpadStatus(out.url ? "ok" : "idle", out.url ? "Signature captured" : "");
+    return out;
+  }
   if (!pinpadSupports(ctx, "signature")) return { skipped: "No signature-capable pinpad on this lane" };
   let out;
   setPinpadStatus("interactive", "Customer is signing");
@@ -106,6 +128,12 @@ async function storeSignatureImage(base64, format) {
 
 // Numeric entry on the pad (gift card number). Returns the value or "".
 export async function enterNumberOnPinpad(ctx, { title = "ENTER NUMBER", maxLength = 24 } = {}) {
+  if (usesCustomerScreen(ctx)) {
+    setPinpadStatus("interactive", "Customer is keying a number");
+    const value = await numberOnScreen(ctx, { title, maxLength });
+    setPinpadStatus(value ? "ok" : "idle", value ? "Entry received" : "");
+    return value;
+  }
   if (!pinpadSupports(ctx, "numeric_entry")) return "";
   setPinpadStatus("interactive", "Customer is keying a number");
   try {
@@ -120,7 +148,15 @@ export async function enterNumberOnPinpad(ctx, { title = "ENTER NUMBER", maxLeng
 
 // "Approve $amount?" — a pad that cannot answer must not stall the tender, so an
 // unreachable pad reads as approved and the operator confirms on screen instead.
-export async function confirmAmountOnPinpad(ctx, amount) {
+export async function confirmAmountOnPinpad(ctx, amount, caption = {}) {
+  // The monitor draws the question and the amount together, so callers that would have
+  // shown a caption on the pad first pass it straight in here instead.
+  if (usesCustomerScreen(ctx)) {
+    setPinpadStatus("interactive", "Customer is approving");
+    const out = await confirmOnScreen(ctx, amount, caption);
+    setPinpadStatus("ok", "Answered");
+    return out;
+  }
   if (!pinpadSupports(ctx, "confirm")) return { approved: true, asked: false };
   setPinpadStatus("interactive", "Customer is approving the amount");
   try {
@@ -135,12 +171,18 @@ export async function confirmAmountOnPinpad(ctx, amount) {
 
 // Post-sale rating. Stores the answer on the sale and resolves silently either way.
 export async function collectSaleRating(ctx, txId) {
-  if (!pinpadSupports(ctx, "rating") || !txId) return null;
+  if (!txId) return null;
+  const onScreen = usesCustomerScreen(ctx);
+  if (!onScreen && !pinpadSupports(ctx, "rating")) return null;
   let rating = null;
   setPinpadStatus("interactive", "Customer is rating the visit");
   try {
-    const out = await pinpadCollectRating({ ...target(ctx), title: "HOW WAS YOUR VISIT?" });
-    rating = Number(out?.rating) || null;
+    if (onScreen) {
+      rating = await ratingOnScreen(ctx);
+    } else {
+      const out = await pinpadCollectRating({ ...target(ctx), title: "HOW WAS YOUR VISIT?" });
+      rating = Number(out?.rating) || null;
+    }
   } catch { /* customer walked away */ }
   if (!rating) { idlePinpad(ctx); return null; }
   try {

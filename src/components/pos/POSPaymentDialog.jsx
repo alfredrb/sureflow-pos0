@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import POSTenderList from "@/components/pos/POSTenderList";
 import POSCheckDialog from "@/components/pos/POSCheckDialog";
 import { TENDER_OPTIONS, balanceDue, changeFrom, isSettled, resolveTenderAmount } from "@/lib/tenderSplit";
-import { hasPinpad, enterNumberOnPinpad, confirmAmountOnPinpad, promptOnPinpad } from "@/lib/pinpadFlow";
+import { hasCustomerSurface, customerSurfaceLabel, enterNumberOnPinpad, confirmAmountOnPinpad, promptOnPinpad } from "@/lib/pinpadFlow";
 
 // 4690 tender flow: key an amount (or leave it blank for the full balance), then
 // press a tender key to COMMIT that tender. Under-tendering leaves a balance and
@@ -22,7 +22,9 @@ export default function POSPaymentDialog({
   tenderRequest, onTenderRequestHandled,
 }) {
   const pad = pinpadContext || {};
-  // Customer-facing pinpad: keys the gift card number and confirms the amount due.
+  // Which surface the customer is asked on — this lane's touch monitor, or a pinpad.
+  const surface = customerSurfaceLabel(pad);
+  // Customer-facing surface: keys the gift card number and confirms the amount due.
   const [padBusy, setPadBusy] = React.useState("");   // "" | "giftcard" | "confirm"
   const [padNote, setPadNote] = React.useState("");
   // Check tender routes through the cheque station first (MICR read + franking)
@@ -62,19 +64,19 @@ export default function POSPaymentDialog({
     const value = await enterNumberOnPinpad(pad, { title: "ENTER GIFT CARD NUMBER", maxLength: 24 });
     setPadBusy("");
     if (value) setGiftCardNumber(value);
-    else setPadNote("The pinpad did not return a number — key it here instead.");
+    else setPadNote(`The ${surface} did not return a number — key it here instead.`);
   };
 
   // The customer approves the amount on the pad before the sale commits. An
   // unreachable pad reads as approved so the lane is never stuck.
   const submitWithPadApproval = async () => {
-    if (!hasPinpad(pad)) { onSubmit(); return; }
+    if (!hasCustomerSurface(pad)) { onSubmit(); return; }
     setPadBusy("confirm"); setPadNote("");
     const { approved } = await confirmAmountOnPinpad(pad, amountDue);
     setPadBusy("");
     if (!approved) {
       promptOnPinpad(pad, "CANCELLED", ["Please see the cashier."]);
-      setPadNote("Customer declined the amount on the pinpad.");
+      setPadNote(`Customer declined the amount on the ${surface}.`);
       return;
     }
     onSubmit();
@@ -115,10 +117,10 @@ export default function POSPaymentDialog({
               <label className="text-blue-300/60 text-[10px] mb-1 block">Gift Card Number</label>
               <Input value={giftCardNumber} onChange={e => setGiftCardNumber(e.target.value)}
                 placeholder="Enter gift card number" className="bg-[#0a0e27] border-blue-500/10 text-white mb-2" />
-              {hasPinpad(pad) && (
+              {hasCustomerSurface(pad) && (
                 <button onClick={readGiftCardFromPad} disabled={!!padBusy}
                   className="mb-3 w-full rounded-lg border border-sky-500/20 bg-sky-500/10 py-2 text-[10px] uppercase tracking-wider text-sky-300 hover:bg-sky-500/20 disabled:opacity-50">
-                  {padBusy === "giftcard" ? "Waiting on the pinpad..." : "Have Customer Key It On The Pinpad"}
+                  {padBusy === "giftcard" ? `Waiting on the ${surface}...` : `Have Customer Key It On The ${surface === "pinpad" ? "Pinpad" : "Customer Screen"}`}
                 </button>
               )}
               {padNote && <p className="mb-2 text-center text-[10px] text-amber-300">{padNote}</p>}
@@ -188,7 +190,7 @@ export default function POSPaymentDialog({
               <Button onClick={submitWithPadApproval} disabled={!settled || !!padBusy}
                 className="w-full h-10 bg-green-600 hover:bg-green-500 text-white font-bold text-base rounded-xl disabled:opacity-50">
                 {padBusy === "confirm"
-                  ? "Customer Approving On Pinpad..."
+                  ? `Customer Approving On ${surface === "pinpad" ? "Pinpad" : "Customer Screen"}...`
                   : settled ? "Complete Sale" : `$${balance.toFixed(2)} Still Due`}
               </Button>
             </>

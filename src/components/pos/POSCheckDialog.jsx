@@ -7,7 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { readCheckMicr, frankCheck, ejectCheck } from "@/lib/relayClient";
 import { parseMicr, validateCheck, last4 } from "@/lib/checkMicr";
 import { findActiveBlock, blockReasonLabel } from "@/lib/checkBlockList";
-import { hasPinpad, promptOnPinpad, captureSignatureOnPinpad, cancelPinpad, idlePinpad } from "@/lib/pinpadFlow";
+import { hasCustomerSurface, customerSurfaceLabel, promptOnPinpad, captureSignatureOnPinpad, cancelPinpad, idlePinpad } from "@/lib/pinpadFlow";
 import POSPinpadPrompt from "@/components/pos/POSPinpadPrompt";
 import POSCheckReinsertStep from "@/components/pos/POSCheckReinsertStep";
 
@@ -104,15 +104,15 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
       setError(`CHEQUE REFUSED — writer is on the block list (${blockReasonLabel(block.reason)}). Take another tender.`);
       return;
     }
-    // Signature first (when the lane has a pinpad), then hand the cheque back to
-    // the operator to reverse it for the endorsement pass.
-    if (hasPinpad(context)) {
+    // Signature first (on the lane's customer screen, or a pinpad), then hand the cheque
+    // back to the operator to reverse it for the endorsement pass.
+    if (hasCustomerSurface(context)) {
       setStep("signature");
       const sig = await runSignature();
       toReinsert(sig);
       return;
     }
-    toReinsert({ skipped: "No pinpad configured on this lane" });
+    toReinsert({ skipped: "No customer screen or pinpad on this lane" });
   };
 
   // Eject the cheque so the operator can turn it over. Nothing has been printed on
@@ -265,7 +265,7 @@ export default function POSCheckDialog({ open, onOpenChange, amount, context = {
 
         {step === "signature" && (
           <POSPinpadPrompt
-            title="CUSTOMER IS SIGNING ON THE PINPAD"
+            title={`CUSTOMER IS SIGNING ON THE ${customerSurfaceLabel(context).toUpperCase()}`}
             detail="The signature is stored against this cheque so the back office can verify it later."
             onSkip={() => { cancelPinpad(context); toReinsert({ skipped: "Operator bypassed the signature prompt" }); }}
             skipLabel="Skip Signature — Continue"

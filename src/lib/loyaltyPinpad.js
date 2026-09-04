@@ -13,6 +13,10 @@
 
 import { promptOnPinpad, enterNumberOnPinpad, confirmAmountOnPinpad, idlePinpad } from "@/lib/pinpadFlow";
 import { pinpadSupports } from "@/lib/pinpadProfiles";
+import { usesCustomerScreen } from "@/lib/customerSurface";
+
+// Either surface can ask these — the lane's touch monitor, or the pad.
+const canAsk = (ctx, cap) => usesCustomerScreen(ctx) || pinpadSupports(ctx, cap);
 
 // Digits -> (555) 123-4567 for the confirmation screen and operator display.
 export function formatPhone(value) {
@@ -22,7 +26,7 @@ export function formatPhone(value) {
 
 // Whether this lane can ask the customer to key their own number.
 export function canKeyPhoneOnPinpad(ctx) {
-  return pinpadSupports(ctx, "numeric_entry");
+  return canAsk(ctx, "numeric_entry");
 }
 
 // Customer keys their phone on the pad, then confirms what they keyed.
@@ -34,7 +38,10 @@ export async function keyPhoneOnPinpad(ctx, { title = "ENTER YOUR PHONE" } = {})
   // A stray tap or a walk-away comes back as a couple of digits — not a lookup.
   if (phone.length < 7) { idlePinpad(ctx); return ""; }
   await promptOnPinpad(ctx, "IS THIS CORRECT?", [formatPhone(phone)]);
-  const { approved } = await confirmAmountOnPinpad(ctx, 0);
+  const { approved } = await confirmAmountOnPinpad(ctx, 0, {
+    title: "Is this correct?",
+    lines: [formatPhone(phone)],
+  });
   idlePinpad(ctx);
   return approved ? phone : "";
 }
@@ -42,13 +49,16 @@ export async function keyPhoneOnPinpad(ctx, { title = "ENTER YOUR PHONE" } = {})
 // Loyalty terms agreement at sign-up. Returns { asked, agreed } — asked is false on
 // a lane with no pad, which is what keeps the cashier-typed enrolment unchanged.
 export async function confirmLoyaltyConsentOnPinpad(ctx) {
-  if (!pinpadSupports(ctx, "confirm")) return { asked: false, agreed: false };
+  if (!canAsk(ctx, "confirm")) return { asked: false, agreed: false };
   await promptOnPinpad(ctx, "JOIN REWARDS?", [
     "Sign up for the rewards program",
     "and agree to be contacted about",
     "rewards and offers.",
   ]);
-  const { approved, asked } = await confirmAmountOnPinpad(ctx, 0);
+  const { approved, asked } = await confirmAmountOnPinpad(ctx, 0, {
+    title: "Join Rewards?",
+    lines: ["Sign up and agree to be contacted about rewards and offers."],
+  });
   idlePinpad(ctx);
   return { asked, agreed: asked && approved };
 }
@@ -57,12 +67,15 @@ export async function confirmLoyaltyConsentOnPinpad(ctx) {
 // A pad that cannot answer reads as approved so redemption is never blocked.
 export async function confirmRedemptionOnPinpad(ctx, amount) {
   const amt = Number(amount || 0);
-  if (!(amt > 0) || !pinpadSupports(ctx, "confirm")) return { asked: false, approved: true };
+  if (!(amt > 0) || !canAsk(ctx, "confirm")) return { asked: false, approved: true };
   await promptOnPinpad(ctx, "APPLY REWARDS?", [
     `$${amt.toFixed(2)} of your rewards`,
     "will be applied to this sale.",
   ]);
-  const out = await confirmAmountOnPinpad(ctx, amt);
+  const out = await confirmAmountOnPinpad(ctx, amt, {
+    title: "Apply rewards to this sale?",
+    lines: [`$${amt.toFixed(2)} of your rewards will be applied.`],
+  });
   idlePinpad(ctx);
   return out;
 }
