@@ -17,7 +17,7 @@
 export const RELAY_PINPAD_CODE = `// pinpad.js — Ingenico RBA customer-facing pinpad (signature, prompts, entry, rating)
 const net = require("net");
 
-const BUILD = "pinpad-build 5 (RBA DIV350779 Rev 17.6)";
+const BUILD = "pinpad-build 6 (RBA DIV350779 Rev 17.6, RS continuation fix)";
 const DEFAULT_PORT = Number(process.env.PINPAD_PORT || 12000);
 
 const SOH = "\\x01", STX = "\\x02", ETX = "\\x03", ACK = "\\x06", NAK = "\\x15";
@@ -52,10 +52,18 @@ const isLinkNak = (s) => s === SOH + NAK || s === NAK;
 const strip = (s) => s.replace(/\\x00+/g, "");
 
 // Splits a stream into complete pad data packets, dropping link bytes and framing.
+//
+// A reply is one or more FRAMES (STX ... CR ETX LRC). Inside a single frame, RS separates
+// CONTINUATION RECORDS of the SAME message: the iSC250 identity spans four of them, and only
+// the first carries the '08.' id. Splitting on RS and then keeping only records that start
+// with an id therefore discarded the model, board serial, app name and status — which is
+// exactly why /status reported an empty model from a pad that had sent everything. Split on
+// frame boundaries instead and fold RS into FS, so every record survives as a field.
 function packets(buf) {
   return strip(buf)
-    .split(RS)
-    .map((p) => p.replace(/^[\\x01\\x06\\x15\\x08]*\\x02?/, "").replace(/[\\x0d]?\\x03[\\s\\S]*$/, ""))
+    .split(STX)
+    .slice(1)
+    .map((f) => f.replace(/[\\x0d]?\\x03[\\s\\S]*$/, "").split(RS).join(FS))
     .filter((p) => /^[0-9]{2}\\./.test(p));
 }
 const msgId = (p) => p.slice(0, 3);
