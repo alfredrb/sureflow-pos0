@@ -76,9 +76,10 @@ const literal = (t) => (/^[0-9]/.test(String(t)) ? DC1 + t : String(t));
 const M = {
   // 08.0 Health Stat — VERIFIED on this fleet's RBA 08.5016.
   status:   () => frame("08.0"),
-  // 11.0 Status Request — the poll that carries an on-demand response back. 11.01 also
-  // appends the current form name, which is what makes a stuck pad diagnosable.
-  poll:     () => frame("11.01"),
+  // 11.0 Status Request — the poll that carries an on-demand response back.
+  // BENCH-VERIFIED: '11.0' replies. '11.01' (the guide's form-name variant) is NAKed by this
+  // pad's RBA 08.5016 build, so do not "improve" this back to 11.01.
+  poll:     () => frame("11.0"),
   // 15.8 Soft Reset — clear the line-item (scrolling receipt) display only.
   clearCart: () => frame("15.8"),
   // 15.6 Soft Reset — Stop Action: cancels the process an on-demand message started.
