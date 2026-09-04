@@ -17,6 +17,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import LaneRelayDiagnostic from "@/components/pos/LaneRelayDiagnostic";
 import { resolveRelayFromStore } from "@/lib/laneRelayResolve";
 import { runSignOnUpdateNotices } from "@/lib/signOnUpdateNotice";
+import usePoleWelcome from "@/hooks/usePoleWelcome";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -129,6 +130,9 @@ export default function POSLogin() {
   }, []);
 
   useEffect(() => { getLatestVersionString().then(setVersion).catch(() => {}); }, []);
+
+  // Signed-out lane: hold the store's centred welcome on the customer pole.
+  usePoleWelcome(registerNum);
 
   const numpad = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "ENT"];
 

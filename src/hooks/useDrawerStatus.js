@@ -4,7 +4,7 @@ import { DRAWER_KICK_EVENT } from "@/lib/drawerActivity";
 import { recordDrawerOpen, finalizeDrawerOpen } from "@/lib/drawerAuditLog";
 
 const POLL_MS = 2000;          // while the drawer is being watched
-const IDLE_EVERY = 15;         // otherwise every 15th tick (~30s) to keep the badge fresh
+const IDLE_EVERY = 3;          // otherwise every 3rd tick (~6s) so an UNKICKED open is still caught
 const OPEN_LIMIT_SECONDS = 60; // drawer open longer than this is logged for Loss Prevention
 const ARM_GRACE_MS = 10000;    // how long to wait for the drawer to physically open after a kick
 
@@ -60,6 +60,21 @@ export default function useDrawerStatus({ enabled = true } = {}) {
       const s = await readDrawerState();
       if (!alive) return;
       setState(s);
+
+      // A drawer pulled open with nothing in the POS behind it (a key, a manual pull)
+      // fires no kick event, so the watch was never armed and the CLOSE CASH DRAWER
+      // prompt only appeared on the slow badge poll — often not at all before it was
+      // pushed shut. Seeing it open is itself enough to start watching, and it is
+      // exactly the unexplained open Loss Prevention wants recorded.
+      if (!armed.current && s === "open") {
+        armed.current = true;
+        armedAt.current = Date.now();
+        sawOpen.current = false;
+        openedAt.current = 0;
+        logId.current = null;
+        reason.current = "manual";
+        meta.current = {};
+      }
 
       if (!armed.current) return;
 

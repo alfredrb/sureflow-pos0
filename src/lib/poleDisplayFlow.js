@@ -23,6 +23,15 @@ function money(n) {
   return "$" + Number(n || 0).toFixed(2);
 }
 
+// Centre text in the 20-column row. A 2x20 pole has no centring of its own — an
+// uncentred line sits hard against the left edge, which is what made the welcome
+// screen look wrong.
+function center(text) {
+  const t = String(text || "").slice(0, COLS);
+  const pad = Math.floor((COLS - t.length) / 2);
+  return " ".repeat(Math.max(0, pad)) + t;
+}
+
 // "TOTAL           $12.34" — label left, amount right, exactly one display row.
 function row(label, amount) {
   const a = money(amount);
@@ -48,7 +57,7 @@ export function showItemOnPole(ctx, item, total) {
 
 // Tender screen — the balance the customer owes.
 export function showTotalDueOnPole(ctx, amountDue) {
-  return show(ctx, ["** AMOUNT DUE **".padStart(18), row("TOTAL", amountDue)]);
+  return show(ctx, [center("** AMOUNT DUE **"), row("TOTAL", amountDue)]);
 }
 
 // Sale complete — total taken and the change handed back.
@@ -56,8 +65,22 @@ export function showChangeOnPole(ctx, { total, change }) {
   return show(ctx, [row("TOTAL", total), row("CHANGE", change)]);
 }
 
-// Idle / welcome screen between customers.
+// Idle / welcome screen between customers, and while the lane is signed out.
+//
+// Written as two CENTRED lines from the POS rather than left to the relay's built-in
+// idle message: the relay knows nothing about which store the lane is in, so its
+// message could only ever be a bare left-aligned WELCOME.
+// Line 1 is the store name, line 2 the welcome. No store name = welcome alone,
+// centred on the lower line so it still reads as a deliberate screen.
 export async function idlePole(ctx) {
   if (!poleReady(ctx)) return;
-  try { await poleIdleApi(target(ctx)); } catch { /* ignore */ }
+  const name = String(ctx.store_name || "").trim();
+  const lines = name ? [center(name), center("WELCOME")] : ["", center("WELCOME")];
+  try {
+    await poleShow({ ...target(ctx), lines });
+  } catch {
+    // Pole unreachable at that moment — fall back to the relay's own idle command
+    // so the display is at least not left holding the last customer's total.
+    try { await poleIdleApi(target(ctx)); } catch { /* ignore */ }
+  }
 }

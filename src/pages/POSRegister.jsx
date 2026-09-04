@@ -489,6 +489,7 @@ export default function POSRegister() {
   const poleContext = usePoleDisplayMirror({
     poleConfig,
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
+    storeName: storeInfo?.store_name || storeConfig?.store_name || "",
     cart, total,
   });
 
