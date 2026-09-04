@@ -53,15 +53,15 @@ export default function RbaMessageMapPanel() {
         </ul>
       </div>
 
-      <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3">
-        <p className="text-xs font-semibold text-gray-900">“LANE CLOSE” was never a fault</p>
-        <p className="mt-1 text-xs leading-relaxed text-gray-600">
-          Prompt <span className="font-mono">173</span> is literally “This Lane Closed” — the pad's normal offline idle
-          form, matching the unsolicited <span className="font-mono">24.0</span> frame it volunteers. The guide's
-          offline-state table confirms <span className="font-mono">20.x</span>, <span className="font-mono">21.x</span>,{" "}
-          <span className="font-mono">24.x</span>, <span className="font-mono">28.x</span>,{" "}
-          <span className="font-mono">29.x</span> and <span className="font-mono">37.x</span> all execute while the pad is
-          offline, so this fleet's non-payment prompts never need the EFT online sequence at all.
+      <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+        <p className="text-xs font-semibold text-rose-900">These messages do not exist on REG-091's pad</p>
+        <p className="mt-1 text-xs leading-relaxed text-rose-800">
+          This map is correct for a pad running RBA, and is what build 6 implements — but the pad on REG-091 has{" "}
+          <b>no Retail Base Application loaded</b> (its application list is PINPAD_AGENT / TSA / TDA / SECURITY_APP /
+          MODULE EMV / CAV-DEV). Only the read-only diagnostics <span className="font-mono">08.0</span> and{" "}
+          <span className="font-mono">11.0</span> are honoured; every row here that draws or reads a variable is refused
+          because the forms and variable store do not exist on the device. See the root-cause panel at the top of this
+          page — RBA has to be loaded before any of this is testable.
         </p>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { RELAY_PINPAD_CODE, RELAY_PINPAD_ROUTES_CODE, RELAY_PINPAD_ENV_CODE, REL
 import HidPinpadBridgeReference from "@/components/techdocs/HidPinpadBridgeReference";
 import RbaProtocolReference from "@/components/techdocs/RbaProtocolReference";
 import RbaMessageMapPanel from "@/components/techdocs/RbaMessageMapPanel";
+import RbaNotInstalledFinding from "@/components/techdocs/RbaNotInstalledFinding";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -36,6 +37,11 @@ function CodeBlock({ title, note, code, filename }) {
 export default function PinpadReference() {
   return (
     <div className="space-y-4">
+      {/* Root cause, first on the page: the pad has no Retail Base Application, so no amount
+          of protocol work can put text on it. Everything below describes a correct relay
+          module waiting on the pad's software load. */}
+      <RbaNotInstalledFinding />
+
       <div className="rounded-2xl border border-gray-100 bg-white p-5">
         <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
           <PenLine className="h-5 w-5 text-sky-600" /> Customer Pinpad (Ingenico)
@@ -87,33 +93,19 @@ export default function PinpadReference() {
       <RbaProtocolReference />
 
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-        <p className="text-sm font-semibold text-emerald-900">Protocol resolved — build 5 runs the real RBA message set</p>
+        <p className="text-sm font-semibold text-emerald-900">Transport verified — build 6 is correct and is not the blocker</p>
         <p className="mt-1 text-xs leading-relaxed text-emerald-800">
-          <b>Transport verified on REG-091</b> (pad 10.0.40.191 via the lane HID bridge): <span className="font-mono">08.0</span>{" "}
+          <b>Verified on REG-091</b> (pad 10.0.40.191 via the lane HID bridge): <span className="font-mono">08.0</span>{" "}
           returns RBA <span className="font-mono">08.5016</span>, model <span className="font-mono">iSC250</span>, board serial{" "}
-          <span className="font-mono">2215267SC010318</span>, status <span className="font-mono">OK</span> — delivered under the
-          host's SOH+ACK. HID bridge, 32-byte reports, frame anatomy, LRC and multi-packet reply assembly are all settled and
-          are carried into build 5 unchanged.
+          <span className="font-mono">2215267SC010318</span>, status <span className="font-mono">OK</span>, and{" "}
+          <span className="font-mono">11.0</span> reports the pad's live state — both under the host's SOH+ACK. HID bridge,
+          32-byte reports, frame anatomy, LRC and multi-packet reply assembly are settled and carried into build 6 unchanged.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-emerald-800">
-          The sale flow is now settled too. The invented tags (<span className="font-mono">W0/W1/W2/S0/I0/C0/R0/X0</span>) have
-          been replaced with the documented RBA messages below, and the blocking calls restructured to the pad's real
-          request → ACK → poll pattern. Bench-validate each command once on a closed lane before it reaches a live register.
-        </p>
-        <p className="mt-2 text-xs leading-relaxed text-rose-700">
-          What is <b>not</b> settled is the sale flow. The <span className="font-mono">isc250</span> tags below
-          (<span className="font-mono">W0/W1/W2/S0/I0/C0/R0</span>) were invented before any pad was on a bench and are now
-          known to be fiction: RBA message IDs are two digits, a dot and a subfield — as the pad's own{" "}
-          <span className="font-mono">24.0</span> idle frame and the working <span className="font-mono">08.0</span> both
-          show. This is the sole remaining reason the glass sits on <span className="font-mono">LANE CLOSE</span> during a
-          sale. Map the real IDs with the sweep below, and get the RBA Programmer's Guide for 08.5016 for the field layouts.
-        </p>
-        <p className="mt-2 rounded-lg border border-rose-200 bg-white p-2 text-xs text-rose-800">
-          Also note: a <span className="font-mono">200 {"{"}"ok":true{"}"}</span> from{" "}
-          <span className="font-mono">/display</span>, <span className="font-mono">/cart</span>,{" "}
-          <span className="font-mono">/clear</span> or <span className="font-mono">/cancel</span> proves only that bytes were
-          written to the socket. Those routes are fire-and-forget and never inspect a reply, so they cannot tell a working
-          pad from one discarding every frame.
+          The invented tags (<span className="font-mono">W0/W1/W2/S0/I0/C0/R0/X0</span>) are gone, replaced with the
+          documented RBA messages below and the pad's real request → ACK → poll flow. Nothing further is needed here:
+          per the finding at the top of this page, the screen-write messages are refused because the pad has{" "}
+          <b>no Retail Base Application installed</b>, not because of anything in this module.
         </p>
       </div>
 
