@@ -73,11 +73,21 @@ export function showChangeOnPole(ctx, { total, change }) {
 // Line 1 is the store name, line 2 the welcome. No store name = welcome alone,
 // centred on the lower line so it still reads as a deliberate screen.
 export async function idlePole(ctx) {
+  return banner(ctx, "*** WELCOME ***");
+}
+
+// Signed-out lane. Same two-line shape as the welcome screen so a customer walking up
+// to an unstaffed lane is told so, instead of reading a welcome at a lane nobody is on.
+export async function closedPole(ctx) {
+  return banner(ctx, "*** LANE CLOSED ***");
+}
+
+// Banner over the store name, both centred.
+async function banner(ctx, text) {
   if (!poleReady(ctx)) return;
   const name = String(ctx.store_name || "").trim();
-  const lines = name ? [center(name), center("WELCOME")] : ["", center("WELCOME")];
   try {
-    await poleShow({ ...target(ctx), lines });
+    await poleShow({ ...target(ctx), lines: [center(text), center(name)] });
   } catch {
     // Pole unreachable at that moment — fall back to the relay's own idle command
     // so the display is at least not left holding the last customer's total.

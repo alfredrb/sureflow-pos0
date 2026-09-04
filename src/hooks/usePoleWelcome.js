@@ -1,14 +1,13 @@
 import { useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { idlePole } from "@/lib/poleDisplayFlow";
+import { closedPole } from "@/lib/poleDisplayFlow";
 
-// Writes the store's centred welcome screen to the lane's pole display while the lane
-// is SIGNED OUT.
+// Writes the LANE CLOSED screen to the lane's pole display while the lane is SIGNED OUT.
 //
 // The sale mirror only runs on the register page, so without this the pole sat on
 // whatever the relay's built-in idle command last wrote — a bare, left-aligned
-// WELCOME with no store name. The lane's own register record supplies the pole
-// profile/address and the store record supplies the name.
+// WELCOME, at a lane with no cashier on it. The lane's own register record supplies
+// the pole profile/address and the store record supplies the name.
 export default function usePoleWelcome(registerId) {
   useEffect(() => {
     if (!registerId) return;
@@ -24,7 +23,7 @@ export default function usePoleWelcome(registerId) {
           storeName = stores[0]?.name || "";
         }
         if (!alive) return;
-        idlePole({
+        closedPole({
           pole_display_model: reg.pole_display_model,
           pole_display_ip: reg.pole_display_ip || "",
           printer_ip: reg.printer_ip || "",

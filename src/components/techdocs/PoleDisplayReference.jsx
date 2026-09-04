@@ -3,6 +3,7 @@ import { Check, Copy, Tv } from "lucide-react";
 import { POLE_DISPLAY_PROFILES } from "@/lib/poleDisplayProfiles";
 import { RELAY_POLE_CODE, RELAY_POLE_ROUTES_CODE, RELAY_POLE_ENV_CODE } from "@/lib/relayPoleDisplay";
 import PoleFrameCapturePanel from "@/components/techdocs/PoleFrameCapturePanel";
+import PoleBootProgressReference from "@/components/techdocs/PoleBootProgressReference";
 
 function CodeBlock({ title, note, code, filename }) {
   const [copied, setCopied] = useState(false);
@@ -46,7 +47,8 @@ export default function PoleDisplayReference() {
           <li>• <b>Ringing</b> — the item just rung up on line 1, the running total on line 2.</li>
           <li>• <b>Tender</b> — AMOUNT DUE while the operator takes payment.</li>
           <li>• <b>Sale complete</b> — TOTAL and CHANGE, held ~6 seconds before the welcome screen returns.</li>
-          <li>• <b>Idle</b> — the configurable welcome message between customers.</li>
+          <li>• <b>Idle</b> — <span className="font-mono">*** WELCOME ***</span> over the store name, both centred, between customers.</li>
+          <li>• <b>Signed out</b> — <span className="font-mono">*** LANE CLOSED ***</span> over the store name, so a customer is not welcomed to an unstaffed lane.</li>
         </ul>
         <p className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700">
           The DM-D110 has no network address of its own — it plugs into the receipt printer's DM-D (modular) port.
@@ -102,6 +104,8 @@ export default function PoleDisplayReference() {
         note="Port plus the idle welcome message (20 columns per line)."
         code={RELAY_POLE_ENV_CODE}
       />
+
+      <PoleBootProgressReference />
 
       <PoleFrameCapturePanel />
     </div>
