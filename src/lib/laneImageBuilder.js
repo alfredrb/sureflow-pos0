@@ -43,6 +43,8 @@ import {
   BEEP_SCRIPT,
   BEEP_OK_UNIT,
   BEEP_FAIL_UNIT,
+  HDA_BEEP_MODPROBE,
+  HDA_BEEP_MODULES,
 } from "@/lib/pxeBootSplash";
 
 export const LANE_ROOTS_DIR = "/srv/sureflow/roots";
@@ -435,6 +437,18 @@ SFBEEPOK
   cat >"\$root/etc/systemd/system/sureflow-beep-fail.service" <<'SFBEEPFAIL'
 ${BEEP_FAIL_UNIT}
 SFBEEPFAIL
+  # MODERN boards (SurePOS 786, Elo) have no pcspkr line — the internal speaker is on
+  # the HD-audio codec. It only becomes a beeper when snd_hda_intel loads with
+  # beep_mode=1, so bake the module + option into the modern image. The helper above
+  # then finds the pci-*-event-spkr node and unmutes the Beep channel with amixer.
+  if [ "\$variant" = "modern" ]; then
+    cat >"\$root/etc/modprobe.d/sureflow-hda-beep.conf" <<'SFHDABEEP'
+${HDA_BEEP_MODPROBE}
+SFHDABEEP
+    cat >"\$root/etc/modules-load.d/sureflow-hda-beep.conf" <<'SFHDAMOD'
+${HDA_BEEP_MODULES}
+SFHDAMOD
+  fi
 
   # Toshiba VSP driver — the transport for the Toshiba TCx 2x20 USB pole (0f66:4524).
   # PROVEN WORKING on a live lane: the baked VSDConfig.xml assigns that pole a Line
@@ -500,7 +514,9 @@ build_variant() {
   root="\$ROOTS/sureflow-\$variant"
 
   # Legacy = IBM SurePOS 746 / 700 class (fbdev, no KMS). Modern = IBM SurePOS 786 and Elo EPS00E2 class (Intel i915 KMS).
-  if [ "\$variant" = "legacy" ]; then extra="xserver-xorg-video-fbdev"; else extra="xserver-xorg-video-intel"; fi
+  # Modern also gets alsa-utils: the 786's beeper is an HDA mixer channel that ships muted,
+  # and amixer is the only way sureflow-beep can unmute it.
+  if [ "\$variant" = "legacy" ]; then extra="xserver-xorg-video-fbdev"; else extra="xserver-xorg-video-intel alsa-utils"; fi
 
   log "=== Building the \$variant lane image at \$root ==="
   if [ -d "\$root" ]; then
@@ -697,6 +713,7 @@ export const LANE_IMAGE_BUILD_NOTES = [
   "The root arrives read-only over NFS, so the image now carries an /etc/fstab that mounts tmpfs over /tmp, /var/tmp, /var/log, /var/lib/systemd and /home/sureflow. Without those the lane stops at the Linux login prompt: startx cannot create ~/.Xauthority, so it calls Xorg with an empty -auth argument and Xorg answers with its usage text and exits, while systemd-logind, the journal and utmp fail for the same reason. Everything written to those paths is deliberately discarded at power-off, which is the diskless property.",
   "dbus, dbus-x11, fontconfig and fonts-dejavu-core are in the package set for the kiosk browser. Without fontconfig and a font, Chromium logged 'Cannot load default config file' and could not draw text at all; without dbus it failed every bus call on startup. Both are recommends rather than depends, so --no-install-recommends left them out.",
   "xauth is named explicitly in the package set. xinit only RECOMMENDS it and the build installs with --no-install-recommends, so it was absent: startx ran xauth to create the auth cookie, xauth did not exist, and startx then called Xorg with an empty -auth argument. Xorg answered with its usage text and exited, which is the second half of the 'lane stops at the Linux login prompt' failure and looks identical to the read-only-root cause.",
+  "The boot chime works on BOTH terminal families now. The 746 beeps through the classic platform-pcspkr speaker. The 786 has no pcspkr line at all — its internal speaker is on the HD-audio codec — so the modern image loads snd_hda_intel with beep_mode=1 (which registers the codec as an input beeper), installs alsa-utils, and sureflow-beep picks whichever *-event-spkr device exists and unmutes the Beep channel before sounding. Rebuild the modern image for a silent 786 to start chiming.",
   "nodejs is in the package set because the lane agent is a node program — without it the agent failed EXEC on /usr/bin/node every five seconds and the lane read as 'never seen' in the Lanes table.",
   "The Ingenico iSC250 pinpad is served by sureflow-pinpad-bridge, NOT by ser2net. That pad is HID-class only — verified on a live lane as bInterfaceClass 3 claimed by hid-generic, with no ttyACM, no ttyUSB and no /dev/serial/by-id — so no udev tty rule can ever name it. ser2net previously bound port 12000 over that missing device, which made the relay connect successfully and then fail every write with 'Device open failure': silent, and identical to unplugged hardware. The pinpad connection is gone from ser2net.yaml and the bridge owns the port, still preferring a real tty if a CDC-firmware pad is ever fitted.",
   "The ser2net package's own service is disabled and masked in the image. It binds the same ports as sureflow-serial-bridge, so leaving it enabled meant whichever lost the race logged 'Address already in use' every ten seconds forever.",

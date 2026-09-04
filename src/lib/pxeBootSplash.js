@@ -108,7 +108,24 @@ export const BEEP_SCRIPT = `#!/bin/bash
 #
 # Usage: sureflow-beep ok | fail | attention
 set -u
+# Find the beeper this board actually has. The legacy SurePOS 700/746 exposes the
+# classic motherboard speaker as platform-pcspkr. The SurePOS 786 (and other
+# Core-era Intel boards) has NO pcspkr line at all: its internal speaker hangs off
+# the HD-audio codec and shows up as "HDA Digital PCBeep" — a different event
+# device with a pci-...-event-spkr by-path name. Hard-coding the pcspkr path is
+# why the 786 booted silent while the 746 chimed. Prefer pcspkr, else take the
+# first *-event-spkr node udev created.
 DEV=/dev/input/by-path/platform-pcspkr-event-spkr
+if [ ! -e "\$DEV" ]; then
+  for d in /dev/input/by-path/*-event-spkr; do [ -e "\$d" ] && DEV="\$d" && break; done
+fi
+[ -e "\$DEV" ] || exit 0   # no beeper on this board — boot is unaffected
+# The HDA beep is a mixer channel and ships MUTED. Unmute it every time, cheaply;
+# harmless on a pcspkr board where there is no Beep control.
+if command -v /usr/bin/amixer >/dev/null; then
+  /usr/bin/amixer -q sset Beep 100% unmute 2>/dev/null || true
+  /usr/bin/amixer -q sset Master 80% unmute 2>/dev/null || true
+fi
 tone() { /usr/bin/beep -e "\$DEV" -f "\$1" -l "\$2" 2>/dev/null || true; }
 
 case "\${1:-ok}" in
@@ -116,6 +133,20 @@ case "\${1:-ok}" in
   fail)      tone 320 260; tone 240 400 ;;    # falling: boot failed, see the console
   attention) tone 1000 120; tone 1000 120 ;;  # double blip: technician attention
 esac
+`;
+
+// HDA beep for the MODERN image. snd_hda_intel only creates the "HDA Digital PCBeep"
+// input device when beep_mode=1, and the codec module must be loaded before the beep
+// helper runs — on a minbase root nothing else pulls sound in, so both are forced here.
+export const HDA_BEEP_MODPROBE = `# /etc/modprobe.d/sureflow-hda-beep.conf (modern image)
+# SurePOS 786 / Elo class: the internal speaker is on the HD-audio codec, not pcspkr.
+# beep_mode=1 makes the codec register an input beeper (/dev/input/by-path/pci-*-event-spkr)
+# that /usr/bin/beep can drive exactly like the classic motherboard speaker.
+options snd-hda-intel beep_mode=1
+`;
+
+export const HDA_BEEP_MODULES = `# /etc/modules-load.d/sureflow-hda-beep.conf (modern image)
+snd_hda_intel
 `;
 
 // The two units as SEPARATE installable files. The combined BEEP_UNITS blob below is
@@ -266,7 +297,7 @@ export const BOOT_SPLASH_STEP = {
     "Three image assets live in the theme directory: background.png (the wave artwork, any resolution — it is scaled at runtime), logo.png (the wordmark) and dot.png (one small muted-blue disc, reused for all eight spinner dots). A missing background.png leaves the flat dark gradient rather than a black screen.",
     "The motherboard speaker (pcspkr) covers the pre-POS phase, the one window where the POS cannot make a sound. It is a beeper: single square-wave tones, no audio playback. sureflow-beep plays a long rising two-tone (800Hz then 1200Hz, ~0.7s each) when the lane reaches the POS and a falling tone when the kiosk fails, so a ready lane and a dead lane are both audible from the floor.",
     "In-app sounds stay in the browser — the PC speaker is only for 'is the hardware alive'. Keep the two separate so a muted terminal still reports boot failures.",
-    "Confirm the beeper exists per model before relying on it: the SurePOS 700 has the same onboard speaker IBM drove for 4690 alerts, but many modern boards (Elo EPS00E2 class) dropped the header. Where it is absent the beep calls fail silently and boot is unaffected.",
+    "Two kinds of beeper exist in the fleet, and the helper now finds whichever a board has. The SurePOS 700/746 has the classic motherboard speaker on the platform-pcspkr line. The SurePOS 786 has NO pcspkr line: its internal speaker is on the HD-audio codec and appears as 'HDA Digital PCBeep' (/dev/input/by-path/pci-*-event-spkr) — only when snd_hda_intel is loaded with beep_mode=1 and the codec's Beep mixer channel is unmuted, which the modern image and the helper now do. Hard-coding the pcspkr path is why the 786 booted silent. Where a board has neither (some Elo EPS00E2 units) the helper exits quietly and boot is unaffected.",
     "Drop the theme, script and beep helper into the driver-library/build path rather than hand-editing a live image — the read-only NFS root means a lane cannot keep its own copy, and a rebuild would lose it.",
   ],
   commands: [
@@ -293,6 +324,7 @@ export const BOOT_SPLASH_STEP = {
     { name: "sureflow.script", code: PLYMOUTH_SCRIPT },
     { name: "sureflow-beep", code: BEEP_SCRIPT },
     { name: "sureflow-beep units", code: BEEP_UNITS },
+    { name: "hda beep (modern image)", code: HDA_BEEP_MODPROBE + "\n" + HDA_BEEP_MODULES },
     { name: "pxelinux splash (optional)", code: PXE_SPLASH_MENU },
   ],
   postInstructions: [
@@ -302,7 +334,7 @@ export const BOOT_SPLASH_STEP = {
     "Generic Debian spinner instead of the SureFlow splash? The build fell back because the staged assets were absent — read the 'Boot splash:' line on the build summary, run the fetch script to populate /srv/sureflow/splash, and rebuild.",
     "Spinner frozen while the boot clearly continues? The framebuffer is not taking refresh callbacks on that panel. Boot is unaffected, but the lane loses its 'alive' cue, so note the model and use the chime as the ready signal there.",
     "Spinner dots too large or too small for the panel? Resize dot.png and reinstall it — the script places the dots from the image's own dimensions, so nothing else has to change.",
-    "Splash shows but no beep? Check the speaker exists: ls /dev/input/by-path | grep pcspkr on the lane. Nothing listed means the board has no beeper header — use the panel's own speaker or accept a silent boot.",
+    "Splash shows but no beep? ls /dev/input/by-path | grep event-spkr on the lane. A 746 lists platform-pcspkr-event-spkr; a 786 lists pci-0000:00:xx.x-event-spkr (the HDA beeper). Nothing at all on a 786 means snd_hda_intel did not load with beep_mode=1 — check cat /sys/module/snd_hda_intel/parameters/beep_mode is 1 and the modern image was rebuilt after this change. Device present but silent: amixer sget Beep — the channel ships muted; the helper unmutes it, and 'sudo sureflow-beep ok' from SSH is the direct test.",
     "Press ESC during boot to fall back to the kernel messages without changing the image — the fastest way to debug a slow lane with the splash still installed.",
   ],
 };
