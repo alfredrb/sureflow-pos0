@@ -46,8 +46,11 @@ export default function PoleDisplayReference() {
         <ul className="mt-3 space-y-1.5 text-xs text-gray-600">
           <li>• <b>Ringing</b> — the item just rung up on line 1, the running total on line 2.</li>
           <li>• <b>Tender</b> — AMOUNT DUE while the operator takes payment.</li>
-          <li>• <b>Sale complete</b> — TOTAL and CHANGE, held ~6 seconds before the welcome screen returns.</li>
-          <li>• <b>Idle</b> — <span className="font-mono">*** WELCOME ***</span> over the store name, both centred, between customers.</li>
+          <li>• <b>Sale complete</b> — TOTAL and CHANGE, then YOU SAVED / POINTS EARNED where there is something to say.</li>
+          <li>• <b>Loyalty</b> — the member's name and rewards balance when their card is linked.</li>
+          <li>• <b>Tender</b> — INSERT / TAP CARD, ENTER YOUR PIN, PLEASE INSERT YOUR CHECK alongside the pinpad.</li>
+          <li>• <b>Lane states</b> — TRANSACTION SUSPENDED, ITEM VOIDED, NO SALE, CASH COUNT, ID CHECK, ASSISTANCE CALLED and the rest, driven off the function key / action code the operator ran. The robbery alarm, cash pickups and every reporting code write nothing, deliberately.</li>
+          <li>• <b>Idle</b> — <span className="font-mono">*** WELCOME ***</span> over the store name, then the store's active customer-display slides in rotation (the same records the touch monitor shows, so a promo is authored once).</li>
           <li>• <b>Signed out</b> — <span className="font-mono">*** LANE CLOSED ***</span> over the store name, so a customer is not welcomed to an unstaffed lane.</li>
         </ul>
         <p className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700">

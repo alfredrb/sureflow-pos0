@@ -4,6 +4,16 @@ import { appliedTotal, balanceDue, changeFrom, isSettled, primaryTender, tenders
 import { submitOfflineSale } from "@/lib/offlineSale";
 import { collectSaleRating } from "@/lib/pinpadFlow";
 import { showChangeOnPole } from "@/lib/poleDisplayFlow";
+import { showSaleCompleteOnPole } from "@/lib/poleStates";
+
+// What the customer actually saved on this sale: every marked-down line plus any
+// rewards credit applied. Shown on the pole after the change screen.
+function saleSavings(cart, loyaltyAppliedAmount) {
+  const markdowns = cart.reduce(
+    (s, i) => s + Math.max(0, (i.original_price ?? i.price) - i.price) * (i.qty || 1), 0
+  );
+  return +(markdowns + (loyaltyAppliedAmount || 0)).toFixed(2);
+}
 
 // Sale completion for the POS register page: split-tender settlement, gift-card
 // tender validation, and the training / offline / live commit paths with receipts.
@@ -120,7 +130,10 @@ export default function usePosSaleCompletion({
       setReceiptData(receipt);
       setLastReceipt(receipt);
       clearSaleState();
-      showChangeOnPole(poleContext, { total, change: changeDue });
+      showSaleCompleteOnPole(poleContext, {
+        total, change: changeDue,
+        savings: saleSavings(cart, loyaltyAppliedAmount), points: rewardsEarned,
+      });
       // Rating screen runs on the customer pad while the operator hands over the
       // receipt — it stores itself against the sale and never blocks the lane.
       collectSaleRating(pinpadContext, txId);
@@ -198,7 +211,10 @@ export default function usePosSaleCompletion({
       setReceiptData(receipt);
       setLastReceipt(receipt);
       clearSale();
-      showChangeOnPole(poleContext, { total, change: 0 });
+      showSaleCompleteOnPole(poleContext, {
+        total, change: 0,
+        savings: saleSavings(cart, loyaltyAppliedAmount), points: rewardsEarned,
+      });
       collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {

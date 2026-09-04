@@ -7,6 +7,7 @@ import POSTenderList from "@/components/pos/POSTenderList";
 import POSCheckDialog from "@/components/pos/POSCheckDialog";
 import { TENDER_OPTIONS, balanceDue, changeFrom, isSettled, resolveTenderAmount } from "@/lib/tenderSplit";
 import { hasCustomerSurface, customerSurfaceLabel, enterNumberOnPinpad, confirmAmountOnPinpad, promptOnPinpad } from "@/lib/pinpadFlow";
+import { showTenderPromptOnPole } from "@/lib/poleStates";
 
 // 4690 tender flow: key an amount (or leave it blank for the full balance), then
 // press a tender key to COMMIT that tender. Under-tendering leaves a balance and
@@ -18,7 +19,7 @@ export default function POSPaymentDialog({
   amountTendered, setAmountTendered,
   giftCardMode, setGiftCardMode,
   giftCardNumber, setGiftCardNumber, giftCardAmount, setGiftCardAmount, giftCardError, giftCardValidating,
-  onOpenLoyaltySignup, onSubmit, onSubmitGiftCard, checkContext, pinpadContext,
+  onOpenLoyaltySignup, onSubmit, onSubmitGiftCard, checkContext, pinpadContext, poleContext,
   tenderRequest, onTenderRequestHandled,
 }) {
   const pad = pinpadContext || {};
@@ -40,6 +41,9 @@ export default function POSPaymentDialog({
   const commit = (method) => {
     const amt = resolveTenderAmount(method, amountTendered, amountDue, tenders);
     if (amt <= 0) return;
+    // Card / check tenders tell the customer what to do on the pole, alongside
+    // whatever the pinpad shows.
+    showTenderPromptOnPole(poleContext || {}, method);
     if (method === "check") {
       setCheckAmount(amt);
       setCheckOpen(true);

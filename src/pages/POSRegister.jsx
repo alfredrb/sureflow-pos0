@@ -70,6 +70,7 @@ import usePinpadCartMirror from "@/hooks/usePinpadCartMirror";
 import usePoleDisplayMirror from "@/hooks/usePoleDisplayMirror";
 import useCustomerDisplayMirror from "@/hooks/useCustomerDisplayMirror";
 import { showTotalDueOnPole } from "@/lib/poleDisplayFlow";
+import { showActionStateOnPole, showLoyaltyOnPole, showStateOnPole } from "@/lib/poleStates";
 import usePosSaleCompletion from "@/hooks/usePosSaleCompletion";
 import usePosSupervisorOverride from "@/hooks/usePosSupervisorOverride";
 import usePosSecurity from "@/hooks/usePosSecurity";
@@ -489,6 +490,7 @@ export default function POSRegister() {
   const poleContext = usePoleDisplayMirror({
     poleConfig,
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
+    storeId: sessionStorage.getItem("pos_store_id") || "",
     storeName: storeInfo?.store_name || storeConfig?.store_name || "",
     cart, total,
   });
@@ -520,6 +522,11 @@ export default function POSRegister() {
     poleContext, pinpadContext, writeLog, toast, loadData,
   });
 
+  // Cash management / till work — tell a waiting customer why the lane has paused.
+  useEffect(() => {
+    if (cashMgmtDialog) showStateOnPole(poleContext, "CASH COUNT", "PLEASE WAIT");
+  }, [cashMgmtDialog]);
+
   // Tender screen — the pole switches to AMOUNT DUE while payment is taken.
   useEffect(() => {
     if (paymentOpen && cart.length > 0) showTotalDueOnPole(poleContext, amountDue);
@@ -527,7 +534,15 @@ export default function POSRegister() {
 
   // The full key/action-code switch lives in posFunctionKeyExec — ctx hands it
   // this lane's state and setters so behavior is unchanged.
-  const executeFunctionKey = (fkey) => executeFunctionKeyAction(fkey, {
+  const executeFunctionKey = (fkey) => {
+    // Tell the customer what the lane is doing — "TRANSACTION SUSPENDED", "NO SALE",
+    // "PLEASE SHOW ID". Runs after the action so the sale mirror's own write, if the
+    // action changed the cart, does not land on top of the state message.
+    showActionStateOnPole(poleContext, fkey.action);
+    return runFunctionKey(fkey);
+  };
+
+  const runFunctionKey = (fkey) => executeFunctionKeyAction(fkey, {
     cart, setCart, removeFromCart, writeLog, toast, operator,
     paymentOpen, setPaymentOpen, setTenderKeyRequest, isOffline, offlineTenders: OFFLINE_TENDERS,
     setTaxExemptAppliedId, setTaxExemptProfile, setLoyaltyMember, setLoyaltyAppliedAmount,
@@ -801,6 +816,8 @@ export default function POSRegister() {
     setLoyaltyMember(member);
     setLoyaltyAppliedAmount(amt);
     setRewardsConfirmedOnPinpad(confirmed);
+    // The member sees their own name and rewards balance on the pole.
+    showLoyaltyOnPole(poleContext, member);
     writeLog("override", `Loyalty linked — ${member.name} (${member.loyalty_id})${amt > 0 ? ` · -$${amt.toFixed(2)} rewards` : ""}`);
     toast({ title: amt > 0 ? "Rewards Applied" : "Loyalty Member Linked", description: `${member.name} — ${member.loyalty_id}${amt > 0 ? ` (-$${amt.toFixed(2)})` : ""}` });
   };
@@ -1122,6 +1139,7 @@ export default function POSRegister() {
         tenderRequest={tenderKeyRequest}
         onTenderRequestHandled={() => setTenderKeyRequest(null)}
         pinpadContext={pinpadContext}
+        poleContext={poleContext}
         checkContext={laneCheckContext}
       />
 
