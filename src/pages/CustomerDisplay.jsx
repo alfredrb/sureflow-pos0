@@ -3,14 +3,19 @@ import useCustomerDisplayFeed from "@/hooks/useCustomerDisplayFeed";
 import CustomerCartView from "@/components/customerdisplay/CustomerCartView";
 import CustomerIdleView from "@/components/customerdisplay/CustomerIdleView";
 import CustomerThankYouView from "@/components/customerdisplay/CustomerThankYouView";
+import CustomerPromptView from "@/components/customerdisplay/CustomerPromptView";
 
 // The customer-facing monitor. Opened by the lane's kiosk launcher as a SECOND fullscreen
 // Chromium window on the second Xorg output:
 //   /customer-display?register_id=REG-001
 //
-// It is read-only and has no controls of any kind — a customer can touch this screen (many
-// of these panels are touch panels) and there must be nothing there to press. It follows
-// whatever the POS window publishes for its register and nothing else.
+// It follows whatever the POS window publishes for its register and nothing else.
+//
+// It is read-only EXCEPT while the POS has a touch prompt open on the lane (approve an
+// amount, sign, key a number, rate the visit). These IBM/Toshiba SurePOS panels are touch
+// panels, so those flows live here rather than on an Ingenico pad — the pads on this fleet
+// lack the signed Retail Base Application needed to drive their glass. With no prompt open
+// there is deliberately nothing on this screen to press.
 export default function CustomerDisplay() {
   const params = new URLSearchParams(window.location.search);
   const registerId = params.get("register_id") || "";
@@ -40,8 +45,10 @@ export default function CustomerDisplay() {
     );
   }
 
+  const prompt = state?.prompt?.type ? state.prompt : null;
+
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#0a0e27] select-none cursor-none">
+    <div className={`relative h-screen w-screen overflow-hidden bg-[#0a0e27] select-none ${prompt ? "" : "cursor-none"}`}>
       {mode === "sale" && (
         <CustomerCartView
           items={state?.items || []}
@@ -55,6 +62,16 @@ export default function CustomerDisplay() {
         <CustomerThankYouView thanks={state?.thanks || {}} trainingMode={state?.training_mode} />
       )}
       {mode === "idle" && <CustomerIdleView slides={slides} />}
+
+      {/* Drawn on top of whatever mode is showing: the cart stays published underneath, so
+          the sale is still on screen the moment the prompt is answered. */}
+      {prompt && (
+        <CustomerPromptView
+          registerId={registerId}
+          prompt={prompt}
+          trainingMode={state?.training_mode}
+        />
+      )}
     </div>
   );
 }

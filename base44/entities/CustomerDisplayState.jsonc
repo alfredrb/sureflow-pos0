@@ -65,6 +65,99 @@
       "type": "number",
       "default": 0
     },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "An OPEN REQUEST to the customer, drawn on top of whatever mode is showing and answered by the customer touching the panel. This is the web replacement for the Ingenico pinpad flows: the pad needs a signed Retail Base Application that these lanes do not have, whereas the customer monitor is already a touch panel the app fully controls. Blank/absent = the screen is read-only and has nothing to press, which is its normal state.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique id for this request. The POS waits for a response carrying the SAME id, so a stale answer from an abandoned prompt can never be read as the answer to the current one."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "confirm",
+            "rating",
+            "numeric",
+            "signature"
+          ],
+          "description": "confirm = approve/decline an amount. rating = 1-5 satisfaction tap. numeric = customer keys a number (gift card, phone) on an on-screen keypad. signature = customer signs with a finger."
+        },
+        "title": {
+          "type": "string",
+          "description": "Large primary line the customer reads."
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Smaller supporting line under the title."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount shown for a confirm prompt."
+        },
+        "min_length": {
+          "type": "number",
+          "description": "Fewest digits a numeric prompt accepts before its OK button enables."
+        },
+        "max_length": {
+          "type": "number",
+          "description": "Most digits a numeric prompt accepts."
+        },
+        "mask": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the keyed digits as dots. For a number the customer would not want a queue behind them to read."
+        },
+        "allow_cancel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the customer may back out themselves. False for prompts only an operator should clear."
+        },
+        "requested_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The customer's answer to the prompt with the matching id, written by the monitor window and read by the POS. Kept as its own field rather than overwriting the prompt so the POS can tell 'not answered yet' from 'answered'.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Echoes prompt.id. An answer whose id does not match the open prompt is ignored."
+        },
+        "type": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "Confirm prompts: whether the customer accepted."
+        },
+        "rating": {
+          "type": "number",
+          "description": "Rating prompts: 1-5 as tapped."
+        },
+        "value": {
+          "type": "string",
+          "description": "Numeric prompts: the digits the customer keyed."
+        },
+        "signature_url": {
+          "type": "string",
+          "description": "Signature prompts: uploaded PNG of the drawing. A URL rather than the image itself \u2014 an inline data URL would be a large blob on every read of this record."
+        },
+        "cancelled": {
+          "type": "boolean",
+          "description": "The customer backed out instead of answering."
+        },
+        "answered_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "thanks": {
       "type": "object",
       "additionalProperties": true,

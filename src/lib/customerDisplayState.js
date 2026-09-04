@@ -30,7 +30,7 @@ const publicItems = (cart = []) =>
     total: +(i.total ?? (i.price || 0) * (i.qty || 1)),
   }));
 
-async function upsert(registerId, patch) {
+export async function patchState(registerId, patch) {
   if (!registerId) return;
   const existing = await base44.entities.CustomerDisplayState.filter({ register_id: registerId });
   const data = { register_id: registerId, updated_at: new Date().toISOString(), ...patch };
@@ -40,7 +40,7 @@ async function upsert(registerId, patch) {
 
 // The running sale, as the customer should see it.
 export function publishSale({ registerId, storeId, cart, subtotal, tax, total, trainingMode, lanePhase = "" }) {
-  return upsert(registerId, {
+  return patchState(registerId, {
     store_id: storeId || "",
     mode: "sale",
     lane_phase: lanePhase,
@@ -55,9 +55,13 @@ export function publishSale({ registerId, storeId, cart, subtotal, tax, total, t
 
 // Between customers — the monitor runs the store's promotion rotation.
 export function publishIdle({ registerId, storeId, trainingMode, lanePhase = "" }) {
-  return upsert(registerId, {
+  return patchState(registerId, {
     store_id: storeId || "",
     mode: "idle",
+    // Returning to idle always takes any open touch prompt down with it: a prompt left on a
+    // screen between customers would be answered by the next person in line.
+    prompt: {},
+    response: {},
     lane_phase: lanePhase,
     items: [],
     subtotal: 0,
@@ -71,7 +75,7 @@ export function publishIdle({ registerId, storeId, trainingMode, lanePhase = "" 
 // The sale completed. Published ONLY on a successful tender — a failed or abandoned
 // payment leaves the cart on screen rather than thanking the customer prematurely.
 export function publishThanks({ registerId, storeId, thanks, trainingMode }) {
-  return upsert(registerId, {
+  return patchState(registerId, {
     store_id: storeId || "",
     mode: "thanks",
     items: [],
