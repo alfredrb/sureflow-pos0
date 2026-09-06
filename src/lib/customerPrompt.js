@@ -44,6 +44,7 @@ export function awaitPromptResponse({ registerId, promptId, timeoutMs = PROMPT_T
       if (done) return;
       done = true;
       clearTimeout(timer);
+      clearInterval(poll);
       unsub();
       clearPrompt(registerId).catch(() => {});
       resolve(out);
@@ -57,6 +58,9 @@ export function awaitPromptResponse({ registerId, promptId, timeoutMs = PROMPT_T
 
     const timer = setTimeout(() => finish({ id: promptId, timed_out: true }), timeoutMs);
     const unsub = base44.entities.CustomerDisplayState.subscribe(() => check().catch(() => {}));
+    // Poll alongside the subscription so the customer's tap reaches the POS even when the
+    // realtime event does not — otherwise the operator sat out the full 90s timeout.
+    const poll = setInterval(() => check().catch(() => {}), 2000);
     check().catch(() => {});
   });
 }

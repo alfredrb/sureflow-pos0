@@ -26,7 +26,10 @@ export default function useCustomerDisplayFeed(registerId) {
 
     pull().then(() => alive && setLoading(false));
     const unsub = base44.entities.CustomerDisplayState.subscribe(() => pull());
-    return () => { alive = false; unsub(); };
+    // Safety net under the subscription: a realtime event that never arrives must not
+    // freeze a public screen on the last frame until someone refreshes the tab.
+    const poll = setInterval(pull, 3000);
+    return () => { alive = false; unsub(); clearInterval(poll); };
   }, [registerId]);
 
   // Idle slide rotation for this lane's store, plus any chain-wide slides.

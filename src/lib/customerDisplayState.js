@@ -12,6 +12,7 @@
 // display into a history query.
 
 import { base44 } from "@/api/data";
+import { base44 as liveClient } from "@/api/base44Client";
 
 // How long a "thanks" screen holds before the lane falls back to the idle rotation.
 export const THANKS_HOLD_MS = 8000;
@@ -32,7 +33,9 @@ const publicItems = (cart = []) =>
 
 export async function patchState(registerId, patch) {
   if (!registerId) return;
-  const existing = await base44.entities.CustomerDisplayState.filter({ register_id: registerId });
+  // Live read here too: a cached lookup that missed a record created moments ago would
+  // create a SECOND row for the lane, and the monitor would then follow the wrong one.
+  const existing = await liveClient.entities.CustomerDisplayState.filter({ register_id: registerId });
   const data = { register_id: registerId, updated_at: new Date().toISOString(), ...patch };
   if (existing.length > 0) await base44.entities.CustomerDisplayState.update(existing[0].id, data);
   else await base44.entities.CustomerDisplayState.create(data);
@@ -88,9 +91,14 @@ export function publishThanks({ registerId, storeId, thanks, trainingMode }) {
 }
 
 // Read the lane's current state, or null when the lane has never published.
+//
+// Reads the LIVE client on purpose. The cached data layer holds filter results for 30s,
+// and the realtime event does not invalidate it — so a subscription callback re-read the
+// same cached record and the monitor showed nothing new until the tab was refreshed. A
+// state record that changes on every scan must never be served from a cache.
 export async function readState(registerId) {
   if (!registerId) return null;
-  const rows = await base44.entities.CustomerDisplayState.filter({ register_id: registerId });
+  const rows = await liveClient.entities.CustomerDisplayState.filter({ register_id: registerId });
   return rows[0] || null;
 }
 
