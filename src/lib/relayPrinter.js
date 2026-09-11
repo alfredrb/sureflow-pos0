@@ -7,7 +7,7 @@ const net = require("net");
 
 // Bumped whenever this file changes. The test print shows it, so a technician can
 // confirm the relay is actually running the current printer.js and not a stale copy.
-const BUILD = "printer-build 9 (denomination breakdown on cash slips)";
+const BUILD = "printer-build 10 (max print speed GS E on every job)";
 
 // Cheque tender reference for the receipt: cheque number + account last 4 only.
 // The full routing/account number is deliberately NOT printed — that stays on the
@@ -24,7 +24,14 @@ const PORT = Number(process.env.PRINTER_PORT || 9100);
 const WIDTH = Number(process.env.RECEIPT_WIDTH || 42); // chars on 80mm paper
 
 const ESC = "\\x1b", GS = "\\x1d";
-const INIT = ESC + "@";
+// GS E n — set print speed. Bits 5-4 pick the level (0x00 slowest … 0x30 fastest).
+// Sent right after ESC @ on EVERY job, because ESC @ resets the printer to its
+// power-on defaults — so the fleet's TM-H6000IVs run at max thermal speed without
+// touching a single DIP switch or TM Utility. PRINTER_SPEED=0x20 etc. lets a store
+// tune down if a slower/darker print is wanted. If a model treats GS E as head
+// control instead, fall back to GS ( E fn=3 (memory-switch speed, persistent).
+const PRINT_SPEED = String.fromCharCode(Number(process.env.PRINTER_SPEED || 0x30) & 0x30);
+const INIT = ESC + "@" + GS + "E" + PRINT_SPEED;
 const ALIGN_L = ESC + "a0", ALIGN_C = ESC + "a1";
 const BOLD_ON = ESC + "E1", BOLD_OFF = ESC + "E0";
 const BIG_ON = GS + "!\\x11", BIG_OFF = GS + "!\\x00";
@@ -268,6 +275,7 @@ module.exports = {
   testPrint: (ip, station) => {
     const body = BOLD_ON + "SUREFLOW TEST PRINT\\n" + BOLD_OFF + BUILD + "\\n" +
       "STATION " + (station || "receipt") + " PAPER " + SLIP_PAPER + "\\n" +
+      "SPEED GS E 0x" + PRINT_SPEED.charCodeAt(0).toString(16).padStart(2, "0") + "\\n" +
       new Date().toLocaleString() + "\\n" + (process.env.STORE_ID || "") + "\\n";
     return sendRaw(resolvePrinter(ip), station === "slip"
       ? INIT + SEL_SLIP + WAIT_INSERT + ALIGN_C + body + EJECT + SEL_RECEIPT
