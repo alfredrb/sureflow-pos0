@@ -221,7 +221,12 @@
     },
     "keyboard_model": {
       "type": "string",
-      "description": "POS keyboard make/model (e.g. IBM 3AA01194300). Determines the udev/hwdb scancode mapping applied at boot."
+      "description": "POS keyboard make/model (e.g. IBM 3AA01194300, IBM 3AA01195500). Determines the udev/hwdb scancode mapping applied at boot."
+    },
+    "soft_keyboard_disabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "True on a lane fitted with a FULL-ALPHANUMERIC physical keyboard (e.g. IBM 3AA01195500), where the on-screen QWERTY is redundant: the POS never mounts it, and text fields are typed on the real letter keys. Typically set on customer-service registers, which do the most text entry. The POS's dedicated numeric keypads (action code, quantity/price, tender, PIN entry) are separate components and are unaffected."
     },
     "scanner_interface": {
       "type": "string",
@@ -233,6 +238,14 @@
       ],
       "default": "usb_hid",
       "description": "How the barcode scanner attaches to the terminal. usb_hid = keyboard-wedge (Zebra DS4308 default); rs232_serial / usb_ocia = legacy IBM interfaces requiring extra driver setup."
+    },
+    "pxe_vlan": {
+      "type": "string",
+      "description": "VLAN the terminal PXE boots on."
+    },
+    "backend_vlan": {
+      "type": "string",
+      "description": "Backend / store services VLAN for this terminal."
     },
     "pinpad_model": {
       "type": "string",

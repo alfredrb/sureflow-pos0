@@ -11,10 +11,11 @@
       "enum": [
         "ibm_3aa01194300",
         "ibm_4820_surepoint",
+        "ibm_3aa01195500",
         "custom"
       ],
       "default": "ibm_3aa01194300",
-      "description": "Physical layout family. Drives which keycap set and slot structure the visual remapper shows: ibm_3aa01194300 = 4x4 block plus the separate S1/S2 system strip; ibm_4820_surepoint = single 4x4 block with S1 (ITEM INQUIRY) at r1c4 and S2 (ERROR CORRECT) at r2c4, plus a spare slot for the stray 70042 scancode."
+      "description": "Physical layout family. Drives which keycap set and slot structure the visual remapper shows: ibm_3aa01194300 = 4x4 block plus the separate S1/S2 system strip; ibm_4820_surepoint = single 4x4 block with S1 (ITEM INQUIRY) at r1c4 and S2 (ERROR CORRECT) at r2c4, plus a spare slot for the stray 70042 scancode; ibm_3aa01195500 = the FULL-ALPHANUMERIC customer-service board, whose QWERTY keys are standard USB-HID and are never remapped, so only its top strip (t1..t14) and its aux cluster (a1..a24) are slots."
     },
     "vendor_id": {
       "type": "string",
