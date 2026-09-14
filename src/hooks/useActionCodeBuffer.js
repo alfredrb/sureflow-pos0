@@ -16,7 +16,8 @@ export default function useActionCodeBuffer({ onDispatch, onOpenPad, onEnter, en
       const el = document.activeElement;
       const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
 
-      if (e.key === ACTION_CODE_KEY) {
+      // Ctrl+Action Code is the silent robbery alarm — not an action code press.
+      if (e.key === ACTION_CODE_KEY && !e.ctrlKey) {
         e.preventDefault();
         const entered = bufferRef.current;
         setBuffer("");

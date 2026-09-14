@@ -63,6 +63,7 @@ import POSResumeDialog from "@/components/pos/POSResumeDialog";
 import { usePosAnnouncements } from "@/hooks/usePosAnnouncements";
 import { usePosLunchState } from "@/hooks/usePosLunchState";
 import useFunctionKeyboard from "@/hooks/useFunctionKeyboard";
+import useRobberyAlarm from "@/hooks/useRobberyAlarm";
 import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
 import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
@@ -470,6 +471,13 @@ export default function POSRegister() {
     robberyDialog, setRobberyDialog, calculatedRobberyAmount, setCalculatedRobberyAmount,
     robberyLoading, requestCSM, calculateStolenAmount, confirmRobbery,
   } = usePosSecurity({ operator, setRegisterPaused, setHelpMenuOpen, writeLog, toast });
+
+  // Ctrl+Action Code (Ctrl+F9) / F10 — silent robbery alarm, live in every lane
+  // mode while an operator is signed on. Technician sessions cannot report one.
+  useRobberyAlarm({
+    onTrigger: calculateStolenAmount,
+    enabled: !!operator && operator.role !== "technician" && !robberyDialog && !robberyLoading,
+  });
 
   // Diagnostics mode + training-mode authorization.
   const {
