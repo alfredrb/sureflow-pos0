@@ -13,6 +13,12 @@ import { loadConfig, saveConfig, mergeCustom, loadRoleDefaultOverrides, STORAGE_
 import Sparkline from "@/components/Sparkline";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { dailySeriesTrailing } from "@/lib/dailySeries";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeOperators } from "@/lib/adminAccess";
+import { scopeRecords } from "@/lib/recordScope";
+import { scopeRegisters } from "@/lib/cashScope";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
+import StoreRevenueBreakdown from "@/components/admin/StoreRevenueBreakdown";
 
 export default function AdminDashboard() {
   const operator = (() => { try { return JSON.parse(sessionStorage.getItem("admin_operator") || "null"); } catch { return null; } })();
@@ -22,6 +28,11 @@ export default function AdminDashboard() {
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
   const [roleOverrides, setRoleOverrides] = useState({});
+  // Every figure on this page is scoped to the store selected in the header, so an HQ
+  // admin can read the chain as a whole or drill into one store without changing pages.
+  const { access, isChainWide, stores } = useStoreScope();
+  // Kept for the chain-wide per-store breakdown, which needs the rows and not the totals.
+  const [breakdown, setBreakdown] = useState({ transactions: [], registers: [] });
 
   useEffect(() => { saveConfig(operator?.operator_id, config); }, [config]);
 
@@ -37,18 +48,21 @@ export default function AdminDashboard() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     // Fetch sequentially to avoid bursting concurrent requests past the API rate limit.
-    const operators = await base44.entities.Operator.list();
-    const products = await base44.entities.Product.list();
-    const transactions = await base44.entities.Transaction.list("-created_date", 50);
-    const registers = await base44.entities.Register.list();
+    // Registers load first because records written before store_id existed are resolved
+    // to their store through the lane they were rung on.
+    const allRegisters = await base44.entities.Register.list();
+    const registers = scopeRegisters(access, allRegisters);
+    const operators = scopeOperators(access, await base44.entities.Operator.list());
+    const products = scopeCatalogToAccess(access, await base44.entities.Product.list());
+    const transactions = scopeRecords(access, allRegisters, await base44.entities.Transaction.list("-created_date", 50));
     const alerts = await base44.entities.EmergencyAlert.filter({ status: "active" });
     const sysAlerts = await base44.entities.SystemAlert.filter({ status: "active" });
     const maintLogs = await base44.entities.MaintenanceLog.list("-service_date", 200);
-    const regLogs = await base44.entities.RegisterLog.list("-created_date", 200);
+    const regLogs = scopeRecords(access, allRegisters, await base44.entities.RegisterLog.list("-created_date", 200));
     const investigations = await base44.entities.Investigation.list("-created_date", 200);
     const loyalty = await base44.entities.LoyaltyMember.list();
-    const giftcards = await base44.entities.GiftCard.list();
-    const audits = await base44.entities.CashAudit.list("-audit_date", 200);
+    const giftcards = scopeRecords(access, allRegisters, await base44.entities.GiftCard.list());
+    const audits = scopeRecords(access, allRegisters, await base44.entities.CashAudit.list("-audit_date", 200));
     const serializedStock = await base44.entities.SerializedStock.list();
     const claims = await base44.entities.Claim.list("-date_created", 200);
     const profitLoss = await base44.entities.ProfitLoss.list();
@@ -100,9 +114,10 @@ export default function AdminDashboard() {
     };
     setStats({ operators: operators.length, products: products.length, transactions: transactions.length, registers: registers.length, revenue, avgSale, refunds: refunds.length, refundAmount, lowStock, outOfStock, recalled, promotional, upcomingReleases, emergencies: alerts.length, systemAlerts: sysAlerts.length, maintenanceOpen, hardwareIssues, lossEvents, voids, openCases, totalStolen, loyaltyMembers, activeGiftCards, giftBalance, cashDiscrepancies, serializedProducts, serializedInStock, openClaims, claimsValue, profitLossTotal, noReceiptBlocked, timeTheftFlags, shrinkageLoss, appVersion, spark });
     setRecentTx(transactions.slice(0, 8));
+    setBreakdown({ transactions, registers: allRegisters });
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
   useRealtimeSync(["Transaction", "EmergencyAlert", "Register", "SystemAlert"], load, { intervalMs: 30000 });
 
   const allCards = [
@@ -166,7 +181,11 @@ export default function AdminDashboard() {
       <div className="flex items-start justify-between gap-3 mb-6 sm:mb-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 text-xs sm:text-sm mt-1">System overview and recent activity</p>
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
+            {isChainWide
+              ? "Chain-wide overview across every store"
+              : `Scoped to ${(access.storeScope || []).map(n => { const s = (stores || []).find(x => x.store_number === n); return s ? `${n} · ${s.name}` : `Store ${n}`; }).join(", ") || "no assigned store"}`}
+          </p>
         </div>
         <button onClick={() => setCustomizeOpen(true)} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
           <SlidersHorizontal className="w-4 h-4" /> <span className="hidden sm:inline">Customize</span>
@@ -215,6 +234,11 @@ export default function AdminDashboard() {
               <Sparkline data={stats.spark?.revenue || []} color="#10b981" width={300} height={36} bars showAvg={false} />
             </div>
           </div>
+          {isChainWide && (
+            <ErrorBoundary label="Revenue by Store">
+              <StoreRevenueBreakdown transactions={breakdown.transactions} registers={breakdown.registers} stores={stores} />
+            </ErrorBoundary>
+          )}
           <ErrorBoundary label="Shift Calendar"><ShiftCalendarView /></ErrorBoundary>
           <ErrorBoundary label="Staffing vs Revenue"><StaffingVsRevenueChart /></ErrorBoundary>
           <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

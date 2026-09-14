@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TrendingUp, DollarSign, ShoppingCart, Package } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { getAdminAccess, isStoreInScope } from "@/lib/adminAccess";
+import { isStoreInScope } from "@/lib/adminAccess";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
 
 export default function AdminEODReports() {
   const [reports, setReports] = useState([]);
@@ -30,8 +31,9 @@ export default function AdminEODReports() {
   }, []);
   useRealtimeSync("EODReport", loadReports, { intervalMs: 30000 });
 
-  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
-  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
+  // Follows the header's active store, so a chain-wide view labels each report with the
+  // store it came from and a single-store view drops the column entirely.
+  const { access } = useStoreScope();
   const showStore = access.storeScope === "all";
 
   // An EOD report is the store's whole day of money, so a store-scoped admin only

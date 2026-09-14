@@ -5,6 +5,8 @@ import { base44 } from "@/api/base44Client";
 import { adminNavGroups } from "@/lib/adminNav";
 import { getAdminAccess, canAccessPage } from "@/lib/adminAccess";
 import AdminScopeBadge from "@/components/admin/AdminScopeBadge";
+import { StoreScopeProvider } from "@/components/admin/StoreScopeProvider";
+import StoreSwitcher from "@/components/admin/StoreSwitcher";
 import { getSoundEnabled, setSoundEnabled } from "@/lib/audioAlert";
 import { getTheme, setTheme } from "@/lib/theme";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -142,6 +144,7 @@ export default function AdminLayout() {
   };
 
   return (
+    <StoreScopeProvider adminOperator={adminOperator}>
     <div className={`h-screen flex bg-gray-50 w-full ${theme === "grayscale" ? "theme-grayscale" : ""}`}>
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-[#0f172a] text-white flex items-center justify-between px-4 h-14 shadow-md">
         <div className="flex items-center gap-2">
@@ -176,6 +179,12 @@ export default function AdminLayout() {
             <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1.5 hover:bg-white/5 rounded-lg transition-colors"><ChevronLeft className="w-4 h-4" /></button>
             <button onClick={() => setCollapsed(!collapsed)} className="hidden lg:inline-flex p-1.5 hover:bg-white/5 rounded-lg transition-colors">{collapsed ? <Menu className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}</button>
           </div>
+        </div>
+
+        {/* Which store the whole panel is pointed at — a dropdown for HQ, a locked
+            badge for a store-scoped admin. */}
+        <div className="border-b border-white/5 pt-2">
+          <StoreSwitcher collapsed={collapsed} />
         </div>
 
         <nav className="flex-1 py-3 px-2 overflow-y-auto scrollbar scrollbar-thumb-white/10 scrollbar-track-transparent">
@@ -299,5 +308,6 @@ export default function AdminLayout() {
         </DialogContent>
       </Dialog>
     </div>
+    </StoreScopeProvider>
   );
 }

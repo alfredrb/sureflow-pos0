@@ -2,6 +2,11 @@ import { Users, Receipt, Keyboard, BarChart3, Package, Monitor, Network, Setting
 
 export const adminNavGroups = [
   {
+    label: "Organization", icon: Building2, items: [
+      { label: "Store Directory", path: "/admin/stores", icon: Store },
+    ],
+  },
+  {
     label: "Register Control", icon: Monitor, items: [
       { label: "Registers", path: "/admin/registers", icon: Monitor },
       { label: "Network", path: "/admin/network", icon: Network },

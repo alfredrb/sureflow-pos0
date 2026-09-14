@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { resolveAdminRole } from "@/lib/adminAccess";
 
 export default function AdminLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -23,14 +24,17 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const ops = await base44.entities.Operator.filter({ operator_id: operatorId.trim(), pin: pin.trim(), status: "active" });
-      const admin = ops.find(o => o.role === "manager" || o.role === "csm" || o.role === "technician" || o.role === "loss_prevention" || o.role === "vendor");
+      // Admin access is decided by the resolved ADMIN role, not the POS role. An HQ
+      // administrator may hold no register duties at all, so gating on the POS role
+      // alone would lock the chain's own administrators out of their panel.
+      const admin = ops.find(o => resolveAdminRole(o) !== "none");
       if (!admin) {
         toast({ title: "Access Denied", description: "Invalid User ID or PIN", variant: "destructive" });
         setPin("");
       } else {
         sessionStorage.setItem("admin_operator", JSON.stringify(admin));
         toast({ title: "Welcome", description: `Logged in as ${admin.full_name}` });
-        navigate(admin.role === "vendor" ? "/vendor-dashboard" : "/admin");
+        navigate(resolveAdminRole(admin) === "vendor" ? "/vendor-dashboard" : "/admin");
       }
     } catch (e) {
       toast({ title: "Error", description: "Login failed", variant: "destructive" });
@@ -81,7 +85,7 @@ export default function AdminLogin() {
           {loading ? "Signing in..." : "Sign In"}
         </Button>
 
-        <p className="text-blue-300/30 text-center text-xs">Managers, CSMs, Technicians, Loss Prevention &amp; Vendors • PIN-protected access</p>
+        <p className="text-blue-300/30 text-center text-xs">HQ Admins, Store Managers, CSMs, Technicians, Asset Protection &amp; Vendors • PIN-protected access</p>
       </form>
 
     </div>

@@ -23,8 +23,8 @@ import RegisterTestPrintButton from "@/components/registers/RegisterTestPrintBut
 import HardwareModelSelect from "@/components/registers/HardwareModelSelect";
 import { profilesByType, keyboardModelOptions } from "@/lib/hardwareModels";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
-import { getAdminAccess } from "@/lib/adminAccess";
 import { scopeRegisters } from "@/lib/cashScope";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
 
 const emptyReg = { register_id: "", name: "", location: "", status: "offline", ip_address: "", subnet_mask: "255.255.255.0", gateway: "", assigned_operator: "", cash_limit: 5000, feature_returns: false, feature_customer_service: false, feature_exchange: false, feature_self_checkout: false, feature_attendant: false, attendant_register_id: "", printer_status: "unknown", scanner_status: "unknown", cash_drawer_status: "unknown", printer_model: "", printer_ip: "", printer_transport: "ethernet", printer_fallback_ip: "", scanner_model: "", cash_drawer_model: "", printer_serial: "", scanner_serial: "", cash_drawer_serial: "", drawer_transport: "printer_dk", drawer_bridge_ip: "", drawer_bridge_port: DRAWER_BRIDGE_PORT, drawer_model: "", terminal_model: "", terminal_serial: "", mac_address: "", boot_profile: "local_disk", keyboard_model: "", soft_keyboard_disabled: false, scanner_interface: "usb_hid", pxe_vlan: "", backend_vlan: "", pinpad_model: "", pinpad_ip: "", pinpad_serial: "", pole_display_model: "", pole_display_ip: "", pole_display_serial: "", customer_monitor_enabled: false, customer_monitor_resolution: "1920x1080", customer_monitor_orientation: "landscape", customer_monitor_serial: "", store_id: "" };
 
@@ -55,12 +55,16 @@ export default function AdminRegisters() {
   const drawerProfiles = useMemo(() => profilesByType(library, "cash_drawer"), [library]);
   const keyboardOptions = useMemo(() => keyboardModelOptions(keyboardLayouts, library), [keyboardLayouts, library]);
 
-  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
-  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
   // A store manager or CSM configures their own lanes; a technician sees the lanes at
-  // the stores they service. Only HQ sees the whole fleet here.
+  // the stores they service. Only HQ's chain-wide view shows the whole fleet, and
+  // selecting a store in the header narrows this page to that store's lanes.
+  const { access, isChainWide, stores } = useStoreScope();
   const scopedRegisters = useMemo(() => scopeRegisters(access, registers), [access, registers]);
   const defaultStoreId = access.storeScope === "all" ? "" : (access.storeScope[0] || "");
+  const storeNames = useMemo(
+    () => Object.fromEntries((stores || []).map(s => [s.store_number, s.name])),
+    [stores]
+  );
 
   const load = async () => {
     const [regs, ops, hardware, layouts] = await Promise.all([
@@ -172,6 +176,9 @@ export default function AdminRegisters() {
               </span>
             </div>
             <div className="space-y-1.5 text-sm mb-4">
+              {isChainWide && (
+                <div className="flex justify-between"><span className="text-gray-400">Store</span><span className="text-gray-700 text-xs">{r.store_id ? `${r.store_id}${storeNames[r.store_id] ? ` · ${storeNames[r.store_id]}` : ""}` : "Unassigned"}</span></div>
+              )}
               <div className="flex justify-between"><span className="text-gray-400">Location</span><span className="text-gray-700">{r.location || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">IP</span><span className="text-gray-700 font-mono text-xs">{r.ip_address || "—"}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Operator</span><span className="text-gray-700">{r.assigned_operator || "Unassigned"}</span></div>

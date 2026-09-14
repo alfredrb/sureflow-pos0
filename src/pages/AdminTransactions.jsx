@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import moment from "moment";
 import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
 import { adminPrintReceipt } from "@/lib/adminPrint";
-import { getAdminAccess } from "@/lib/adminAccess";
 import { scopeRecords } from "@/lib/recordScope";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
 
 const exportToCSV = (data, filename) => {
   const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
@@ -65,11 +65,18 @@ function groupByDate(transactions) {
   return groups;
 }
 
-function TxRow({ tx, onView, onPrint }) {
+function TxRow({ tx, onView, onPrint, showStore, storeName }) {
   const badge = getStatusBadge(tx);
   return (
     <tr className="hover:bg-gray-50/50">
       <td className="px-5 py-3 font-mono text-xs font-medium text-gray-900">{tx.transaction_id}</td>
+      {showStore && (
+        <td className="px-3 py-3">
+          {tx.store_id
+            ? <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700" title={storeName}>{tx.store_id}</span>
+            : <span className="text-xs text-gray-300">—</span>}
+        </td>
+      )}
       <td className="px-3 py-3 text-gray-700">
         <p className="text-sm font-medium leading-tight">{tx.operator_name || "—"}</p>
         <p className="text-[11px] text-gray-400">{tx.operator_id}</p>
@@ -107,16 +114,19 @@ function TxRow({ tx, onView, onPrint }) {
   );
 }
 
-function DateSection({ label, transactions, onView, onPrint }) {
+function DateSection({ label, transactions, onView, onPrint, showStore, storeNames }) {
   if (transactions.length === 0) return null;
   return (
     <>
       <tr>
-        <td colSpan={9} className="px-5 pt-5 pb-1">
+        <td colSpan={showStore ? 10 : 9} className="px-5 pt-5 pb-1">
           <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
         </td>
       </tr>
-      {transactions.map(tx => <TxRow key={tx.id} tx={tx} onView={onView} onPrint={onPrint} />)}
+      {transactions.map(tx => (
+        <TxRow key={tx.id} tx={tx} onView={onView} onPrint={onPrint}
+          showStore={showStore} storeName={storeNames?.[tx.store_id] || ""} />
+      ))}
     </>
   );
 }
@@ -133,8 +143,13 @@ export default function AdminTransactions() {
   const [detailSerialMap, setDetailSerialMap] = useState({});
   const [registers, setRegisters] = useState([]);
 
-  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
-  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
+  // Scope comes from the panel's active store selection, so switching stores in the
+  // header re-filters this table without reloading.
+  const { access, isChainWide, stores } = useStoreScope();
+  const storeNames = useMemo(
+    () => Object.fromEntries((stores || []).map(s => [s.store_number, s.name])),
+    [stores]
+  );
 
   const load = async () => {
     const [txs, regs] = await Promise.all([
@@ -264,6 +279,7 @@ export default function AdminTransactions() {
             <thead>
               <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
                 <th className="px-5 py-3 text-left">Transaction</th>
+                {isChainWide && <th className="px-3 py-3 text-left">Store</th>}
                 <th className="px-3 py-3 text-left">Operator</th>
                 <th className="px-3 py-3 text-left">Register</th>
                 <th className="px-3 py-3 text-left">Payment</th>
@@ -276,13 +292,13 @@ export default function AdminTransactions() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {!hasRows ? (
-                <tr><td colSpan={9} className="px-5 py-8 text-center text-gray-400">No transactions found</td></tr>
+                <tr><td colSpan={isChainWide ? 10 : 9} className="px-5 py-8 text-center text-gray-400">No transactions found</td></tr>
               ) : (
                 <>
-                  <DateSection label="Today" transactions={groups.Today} onView={setDetail} onPrint={handlePrint} />
-                  <DateSection label="Yesterday" transactions={groups.Yesterday} onView={setDetail} onPrint={handlePrint} />
+                  <DateSection label="Today" transactions={groups.Today} onView={setDetail} onPrint={handlePrint} showStore={isChainWide} storeNames={storeNames} />
+                  <DateSection label="Yesterday" transactions={groups.Yesterday} onView={setDetail} onPrint={handlePrint} showStore={isChainWide} storeNames={storeNames} />
                   {olderKeys.map(key => (
-                    <DateSection key={key} label={key} transactions={groups.Older[key]} onView={setDetail} onPrint={handlePrint} />
+                    <DateSection key={key} label={key} transactions={groups.Older[key]} onView={setDetail} onPrint={handlePrint} showStore={isChainWide} storeNames={storeNames} />
                   ))}
                 </>
               )}

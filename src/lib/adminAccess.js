@@ -73,6 +73,11 @@ const VENDOR_PAGES = ["/admin/inventory", "/admin/vendor-insights"];
 // They keep fleet hardware ops on the Infrastructure Command Center instead.
 const HQ_DENIED_PAGES = ["/admin/remote-workstation"];
 
+// The chain's store directory. Creating and renaming stores defines the boundaries every
+// other role is scoped by, so it belongs to HQ alone — a store manager must never be
+// able to edit the record that decides what "their store" means.
+const HQ_ONLY_PAGES = ["/admin/stores"];
+
 export function getAdminAccess(operator) {
   const role = resolveAdminRole(operator);
   const homeStore = operator?.home_store_id || operator?.store_id || "";
@@ -131,6 +136,7 @@ export function canAccessPage(access, path) {
   const { role, can } = access;
 
   if (path === "/admin") return can.dashboard;
+  if (HQ_ONLY_PAGES.includes(path)) return role === "hq_admin";
 
   switch (role) {
     case "hq_admin":
