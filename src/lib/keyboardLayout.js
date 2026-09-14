@@ -15,6 +15,12 @@ import {
   SPARE_SLOT_ID_4820,
   build4820DefaultSlots,
 } from "@/lib/keyboard4820";
+import {
+  KEYBOARD_MODEL_195500,
+  VENDOR_ID_195500,
+  PRODUCT_ID_195500,
+  build3AA195500DefaultSlots,
+} from "@/lib/keyboard3AA195500";
 
 export const DEFAULT_KEYBOARD_MODEL = "IBM 3AA01194300";
 
@@ -22,10 +28,15 @@ export const DEFAULT_KEYBOARD_MODEL = "IBM 3AA01194300";
 // so adding a model never disturbs a model already deployed on lanes.
 export const MODEL_TYPE_3AA = "ibm_3aa01194300";
 export const MODEL_TYPE_4820 = "ibm_4820_surepoint";
+// Full-alphanumeric CS-register board: QWERTY block plus a top strip and an aux
+// cluster. Its letter keys are standard HID, so only the two programmable areas
+// are modelled as slots.
+export const MODEL_TYPE_195500 = "ibm_3aa01195500";
 
 export const MODEL_TYPES = [
   { value: MODEL_TYPE_3AA, label: "IBM 3AA01194300", model: DEFAULT_KEYBOARD_MODEL, vendor_id: "", product_id: "", ctrl_override: true },
   { value: MODEL_TYPE_4820, label: "IBM 4820 SurePoint", model: KEYBOARD_MODEL_4820, vendor_id: VENDOR_ID_4820, product_id: PRODUCT_ID_4820, ctrl_override: false },
+  { value: MODEL_TYPE_195500, label: "IBM 3AA01195500 (Alphanumeric)", model: KEYBOARD_MODEL_195500, vendor_id: VENDOR_ID_195500, product_id: PRODUCT_ID_195500, ctrl_override: true },
   { value: "custom", label: "Custom", model: "", vendor_id: "", product_id: "", ctrl_override: true },
 ];
 
@@ -33,7 +44,9 @@ export const modelTypeConfig = (t) => MODEL_TYPES.find((m) => m.value === t) || 
 
 // Default slot set for a layout family.
 export function buildSlotsForModel(modelType) {
-  return modelType === MODEL_TYPE_4820 ? build4820DefaultSlots() : buildDefaultSlots();
+  if (modelType === MODEL_TYPE_4820) return build4820DefaultSlots();
+  if (modelType === MODEL_TYPE_195500) return build3AA195500DefaultSlots();
+  return buildDefaultSlots();
 }
 
 // Swapping the model type rebuilds the slot structure, but any scancode the
@@ -86,7 +99,9 @@ const SYSTEM_KEYS = [
 // The 4820 is exempt: its S1/S2 live inside the 4x4 grid, so it must never grow
 // a row-6 strip.
 export function ensureSystemSlots(slots = [], modelType = MODEL_TYPE_3AA) {
-  if (modelType === MODEL_TYPE_4820) return slots;
+  // The 195500 is exempt too — its programmable areas are the top strip and the aux
+  // cluster, and it has no S1/S2 system strip to grow.
+  if (modelType === MODEL_TYPE_4820 || modelType === MODEL_TYPE_195500) return slots;
   const missing = SYSTEM_KEYS.filter((k) => !slots.some((s) => s.slot_id === k.slot_id));
   if (!missing.length) return slots;
   return [

@@ -150,6 +150,8 @@ export default function POSRegister() {
   const [storeInfo, setStoreInfo] = useState(null);
   const [lastReceipt, setLastReceipt] = useState(null);
   const [registerPaused, setRegisterPaused] = useState(false);
+  // True on lanes with a full alphanumeric keyboard — the on-screen QWERTY is not mounted.
+  const [softKeyboardDisabled, setSoftKeyboardDisabled] = useState(false);
   const [pauseUnlockId, setPauseUnlockId] = useState("");
   const [pauseUnlockPin, setPauseUnlockPin] = useState("");
   const [pauseUnlockError, setPauseUnlockError] = useState("");
@@ -377,6 +379,7 @@ export default function POSRegister() {
           setPoleConfig({ pole_display_model: regs[0].pole_display_model || "", pole_display_ip: regs[0].pole_display_ip || "", printer_ip: regs[0].printer_ip || "" });
           setCustomerMonitor(!!regs[0].customer_monitor_enabled);
           setRegisterPaused(regs[0].paused || false);
+          setSoftKeyboardDisabled(!!regs[0].soft_keyboard_disabled);
           // NOTE: no IP auto-detection. The lane's identity is register_id, taken from
           // the PXE kernel command line. Across the PXE VLAN the relay only ever sees
           // the controller's NAT address, so "detecting" a lane IP stamped the same
@@ -1364,8 +1367,9 @@ export default function POSRegister() {
       />
 
       {/* On-screen QWERTY for lanes with no letter keys — only attaches to
-          fields flagged with data-softkeyboard. */}
-      <POSSoftKeyboard />
+          fields flagged with data-softkeyboard. Lanes fitted with a full
+          alphanumeric keyboard turn it off in their hardware profile. */}
+      {!softKeyboardDisabled && <POSSoftKeyboard />}
     </div>
   );
 }

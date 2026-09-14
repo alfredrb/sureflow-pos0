@@ -2,6 +2,7 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import HardwareModelSelect from "@/components/registers/HardwareModelSelect";
+import { Switch } from "@/components/ui/switch";
 
 const BOOT_PROFILES = [
   { value: "pxe_debian_legacy", label: "PXE Debian — Legacy (SurePOS 746 / 700 class)" },
@@ -59,6 +60,18 @@ export default function HardwareProfileSection({ form, setForm, keyboardOptions 
               </SelectContent>
             </Select>
           </div>
+        </div>
+        {/* A full-alphanumeric board (e.g. IBM 3AA01195500) types text natively, so the
+            on-screen QWERTY is redundant on that lane. Numeric keypads are unaffected. */}
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Disable on-screen keyboard</p>
+            <p className="text-xs text-gray-400">Turn on when a full QWERTY keyboard is fitted to this lane.</p>
+          </div>
+          <Switch
+            checked={!!form.soft_keyboard_disabled}
+            onCheckedChange={set("soft_keyboard_disabled")}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

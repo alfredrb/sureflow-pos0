@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Keyboard, Save, AlertTriangle, Tags } from "lucide-react";
 import { Link } from "react-router-dom";
 import KeyboardGrid from "@/components/keyboard/KeyboardGrid";
+import Keyboard195500Grid from "@/components/keyboard/Keyboard195500Grid";
 import KeySlotEditor from "@/components/keyboard/KeySlotEditor";
 import HwdbOutput from "@/components/keyboard/HwdbOutput";
 import ScancodeDecoder from "@/components/keyboard/ScancodeDecoder";
@@ -19,6 +20,7 @@ import {
   DEFAULT_KEYBOARD_MODEL,
   MODEL_TYPES,
   MODEL_TYPE_3AA,
+  MODEL_TYPE_195500,
   SPARE_SLOT_ID,
   modelTypeConfig,
   switchModelSlots,
@@ -203,13 +205,23 @@ export default function AdminKeyboardMapper() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[auto,1fr]">
-        <KeyboardGrid
-          slots={layout.slots}
-          functionKeys={functionKeys}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          ctrlOverride={layout.ctrl_override !== false}
-        />
+        {layout.model_type === MODEL_TYPE_195500 ? (
+          <Keyboard195500Grid
+            slots={layout.slots}
+            functionKeys={functionKeys}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            ctrlOverride={layout.ctrl_override !== false}
+          />
+        ) : (
+          <KeyboardGrid
+            slots={layout.slots}
+            functionKeys={functionKeys}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            ctrlOverride={layout.ctrl_override !== false}
+          />
+        )}
         <div className="space-y-4">
           <KeySlotEditor slot={selected} functionKeys={functionKeys} onChange={updateSlot} />
           <KeyboardHardwareProfile layout={layout} onChange={setLayout} />
