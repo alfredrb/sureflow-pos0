@@ -11,6 +11,27 @@ import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
 import { adminPrintReceipt } from "@/lib/adminPrint";
 import { scopeRecords } from "@/lib/recordScope";
 import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import ChainRollupBand from "@/components/admin/ChainRollupBand";
+import { rollupByStore, fmtMoney, fmtInt } from "@/lib/chainRollup";
+
+// Sales and refunds are split out rather than netted into one number: a store doing
+// heavy volume with heavy refunds reads identically to a quiet store once netted.
+const isCredit = (t) => t.status === "refunded" || t.status === "exchanged";
+const TX_COLUMNS = [
+  { key: "sales", label: "Sales", format: fmtInt },
+  { key: "revenue", label: "Revenue", format: fmtMoney, className: "text-emerald-600" },
+  { key: "refunded", label: "Refunded", format: fmtMoney, className: "text-red-600" },
+  { key: "voided", label: "Voided", format: fmtInt, className: "text-red-600" },
+  { key: "sco", label: "Self-Checkout", format: fmtInt, className: "text-blue-600" },
+];
+
+const TX_METRICS = {
+  sales: (rows) => rows.filter((t) => t.status === "completed").length,
+  revenue: (rows) => rows.filter((t) => t.status === "completed").reduce((s, t) => s + (Number(t.total) || 0), 0),
+  refunded: (rows) => rows.filter(isCredit).reduce((s, t) => s + Math.abs(Number(t.total) || 0), 0),
+  voided: (rows) => rows.filter((t) => t.status === "voided").length,
+  sco: (rows) => rows.filter((t) => t.self_checkout).length,
+};
 
 const exportToCSV = (data, filename) => {
   const keys = ["transaction_id", "operator_name", "operator_id", "register_id", "payment_method", "status", "refund_type", "subtotal", "tax", "total", "created_date"];
@@ -195,6 +216,13 @@ export default function AdminTransactions() {
 
   const scoCount = scopedTransactions.filter(t => t.self_checkout && !t.training_mode).length;
 
+  // Rolls up exactly what the table shows — the active search, status and lane filters
+  // included — so the per-store figures always reconcile with the rows below.
+  const rollup = useMemo(
+    () => rollupByStore(filtered, { storeNames, metrics: TX_METRICS }),
+    [filtered, storeNames]
+  );
+
   const groups = groupByDate(filtered);
   const olderKeys = Object.keys(groups.Older).sort((a, b) => moment(b, "MMMM D, YYYY") - moment(a, "MMMM D, YYYY"));
   const hasRows = filtered.length > 0;
@@ -272,6 +300,15 @@ export default function AdminTransactions() {
           </SelectContent>
         </Select>
       </div>
+
+      {isChainWide && (
+        <ChainRollupBand
+          title="Chain Rollup by Store"
+          subtitle={`${filtered.length} transactions in the current filters, totalled per store`}
+          columns={TX_COLUMNS}
+          rollup={rollup}
+        />
+      )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

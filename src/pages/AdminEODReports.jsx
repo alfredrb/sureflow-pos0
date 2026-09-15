@@ -7,6 +7,15 @@ import { TrendingUp, DollarSign, ShoppingCart, Package } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { isStoreInScope } from "@/lib/adminAccess";
 import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import ChainRollupBand from "@/components/admin/ChainRollupBand";
+import { rollupByStore, sumOf, fmtMoney, fmtInt } from "@/lib/chainRollup";
+
+const EOD_COLUMNS = [
+  { key: "revenue", label: "Revenue", format: fmtMoney, className: "text-emerald-600" },
+  { key: "refunds", label: "Refunds", format: fmtMoney, className: "text-red-600" },
+  { key: "transactions", label: "Transactions", format: fmtInt },
+  { key: "items", label: "Items", format: fmtInt },
+];
 
 export default function AdminEODReports() {
   const [reports, setReports] = useState([]);
@@ -33,8 +42,12 @@ export default function AdminEODReports() {
 
   // Follows the header's active store, so a chain-wide view labels each report with the
   // store it came from and a single-store view drops the column entirely.
-  const { access } = useStoreScope();
+  const { access, stores } = useStoreScope();
   const showStore = access.storeScope === "all";
+  const storeNames = useMemo(
+    () => Object.fromEntries((stores || []).map((s) => [s.store_number, s.name])),
+    [stores]
+  );
 
   // An EOD report is the store's whole day of money, so a store-scoped admin only
   // ever sees their own store's reports. Reports carry store_id directly, so the
@@ -42,6 +55,21 @@ export default function AdminEODReports() {
   const scopedReports = useMemo(
     () => (showStore ? reports : reports.filter((r) => isStoreInScope(access, r.store_id))),
     [reports, access, showStore]
+  );
+
+  // Rolls up the same reports the list below shows, so the two can never disagree.
+  const rollup = useMemo(
+    () =>
+      rollupByStore(scopedReports, {
+        storeNames,
+        metrics: {
+          revenue: sumOf("total_revenue"),
+          refunds: sumOf("total_refunds"),
+          transactions: sumOf("total_transactions"),
+          items: sumOf("total_items_sold"),
+        },
+      }),
+    [scopedReports, storeNames]
   );
 
   const sortedReports = [...scopedReports].sort((a, b) => {
@@ -58,6 +86,15 @@ export default function AdminEODReports() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">End of Day Reports</h1>
         <p className="text-gray-500 mt-2 text-sm sm:text-base">Daily consolidated sales and transaction data</p>
       </div>
+
+      {showStore && (
+        <ChainRollupBand
+          title="Chain Rollup by Store"
+          subtitle={`Every EOD report on this view, totalled per store (${scopedReports.length} reports)`}
+          columns={EOD_COLUMNS}
+          rollup={rollup}
+        />
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2 mb-6">
         <Button variant={sortBy === "desc" ? "default" : "outline"} onClick={() => setSortBy("desc")} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">

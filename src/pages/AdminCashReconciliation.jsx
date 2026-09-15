@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { TillCheckoutModal, TillCheckinModal } from "@/components/TillCheckModals";
 import { Plus, Minus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { getAdminAccess } from "@/lib/adminAccess";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
 import { buildRegisterScope, scopeByRegister, scopeRegisters } from "@/lib/cashScope";
+import ChainRollupBand from "@/components/admin/ChainRollupBand";
+import { rollupByStore, sumOf, countOf, fmtMoney, fmtInt } from "@/lib/chainRollup";
 import { computeCashTotals } from "@/lib/cashStats";
 import usePushToLP from "@/hooks/usePushToLP";
 import PushToLPButton from "@/components/cash/PushToLPButton";
@@ -30,6 +32,14 @@ import {
   CashSlipDialog,
 } from "@/components/cash/CashActionDialogs";
 
+const CASH_COLUMNS = [
+  { key: "deposits", label: "Deposits", format: fmtInt },
+  { key: "expected", label: "Expected", format: fmtMoney },
+  { key: "deposited", label: "Deposited", format: fmtMoney, className: "text-emerald-600" },
+  { key: "over", label: "Over", format: fmtMoney, className: "text-blue-600" },
+  { key: "short", label: "Short", format: fmtMoney, className: "text-red-600" },
+];
+
 export default function AdminCashReconciliation() {
   const [raw, setRaw] = useState({ deposits: [], registers: [], advances: [], pickups: [], robberies: [], audits: [], alerts: [], giftCardCashouts: [], tillCheckouts: [] });
   const [loading, setLoading] = useState(true);
@@ -49,8 +59,13 @@ export default function AdminCashReconciliation() {
   const { toast } = useToast();
   const { push, pushedIds, pushingId } = usePushToLP(toast);
 
-  const adminOperator = useMemo(() => JSON.parse(sessionStorage.getItem("admin_operator") || "null"), []);
-  const access = useMemo(() => getAdminAccess(adminOperator), [adminOperator]);
+  // Follows the header's active store selection, so switching stores re-scopes every
+  // figure on this page instead of always showing the operator's whole permanent scope.
+  const { access, isChainWide, stores } = useStoreScope();
+  const storeNames = useMemo(
+    () => Object.fromEntries((stores || []).map((s) => [s.store_number, s.name])),
+    [stores]
+  );
 
   const loadData = async () => {
     try {
@@ -105,6 +120,32 @@ export default function AdminCashReconciliation() {
   }, [access, raw]);
 
   const totals = useMemo(() => computeCashTotals(scoped), [scoped]);
+
+  // Cash records only reference a register, so the store is resolved through the
+  // register they were rung on.
+  const storeOfRegister = useMemo(() => {
+    const map = {};
+    for (const r of raw.registers) if (r.register_id) map[r.register_id] = r.store_id || "";
+    return map;
+  }, [raw.registers]);
+
+  const depositRollup = useMemo(
+    () =>
+      rollupByStore(scoped.deposits, {
+        storeNames,
+        storeOf: (d) => storeOfRegister[d.register_id] || "",
+        metrics: {
+          deposits: countOf(),
+          expected: sumOf("expected_cash"),
+          deposited: sumOf("actual_cash_deposited"),
+          // Overs and shorts are kept apart: they cancel out when summed, which is
+          // exactly the signal Loss Prevention is looking for.
+          over: (rows) => rows.reduce((s, d) => s + Math.max(Number(d.difference) || 0, 0), 0),
+          short: (rows) => rows.reduce((s, d) => s + Math.min(Number(d.difference) || 0, 0), 0),
+        },
+      }),
+    [scoped.deposits, storeNames, storeOfRegister]
+  );
 
   const renderPushBtn = (rec, kind) => (
     <PushToLPButton recordId={rec.id} kind={kind} pushedIds={pushedIds} pushingId={pushingId} onPush={() => push(rec, kind)} />
@@ -230,6 +271,15 @@ export default function AdminCashReconciliation() {
           audits: totals.pendingAudits,
         }}
       />
+
+      {activeTab === "deposits" && isChainWide && (
+        <ChainRollupBand
+          title="Chain Rollup by Store"
+          subtitle={`${scoped.deposits.length} deposits on this view, totalled per store`}
+          columns={CASH_COLUMNS}
+          rollup={depositRollup}
+        />
+      )}
 
       {activeTab === "deposits" && (
         <CashDepositsTab deposits={scoped.deposits} selectedDate={selectedDate} onSelectDate={setSelectedDate} renderPushBtn={renderPushBtn} />
