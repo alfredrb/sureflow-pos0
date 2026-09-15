@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit2, Building2, Globe2, MapPin, Monitor } from "lucide-react";
+import { Edit2, Building2, Globe2, MapPin, Monitor, GitMerge, Trash2 } from "lucide-react";
 
 const TYPE_LABELS = {
   supercenter: "Supercenter",
@@ -19,7 +19,7 @@ const TYPE_CLS = {
 
 // The chain directory. Lane count comes from the registers already loaded by the page
 // so a store's real footprint is visible without opening it.
-export default function StoreDirectoryTable({ stores, laneCounts, onEdit, onView }) {
+export default function StoreDirectoryTable({ stores, laneCounts, onEdit, onView, onMerge, onDelete, duplicateNumbers = [] }) {
   if (stores.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-100 bg-white py-16 text-center shadow-sm">
@@ -49,8 +49,16 @@ export default function StoreDirectoryTable({ stores, laneCounts, onEdit, onView
             {stores.map((s) => (
               <tr key={s.id} className="hover:bg-gray-50/50">
                 <td className="px-5 py-3">
-                  <p className="font-mono text-xs font-semibold text-gray-900">{s.store_number}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-mono text-xs font-semibold text-gray-900">{s.store_number}</p>
+                    {duplicateNumbers.includes(s.store_number) && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-700">Duplicate</span>
+                    )}
+                  </div>
                   <p className="text-sm font-medium text-gray-700">{s.name}</p>
+                  {s.merged_into_store_number && (
+                    <p className="text-[10px] text-gray-400">Closed → merged into {s.merged_into_store_number}</p>
+                  )}
                 </td>
                 <td className="px-3 py-3">
                   <span className={`rounded-full px-2 py-1 text-[10px] font-medium ${TYPE_CLS[s.store_type] || "bg-gray-100 text-gray-600"}`}>
@@ -91,6 +99,14 @@ export default function StoreDirectoryTable({ stores, laneCounts, onEdit, onView
                     <button onClick={() => onEdit(s)} title="Edit store"
                       className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600">
                       <Edit2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => onMerge(s)} title="Merge or close this store"
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-600">
+                      <GitMerge className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => onDelete(s)} title="Delete store"
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </td>

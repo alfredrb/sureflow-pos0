@@ -61,6 +61,15 @@
       "type": "string",
       "format": "date"
     },
+    "closed_on": {
+      "type": "string",
+      "format": "date",
+      "description": "Date this store ceased trading. Set by a Close & Transfer, and deliberately distinct from status: a store can be temporarily inactive (remodel, flood) without ever having closed. A closed store's historical sales stay on its own store_number so finance and Loss Prevention keep a clean period boundary."
+    },
+    "merged_into_store_number": {
+      "type": "string",
+      "description": "Store number this store's OPERATIONS were transferred to when it closed \u2014 the lanes, staff, stock and live gift cards now belong to that store. Its historical transactions and EOD reports were deliberately NOT moved, so this field is the pointer that explains where a closed store's activity went without inflating the receiving store's own sales history."
+    },
     "relay_url": {
       "type": "string",
       "description": "Base URL of the store's Local Relay VM (e.g. http://192.168.1.50:3000). On a redundant store this must be the floating VIP, not either controller's own address, so it follows the acting primary through a failover. The Infrastructure Command Center polls this URL for VM, printer, and register hardware status."
