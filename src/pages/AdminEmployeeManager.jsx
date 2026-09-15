@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { STATUSES, daysUntil } from "@/lib/employeeActions";
 import EmployeeProfile from "@/components/employeemanager/EmployeeProfile";
 import UnprofiledOperators from "@/components/employeemanager/UnprofiledOperators";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeOperatorList, scopeByOperator } from "@/lib/peopleScope";
 
 export default function AdminEmployeeManager() {
   const [employees, setEmployees] = useState([]);
@@ -17,21 +19,27 @@ export default function AdminEmployeeManager() {
   const [showUnprofiled, setShowUnprofiled] = useState(false);
   const [unprofiledCount, setUnprofiledCount] = useState(0);
   const { toast } = useToast();
+  // HR records identify a person, not a store, so they are scoped through the operator
+  // they are linked to — a store's management sees only their own store's employees.
+  const { access } = useStoreScope();
 
   const load = async () => {
     try {
-      const data = await base44.entities.Employee.list();
-      setEmployees(data);
-      // compute unprofiled operators count
-      try {
-        const ops = await base44.entities.Operator.list();
-        const empOpIds = new Set((data || []).map(e => e.operator_id).filter(Boolean));
-        setUnprofiledCount((ops || []).filter(o => o.role !== "vendor" && o.full_name && !empOpIds.has(o.operator_id)).length);
-      } catch (e) { /* ignore */ }
+      const [data, ops] = await Promise.all([
+        base44.entities.Employee.list(),
+        base44.entities.Operator.list().catch(() => []),
+      ]);
+      const scoped = scopeByOperator(access, ops, data);
+      setEmployees(scoped);
+      // Only operators this admin can see count as "missing a profile" — otherwise a
+      // store manager would be prompted to create profiles for another store's staff.
+      const empOpIds = new Set((scoped || []).map(e => e.operator_id).filter(Boolean));
+      const visibleOps = scopeOperatorList(access, ops);
+      setUnprofiledCount(visibleOps.filter(o => o.role !== "vendor" && o.full_name && !empOpIds.has(o.operator_id)).length);
     } catch (e) { /* ignore */ }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access.storeScope, access.activeStoreId]);
   useRealtimeSync("Employee", load, { intervalMs: 20000 });
 
   const selected = employees.find(e => e.id === selectedId);

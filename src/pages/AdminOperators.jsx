@@ -10,7 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import OperatorAdminAccessTab from "@/components/operators/OperatorAdminAccessTab";
-import { getAdminAccess, ADMIN_ROLE_LABELS, resolveAdminRole, scopeOperators, getOperatorListAccess } from "@/lib/adminAccess";
+import { ADMIN_ROLE_LABELS, resolveAdminRole, getOperatorListAccess } from "@/lib/adminAccess";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeOperatorList } from "@/lib/peopleScope";
 import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 import { mirrorAdminScopeToUser } from "@/lib/adminScopeMirror";
 
@@ -33,7 +35,9 @@ export default function AdminOperators() {
 
   // Admin access is HQ-only to assign: a store's own management must not be able to
   // widen the set of stores they can see.
-  const currentAccess = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
+  // The NARROWED access: the roster follows the store selected in the header, so an HQ
+  // admin looking at one store manages that store's people rather than the whole chain.
+  const { access: currentAccess } = useStoreScope();
   const canEditAdminAccess = currentAccess.role === "hq_admin";
   // Store-scoped roles only ever see their own store's people; techs and vendors see
   // only themselves. Read-only roles get the list without the management controls.
@@ -154,7 +158,7 @@ export default function AdminOperators() {
   };
 
   const ROLE_ORDER = { manager: 0, csm: 1, loss_prevention: 2, cashier: 3, vendor: 4, technician: 5 };
-  const visibleOperators = scopeOperators(currentAccess, operators);
+  const visibleOperators = scopeOperatorList(currentAccess, operators);
   const filtered = visibleOperators
     .filter(o => !search || o.full_name.toLowerCase().includes(search.toLowerCase()) || o.operator_id.includes(search))
     .sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99));

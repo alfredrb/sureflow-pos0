@@ -11,8 +11,9 @@ import WeeklyScheduleCalendar from "@/components/WeeklyScheduleCalendar";
 import WeeklyHoursBudget from "@/components/scheduling/WeeklyHoursBudget";
 import AvailabilityTab from "@/components/scheduling/AvailabilityTab";
 import { weeklyHoursByOperator, getRateForRole } from "@/lib/payrollUtils";
-import { getAdminAccess, scopeOperators } from "@/lib/adminAccess";
 import { scopeRegisters } from "@/lib/cashScope";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeOperatorList } from "@/lib/peopleScope";
 
 const timeToMinutes = (time) => {
   const [h, m] = time.split(":").map(Number);
@@ -63,6 +64,9 @@ export default function AdminShiftScheduling() {
     notes: ""
   });
   const { toast } = useToast();
+  // Narrowed to the store selected in the header, so a store only ever schedules its
+  // own people onto its own lanes.
+  const { access } = useStoreScope();
 
   const load = async () => {
     try {
@@ -80,8 +84,7 @@ export default function AdminShiftScheduling() {
 
       // A store schedules its own people onto its own lanes. Scoped once here, so the
       // calendar, the list, the AI draft and the shift form all work off the same set.
-      const access = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
-      const scopedOps = scopeOperators(access, opData);
+      const scopedOps = scopeOperatorList(access, opData);
       const scopedRegs = scopeRegisters(access, regData);
       const scopedOpIds = new Set(scopedOps.map(o => o.operator_id));
       const inScope = (s) => access.storeScope === "all" || scopedOpIds.has(s.operator_id);
@@ -147,7 +150,7 @@ export default function AdminShiftScheduling() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [access.storeScope, access.activeStoreId]);
   useRealtimeSync(["Shift", "ShiftSwapRequest"], load, { intervalMs: 20000 });
 
   const openNew = () => {

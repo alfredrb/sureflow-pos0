@@ -4,6 +4,8 @@ import { UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeOperatorList } from "@/lib/peopleScope";
 
 export default function UnprofiledOperators({ open, onClose, onCreated }) {
   const [operators, setOperators] = useState([]);
@@ -11,6 +13,7 @@ export default function UnprofiledOperators({ open, onClose, onCreated }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(null);
   const { toast } = useToast();
+  const { access } = useStoreScope();
 
   const load = async () => {
     setLoading(true);
@@ -20,7 +23,9 @@ export default function UnprofiledOperators({ open, onClose, onCreated }) {
         base44.entities.Employee.list(),
       ]);
       const empOpIds = new Set((emps || []).map(e => e.operator_id).filter(Boolean));
-      const unprofiled = (ops || []).filter(o => o.role !== "vendor" && o.full_name && !empOpIds.has(o.operator_id));
+      // Only offer profiles for people inside the active store scope.
+      const unprofiled = scopeOperatorList(access, ops || [])
+        .filter(o => o.role !== "vendor" && o.full_name && !empOpIds.has(o.operator_id));
       setOperators(unprofiled);
       setEmployees(emps || []);
     } catch (e) { toast({ title: "Failed to load", variant: "destructive" }); }

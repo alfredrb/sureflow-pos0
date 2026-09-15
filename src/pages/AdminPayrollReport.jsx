@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import PositionPayRateManager from "@/components/payroll/PositionPayRateManager";
 import TimeClockManager from "@/components/payroll/TimeClockManager";
 import { payrollFromTimeClock, ROLE_POSITION_LABELS } from "@/lib/payrollUtils";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeOperatorList, scopeByOperator } from "@/lib/peopleScope";
 
 export default function AdminPayrollReport() {
   const [entries, setEntries] = useState([]);
@@ -21,6 +23,8 @@ export default function AdminPayrollReport() {
   });
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
   const { toast } = useToast();
+  // Payroll is store money: a store's admin only ever sees their own store's hours.
+  const { access } = useStoreScope();
 
   const loadData = async () => {
     try {
@@ -30,8 +34,10 @@ export default function AdminPayrollReport() {
         base44.entities.PositionPayRate.list("-created_date", 50),
         base44.entities.StoreBudget.list("-month", 100)
       ]);
-      setEntries(ent);
-      setOperators(ops);
+      // Clock entries carry no store, so they are scoped through the operator who
+      // worked them — the same boundary the roster itself uses.
+      setEntries(scopeByOperator(access, ops, ent));
+      setOperators(scopeOperatorList(access, ops));
       setPayRates(rates);
       const now = new Date();
       const cm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -42,7 +48,7 @@ export default function AdminPayrollReport() {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [access.storeScope, access.activeStoreId]);
   useRealtimeSync("TimeClockEntry", loadData, { intervalMs: 30000 });
 
   const overtimeThreshold = storeBudget?.overtime_threshold_hours ?? 40;
