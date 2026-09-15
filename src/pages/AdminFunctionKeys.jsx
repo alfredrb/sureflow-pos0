@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import FunctionKeyGridViewer from "@/components/functionkeys/FunctionKeyGridViewer";
 import { resolvePagingTabs } from "@/lib/posKeyPaging";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+
+const AUDIT_FIELDS = ["key_number", "label", "action", "color", "requires_role"];
 
 const actions = [
   { value: "void_item", label: "Void Item" },
@@ -72,6 +75,13 @@ export default function AdminFunctionKeys() {
     const next = enabled ? [...new Set([...current, tabId])] : current.filter(t => t !== tabId);
     await base44.entities.StoreSettings.update(settings.id, { pos_key_paging_tabs: next });
     setSettings({ ...settings, pos_key_paging_tabs: next });
+    logAuditEvent({
+      action: "Changed Function Key Paging",
+      category: "configuration",
+      description: `The ${tabId} function-key tab now uses ${enabled ? "two pages" : "one page"}.`,
+      page: "/admin/function-keys",
+      changes: [{ field: "pos_key_paging_tabs", from: current.join(", ") || "(none)", to: next.join(", ") || "(none)" }],
+    });
     toast({ title: `${tabId} tab set to ${enabled ? "two pages" : "one page"}` });
   };
   useRealtimeSync("FunctionKey", load, { intervalMs: 20000 });
@@ -94,16 +104,29 @@ export default function AdminFunctionKeys() {
       toast({ title: "Error", description: "Label is required", variant: "destructive" });
       return;
     }
+    const payload = { ...form, requires_supervisor: form.requires_role !== "none" };
+    // Function keys are chain policy — the same key layout serves every lane — so these
+    // are recorded chain-wide.
     if (isCreating) {
-      await base44.entities.FunctionKey.create({
-        ...form,
-        requires_supervisor: form.requires_role !== "none",
+      await base44.entities.FunctionKey.create(payload);
+      logAuditEvent({
+        action: "Created Function Key",
+        category: "configuration",
+        description: `Function key F${form.key_number} "${form.label}" created — action ${form.action}, ${form.requires_role === "none" ? "usable by any operator" : `requires ${form.requires_role.toUpperCase()}`}.`,
+        page: "/admin/function-keys",
+        store_id: "",
+        changes: diffChanges({}, form, AUDIT_FIELDS),
       });
       toast({ title: "Function key created" });
     } else {
-      await base44.entities.FunctionKey.update(editing.id, {
-        ...form,
-        requires_supervisor: form.requires_role !== "none",
+      await base44.entities.FunctionKey.update(editing.id, payload);
+      logAuditEvent({
+        action: "Updated Function Key",
+        category: "configuration",
+        description: `Function key F${form.key_number} "${form.label}" updated — action ${form.action}, ${form.requires_role === "none" ? "usable by any operator" : `requires ${form.requires_role.toUpperCase()}`}.`,
+        page: "/admin/function-keys",
+        store_id: "",
+        changes: diffChanges({ ...editing, requires_role: getRequiredRole(editing) }, form, AUDIT_FIELDS),
       });
       toast({ title: "Function key updated" });
     }

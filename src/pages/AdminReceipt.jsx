@@ -6,17 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import ReceiptPreview4690 from "@/components/receipt/ReceiptPreview4690";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+
+const AUDIT_FIELDS = ["store_name", "store_address", "store_phone", "header_line_1", "header_line_2", "footer_line_1", "footer_line_2", "show_barcode", "transaction_code_format", "show_operator_name", "show_date_time", "show_register_id", "show_tax_breakdown", "show_discounts"];
 
 export default function AdminReceipt() {
   const [config, setConfig] = useState(null);
   const [configId, setConfigId] = useState(null);
   const [loading, setLoading] = useState(true);
+  // The record as loaded, so a save can report what actually changed rather than
+  // re-stating the whole config.
+  const [saved, setSaved] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => {
     (async () => {
       const configs = await base44.entities.ReceiptConfig.list();
-      if (configs.length > 0) { setConfig(configs[0]); setConfigId(configs[0].id); }
+      if (configs.length > 0) { setConfig(configs[0]); setConfigId(configs[0].id); setSaved(configs[0]); }
       else {
         const defaults = { store_name: "My Store", store_address: "", store_phone: "", header_line_1: "", header_line_2: "", footer_line_1: "Thank you!", footer_line_2: "", show_operator_name: true, show_date_time: true, show_register_id: true, show_tax_breakdown: true, show_barcode: false, transaction_code_format: "barcode", show_discounts: true };
         setConfig(defaults);
@@ -28,8 +34,30 @@ export default function AdminReceipt() {
   const save = async () => {
     try {
       const data = { ...config }; delete data.id; delete data.created_date; delete data.updated_date; delete data.created_by_id;
-      if (configId) await base44.entities.ReceiptConfig.update(configId, data);
-      else { const created = await base44.entities.ReceiptConfig.create(data); setConfigId(created.id); }
+      const changes = diffChanges(saved || {}, data, AUDIT_FIELDS);
+      if (configId) {
+        await base44.entities.ReceiptConfig.update(configId, data);
+        logAuditEvent({
+          action: "Updated Receipt Configuration",
+          category: "configuration",
+          description: changes.length
+            ? `Receipt layout updated. Changed: ${changes.map(c => c.field).join(", ")}.`
+            : "Receipt configuration saved (no field changes detected).",
+          page: "/admin/receipt",
+          changes,
+        });
+      } else {
+        const created = await base44.entities.ReceiptConfig.create(data);
+        setConfigId(created.id);
+        logAuditEvent({
+          action: "Created Receipt Configuration",
+          category: "configuration",
+          description: "Initial receipt configuration created.",
+          page: "/admin/receipt",
+          changes: diffChanges({}, data, AUDIT_FIELDS),
+        });
+      }
+      setSaved(data);
       toast({ title: "Receipt settings saved" });
     } catch (e) {
       toast({ title: "Error saving", variant: "destructive" });

@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+
+const AUDIT_FIELDS = ["name", "percentage", "categories", "active", "start_date", "end_date"];
 
 const emptyDiscount = { name: "", percentage: 0, categories: [], active: true, start_date: "", end_date: "" };
 
@@ -42,8 +45,31 @@ export default function AdminDiscounts() {
         toast({ title: "Error", description: "Name and percentage required", variant: "destructive" });
         return;
       }
-      if (editing) { await base44.entities.DiscountType.update(editing.id, form); toast({ title: "Discount updated" }); }
-      else { await base44.entities.DiscountType.create(form); toast({ title: "Discount created" }); }
+      // Discount rules are chain policy — they carry no store, so they are logged as
+      // chain-wide regardless of which store the admin happens to be viewing.
+      if (editing) {
+        await base44.entities.DiscountType.update(editing.id, form);
+        logAuditEvent({
+          action: "Updated Discount Type",
+          category: "configuration",
+          description: `Discount "${form.name}" updated to ${form.percentage}% on ${form.categories?.length ? form.categories.join(", ") : "all categories"} — ${form.active ? "active" : "inactive"}.`,
+          page: "/admin/discounts",
+          store_id: "",
+          changes: diffChanges(editing, form, AUDIT_FIELDS),
+        });
+        toast({ title: "Discount updated" });
+      } else {
+        await base44.entities.DiscountType.create(form);
+        logAuditEvent({
+          action: "Created Discount Type",
+          category: "configuration",
+          description: `Discount "${form.name}" created at ${form.percentage}% on ${form.categories?.length ? form.categories.join(", ") : "all categories"}.`,
+          page: "/admin/discounts",
+          store_id: "",
+          changes: diffChanges({}, form, AUDIT_FIELDS),
+        });
+        toast({ title: "Discount created" });
+      }
       setDialogOpen(false);
       load();
     } catch (e) {
@@ -54,6 +80,13 @@ export default function AdminDiscounts() {
   const remove = async (d) => {
     if (!confirm(`Delete "${d.name}"?`)) return;
     await base44.entities.DiscountType.delete(d.id);
+    logAuditEvent({
+      action: "Deleted Discount Type",
+      category: "configuration",
+      description: `Discount "${d.name}" (${d.percentage}%) deleted.`,
+      page: "/admin/discounts",
+      store_id: "",
+    });
     toast({ title: "Discount deleted" });
     load();
   };

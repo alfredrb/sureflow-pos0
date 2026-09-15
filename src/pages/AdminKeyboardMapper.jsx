@@ -124,6 +124,9 @@ export default function AdminKeyboardMapper() {
           .map((s) => `${s.cap_label}=${s.scancode}→${s.keycode}`)
           .join(", ") || "none"}.`,
       page: "/admin/keyboard-mapper",
+      // A key map is stored per keyboard MODEL, so it lands on every store's lanes
+      // carrying that keyboard — a chain-wide change, not one store's.
+      store_id: "",
     });
     setSaving(false);
     setSavedAt(new Date());

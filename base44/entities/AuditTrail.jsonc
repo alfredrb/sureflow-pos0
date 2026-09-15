@@ -23,6 +23,10 @@
       "type": "string",
       "description": "Detailed human-readable description of the change."
     },
+    "store_id": {
+      "type": "string",
+      "description": "Store number this change was made AGAINST \u2014 not where the admin was sitting. Blank means the change was chain-wide: it belongs to HQ and affects every store (creating a store, editing the shared catalog, changing chain policy). That distinction is the whole point of the field: a store manager must only ever see their own store's change history, and HQ needs to be able to ask 'what changed at store 002 today' without reading every other store's entries. Historical entries written before this field existed stay blank and read as Chain-Wide."
+    },
     "actor_id": {
       "type": "string",
       "description": "Operator ID of the admin who performed the change."

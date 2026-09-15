@@ -77,6 +77,8 @@ export default function AdminActionCodes() {
       await logAuditEvent({
         action: "Created Action Code", category: "configuration", page: "/admin/action-codes",
         description: `Action code ${code} "${payload.label}" created → ${ACTION_LABELS[payload.action] || payload.action} (${payload.status}, role: ${payload.requires_role})`,
+        // An action code carries its own store scope: blank means it serves every store.
+        store_id: payload.store_id || "",
         changes: diffChanges({}, payload, AUDIT_FIELDS),
       });
       toast({ title: "Action code created" });
@@ -85,6 +87,7 @@ export default function AdminActionCodes() {
       await logAuditEvent({
         action: "Updated Action Code", category: "configuration", page: "/admin/action-codes",
         description: `Action code ${code} "${payload.label}" updated`,
+        store_id: payload.store_id || "",
         changes: diffChanges(editing, payload, AUDIT_FIELDS),
       });
       toast({ title: "Action code updated" });
@@ -97,6 +100,7 @@ export default function AdminActionCodes() {
     await logAuditEvent({
       action: "Deleted Action Code", category: "configuration", page: "/admin/action-codes",
       description: `Action code ${editing.code} "${editing.label}" deleted`,
+      store_id: editing.store_id || "",
       changes: diffChanges(editing, {}, AUDIT_FIELDS),
     });
     toast({ title: "Action code deleted" });
@@ -113,6 +117,8 @@ export default function AdminActionCodes() {
       await logAuditEvent({
         action: "Restored Default Action Codes", category: "configuration", page: "/admin/action-codes",
         description: `Added ${missing.length} missing default action code(s): ${missing.map(m => m.code).join(", ")}`,
+        // Defaults are seeded with no store, so this is a chain-wide restore.
+        store_id: "",
         changes: [{ field: "codes_added", from: "", to: missing.map(m => m.code).join(", ") }],
       });
     }

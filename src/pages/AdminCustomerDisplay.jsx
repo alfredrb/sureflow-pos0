@@ -35,16 +35,18 @@ export default function AdminCustomerDisplay() {
       logAuditEvent({
         action: "Updated Customer Display Slide",
         category: "configuration",
-        description: `Edited the customer monitor idle slide "${data.headline}".`,
+        description: `Edited the customer monitor idle slide "${data.headline}" — holds ${data.display_seconds || 8}s at order ${data.sort_order || 0}, ${data.active === false ? "inactive" : "active"}.`,
         page: "/admin/customer-display",
+        store_id: data.store_id || editing.store_id || "",
       });
     } else {
       await base44.entities.CustomerDisplay.create(data);
       logAuditEvent({
         action: "Created Customer Display Slide",
         category: "configuration",
-        description: `Added the customer monitor idle slide "${data.headline}".`,
+        description: `Added the customer monitor idle slide "${data.headline}" — holds ${data.display_seconds || 8}s at order ${data.sort_order || 0}.`,
         page: "/admin/customer-display",
+        store_id: data.store_id || storeId || "",
       });
     }
     setEditing(null);
@@ -59,6 +61,7 @@ export default function AdminCustomerDisplay() {
       category: "configuration",
       description: `Removed the customer monitor idle slide "${slide.headline}".`,
       page: "/admin/customer-display",
+      store_id: slide.store_id || "",
     });
     load();
   };

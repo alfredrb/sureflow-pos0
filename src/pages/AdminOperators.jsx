@@ -16,6 +16,9 @@ import { mirrorAdminScopeToUser } from "@/lib/adminScopeMirror";
 
 const EMPTY_FORM = { operator_id: "", full_name: "", pin: "", role: "cashier", status: "active", email: "", pos_access: true, company_id: "", admin_role: "", home_store_id: "", serviced_store_ids: [] };
 const ADMIN_ACCESS_FIELDS = ["admin_role", "home_store_id", "serviced_store_ids"];
+// The PIN is deliberately excluded: an audit entry records that a credential changed,
+// never the credential itself.
+const OPERATOR_FIELDS = ["operator_id", "full_name", "role", "status", "email", "pos_access", "company_id"];
 
 export default function AdminOperators() {
   const [operators, setOperators] = useState([]);
@@ -85,6 +88,9 @@ export default function AdminOperators() {
       category: "permissions",
       description: `Admin role now ${ADMIN_ROLE_LABELS[resolveAdminRole(after)]}, home store ${after.home_store_id || "none"}, serviced stores ${(after.serviced_store_ids || []).join(", ") || "none"}.`,
       page: "/admin/operators",
+      // Admin reach is a chain-level grant, so it is recorded chain-wide rather than
+      // filed under whichever store the person happens to be anchored to.
+      store_id: "",
       changes,
     });
   };
@@ -97,10 +103,28 @@ export default function AdminOperators() {
       if (!editing && ownStore) payload.store_id = ownStore;
       if (editing) {
         await base44.entities.Operator.update(editing.id, payload);
+        const changes = diffChanges(editing, payload, OPERATOR_FIELDS);
+        if (payload.pin && payload.pin !== editing.pin) changes.push({ field: "pin", from: "(hidden)", to: "(changed)" });
+        logAuditEvent({
+          action: "Updated Operator",
+          category: "operator",
+          description: `Operator ${payload.operator_id} (${payload.full_name}) updated — role ${payload.role}, ${payload.status}, POS access ${payload.pos_access === false ? "denied" : "allowed"}.`,
+          page: "/admin/operators",
+          store_id: editing.store_id || "",
+          changes,
+        });
         if (canEditAdminAccess) await logAdminAccessChange(editing, form);
         toast({ title: "Operator updated" });
       } else {
         await base44.entities.Operator.create(payload);
+        logAuditEvent({
+          action: "Created Operator",
+          category: "operator",
+          description: `Operator ${payload.operator_id} (${payload.full_name}) created as ${payload.role}${payload.store_id ? ` at store ${payload.store_id}` : " with no store assigned"}.`,
+          page: "/admin/operators",
+          store_id: payload.store_id || "",
+          changes: diffChanges({}, payload, OPERATOR_FIELDS),
+        });
         if (canEditAdminAccess) await logAdminAccessChange({}, form);
         toast({ title: "Operator created" });
       }
@@ -115,6 +139,13 @@ export default function AdminOperators() {
     if (!confirm(`Delete operator ${op.full_name}?`)) return;
     try {
       await base44.entities.Operator.delete(op.id);
+      logAuditEvent({
+        action: "Deleted Operator",
+        category: "operator",
+        description: `Operator ${op.operator_id} (${op.full_name}), role ${op.role}, removed from the system.`,
+        page: "/admin/operators",
+        store_id: op.store_id || "",
+      });
       toast({ title: "Operator deleted" });
       setTimeout(() => load(), 500);
     } catch (e) {

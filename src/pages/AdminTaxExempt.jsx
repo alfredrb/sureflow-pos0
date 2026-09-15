@@ -12,7 +12,10 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
 import moment from "moment";
+
+const AUDIT_FIELDS = ["entity_type", "name", "contact_name", "address_street", "address_city", "address_state", "address_zip", "phone", "email", "tax_id_number", "exemption_type", "notes"];
 
 const EXEMPTION_TYPES = [
   { value: "resale", label: "Resale" },
@@ -120,6 +123,13 @@ export default function AdminTaxExempt() {
     try {
       if (editing) {
         await base44.entities.TaxExemptProfile.update(editing.id, { ...form });
+        logAuditEvent({
+          action: "Updated Tax Exempt Profile",
+          category: "configuration",
+          description: `Tax exempt profile ${editing.tax_exempt_id} (${form.name}) updated — ${form.exemption_type} exemption, tax ID ${form.tax_id_number || "not recorded"}.`,
+          page: "/admin/tax-exempt",
+          changes: diffChanges(editing, form, AUDIT_FIELDS),
+        });
         toast({ title: "Profile Updated", description: form.name });
         setFormOpen(false);
       } else {
@@ -129,6 +139,13 @@ export default function AdminTaxExempt() {
           tax_exempt_id: taxExemptId,
           status: "active",
           issued_date: new Date().toISOString(),
+        });
+        logAuditEvent({
+          action: "Created Tax Exempt Profile",
+          category: "configuration",
+          description: `Tax exempt profile ${taxExemptId} issued to ${form.name} — ${form.exemption_type} exemption, tax ID ${form.tax_id_number || "not recorded"}. This ID now removes tax at the POS once verified.`,
+          page: "/admin/tax-exempt",
+          changes: diffChanges({}, form, AUDIT_FIELDS),
         });
         toast({ title: "Profile Created", description: `Tax Exempt ID: ${taxExemptId}` });
         setFormOpen(false);
@@ -145,12 +162,25 @@ export default function AdminTaxExempt() {
   const toggleStatus = async (p) => {
     const newStatus = p.status === "active" ? "disabled" : "active";
     await base44.entities.TaxExemptProfile.update(p.id, { status: newStatus });
+    logAuditEvent({
+      action: newStatus === "disabled" ? "Disabled Tax Exempt Profile" : "Enabled Tax Exempt Profile",
+      category: "configuration",
+      description: `Tax exempt profile ${p.tax_exempt_id} (${p.name}) ${newStatus === "disabled" ? "disabled — it will no longer remove tax at the POS" : "re-enabled"}.`,
+      page: "/admin/tax-exempt",
+      changes: [{ field: "status", from: p.status || "active", to: newStatus }],
+    });
     toast({ title: newStatus === "disabled" ? "Account Disabled" : "Account Enabled", description: p.name });
     load(true);
   };
 
   const removeProfile = async (p) => {
     await base44.entities.TaxExemptProfile.delete(p.id);
+    logAuditEvent({
+      action: "Deleted Tax Exempt Profile",
+      category: "configuration",
+      description: `Tax exempt profile ${p.tax_exempt_id} (${p.name}) permanently removed — the ID no longer verifies at the POS.`,
+      page: "/admin/tax-exempt",
+    });
     toast({ title: "Profile Removed", description: `${p.name} (${p.tax_exempt_id})` });
     setViewProfile(null);
     load(true);

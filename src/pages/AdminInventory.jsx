@@ -13,6 +13,9 @@ import CategoryManager from "@/components/inventory/CategoryManager";
 import SerializedInventoryTab from "@/components/inventory/SerializedInventoryTab";
 import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { logAuditEvent, diffChanges } from "@/lib/auditLogger";
+
+const AUDIT_FIELDS = ["sku", "name", "price", "cost", "category", "barcode", "stock_qty", "tax_rate", "status", "return_period_days", "vendor_company_id", "recalled", "recall_reason", "promotional", "release_date", "serialized"];
 
 const emptyProduct = { sku: "", name: "", price: 0, cost: 0, category: "", barcode: "", stock_qty: 0, tax_rate: 0, status: "active", return_period_days: "", vendor_company_id: "", recalled: false, recall_reason: "", promotional: false, release_date: "", serialized: false };
 const MPP_LABELS = { none: "—", wrapped: "Wrap", case: "Case", counter: "Counter", locked: "Locked", other: "Other" };
@@ -134,9 +137,26 @@ export default function AdminInventory() {
       if (editing) {
         if (isVendor && (editing.vendor_company_id || "") !== vendorCompanyId) { toast({ title: "Access denied", variant: "destructive" }); return; }
         await base44.entities.Product.update(editing.id, payload);
+        logAuditEvent({
+          action: "Updated Product",
+          category: "configuration",
+          description: `Product ${payload.sku} (${payload.name}) updated — price $${Number(payload.price || 0).toFixed(2)}, stock ${payload.stock_qty ?? 0}, status ${payload.status}${payload.recalled ? ", RECALLED" : ""}${payload.serialized ? ", serialized" : ""}.`,
+          page: "/admin/inventory",
+          // A product's own store; a shared catalog item carries none and reads chain-wide.
+          store_id: editing.store_id || "",
+          changes: diffChanges(editing, payload, AUDIT_FIELDS),
+        });
         toast({ title: "Product updated" });
       } else {
-        await base44.entities.Product.create(payload);
+        const created = await base44.entities.Product.create(payload);
+        logAuditEvent({
+          action: "Created Product",
+          category: "configuration",
+          description: `Product ${payload.sku} (${payload.name}) added at $${Number(payload.price || 0).toFixed(2)}${payload.category ? ` in ${payload.category}` : ""}.`,
+          page: "/admin/inventory",
+          store_id: created?.store_id || "",
+          changes: diffChanges({}, payload, AUDIT_FIELDS),
+        });
         toast({ title: "Product added" });
       }
       setDialogOpen(false); load();
@@ -149,6 +169,13 @@ export default function AdminInventory() {
     if (isVendor && (p.vendor_company_id || "") !== vendorCompanyId) { toast({ title: "Access denied", variant: "destructive" }); return; }
     if (!confirm(`Delete ${p.name}?`)) return;
     await base44.entities.Product.delete(p.id);
+    logAuditEvent({
+      action: "Deleted Product",
+      category: "configuration",
+      description: `Product ${p.sku} (${p.name}) deleted from the catalog.`,
+      page: "/admin/inventory",
+      store_id: p.store_id || "",
+    });
     toast({ title: "Product deleted" }); load();
   };
 
@@ -161,6 +188,13 @@ export default function AdminInventory() {
   const applyBulk = async (changes) => {
     const updates = Array.from(selectedIds).map(id => ({ id, ...changes }));
     await base44.entities.Product.bulkUpdate(updates);
+    logAuditEvent({
+      action: "Bulk Updated Products",
+      category: "configuration",
+      description: `${updates.length} product${updates.length === 1 ? "" : "s"} updated in bulk. Applied: ${Object.entries(changes).map(([k, v]) => `${k} → ${v}`).join(", ")}.`,
+      page: "/admin/inventory",
+      changes: Object.entries(changes).map(([field, to]) => ({ field, from: "(various)", to: String(to) })),
+    });
     toast({ title: `${updates.length} product${updates.length === 1 ? "" : "s"} updated` });
     setBulkOpen(false);
     setSelectedIds(new Set());

@@ -40,6 +40,9 @@ export default function HardwareLibraryPanel() {
         category: "register",
         description: `${editing ? "Updated" : "Created"} driver profile for ${form.model} (${form.device_type}) — modules: ${(form.kernel_modules || []).join(" ") || "—"}, boot args: ${form.boot_args || "—"}.`,
         page: "/admin/hardware",
+        // The driver library is one fleet-wide catalog — every store's lanes build from
+        // it — so its changes are chain-wide, never filed under one store.
+        store_id: "",
         changes: diffChanges(editing || {}, payload, FIELDS),
       });
       toast({ title: editing ? "Profile updated" : "Profile added" });
@@ -55,6 +58,7 @@ export default function HardwareLibraryPanel() {
       category: "register",
       description: `Deleted driver profile for ${it.model} (${it.device_type}).`,
       page: "/admin/hardware",
+      store_id: "",
     });
     load();
   };

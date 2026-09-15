@@ -109,6 +109,9 @@ export default function AdminRegisters() {
           category: "register",
           description: `Updated register ${form.name} (${form.register_id}) — terminal: ${form.terminal_model || "—"}, scanner: ${form.scanner_model || "—"} (${form.scanner_interface}), keyboard: ${form.keyboard_model || "—"}, boot profile: ${form.boot_profile}, printer transport: ${form.printer_transport === "usb_bridge" ? `USB bridged at the lane (${form.printer_ip || "no IP set"}), Ethernet fallback ${form.printer_fallback_ip || "not set"}` : `Ethernet (${form.printer_ip || "no IP set"})`}, customer pinpad: ${form.pinpad_model ? `${pinpadLabel(form.pinpad_model)} at ${form.pinpad_ip || "no IP set"}` : "none"}, pole display: ${form.pole_display_model ? poleLabel(form.pole_display_model) : "none"}, customer monitor: ${form.customer_monitor_enabled ? `${form.customer_monitor_resolution || "1920x1080"} ${form.customer_monitor_orientation || "landscape"}` : "none"}, cash drawer: ${drawerTransportLabel(form.drawer_transport)}${form.drawer_transport === "usb_direct" ? ` — bridge ${form.drawer_bridge_ip || "lane IP"}:${form.drawer_bridge_port || DRAWER_BRIDGE_PORT}, model ${form.drawer_model || "standard ESC p"}` : ""}.`,
           page: "/admin/registers",
+          // A lane's own store, not the admin's current view — a chain-wide HQ session
+          // still changed one specific store's hardware.
+          store_id: form.store_id || editing.store_id || "",
           changes: diffChanges(editing, form, AUDIT_FIELDS),
         });
         toast({ title: "Register updated" });
@@ -120,6 +123,7 @@ export default function AdminRegisters() {
           category: "register",
           description: `Created register ${form.name} (${form.register_id}) with boot profile ${form.boot_profile}, terminal ${form.terminal_model || "—"}, scanner ${form.scanner_model || "—"}.`,
           page: "/admin/registers",
+          store_id: form.store_id || "",
           changes: diffChanges({}, form, AUDIT_FIELDS),
         });
         toast({ title: "Register added" });
@@ -137,6 +141,7 @@ export default function AdminRegisters() {
       category: "register",
       description: `Deleted register ${r.name} (${r.register_id}) — MAC ${r.mac_address || "—"}, boot profile ${r.boot_profile || "—"}.`,
       page: "/admin/registers",
+      store_id: r.store_id || "",
     });
     toast({ title: "Register deleted" }); load();
   };
