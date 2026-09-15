@@ -63,7 +63,7 @@ const parseCSV = (text) => {
 
 // Upsert by SKU: existing products are updated in place, new SKUs are created.
 const importFromCSV = async (file, opts, onDone) => {
-  const { isVendor, vendorCompanyId } = opts || {};
+  const { isVendor, vendorCompanyId, defaultStoreId } = opts || {};
   const rows = parseCSV(await file.text());
   const existing = await base44.entities.Product.list();
   const bySku = {};
@@ -77,7 +77,14 @@ const importFromCSV = async (file, opts, onDone) => {
     // Vendors cannot overwrite another company's product — skip those rows.
     if (isVendor && matches.length && !own) { skipped++; continue; }
     if (own) { await base44.entities.Product.update(own.id, row); updated++; }
-    else { await base44.entities.Product.create(row); created++; }
+    else {
+      // A store-scoped admin imports into their OWN store's catalog. Without this the
+      // rows land with a blank store_id, which means the shared chain catalog — one
+      // store's import would appear on every other store's shelf.
+      if (defaultStoreId) row.store_id = defaultStoreId;
+      await base44.entities.Product.create(row);
+      created++;
+    }
   }
   onDone?.({ created, updated, skipped });
 };
@@ -102,6 +109,9 @@ export default function AdminInventory() {
   // The catalog follows the header's active store: that store's own items plus the
   // shared chain catalog, exactly as the lanes see it.
   const { access } = useStoreScope();
+  // The store a newly added item belongs to. Blank on a chain-wide HQ view, which is
+  // how a shared catalog item is created deliberately.
+  const defaultStoreId = access.storeScope === "all" ? "" : (access.storeScope[0] || "");
 
   const loadCategories = async () => { try { setCategories(await base44.entities.Category.list()); } catch {} };
   useEffect(() => { base44.entities.VendorCompany.list("-issued_date", 500).then(setCompanies).catch(() => {}); }, []);
@@ -148,6 +158,7 @@ export default function AdminInventory() {
         });
         toast({ title: "Product updated" });
       } else {
+        if (defaultStoreId) payload.store_id = defaultStoreId;
         const created = await base44.entities.Product.create(payload);
         logAuditEvent({
           action: "Created Product",
@@ -221,7 +232,7 @@ export default function AdminInventory() {
           <label>
             <input type="file" accept=".csv" onChange={e => {
               if (e.target.files?.[0]) {
-                importFromCSV(e.target.files[0], { isVendor, vendorCompanyId }, ({ created, updated, skipped }) => {
+                importFromCSV(e.target.files[0], { isVendor, vendorCompanyId, defaultStoreId }, ({ created, updated, skipped }) => {
                   toast({ title: "Import complete", description: `${created} added, ${updated} updated${skipped ? `, ${skipped} skipped` : ""}` });
                   load();
                 }).catch(() => toast({ title: "Import failed", variant: "destructive" }));

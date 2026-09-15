@@ -352,7 +352,9 @@ export default function AdminRegisters() {
             <PinpadProfileSection form={form} setForm={setForm} />
             <PoleDisplaySection form={form} setForm={setForm} />
             <CustomerMonitorSection form={form} setForm={setForm} />
-            <SelfCheckoutSection form={form} setForm={setForm} registers={registers} />
+            {/* Scoped: an SCO lane's attendant station must be a lane in the same store,
+                never another store's register. */}
+            <SelfCheckoutSection form={form} setForm={setForm} registers={scopedRegisters} />
             <HardwareProfileSection form={form} setForm={setForm} keyboardOptions={keyboardOptions} />
             <Button onClick={save} className="w-full bg-blue-600 hover:bg-blue-700">{editing ? "Update" : "Add"} Register</Button>
           </div>
