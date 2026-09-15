@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import moment from "moment";
 import EvidenceViewerDialog from "./EvidenceViewerDialog";
+import { scopeLPRecords } from "@/lib/lpScope";
 
 const DOC_KINDS = new Set(["raf", "robbery", "incident", "statement", "meal"]);
 const CATEGORY_META = {
@@ -27,7 +28,7 @@ const categoryOf = (it) => {
 
 const adminName = () => { try { return JSON.parse(sessionStorage.getItem("admin_operator"))?.full_name || "Admin"; } catch { return "Admin"; } };
 
-export default function EvidenceLockerPanel() {
+export default function EvidenceLockerPanel({ access }) {
   const [investigations, setInvestigations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -44,11 +45,14 @@ export default function EvidenceLockerPanel() {
   const load = async () => {
     try {
       const list = await base44.entities.Investigation.list("-created_date", 1000);
-      setInvestigations(list || []);
+      // Evidence inherits its case's store: statements and employee documents are the
+      // most sensitive records in the workbench, so the locker only ever shows this
+      // store's, and cross-referencing can only target its own open cases.
+      setInvestigations(scopeLPRecords(access, list || []));
     } catch { setInvestigations([]); }
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
   useRealtimeSync("Investigation", () => load(), { intervalMs: 30000 });
 
   const flattened = useMemo(() => {

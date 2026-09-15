@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import ProtectionAIInsights from "@/components/lossprevention/ProtectionAIInsights";
+import { scopeBySku } from "@/lib/lpScope";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 
 const MPP_OPTIONS = [
   { value: "none", label: "None" },
@@ -23,7 +25,7 @@ const ID_OPTIONS = [
 ];
 const mppLabel = (v) => MPP_OPTIONS.find(o => o.value === v)?.label || v || "—";
 
-export default function MerchandiseProtectionPanel() {
+export default function MerchandiseProtectionPanel({ access }) {
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
   const [exclusions, setExclusions] = useState([]);
@@ -43,11 +45,15 @@ export default function MerchandiseProtectionPanel() {
         base44.entities.Product.list(),
         base44.entities.ProtectionExclusion.list(),
       ]);
-      setPlans(p); setProducts(prods); setExclusions(excls);
+      // A plan changes how an item is protected on the shelf, so a store may only
+      // see and set plans for the items it carries.
+      setPlans(scopeBySku(access, prods, p));
+      setProducts(scopeCatalogToAccess(access, prods));
+      setExclusions(excls);
     } catch (e) {}
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
 
   const openNew = () => { setEditing(null); setForm({ sku: "", mpp_plan: "wrapped", id_required: "none", reason: "", notes: "" }); setDialogOpen(true); };
   const openEdit = (pl) => { setEditing(pl); setForm({ sku: pl.sku, mpp_plan: pl.mpp_plan || "wrapped", id_required: pl.id_required || "none", reason: pl.reason || "", notes: pl.notes || "" }); setDialogOpen(true); };

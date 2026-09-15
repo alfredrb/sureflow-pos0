@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import EvidenceViewerDialog from "@/components/lossprevention/EvidenceViewerDialog";
+import { scopeLPRecords } from "@/lib/lpScope";
 
 const TYPE_LABEL = {
   cash_short: "Cash Short", cash_over: "Cash Over", voids: "Voids", overrides: "Overrides",
@@ -30,7 +31,7 @@ function Meta({ label, value }) {
   );
 }
 
-export default function DataViewerPanel({ onAdded }) {
+export default function DataViewerPanel({ access, onAdded }) {
   const [data, setData] = useState(null);
   const [viewEvidence, setViewEvidence] = useState(null);
   const [fileName, setFileName] = useState("");
@@ -72,7 +73,8 @@ export default function DataViewerPanel({ onAdded }) {
     setInvSearch("");
     try {
       const list = await base44.entities.Investigation.list("-created_date", 200);
-      setInvs(list.filter(i => !i.archived && i.status !== "closed"));
+      // An uploaded export can only be attached to a case this store owns.
+      setInvs(scopeLPRecords(access, list).filter(i => !i.archived && i.status !== "closed"));
     } catch (e) {
       toast({ title: "Could not load investigations", description: e?.message, variant: "destructive" });
     }

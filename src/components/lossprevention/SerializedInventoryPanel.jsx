@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
+import { scopeBySku } from "@/lib/lpScope";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 
 const STATUS_BADGE = {
   sold: { label: "Sold", cls: "bg-emerald-100 text-emerald-700" },
@@ -13,7 +15,7 @@ const STATUS_BADGE = {
   exchanged: { label: "Exchanged", cls: "bg-teal-100 text-teal-700" },
 };
 
-export default function SerializedInventoryPanel({ fromDate, toDate }) {
+export default function SerializedInventoryPanel({ access, fromDate, toDate }) {
   const [records, setRecords] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,14 +37,16 @@ export default function SerializedInventoryPanel({ fromDate, toDate }) {
         base44.entities.SerializedSale.list("-sale_date", 1000),
         base44.entities.Product.list()
       ]);
-      setRecords(recs);
-      setProducts(prods);
+      // A serialized unit names an item, so the store boundary runs through the
+      // catalog: a store tracks the serials it actually sells.
+      setRecords(scopeBySku(access, prods, recs));
+      setProducts(scopeCatalogToAccess(access, prods));
     } catch (e) {
       setRecords([]); setProducts([]);
     }
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
   useRealtimeSync("SerializedSale", load, { intervalMs: 30000 });
 
   const inRange = (d) => {

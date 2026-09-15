@@ -191,15 +191,15 @@ export default function AdminLossPrevention() {
       {tab === "shrinkage" && <ShrinkageReportPanel access={access} fromDate={fromDate} toDate={toDate} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
-      {tab === "evidence" && <EvidenceLockerPanel />}
+      {tab === "evidence" && <EvidenceLockerPanel access={access} />}
       {tab === "tasks" && <TasksPanel access={access} />}
       {tab === "time" && <TimeTheftPanel access={access} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "noreturns" && <NoReceiptWorkbenchTab txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "claims" && <ClaimsAuditPanel access={access} fromDate={fromDate} toDate={toDate} />}
-      {tab === "serialized" && <SerializedInventoryPanel fromDate={fromDate} toDate={toDate} />}
-      {tab === "mpp" && <MerchandiseProtectionPanel />}
-      {tab === "meals" && <MealExceptionsPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
-      {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
+      {tab === "serialized" && <SerializedInventoryPanel access={access} fromDate={fromDate} toDate={toDate} />}
+      {tab === "mpp" && <MerchandiseProtectionPanel access={access} />}
+      {tab === "meals" && <MealExceptionsPanel access={access} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
+      {tab === "data" && <DataViewerPanel access={access} onAdded={onInvestigationAdded} />}
 
       {/* A new case is filed under the store being viewed. */}
       <InvestigationDetailDialog value={investigation} storeId={lpStoreId(access)} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />

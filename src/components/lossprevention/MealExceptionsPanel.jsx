@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
+import { scopeByOperator } from "@/lib/peopleScope";
 import moment from "moment";
 
 const TYPE_META = {
@@ -26,7 +27,7 @@ const keyOf = (f) => f.exception_type === "override"
   ? `override|${f.register_log_id || ""}`
   : `${f.exception_type}|${f.operator_id || ""}|${f.shift_date || ""}`;
 
-export default function MealExceptionsPanel({ fromDate, toDate, onStartInvestigation }) {
+export default function MealExceptionsPanel({ access, fromDate, toDate, onStartInvestigation }) {
   const [exceptions, setExceptions] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [entries, setEntries] = useState([]);
@@ -43,23 +44,27 @@ export default function MealExceptionsPanel({ fromDate, toDate, onStartInvestiga
 
   const loadAll = async () => {
     try {
-      const [ex, sh, en, lg] = await Promise.all([
+      const [ex, sh, en, lg, ops] = await Promise.all([
         base44.entities.MealException.list("-created_date", 1000),
         base44.entities.Shift.list("-date", 1000),
         base44.entities.TimeClockEntry.list("-clock_in", 1000),
         base44.entities.RegisterLog.list("-created_date", 1000),
+        base44.entities.Operator.list(),
       ]);
-      setExceptions(ex || []);
-      setShifts(sh || []);
-      setEntries(en || []);
-      setLogs(lg || []);
+      // A meal exception is about a person's break, not a lane, so the store
+      // boundary runs through the operator — the same rule payroll uses. Scoping the
+      // SOURCE records too means the auto-scan only ever writes this store's people.
+      setExceptions(scopeByOperator(access, ops, ex || []));
+      setShifts(scopeByOperator(access, ops, sh || []));
+      setEntries(scopeByOperator(access, ops, en || []));
+      setLogs(scopeByOperator(access, ops, lg || []));
     } catch (e) {
       toast({ title: "Failed to load", variant: "destructive" });
     }
     setLoading(false);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, [access]);
   useRealtimeSync("MealException", () => loadAll(), { intervalMs: 30000 });
 
   const inRange = (d) => {
