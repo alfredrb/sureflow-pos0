@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import InvestigationKanbanBoard from "@/components/lossprevention/InvestigationKanbanBoard";
+import { scopeLPRecords } from "@/lib/lpScope";
 
 export const TYPE_LABEL = {
   cash_short: "Cash Short", cash_over: "Cash Over", voids: "Voids", overrides: "Overrides",
@@ -23,7 +24,7 @@ export const STATUS_BADGE = {
 };
 export const STATUS_LABEL = { open: "Open", in_progress: "In Progress", closed: "Closed" };
 
-export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, onNewInvestigation }) {
+export default function InvestigationsPanel({ access, refreshKey, onOpenInvestigation, onNewInvestigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -97,11 +98,13 @@ export default function InvestigationsPanel({ refreshKey, onOpenInvestigation, o
     setLoading(true);
     try {
       const data = await base44.entities.Investigation.list("-created_date", 200);
-      setItems(data);
+      // Cases are held to the store being viewed — every count, filter and board
+      // column downstream reads this list.
+      setItems(scopeLPRecords(access, data));
     } catch { setItems([]); }
     setLoading(false);
   };
-  useEffect(() => { load(); }, [refreshKey]);
+  useEffect(() => { load(); }, [refreshKey, access]);
 
   const filtered = items.filter(i =>
     (statusFilter === "archived" ? i.archived : (!i.archived && (statusFilter === "all" || i.status === statusFilter))) &&

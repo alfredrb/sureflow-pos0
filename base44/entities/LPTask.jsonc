@@ -43,6 +43,10 @@
       ],
       "default": "pending"
     },
+    "store_id": {
+      "type": "string",
+      "description": "Store this follow-up belongs to. A task carries no register, so the store is stamped on the record itself when it is created. Blank = a chain-level task raised from HQ's chain-wide view, and also how tasks written before this field existed read \u2014 those stay visible to everyone rather than disappearing from the store investigating them."
+    },
     "investigation_id": {
       "type": "string",
       "description": "Optional linked investigation case"

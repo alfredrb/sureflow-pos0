@@ -33,7 +33,7 @@ const empty = { title: "", type: "other", severity: "medium", status: "open", op
 
 const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-export default function InvestigationDetailDialog({ value, onClose, onSaved, logs = [], txns = [], audits = [] }) {
+export default function InvestigationDetailDialog({ value, storeId = "", onClose, onSaved, logs = [], txns = [], audits = [] }) {
   const [form, setForm] = useState(empty);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -111,6 +111,9 @@ export default function InvestigationDetailDialog({ value, onClose, onSaved, log
         const activity_log = [{ date: now, by, action: "Created", note: form.summary || "" }];
         const autoAmount = (form.type === "stock_theft" && stolenItems.length > 0 && !Number(form.amount_impact)) ? stolenTotalLoss : (Number(form.amount_impact) || 0);
         const payload = { ...form, amount_impact: autoAmount, linked_operators: linkedOperators, evidence, stolen_items: stolenItems, activity_log, created_by: by };
+        // The case belongs to the store it was opened at, so it stays inside that
+        // store's workbench. Blank on a chain-wide HQ view.
+        if (storeId) payload.store_id = storeId;
         await base44.entities.Investigation.create(payload);
         await applyInventoryAdjustment([], stolenItems);
         toast({ title: "Investigation started", description: form.type === "stock_theft" && stolenItems.length > 0 ? `Stock adjusted for ${stolenItems.length} stolen item(s)` : undefined });

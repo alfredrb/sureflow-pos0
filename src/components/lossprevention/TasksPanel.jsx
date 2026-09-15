@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { Plus, Search, Trash2, CheckCircle2, Pencil, ListTodo, AlertTriangle } from "lucide-react";
 import moment from "moment";
+import { scopeLPRecords, lpStoreId } from "@/lib/lpScope";
 
 const SEVERITY = {
   low: { label: "Low", cls: "bg-gray-100 text-gray-700", dot: "bg-gray-400" },
@@ -26,7 +27,7 @@ const STATUS = {
 
 const empty = { title: "", description: "", assigned_to: "", assigned_operator_id: "", due_date: moment().add(2, "days").format("YYYY-MM-DD"), severity: "medium", status: "pending", notes: "" };
 
-export default function TasksPanel() {
+export default function TasksPanel({ access }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -42,13 +43,14 @@ export default function TasksPanel() {
     setLoading(true);
     try {
       const data = await base44.entities.LPTask.list("-due_date", 200);
-      setItems(data);
+      setItems(scopeLPRecords(access, data));
     } catch { toast({ title: "Failed to load tasks", variant: "destructive" }); }
     setLoading(false);
   };
 
+  useEffect(() => { load(); }, [access]);
+
   useEffect(() => {
-    load();
     base44.entities.Operator.list().then(list => setSupervisors(list.filter(o => o.status !== "inactive" && (o.role === "csm" || o.role === "manager")))).catch(() => {});
   }, []);
 
@@ -89,7 +91,9 @@ export default function TasksPanel() {
         investigation_title: form.investigation_title || "",
         completed_at: form.status === "completed" && !form.completed_at ? new Date().toISOString() : form.completed_at || "",
       };
-      if (editing?.__new) await base44.entities.LPTask.create(payload);
+      // A new follow-up is filed under the store being viewed, so it stays in that
+      // store's task list.
+      if (editing?.__new) await base44.entities.LPTask.create({ ...payload, store_id: lpStoreId(access) });
       else await base44.entities.LPTask.update(editing.id, payload);
       toast({ title: editing?.__new ? "Task created" : "Task updated" });
       setEditing(null);

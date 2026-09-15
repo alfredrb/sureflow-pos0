@@ -27,8 +27,9 @@ import MealExceptionsPanel from "@/components/lossprevention/MealExceptionsPanel
 import EvidenceLockerPanel from "@/components/lossprevention/EvidenceLockerPanel";
 import ActionCodeAuditPanel from "@/components/lossprevention/ActionCodeAuditPanel";
 import DrawerActivityPanel from "@/components/lossprevention/DrawerActivityPanel";
-import { getAdminAccess } from "@/lib/adminAccess";
 import { scopeRecords } from "@/lib/recordScope";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { lpStoreId } from "@/lib/lpScope";
 
 export default function AdminLossPrevention() {
   const [logs, setLogs] = useState([]);
@@ -45,6 +46,9 @@ export default function AdminLossPrevention() {
   const [settingsRecId, setSettingsRecId] = useState(null);
   const tabRef = useRef(null);
   const { toast } = useToast();
+  // The workbench follows the header's active store, so an HQ user can narrow to one
+  // store's cases and a store-level investigator is held to their own.
+  const { access } = useStoreScope();
 
   const scrollTabs = (dir) => {
     const el = tabRef.current; if (!el) return;
@@ -78,7 +82,6 @@ export default function AdminLossPrevention() {
       // Everything the workbench reasons over is scoped once, here — the panels all
       // read these three lists, so a store-level investigator can never rank or
       // investigate another store's operators.
-      const access = getAdminAccess(JSON.parse(sessionStorage.getItem("admin_operator") || "null"));
       setLogs(scopeRecords(access, regData, logData));
       setTxns(scopeRecords(access, regData, txnData));
       setAudits(scopeRecords(access, regData, auditData));
@@ -98,7 +101,7 @@ export default function AdminLossPrevention() {
     if (!silent) setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
   useRealtimeSync("RegisterLog", load, { intervalMs: 30000 });
 
   const setQuickRange = (n) => {
@@ -183,13 +186,13 @@ export default function AdminLossPrevention() {
       {tab === "actioncodes" && <ActionCodeAuditPanel logs={logs} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "drawer" && <DrawerActivityPanel logs={logs} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
-      {tab === "investigations" && <InvestigationsPanel refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
+      {tab === "investigations" && <InvestigationsPanel access={access} refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}
       {tab === "shrinkage" && <ShrinkageReportPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "evidence" && <EvidenceLockerPanel />}
-      {tab === "tasks" && <TasksPanel />}
+      {tab === "tasks" && <TasksPanel access={access} />}
       {tab === "time" && <TimeTheftPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "noreturns" && <NoReceiptWorkbenchTab txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "claims" && <ClaimsAuditPanel fromDate={fromDate} toDate={toDate} />}
@@ -198,7 +201,8 @@ export default function AdminLossPrevention() {
       {tab === "meals" && <MealExceptionsPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "data" && <DataViewerPanel onAdded={onInvestigationAdded} />}
 
-      <InvestigationDetailDialog value={investigation} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
+      {/* A new case is filed under the store being viewed. */}
+      <InvestigationDetailDialog value={investigation} storeId={lpStoreId(access)} onClose={() => setInvestigation(null)} onSaved={onInvestigationSaved} logs={logs} txns={txns} audits={audits} />
     </div>
   );
 }

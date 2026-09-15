@@ -42,6 +42,10 @@
       ],
       "default": "open"
     },
+    "store_id": {
+      "type": "string",
+      "description": "Store this case belongs to, stamped when the case is opened. A store's Asset Protection user must only ever see their own store's cases \u2014 an open theft case names an employee, so cross-store visibility is a real HR exposure, not just clutter. Blank = a chain-level case opened from HQ's chain-wide view; cases written before this field existed are also blank and stay visible rather than vanishing from the store working them."
+    },
     "operator_name": {
       "type": "string",
       "description": "Primary operator the investigation is about"
