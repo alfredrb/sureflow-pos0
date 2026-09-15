@@ -10,6 +10,8 @@ import CheckRegisterTable from "@/components/checks/CheckRegisterTable";
 import CheckBlockListPanel from "@/components/checks/CheckBlockListPanel";
 import CheckSignatureDialog from "@/components/checks/CheckSignatureDialog";
 import { blockReasonLabel } from "@/lib/checkBlockList";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { scopeRecords } from "@/lib/recordScope";
 
 const FILTERS = ["all", "accepted", "returned", "represented", "cleared", "written_off", "declined"];
 
@@ -24,14 +26,20 @@ export default function AdminCheckRegister() {
   const [blocks, setBlocks] = useState([]);
   const [blockRefresh, setBlockRefresh] = useState(0);
   const [signatureCheck, setSignatureCheck] = useState(null);
+  const { access } = useStoreScope();
 
   const load = async () => {
     setLoading(true);
-    const [list, blockList] = await Promise.all([
+    const [list, blockList, registers] = await Promise.all([
       base44.entities.CheckPayment.list("-created_date", 500),
       base44.entities.CheckBlockList.filter({ status: "active" }),
+      base44.entities.Register.list(),
     ]);
-    setChecks(list.filter((c) => !c.training_mode));
+    // A cheque is a store's own money owed, so the ledger is scoped to the store that
+    // took it. The BLOCK LIST stays chain-wide on purpose: a writer who bounced a
+    // cheque at one store must be refused at every lane in the chain, so the badge
+    // here reflects that chain-wide enforcement rather than the local ledger.
+    setChecks(scopeRecords(access, registers, list).filter((c) => !c.training_mode));
     setBlocks(blockList);
     setLoading(false);
   };
@@ -65,7 +73,7 @@ export default function AdminCheckRegister() {
     load();
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
 
   const handleSetStatus = async (check, status) => {
     setBusyId(check.id);

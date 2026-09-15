@@ -15,6 +15,17 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import { isStoreInScope } from "@/lib/adminAccess";
+
+// A gift card is spendable at ANY store — that never changes, and no POS lookup is
+// scoped. What is scoped is this back-office list: a store manages the cards it issued
+// or serviced, so it can't deactivate or purge another store's outstanding liability.
+// Cards with no issuing store (legacy) stay visible everywhere rather than vanishing.
+function scopeCards(access, cards) {
+  if (!access || access.storeScope === "all") return cards || [];
+  return (cards || []).filter((c) => !c.store_id || isStoreInScope(access, c.store_id));
+}
 
 // Purge gift cards with $0 balance that haven't been touched in 30 days
 const AUTO_DELETE_DAYS = 30;
@@ -39,6 +50,7 @@ export default function AdminGiftCardManager() {
   const [stats, setStats] = useState({ active: 0, totalBalance: 0, totalSold: 0 });
   const searchRef = useRef("");
   const { toast } = useToast();
+  const { access } = useStoreScope();
 
   // Live refresh: re-run the purge check on a 60s interval while the page is open,
   // and react instantly to any GiftCard change anywhere in the system via realtime.
@@ -47,7 +59,7 @@ export default function AdminGiftCardManager() {
     const interval = setInterval(() => loadGiftCards(true), 60000);
     const unsubscribe = base44.entities.GiftCard.subscribe(() => loadGiftCards(true));
     return () => { clearInterval(interval); unsubscribe(); };
-  }, []);
+  }, [access]);
 
   const applyCards = (cards) => {
     setGiftCards(cards);
@@ -65,13 +77,14 @@ export default function AdminGiftCardManager() {
   const loadGiftCards = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      let cards = await base44.entities.GiftCard.list('-purchase_date', 100);
+      let cards = scopeCards(access, await base44.entities.GiftCard.list('-purchase_date', 100));
 
-      // Auto-purge $0-balance cards older than 30 days, then re-fetch the clean list
+      // Auto-purge $0-balance cards older than 30 days, then re-fetch the clean list.
+      // Scoped first on purpose — the cleanup must only ever delete this store's cards.
       const purgedCount = await purgeZeroBalanceCards(cards);
       if (purgedCount > 0) {
         toast({ title: "Auto-cleanup", description: `${purgedCount} empty gift card${purgedCount !== 1 ? "s" : ""} purged (30+ days at $0 balance).` });
-        cards = await base44.entities.GiftCard.list('-purchase_date', 100);
+        cards = scopeCards(access, await base44.entities.GiftCard.list('-purchase_date', 100));
       }
 
       applyCards(cards);

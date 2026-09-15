@@ -42,6 +42,9 @@ export default function AdminLoyaltyMembers() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      // Deliberately NOT store-scoped: a loyalty member belongs to the chain, earns and
+      // redeems at any store, and a member who moves towns must still be findable by
+      // whichever store is serving them. Enrolment records which store signed them up.
       const data = await base44.entities.LoyaltyMember.list("-enrolled_date", 200);
       setMembers(data);
     } catch (e) {
