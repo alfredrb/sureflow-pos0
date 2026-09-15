@@ -5,7 +5,7 @@ import ShrinkageTrendChart from "@/components/lossprevention/ShrinkageTrendChart
 import ShrinkageTopItems from "@/components/lossprevention/ShrinkageTopItems";
 import ShrinkageBudgetCard from "@/components/lossprevention/ShrinkageBudgetCard";
 
-export default function ShrinkageReportPanel({ fromDate, toDate }) {
+export default function ShrinkageReportPanel({ access, fromDate, toDate }) {
   const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
@@ -14,13 +14,13 @@ export default function ShrinkageReportPanel({ fromDate, toDate }) {
     let active = true;
     (async () => {
       try {
-        const data = await loadShrinkageIncidents();
+        const data = await loadShrinkageIncidents(access);
         if (active) setAll(data);
       } catch {}
       if (active) setLoading(false);
     })();
     return () => { active = false; };
-  }, []);
+  }, [access]);
 
   const inRange = useMemo(() => filterByRange(all, fromDate, toDate), [all, fromDate, toDate]);
   const filtered = useMemo(() => (category === "all" ? inRange : inRange.filter(i => i.category === category)), [inRange, category]);

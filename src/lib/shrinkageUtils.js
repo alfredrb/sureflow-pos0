@@ -1,4 +1,6 @@
 import { base44 } from "@/api/base44Client";
+import { scopeLPRecords, scopeBySku } from "@/lib/lpScope";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 
 export const SHRINKAGE_CATEGORIES = ["stolen", "damaged", "missing", "short_shipped"];
 
@@ -12,13 +14,19 @@ export const CATEGORY_META = {
 const DAMAGED_CONDITIONS = ["damaged", "defective", "expired", "unsanitary", "open_package"];
 
 // Fetches and normalizes shrinkage incidents from every loss-prevention source.
-export async function loadShrinkageIncidents() {
-  const [claims, invs, recs, prods] = await Promise.all([
+// Pass the active store scope to hold the report to that store: cases are filtered by
+// their own store, and item-level loss by the catalog the store carries.
+export async function loadShrinkageIncidents(access) {
+  const [allClaims, allInvs, recs, allProds] = await Promise.all([
     base44.entities.Claim.list("-created_date", 1000),
     base44.entities.Investigation.list("-created_date", 500),
     base44.entities.InventoryReconciliation.list("-date", 200),
     base44.entities.Product.list(),
   ]);
+
+  const prods = scopeCatalogToAccess(access, allProds);
+  const claims = scopeBySku(access, allProds, allClaims);
+  const invs = scopeLPRecords(access, allInvs);
 
   const costBySku = {};
   const nameBySku = {};
@@ -64,9 +72,10 @@ export async function loadShrinkageIncidents() {
     });
   });
 
-  // Inventory reconciliation → missing (unexplained negative discrepancies)
+  // Inventory reconciliation → missing (unexplained negative discrepancies).
+  // A count sheet can span items, so each LINE is scoped rather than the sheet.
   (recs || []).forEach(r => {
-    (r.lines || []).forEach(l => {
+    scopeBySku(access, allProds, r.lines || []).forEach(l => {
       const disc = Number(l.discrepancy || 0);
       if (disc < 0) {
         const sku = l.sku || "";

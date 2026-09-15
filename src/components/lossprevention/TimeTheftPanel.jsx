@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import { Clock, Search, ScanLine, FolderSearch, CheckCircle2, AlertTriangle, Timer } from "lucide-react";
 import { DISCREPANCY_TYPES, detectTimeDiscrepancies, discrepancyAmount, discrepancyKey } from "@/lib/timeTheftUtils";
+import { scopeOperatorList, scopeByOperator } from "@/lib/peopleScope";
 
 const SEV_BADGE = {
   low: "bg-gray-100 text-gray-600",
@@ -22,7 +23,7 @@ const adminName = () => {
   }
 };
 
-export default function TimeTheftPanel({ fromDate, toDate, onStartInvestigation }) {
+export default function TimeTheftPanel({ access, fromDate, toDate, onStartInvestigation }) {
   const [discrepancies, setDiscrepancies] = useState([]);
   const [entries, setEntries] = useState([]);
   const [operators, setOperators] = useState([]);
@@ -42,9 +43,12 @@ export default function TimeTheftPanel({ fromDate, toDate, onStartInvestigation 
         base44.entities.Operator.list(),
         base44.entities.PositionPayRate.list(),
       ]);
-      setDiscrepancies(d);
-      setEntries(e);
-      setOperators(o);
+      // Time-clock records identify a person, not a store, so the boundary is drawn
+      // through the operator — the same rule the payroll and scheduling pages use.
+      // A scan therefore only ever creates discrepancies for this store's people.
+      setDiscrepancies(scopeByOperator(access, o, d));
+      setEntries(scopeByOperator(access, o, e));
+      setOperators(scopeOperatorList(access, o));
       setPayRates(r);
     } catch {
       toast({ title: "Failed to load time-theft data", variant: "destructive" });
@@ -54,7 +58,7 @@ export default function TimeTheftPanel({ fromDate, toDate, onStartInvestigation 
 
   useEffect(() => {
     load();
-  }, []);
+  }, [access]);
 
   const start = moment(fromDate).startOf("day");
   const end = moment(toDate).endOf("day");

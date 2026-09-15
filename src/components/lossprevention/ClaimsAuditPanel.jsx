@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
+import { scopeBySku } from "@/lib/lpScope";
+import { scopeCatalogToAccess } from "@/lib/storeCatalog";
 
-export default function ClaimsAuditPanel({ fromDate, toDate }) {
+export default function ClaimsAuditPanel({ access, fromDate, toDate }) {
   const [claims, setClaims] = useState([]);
   const [losses, setLosses] = useState([]);
   const [products, setProducts] = useState([]);
@@ -22,11 +24,16 @@ export default function ClaimsAuditPanel({ fromDate, toDate }) {
         base44.entities.ProfitLoss.list("-date", 1000),
         base44.entities.Product.list(),
       ]);
-      setClaims(c); setLosses(l); setProducts(p);
+      // Claims and disposals name an item, so the store boundary runs through the
+      // catalog: a store only audits returns on the items it carries, and can only
+      // block those items from sale.
+      setClaims(scopeBySku(access, p, c));
+      setLosses(scopeBySku(access, p, l));
+      setProducts(scopeCatalogToAccess(access, p));
     } catch (e) {}
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [access]);
 
   const inRange = (d) => {
     if (!d) return false;

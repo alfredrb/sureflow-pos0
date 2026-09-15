@@ -188,14 +188,14 @@ export default function AdminLossPrevention() {
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel access={access} refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
       {tab === "theft" && <StolenItemsTrendChart rangeDays={30} />}
-      {tab === "shrinkage" && <ShrinkageReportPanel fromDate={fromDate} toDate={toDate} />}
+      {tab === "shrinkage" && <ShrinkageReportPanel access={access} fromDate={fromDate} toDate={toDate} />}
       {tab === "ai" && <AISuggestionsPanel logs={logs} txns={txns} audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "documents" && <DocumentsPanel logs={logs} audits={audits} />}
       {tab === "evidence" && <EvidenceLockerPanel />}
       {tab === "tasks" && <TasksPanel access={access} />}
-      {tab === "time" && <TimeTheftPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
+      {tab === "time" && <TimeTheftPanel access={access} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "noreturns" && <NoReceiptWorkbenchTab txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
-      {tab === "claims" && <ClaimsAuditPanel fromDate={fromDate} toDate={toDate} />}
+      {tab === "claims" && <ClaimsAuditPanel access={access} fromDate={fromDate} toDate={toDate} />}
       {tab === "serialized" && <SerializedInventoryPanel fromDate={fromDate} toDate={toDate} />}
       {tab === "mpp" && <MerchandiseProtectionPanel />}
       {tab === "meals" && <MealExceptionsPanel fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
