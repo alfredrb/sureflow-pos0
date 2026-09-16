@@ -716,12 +716,14 @@ export default function POSRegister() {
   const handleFunctionKey = (fkey) => {
     const effectiveRole = fkey.requires_role || (fkey.requires_supervisor ? "csm" : "none");
     const needsOverride = needsOverrideFor(effectiveRole, operator?.role, !!csmApproval);
-    // Ran under the turned CSM key — attribute it to the approving supervisor.
+    // Ran under the turned CSM key — attribute it to the approving supervisor, who
+    // is by construction a different person from the operator running it.
     if (!needsOverride && csmApproval && effectiveRole === "csm") {
-      writeLog("override", `"${fkey.label}" run under CSM key approval by ${csmApproval.name}`, {
+      writeLog("override", `"${fkey.label}" run by ${operator?.full_name || "operator"} under CSM key approval by ${csmApproval.name}`, {
         override_operator_id: csmApproval.operator_id,
         override_operator_name: csmApproval.name,
         override_action: fkey.label,
+        maker_checker: true,
       });
     }
     if (needsOverride) {
@@ -1166,6 +1168,7 @@ export default function POSRegister() {
         error={supOverrideError}
         onSubmit={handleSupOverrideSubmit}
         onSendRemote={sendRemoteOverrideRequest}
+        operator={operator}
       />
 
       {/* Remote override outcome + pending badge */}

@@ -9,10 +9,13 @@ import { Satellite } from "lucide-react";
 // CSM / Manager authorization prompt for a protected function key, with the
 // fallback option of sending a remote override request to the admin panel.
 export default function POSSupervisorOverrideDialog({
-  open, onOpenChange, fkey, userId, setUserId, pin, setPin, error, onSubmit, onSendRemote,
+  open, onOpenChange, fkey, userId, setUserId, pin, setPin, error, onSubmit, onSendRemote, operator,
 }) {
   const role = fkey?.requires_role || (fkey?.requires_supervisor ? "csm" : "csm");
   const isManager = role === "manager";
+  // A signed-on supervisor sees the two-person rule up front, so they reach for a
+  // colleague or the remote request instead of keying their own PIN and bouncing.
+  const operatorIsSupervisor = operator?.role === "csm" || operator?.role === "manager";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -26,6 +29,11 @@ export default function POSSupervisorOverrideDialog({
           <span className="text-white font-bold">"{fkey?.label}"</span>{" "}
           {isManager ? "requires Manager authorization." : "requires CSM or Manager authorization."} Enter their User ID and PIN, or send a remote override request.
         </p>
+        {operatorIsSupervisor && (
+          <p className="text-amber-300/80 text-[10px] text-center leading-snug">
+            Two-person rule: you cannot authorize your own action. A different CSM or Manager must approve — if none is present, send a remote override request.
+          </p>
+        )}
         <Input
           placeholder="Supervisor User ID"
           value={userId}

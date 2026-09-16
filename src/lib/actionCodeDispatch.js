@@ -36,11 +36,22 @@ export function resolveActionCode(codes, code, storeId = "") {
 }
 
 // Does this operator need a supervisor override to run this code?
-// While the lane's virtual CSM key is turned (csmApproved), CSM-level actions run
-// without a prompt. Manager-level actions always require their own PIN.
+//
+// Two-person rule (maker-checker): EVERY role-gated action prompts for a supervisor,
+// no matter who is signed on. A CSM or Manager running a return, void or price
+// override needs a DIFFERENT CSM/Manager to authorize it — the signed-on role no
+// longer waives the prompt, because a supervisor approving their own action is the
+// exact exposure the rule exists to close. The approver-is-not-the-operator check
+// itself lives in the override submit path.
+//
+// The one bypass is the lane's virtual CSM key: while it is turned (csmApproved),
+// CSM-level actions run without re-prompting for the rest of the sale. That key is
+// only ever turned by a second supervisor, so the two-person rule is already met
+// and each action is attributed to the approver who turned it. Manager-level
+// actions never ride the CSM key.
 export function needsOverrideFor(requiredRole, operatorRole, csmApproved = false) {
-  if (requiredRole === "csm") return operatorRole === "cashier" && !csmApproved;
-  if (requiredRole === "manager") return operatorRole === "cashier" || operatorRole === "csm";
+  if (requiredRole === "csm") return !csmApproved;
+  if (requiredRole === "manager") return true;
   return false;
 }
 

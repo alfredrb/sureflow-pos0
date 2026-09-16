@@ -113,6 +113,16 @@
     },
     "override_action": {
       "type": "string"
+    },
+    "maker_checker": {
+      "type": "boolean",
+      "default": false,
+      "description": "True on an override that was authorized under the two-person rule: the approving supervisor (override_operator_id) is structurally a DIFFERENT person from the operator who requested it (operator_id). Every role-gated action now carries this, including ones run by a signed-on CSM or Manager, so Loss Prevention can see at a glance that self-approval was prevented rather than merely not attempted."
+    },
+    "self_approval_blocked": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when a signed-on supervisor keyed their OWN credentials into the override prompt and the lane refused it. Recorded because a pattern of attempts is itself a Loss Prevention signal, even though nothing ran."
     }
   },
   "required": [
