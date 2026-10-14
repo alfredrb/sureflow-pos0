@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip, Upload, Download } from "lucide-react";
+import { Sparkles, FolderSearch, X, Plus, UserPlus, FileDown, CheckCircle2, Eye, Paperclip, Upload, Download, Video } from "lucide-react";
+import CctvFootageButton from "@/components/lossprevention/CctvFootageButton";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 import DOMPurify from "dompurify";
@@ -511,6 +512,12 @@ export default function InvestigationDetailDialog({ value, storeId = "", onClose
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {ev.type === "receipt" && txns.find(x => x.transaction_id === ev.ref) && (
                           <button onClick={() => setViewTx(txns.find(x => x.transaction_id === ev.ref))} className="text-gray-400 hover:text-amber-600 p-1 rounded" title="View full receipt"><Eye className="w-3.5 h-3.5" /></button>
+                        )}
+                        {ev.type === "receipt" && txns.find(x => x.transaction_id === ev.ref) && (() => { const t = txns.find(x => x.transaction_id === ev.ref); return (
+                          <CctvFootageButton registerId={t.register_id} storeId={t.store_id} timestamp={t.sale_date || t.created_date} context={`Transaction ${t.transaction_id}`} onAttach={addEvidence} />
+                        ); })()}
+                        {ev.type === "cctv" && ev.file_url && (
+                          <a href={ev.file_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-600 p-1 rounded" title="Open footage in Blue Iris"><Video className="w-3.5 h-3.5" /></a>
                         )}
                         {(ev.type === "document" || ev.type === "file") && (
                           <button onClick={() => setViewEvidence(ev)} className="text-gray-400 hover:text-blue-600 p-1 rounded" title="View evidence"><Eye className="w-3.5 h-3.5" /></button>

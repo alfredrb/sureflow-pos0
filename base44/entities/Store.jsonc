@@ -20,7 +20,7 @@
         "support_office"
       ],
       "default": "standard",
-      "description": "Class of site. Drives which feature set a store gets (an express lane count and a supercenter's service desk are not the same store), and lets HQ report by format rather than only by region. support_office = a non-selling site (HQ / back office) that owns no lanes."
+      "description": "Class of site. support_office = a non-selling site (HQ / back office) that owns no lanes."
     },
     "address_street": {
       "type": "string"
@@ -64,32 +64,32 @@
     "closed_on": {
       "type": "string",
       "format": "date",
-      "description": "Date this store ceased trading. Set by a Close & Transfer, and deliberately distinct from status: a store can be temporarily inactive (remodel, flood) without ever having closed. A closed store's historical sales stay on its own store_number so finance and Loss Prevention keep a clean period boundary."
+      "description": "Date this store ceased trading."
     },
     "merged_into_store_number": {
       "type": "string",
-      "description": "Store number this store's OPERATIONS were transferred to when it closed \u2014 the lanes, staff, stock and live gift cards now belong to that store. Its historical transactions and EOD reports were deliberately NOT moved, so this field is the pointer that explains where a closed store's activity went without inflating the receiving store's own sales history."
+      "description": "Store number this store's operations were transferred to when it closed."
     },
     "relay_url": {
       "type": "string",
-      "description": "Base URL of the store's Local Relay VM (e.g. http://192.168.1.50:3000). On a redundant store this must be the floating VIP, not either controller's own address, so it follows the acting primary through a failover. The Infrastructure Command Center polls this URL for VM, printer, and register hardware status."
+      "description": "Base URL of the store's Local Relay VM. On a redundant store this must be the floating VIP."
     },
     "ha_enabled": {
       "type": "boolean",
       "default": false,
-      "description": "True when this store runs the redundant store-local stack: two controller boxes, each running the PXE/NFS boot server and the Local Relay together, DRBD-mirrored and fronted by a floating VIP. Only HA stores are failed over automatically by the relay health watch."
+      "description": "True when this store runs the redundant controller pair."
     },
     "controller_vip": {
       "type": "string",
-      "description": "Floating VIP (keepalived/VRRP) shared by the controller pair, e.g. 192.168.1.50. Lanes PXE boot from this address (DHCP next-server) and the relay is reached here, so neither depends on which box is alive."
+      "description": "Floating VIP shared by the controller pair."
     },
     "primary_controller_host": {
       "type": "string",
-      "description": "LAN address of the controller box normally holding the VIP and the DRBD primary role (e.g. 192.168.1.51)."
+      "description": "LAN address of the primary controller box."
     },
     "secondary_controller_host": {
       "type": "string",
-      "description": "LAN address of the warm standby controller box (e.g. 192.168.1.52). Holds DRBD secondary and is promoted when the primary dies."
+      "description": "LAN address of the warm standby controller box."
     },
     "acting_primary": {
       "type": "string",
@@ -98,21 +98,45 @@
         "secondary"
       ],
       "default": "primary",
-      "description": "Which controller box currently holds the VIP and the DRBD primary role. Set to 'secondary' by the relay health watch when it promotes after a primary failure, and back to 'primary' by an admin failback."
+      "description": "Which controller box currently holds the VIP."
     },
     "last_failover_at": {
       "type": "string",
       "format": "date-time",
-      "description": "When the store last failed over to its secondary controller."
+      "description": "When the store last failed over."
     },
     "last_failover_reason": {
       "type": "string",
-      "description": "Why the last failover happened (e.g. the relay staleness that triggered promotion)."
+      "description": "Why the last failover happened."
     },
     "failback_pending": {
       "type": "boolean",
       "default": false,
-      "description": "True while the store is running on its secondary controller and has not yet been failed back. An admin performs the controlled failback once the original primary has recovered and DRBD has resynced."
+      "description": "True while running on the secondary controller."
+    },
+    "blueiris_url": {
+      "type": "string",
+      "description": "Base URL of this store's Blue Iris server web interface as reached from the LP office (e.g. http://192.168.40.20:81). The LP Workbench builds UI3 timeline links from it, so footage opens directly in Blue Iris at the transaction's moment. Blank = no CCTV lookup for this store."
+    },
+    "cctv_preroll_seconds": {
+      "type": "number",
+      "default": 30,
+      "description": "How many seconds BEFORE the event timestamp the footage link starts, so the investigator sees the customer approach rather than landing mid-transaction."
+    },
+    "cctv_camera_map": {
+      "type": "array",
+      "description": "Which Blue Iris cameras cover each register. cameras = Blue Iris camera Short Names, comma-separated (e.g. 'lane1ovh,lane1cust').",
+      "items": {
+        "type": "object",
+        "properties": {
+          "register_id": {
+            "type": "string"
+          },
+          "cameras": {
+            "type": "string"
+          }
+        }
+      }
     },
     "notes": {
       "type": "string"

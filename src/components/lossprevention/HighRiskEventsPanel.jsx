@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import moment from "moment";
 import { FolderSearch, Search } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import CctvFootageButton from "@/components/lossprevention/CctvFootageButton";
 import { LP_CATEGORIES, LP_TOGGLEABLE, classifyLogEvent, isLpEnabled } from "@/lib/lossPrevention";
 
 export default function HighRiskEventsPanel({ logs, txns, fromDate, toDate, onStartInvestigation, disabledEvents, onToggleCategory }) {
@@ -139,6 +140,7 @@ export default function HighRiskEventsPanel({ logs, txns, fromDate, toDate, onSt
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   {e.amount ? <span className="text-sm font-medium text-gray-700 whitespace-nowrap">${e.amount.toFixed(2)}</span> : <span className="text-xs text-gray-300">—</span>}
+                  <CctvFootageButton registerId={e.register} timestamp={e.date} context={e.detail} />
                   <button onClick={() => investigate(e)} className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
                     <FolderSearch className="w-3.5 h-3.5" /> Investigate
                   </button>

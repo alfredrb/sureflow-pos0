@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import moment from "moment";
 import { fetchTxSerialMap, serialsForItem } from "@/lib/serialUtils";
 import TransactionCheckDetails from "@/components/checks/TransactionCheckDetails";
+import CctvFootageButton from "@/components/lossprevention/CctvFootageButton";
 
 const STATUS_BADGE = {
   completed: { label: "Completed", cls: "bg-emerald-100 text-emerald-700" },
@@ -52,7 +53,10 @@ export default function TransactionDetailDialog({ tx, onClose }) {
                 <span className="text-gray-500 block text-xs">Status</span>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getTxStatusBadge(tx).cls}`}>{getTxStatusBadge(tx).label}</span>
               </div>
-              <div><span className="text-gray-500 block text-xs">Date</span><span className="font-medium">{moment(tx.created_date).format("MMM D, YYYY h:mm A")}</span></div>
+              <div><span className="text-gray-500 block text-xs">Date</span><span className="font-medium">{moment(tx.sale_date || tx.created_date).format("MMM D, YYYY h:mm A")}</span></div>
+              <div className="flex items-end justify-end">
+                <CctvFootageButton registerId={tx.register_id} storeId={tx.store_id} timestamp={tx.sale_date || tx.created_date} context={`Transaction ${tx.transaction_id}`} />
+              </div>
             </div>
             <div className="border rounded-xl overflow-hidden">
               <div className="bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 uppercase">Items</div>

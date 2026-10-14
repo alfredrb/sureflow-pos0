@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import StoreCctvSection from "@/components/stores/StoreCctvSection";
 
 const EMPTY = {
   store_number: "", name: "", store_type: "standard", status: "active",
@@ -144,6 +145,8 @@ export default function StoreFormDialog({ open, store, onClose, onSave }) {
             <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
             <Input value={form.notes} onChange={(e) => set("notes", e.target.value)} />
           </div>
+
+          <StoreCctvSection form={form} set={set} />
 
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
