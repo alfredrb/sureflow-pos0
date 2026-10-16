@@ -351,6 +351,21 @@ SFPROFILEUNIT
   # controller is the lane's gateway AND its scoped resolver, so that is the only entry.
   printf 'nameserver %s\\n' "\${PXE_VIP:-\${PXE_IP:-10.0.40.10}}" > "\$root/etc/resolv.conf"
 
+  # Timezone. debootstrap roots ship with NO zone, so every lane ran on UTC and its clock
+  # (and Chromium's timestamps) read hours off from the store and the cloud portal. The
+  # root is read-only, so the zone must be baked: take the controller's own zone, which
+  # is set to the store's local time when the box is installed.
+  LANE_TZ=\$(timedatectl show -p Timezone --value 2>/dev/null)
+  [ -n "\$LANE_TZ" ] || LANE_TZ=\$(readlink /etc/localtime 2>/dev/null | sed 's#.*/zoneinfo/##')
+  [ -n "\$LANE_TZ" ] || LANE_TZ="America/New_York"
+  if [ -f "\$root/usr/share/zoneinfo/\$LANE_TZ" ]; then
+    ln -sf "/usr/share/zoneinfo/\$LANE_TZ" "\$root/etc/localtime"
+    echo "\$LANE_TZ" > "\$root/etc/timezone"
+    log "  Lane timezone set to \$LANE_TZ (from this controller)"
+  else
+    warn "Timezone \$LANE_TZ not found in the lane root — lanes will stay on UTC."
+  fi
+
   # Serial bridge — publishes a USB pinpad / pole display as TCP on the lane's own IP so
   # the relay's existing socket write reaches a peripheral that has no LAN address.
   cat >"\$root/etc/udev/rules.d/60-sureflow-serial.rules" <<'SFSERIALRULES'
@@ -544,7 +559,7 @@ apt-get install -y --no-install-recommends \\
   linux-image-amd64 nfs-common initramfs-tools systemd-sysv \\
   xserver-xorg xserver-xorg-legacy xinit xauth openbox chromium udev usbutils cups-client \\
   dbus dbus-x11 fontconfig fonts-dejavu-core \\
-  ca-certificates curl iproute2 iputils-ping sudo openssh-server \\
+  ca-certificates tzdata curl iproute2 iputils-ping sudo openssh-server \\
   evtest kbd ser2net setserial socat netcat-openbsd nodejs \\
   plymouth plymouth-themes beep \$extra >/dev/null
 # Plymouth needs a theme SELECTED, not just installed. Without this the kernel's
