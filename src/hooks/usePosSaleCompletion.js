@@ -83,17 +83,18 @@ export default function usePosSaleCompletion({
       return;
     }
 
-    // Offline: queue the sale on the relay instead of writing to the cloud.
-    if (isOffline) {
+    // Queue the sale on the relay outbox. Returns false (cart kept) when the tender is
+    // not offline-eligible or the relay will not take it.
+    const queueOffline = async () => {
       if (!tendersAllowed(tenders, offlineTenders)) {
         toast({ title: "Tender Not Available", description: "Only cash and check are permitted while offline.", variant: "destructive" });
-        return;
+        return false;
       }
       try {
         await submitOfflineSale({ txId, operator, registerId, cart, subtotal, tax, total, paymentMethod: method, amountTendered: tendered, changeDue, tenders, taxExemptId: taxExemptAppliedId });
       } catch (e) {
-        toast({ title: "Sale Not Saved", description: "The local relay rejected the sale. Get a manager.", variant: "destructive" });
-        return;
+        toast({ title: "Sale Not Saved", description: "The cloud and the local relay are both unavailable. Get a manager.", variant: "destructive" });
+        return false;
       }
       const offlineReceipt = buildReceipt({ ...receiptBase, loyaltyAppliedAmount: 0, rewardsEarned: 0, loyaltyMember: null });
       toast({ title: "Sale Saved Offline", description: `${txId} — will upload when the connection returns.` });
@@ -102,8 +103,11 @@ export default function usePosSaleCompletion({
       setLastReceipt(offlineReceipt);
       clearSaleState();
       refreshConnectivity();
-      return;
-    }
+      return true;
+    };
+
+    // Relay already reports the cloud down — go straight to the outbox.
+    if (isOffline) { await queueOffline(); return; }
 
     try {
       const newBalance = await commitSaleTransaction({
@@ -139,7 +143,11 @@ export default function usePosSaleCompletion({
       collectSaleRating(pinpadContext, txId);
       loadData();
     } catch (e) {
-      toast({ title: "Unable to Process Sale", description: e?.message || "Failed to process sale", variant: "destructive" });
+      // The cloud write failed even though the relay status still read online (the
+      // 15s poll lags a real outage). Fall back to the relay outbox — it uploads
+      // idempotently on transaction_id, so a partial cloud write cannot duplicate.
+      console.error("Cloud sale commit failed, queueing offline:", e);
+      await queueOffline();
     }
   };
 
