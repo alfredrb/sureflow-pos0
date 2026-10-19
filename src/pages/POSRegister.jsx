@@ -980,6 +980,7 @@ export default function POSRegister() {
               else { setTrainingModeDialog(true); setHelpMenuOpen(false); }
             }}
             onGenerateScoBadge={generateScoBadge}
+            statusPanel={<POSReadinessChip relayPresent={relayPresent} isOffline={isOffline} catalogStale={catalogStale} pendingCount={pendingCount} lastSyncAt={lastSyncAt} />}
             onRequestCSM={requestCSM}
             onReportRobbery={calculateStolenAmount}
             robberyLoading={robberyLoading}
@@ -989,7 +990,6 @@ export default function POSRegister() {
         }
       />
 
-      <POSReadinessChip relayPresent={relayPresent} isOffline={isOffline} catalogStale={catalogStale} pendingCount={pendingCount} lastSyncAt={lastSyncAt} />
 
       {/* Offline Mode Banner */}
       {isOffline && (

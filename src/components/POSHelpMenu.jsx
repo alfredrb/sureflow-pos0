@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy, Barcode } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy, Barcode, Activity } from "lucide-react";
 import RebootCountdownOverlay from "@/components/pos/RebootCountdownOverlay";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
@@ -7,8 +7,9 @@ import VersionLogDialog from "@/components/VersionLogDialog";
 import POSFeedbackDialog from "@/components/pos/POSFeedbackDialog";
 import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 
-export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics, operator, onGenerateScoBadge }) {
+export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics, operator, onGenerateScoBadge, statusPanel }) {
   const [guideOpen, setGuideOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [rebootOpen, setRebootOpen] = useState(false);
@@ -62,6 +63,11 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
           <button onClick={onToggleTraining} disabled={trainingLocked} className="w-full text-left px-4 py-2 text-white text-sm hover:bg-orange-600 transition-colors border-b border-red-500/10 disabled:opacity-60 disabled:cursor-not-allowed">
             {trainingLocked ? "Training Mode (Locked)" : trainingMode ? "Exit Training Mode" : "Enter Training Mode"}
           </button>
+          {statusPanel && (
+            <button onClick={() => { setStatusOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
+              <Activity className="w-4 h-4" /> Status
+            </button>
+          )}
           <button onClick={() => { setGuideOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             <BookOpen className="w-4 h-4" /> Training Guide
           </button>
@@ -108,6 +114,15 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
             <DialogTitle className="flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-600" /> POS Training Guide</DialogTitle>
           </DialogHeader>
           <TrainingGuideContent />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
+        <DialogContent className="max-w-lg bg-[#0a0e27] border-blue-500/30 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white"><Activity className="w-5 h-5 text-blue-400" /> Lane Status</DialogTitle>
+          </DialogHeader>
+          {statusPanel}
         </DialogContent>
       </Dialog>
 

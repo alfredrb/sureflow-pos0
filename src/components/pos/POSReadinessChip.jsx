@@ -17,7 +17,7 @@ function Pill({ ok, warn, icon: Icon, label }) {
 export default function POSReadinessChip({ relayPresent, isOffline, catalogStale, pendingCount, lastSyncAt }) {
   const syncAge = lastSyncAt ? Math.round((Date.now() - new Date(lastSyncAt).getTime()) / 60000) : null;
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 px-3 py-1 bg-[#0a0e27] border-b border-blue-500/10 flex-shrink-0">
+    <div className="flex flex-wrap items-center justify-center gap-2 py-2">
       <Pill ok={relayPresent} warn={!relayPresent} icon={relayPresent ? Server : ServerOff} label={relayPresent ? "Relay OK" : "No relay — offline sales unavailable"} />
       <Pill ok={!isOffline} icon={isOffline ? CloudOff : Cloud} label={isOffline ? "Cloud down" : "Cloud OK"} />
       {relayPresent && (
