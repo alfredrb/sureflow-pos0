@@ -7,6 +7,7 @@ import { verifySerialInStock } from "@/lib/serialUtils";
 // Extracted from POSRegister so the page stays focused on orchestration.
 export default function usePosCart({ products, discounts, taxExemptAppliedId, operator, toast, setIdVerify, setSerialCapture, closeItemList }) {
   const [cart, setCart] = useState([]);
+  const [lastScanSku, setLastScanSku] = useState(null);
 
   // Get applicable discounts
   const getApplicableDiscounts = (productCategory) => {
@@ -21,6 +22,7 @@ export default function usePosCart({ products, discounts, taxExemptAppliedId, op
   };
 
   const commitAddToCart = (product) => {
+    setLastScanSku(product.sku);
     setCart(prev => {
       const applicableDiscounts = getApplicableDiscounts(product.category);
       const bestDiscount = applicableDiscounts.length > 0 ? applicableDiscounts[0] : null;
@@ -33,6 +35,7 @@ export default function usePosCart({ products, discounts, taxExemptAppliedId, op
 
   // Serialized items carry an array of serial numbers (one per unit). qty always equals serial_numbers.length.
   const commitSerializedAdd = (product, serial) => {
+    setLastScanSku(product.sku);
     setCart(prev => {
       const existing = prev.find(i => i.sku === product.sku && i.serialized);
       if (existing) {
@@ -154,9 +157,18 @@ export default function usePosCart({ products, discounts, taxExemptAppliedId, op
     }).filter(Boolean));
   };
 
+  // Undo last scan: takes ONE unit of the most recently added item back off.
+  const lastScanItem = cart.find(i => i.sku === lastScanSku) || null;
+  const undoLastScan = () => {
+    if (!lastScanItem) return null;
+    updateQty(lastScanItem.sku, -1);
+    setLastScanSku(null);
+    return lastScanItem;
+  };
+
   const subtotal = cart.reduce((s, i) => s + i.total, 0);
   const tax = cart.reduce((s, i) => s + (i.total * (i.tax_rate / 100)), 0);
   const total = subtotal + tax;
 
-  return { cart, setCart, addToCart, addByCode, commitAddToCart, captureSerialForAdd, removeFromCart, updateQty, subtotal, tax, total };
+  return { cart, setCart, addToCart, addByCode, commitAddToCart, captureSerialForAdd, removeFromCart, updateQty, lastScanItem, undoLastScan, subtotal, tax, total };
 }

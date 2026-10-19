@@ -26,6 +26,7 @@ import usePrinterHealth from "@/hooks/usePrinterHealth";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
 import POSReadinessChip from "@/components/pos/POSReadinessChip";
+import POSUndoScanBar from "@/components/pos/POSUndoScanBar";
 import { executeFunctionKeyAction } from "@/lib/posFunctionKeyExec";
 import { savePosReceiptContext } from "@/lib/posReceiptContext";
 import { scopeCatalogToStore } from "@/lib/storeCatalog";
@@ -180,7 +181,7 @@ export default function POSRegister() {
   // live in usePosCart so this page stays focused on orchestration.
   const {
     cart, setCart, addToCart, addByCode, commitAddToCart, captureSerialForAdd,
-    removeFromCart, updateQty, subtotal, tax, total,
+    removeFromCart, updateQty, lastScanItem, undoLastScan, subtotal, tax, total,
   } = usePosCart({
     products, discounts, taxExemptAppliedId, operator, toast,
     setIdVerify, setSerialCapture,
@@ -1054,6 +1055,9 @@ export default function POSRegister() {
         {/* RIGHT — switches based on posMode */}
         <div className="flex-1 flex flex-col overflow-hidden">
 
+          {posMode === "sale" && !paymentOpen && (
+            <POSUndoScanBar item={lastScanItem} onUndo={() => { const it = undoLastScan(); if (it) writeLog("void", `Undo last scan — ${it.name} (${it.sku}) $${Number(it.price).toFixed(2)}`); }} />
+          )}
           {posMode === "sale" && (
             <POSSalePanel
               functionKeys={functionKeys}
