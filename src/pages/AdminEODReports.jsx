@@ -7,6 +7,7 @@ import { TrendingUp, DollarSign, ShoppingCart, Package } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { isStoreInScope } from "@/lib/adminAccess";
 import { useStoreScope } from "@/components/admin/StoreScopeProvider";
+import EODChecklist from "@/components/eod/EODChecklist";
 import ChainRollupBand from "@/components/admin/ChainRollupBand";
 import { rollupByStore, sumOf, fmtMoney, fmtInt } from "@/lib/chainRollup";
 
@@ -86,6 +87,8 @@ export default function AdminEODReports() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">End of Day Reports</h1>
         <p className="text-gray-500 mt-2 text-sm sm:text-base">Daily consolidated sales and transaction data</p>
       </div>
+
+      <EODChecklist storeScope={access.storeScope} />
 
       {showStore && (
         <ChainRollupBand
