@@ -27,6 +27,8 @@ import MealExceptionsPanel from "@/components/lossprevention/MealExceptionsPanel
 import EvidenceLockerPanel from "@/components/lossprevention/EvidenceLockerPanel";
 import ActionCodeAuditPanel from "@/components/lossprevention/ActionCodeAuditPanel";
 import DrawerActivityPanel from "@/components/lossprevention/DrawerActivityPanel";
+import LaneRiskPanel from "@/components/lossprevention/LaneRiskPanel";
+import { Gauge } from "lucide-react";
 import { scopeRecords } from "@/lib/recordScope";
 import { useStoreScope } from "@/components/admin/StoreScopeProvider";
 import { lpStoreId } from "@/lib/lpScope";
@@ -126,6 +128,7 @@ export default function AdminLossPrevention() {
     { id: "events", label: "High-Risk Events", icon: AlertTriangle },
     { id: "actioncodes", label: "Action Codes", icon: Hash },
     { id: "drawer", label: "Drawer Activity", icon: Unlock },
+    { id: "lanerisk", label: "Lane Risk", icon: Gauge },
     { id: "shorts", label: "Shorts & Longs", icon: Scale },
     { id: "investigations", label: "Investigations", icon: FolderSearch },
     { id: "theft", label: "Theft Trends", icon: TrendingDown },
@@ -184,6 +187,7 @@ export default function AdminLossPrevention() {
       {tab === "overview" && <LossOverviewPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} disabledEvents={disabledEvents} />}
       {tab === "events" && <HighRiskEventsPanel logs={logs} txns={txns} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} disabledEvents={disabledEvents} onToggleCategory={toggleCategory} />}
       {tab === "actioncodes" && <ActionCodeAuditPanel logs={logs} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
+      {tab === "lanerisk" && <LaneRiskPanel logs={logs} fromDate={fromDate} toDate={toDate} />}
       {tab === "drawer" && <DrawerActivityPanel logs={logs} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "shorts" && <ShortsLongsPanel audits={audits} fromDate={fromDate} toDate={toDate} onStartInvestigation={startInvestigation} />}
       {tab === "investigations" && <InvestigationsPanel access={access} refreshKey={invRefresh} onOpenInvestigation={openInvestigation} onNewInvestigation={() => startInvestigation({})} />}
