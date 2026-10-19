@@ -9,7 +9,8 @@ import POSTopBar from "@/components/pos/POSTopBar";
 import SODProtocolModal from "@/components/SODProtocolModal";
 import POSCashManagement from "@/components/POSCashManagement";
 import ExportCashHistory from "@/components/ExportCashHistory";
-import POSTaxExemptDialog from "@/components/pos/POSTaxExemptDialog";
+import POSCustomerDialogs from "@/components/pos/POSCustomerDialogs";
+import POSActionCodeDialogs from "@/components/pos/POSActionCodeDialogs";
 import POSHelpMenu from "@/components/POSHelpMenu";
 import POSTechnicianPanel from "@/components/POSTechnicianPanel";
 import CSServicePanel from "@/components/cs/CSServicePanel";
@@ -17,11 +18,7 @@ import POSReturnsPanel from "@/components/POSReturnsPanel";
 import POSExchangePanel from "@/components/POSExchangePanel";
 import POSSalePanel from "@/components/POSSalePanel";
 import POSItemList from "@/components/POSItemList";
-import LoyaltyLookupDialog from "@/components/pos/LoyaltyLookupDialog";
-import LoyaltySignUpDialog from "@/components/pos/LoyaltySignUpDialog";
 import { confirmRedemptionOnPinpad } from "@/lib/loyaltyPinpad";
-import POSIDVerifyDialog from "@/components/pos/POSIDVerifyDialog";
-import POSSerialDialog from "@/components/pos/POSSerialDialog";
 import { useOfflineMode } from "@/hooks/useOfflineMode";
 import { useRegisterHeartbeat } from "@/hooks/useRegisterHeartbeat";
 import useDrawerStatus from "@/hooks/useDrawerStatus";
@@ -35,15 +32,10 @@ import { scopeCatalogToStore } from "@/lib/storeCatalog";
 import POSTransactionSummary from "@/components/pos/POSTransactionSummary";
 import POSReceiptDialog from "@/components/pos/POSReceiptDialog";
 import POSPaymentDialog from "@/components/pos/POSPaymentDialog";
-import POSGiftCardResultDialog from "@/components/pos/POSGiftCardResultDialog";
-import POSNewsDialog from "@/components/pos/POSNewsDialog";
 import POSLunchDialogs from "@/components/pos/POSLunchDialogs";
 import { printLunchWarningSlip, printLunchLockoutSlip } from "@/lib/lunchSlips";
 import usePosCart from "@/hooks/usePosCart";
 import usePosParkedSales from "@/hooks/usePosParkedSales";
-import POSPercentDiscountDialog from "@/components/pos/POSPercentDiscountDialog";
-import POSTransferDialog from "@/components/pos/POSTransferDialog";
-import POSRegisterReadingDialog from "@/components/pos/POSRegisterReadingDialog";
 import SCOAttendantPanel from "@/components/pos/SCOAttendantPanel";
 import SCOAlertButton from "@/components/pos/SCOAlertButton";
 import useScoAttendantLanes from "@/hooks/useScoAttendantLanes";
@@ -57,16 +49,12 @@ import POSPausedScreen from "@/components/pos/POSPausedScreen";
 import POSStatusBanners from "@/components/pos/POSStatusBanners";
 import POSStatusLine from "@/components/pos/POSStatusLine";
 import POSSoftKeyboard from "@/components/pos/POSSoftKeyboard";
-import POSActionCodeDialog from "@/components/pos/POSActionCodeDialog";
 import { resolveActionCode, needsOverrideFor } from "@/lib/actionCodeDispatch";
 import useActionCodeBuffer from "@/hooks/useActionCodeBuffer";
-import POSPriceCheckDialog from "@/components/pos/POSPriceCheckDialog";
-import POSResumeDialog from "@/components/pos/POSResumeDialog";
 import { usePosAnnouncements } from "@/hooks/usePosAnnouncements";
 import { usePosLunchState } from "@/hooks/usePosLunchState";
 import useFunctionKeyboard from "@/hooks/useFunctionKeyboard";
 import useRobberyAlarm from "@/hooks/useRobberyAlarm";
-import POSVoidCashDialog from "@/components/pos/POSVoidCashDialog";
 import { useKeyClick } from "@/hooks/useKeyClick";
 import { verifyOperatorCredentials, SUPERVISOR_ROLES } from "@/lib/operatorAuth";
 import usePinpadCartMirror from "@/hooks/usePinpadCartMirror";
@@ -1267,99 +1255,18 @@ export default function POSRegister() {
         onConfirmRobbery={confirmRobbery}
       />
 
-      {/* Gift Card Payment Result Dialog */}
-      <POSGiftCardResultDialog
-        result={giftCardResult}
-        onClose={closeGiftCardResult}
-        onComplete={completeGiftCardSale}
+      <POSCustomerDialogs
+        {...{ giftCardResult, closeGiftCardResult, completeGiftCardSale, taxExemptDialog, setTaxExemptDialog, confirmTaxExempt, taxExemptAppliedId,
+          loyaltyLookupOpen, setLoyaltyLookupOpen, pinpadContext, applyLoyalty, toast, loyaltySignupOpen, setLoyaltySignupOpen, operator,
+          setLoyaltyMember, setLoyaltyAppliedAmount, idVerify, setIdVerify, handleIDVerified, serialCapture, setSerialCapture }}
       />
 
-      <POSTaxExemptDialog open={taxExemptDialog} onClose={() => setTaxExemptDialog(false)} onConfirm={confirmTaxExempt} initialId={taxExemptAppliedId} />
-
-      <LoyaltyLookupDialog
-        open={loyaltyLookupOpen}
-        onClose={() => setLoyaltyLookupOpen(false)}
-        canApply={true}
-        pinpadContext={pinpadContext}
-        onApply={(member) => applyLoyalty(member, true)}
-        onLink={(member) => applyLoyalty(member, false)}
-        toast={toast}
+      <POSActionCodeDialogs
+        {...{ actionCodeOpen, setActionCodeOpen, actionCodes, handleActionCode, voidCashOpen, setVoidCashOpen, operator, handleCashVoid,
+          readingOpen, setReadingOpen, printReading, percentOpen, setPercentOpen, applyPercentOff, transferOpen, setTransferOpen,
+          retrieveTransfer, toast, priceCheckOpen, setPriceCheckOpen, products, resumeOpen, setResumeOpen, resumeSuspended,
+          newsOpen, setNewsOpen, newsAnnouncements }}
       />
-      <LoyaltySignUpDialog
-        open={loyaltySignupOpen}
-        onClose={() => setLoyaltySignupOpen(false)}
-        operator={operator}
-        pinpadContext={pinpadContext}
-        onCreated={(member) => { setLoyaltyMember(member); setLoyaltyAppliedAmount(0); }}
-        toast={toast}
-      />
-      <POSIDVerifyDialog open={!!idVerify} product={idVerify?.product} age={idVerify?.age} onClose={() => setIdVerify(null)} onVerified={handleIDVerified} />
-
-      <POSSerialDialog
-        open={!!serialCapture}
-        product={serialCapture?.product}
-        needed={serialCapture?.needed || 1}
-        onConfirm={(serials) => {
-          const done = serialCapture?.onDone;
-          setSerialCapture(null);
-          if (done) done(serials);
-        }}
-        onClose={() => setSerialCapture(null)}
-      />
-
-      {/* Numeric action-code entry (physical Action Code key or on-screen button) */}
-      <POSActionCodeDialog
-        open={actionCodeOpen}
-        onClose={() => setActionCodeOpen(false)}
-        codes={actionCodes}
-        storeId={sessionStorage.getItem("pos_store_id") || ""}
-        onSubmit={handleActionCode}
-      />
-
-      {/* Void a completed cash sale from this shift (manager approval) */}
-      <POSVoidCashDialog
-        open={voidCashOpen}
-        onClose={() => setVoidCashOpen(false)}
-        registerId={sessionStorage.getItem("pos_register_num") || "REG-001"}
-        operator={operator}
-        shiftStart={sessionStorage.getItem("pos_shift_start")}
-        onConfirmed={handleCashVoid}
-      />
-
-      {/* AC 3 — "REGISTER?" prompt, then the reading slip prints */}
-      <POSRegisterReadingDialog
-        open={readingOpen}
-        onClose={() => setReadingOpen(false)}
-        defaultRegisterId={sessionStorage.getItem("pos_register_num") || ""}
-        onSubmit={printReading}
-      />
-
-      {/* AC 300 — key the percentage to take off the whole sale */}
-      <POSPercentDiscountDialog open={percentOpen} onClose={() => setPercentOpen(false)} onSubmit={applyPercentOff} />
-
-      {/* AC 851 — scan a transfer slip or pick the sale waiting to come over */}
-      <POSTransferDialog
-        open={transferOpen}
-        onClose={() => setTransferOpen(false)}
-        storeId={sessionStorage.getItem("pos_store_id") || ""}
-        onRetrieve={retrieveTransfer}
-        toast={toast}
-      />
-
-      {/* Price inquiry — look up an item's price without adding it to the sale */}
-      <POSPriceCheckDialog open={priceCheckOpen} onClose={() => setPriceCheckOpen(false)} products={products} />
-
-      {/* Resume a suspended sale — scan the slip barcode or pick from the store list */}
-      <POSResumeDialog
-        open={resumeOpen}
-        onClose={() => setResumeOpen(false)}
-        storeId={sessionStorage.getItem("pos_store_id") || ""}
-        onResume={resumeSuspended}
-        toast={toast}
-      />
-
-      {/* Store Announcements / News Dialog */}
-      <POSNewsDialog open={newsOpen} onOpenChange={setNewsOpen} announcements={newsAnnouncements} />
 
       {/* Scheduled lunch reminder + overdue-lunch lockout */}
       <POSLunchDialogs
