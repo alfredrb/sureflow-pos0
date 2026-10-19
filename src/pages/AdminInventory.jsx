@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import BulkEditDialog from "@/components/inventory/BulkEditDialog";
+import LowStockAlert from "@/components/inventory/LowStockAlert";
 import CategoryManager from "@/components/inventory/CategoryManager";
 import SerializedInventoryTab from "@/components/inventory/SerializedInventoryTab";
 import { scopeCatalogToAccess } from "@/lib/storeCatalog";
@@ -220,6 +221,7 @@ export default function AdminInventory() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inventory{isVendor && vendorCompanyId ? ` — ${vendorCompanyId}` : ""}</h1>
           <p className="text-gray-500 text-sm mt-1">{products.length} products{isVendor ? " (your catalog)" : ""}</p>
+          {tab === "products" && <LowStockAlert products={products} />}
         </div>
         {tab === "products" && (
         <div className="flex flex-wrap gap-2">
