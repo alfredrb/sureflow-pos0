@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44, invalidateEntity } from "@/api/data";
-import { ShoppingCart, RotateCcw, Headphones, ArrowLeftRight, Wrench, Users } from "lucide-react";
+import { buildModeTabs } from "@/lib/posModeTabs";
+import useOfflineSyncNotice from "@/hooks/useOfflineSyncNotice";
 import JsBarcode from "jsbarcode";
 import { useToast } from "@/components/ui/use-toast";
 import POSTopBar from "@/components/pos/POSTopBar";
@@ -27,6 +28,7 @@ import useDrawerStatus from "@/hooks/useDrawerStatus";
 import usePrinterHealth from "@/hooks/usePrinterHealth";
 import { fetchCatalog, queueOfflineSale, forceRelaySync } from "@/lib/relayClient";
 import POSOfflineBanner from "@/components/pos/POSOfflineBanner";
+import POSReadinessChip from "@/components/pos/POSReadinessChip";
 import { executeFunctionKeyAction } from "@/lib/posFunctionKeyExec";
 import { savePosReceiptContext } from "@/lib/posReceiptContext";
 import { scopeCatalogToStore } from "@/lib/storeCatalog";
@@ -182,7 +184,9 @@ export default function POSRegister() {
   const [relaySyncing, setRelaySyncing] = useState(false);
   const navigate = useNavigate();
   const { toast, toasts } = useToast();
-  const { isOffline, pendingCount, catalogStale, refresh: refreshConnectivity } = useOfflineMode();
+  const { isOffline, pendingCount, catalogStale, relayPresent, lastSyncAt, refresh: refreshConnectivity } = useOfflineMode();
+
+  useOfflineSyncNotice(pendingCount, isOffline, toast);
 
   // Cart state and item entry (discount pricing, serials, recalls, ID checks)
   // live in usePosCart so this page stays focused on orchestration.
@@ -918,14 +922,7 @@ export default function POSRegister() {
   });
 
   // Build mode buttons dynamically based on enabled features
-  const modeTabs = [
-    { id: "sale", label: "Sale", icon: ShoppingCart, activeColor: "bg-blue-600 text-white", inactiveColor: "bg-[#0a0e27] text-blue-300/50 border border-blue-500/10 hover:border-blue-500/30" },
-    ...(registerFeatures.feature_returns ? [{ id: "returns", label: "Returns", icon: RotateCcw, activeColor: "bg-purple-600 text-white", inactiveColor: "bg-[#0a0e27] text-purple-300/50 border border-purple-500/10 hover:border-purple-500/30" }] : []),
-    ...(registerFeatures.feature_exchange ? [{ id: "exchange", label: "Exchange", icon: ArrowLeftRight, activeColor: "bg-teal-600 text-white", inactiveColor: "bg-[#0a0e27] text-teal-300/50 border border-teal-500/10 hover:border-teal-500/30" }] : []),
-    ...(registerFeatures.feature_customer_service ? [{ id: "cs", label: "Customer Service", icon: Headphones, activeColor: "bg-amber-600 text-white", inactiveColor: "bg-[#0a0e27] text-amber-300/50 border border-amber-500/10 hover:border-amber-500/30" }] : []),
-    ...(registerFeatures.feature_attendant ? [{ id: "sco", label: "Self-Checkout", icon: Users, activeColor: "bg-emerald-600 text-white", inactiveColor: "bg-[#0a0e27] text-emerald-300/50 border border-emerald-500/10 hover:border-emerald-500/30" }] : []),
-    ...((operator?.role === "technician" || diagnosticsMode) ? [{ id: "diagnostics", label: "Diagnostics", icon: Wrench, activeColor: "bg-slate-600 text-white", inactiveColor: "bg-[#0a0e27] text-slate-300/50 border border-slate-500/10 hover:border-slate-500/30" }] : []),
-  ];
+  const modeTabs = buildModeTabs(registerFeatures, operator, diagnosticsMode);
 
   if (loading) return (
     <div className="min-h-screen bg-[#0a0e27] flex items-center justify-center">
@@ -1002,6 +999,8 @@ export default function POSRegister() {
           />
         }
       />
+
+      <POSReadinessChip relayPresent={relayPresent} isOffline={isOffline} catalogStale={catalogStale} pendingCount={pendingCount} lastSyncAt={lastSyncAt} />
 
       {/* Offline Mode Banner */}
       {isOffline && (
