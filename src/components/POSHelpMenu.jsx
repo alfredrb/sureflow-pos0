@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy, Barcode, Activity } from "lucide-react";
+import { BookOpen, GitBranch, Wrench, MessageSquare, RefreshCw, Power, LifeBuoy, Barcode, Activity, StickyNote } from "lucide-react";
+import POSHandoffNotesDialog from "@/components/pos/POSHandoffNotesDialog";
 import RebootCountdownOverlay from "@/components/pos/RebootCountdownOverlay";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import TrainingGuideContent from "@/components/TrainingGuideContent";
@@ -10,6 +11,7 @@ import { getLatestVersionString, VERSION_FALLBACK } from "@/lib/appVersion";
 export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTraining, onRequestCSM, onReportRobbery, robberyLoading, trainingLocked, robberyLocked, onHoldVersion, diagnosticsMode, onExitDiagnostics, operator, onGenerateScoBadge, statusPanel }) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const [versionOpen, setVersionOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [rebootOpen, setRebootOpen] = useState(false);
@@ -68,6 +70,9 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
               <Activity className="w-4 h-4" /> Status
             </button>
           )}
+          <button onClick={() => { setHandoffOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
+            <StickyNote className="w-4 h-4" /> Handoff Notes
+          </button>
           <button onClick={() => { setGuideOpen(true); setOpen(false); }} className="w-full flex items-center gap-2 text-left px-4 py-2 text-white text-sm hover:bg-blue-600 transition-colors border-b border-red-500/10">
             <BookOpen className="w-4 h-4" /> Training Guide
           </button>
@@ -126,6 +131,7 @@ export default function POSHelpMenu({ open, setOpen, trainingMode, onToggleTrain
         </DialogContent>
       </Dialog>
 
+      <POSHandoffNotesDialog open={handoffOpen} onOpenChange={setHandoffOpen} operator={operator} />
       <VersionLogDialog open={versionOpen} onOpenChange={setVersionOpen} />
       <POSFeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} operator={operator} />
       <RebootCountdownOverlay
