@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { verifyPinOnly } from "@/lib/operatorAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -60,8 +61,7 @@ export default function ShiftEnforcement({ operator, register, onLockout, onShif
   const handleOverride = async () => {
     try {
       // Verify supervisor PIN
-      const supervisors = await base44.entities.Operator.filter({ role: "csm" });
-      const validPin = supervisors.some(s => s.pin === overridePin) || overridePin === "0000"; // fallback admin PIN
+      const { ok: validPin } = await verifyPinOnly(overridePin, ["csm", "manager"], { requireActive: true });
 
       if (!validPin) {
         setOverrideFeedback("Invalid supervisor PIN");

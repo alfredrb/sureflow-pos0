@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Settings, ChevronLeft, ChevronDown, Menu, LogOut, Monitor, AlertCircle, Volume2, VolumeX, Trash2, Download, BarChart3, Palette } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 import { adminNavGroups } from "@/lib/adminNav";
 import { getAdminAccess, canAccessPage } from "@/lib/adminAccess";
 import AdminScopeBadge from "@/components/admin/AdminScopeBadge";
@@ -114,7 +115,7 @@ export default function AdminLayout() {
 
   const handleResetConfirm = async () => {
     if (!overridePin) { alert("Please enter manager PIN"); return; }
-    if (adminOperator.pin !== overridePin) { alert("Incorrect PIN"); return; }
+    if (!(await verifyOperatorCredentials(adminOperator?.operator_id, overridePin)).ok) { alert("Incorrect PIN"); return; }
     setResetting(true);
     try {
       // Note: Transaction records are intentionally preserved so the Peak Time

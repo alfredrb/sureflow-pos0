@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Clock, Utensils, Coffee, LogIn, LogOut, Timer } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -60,7 +61,7 @@ export default function SelfTimeClock({ open, onOpenChange, operators, onClocked
       toast({ title: "Enter your Operator ID and PIN", variant: "destructive" });
       return;
     }
-    const found = (operators || []).find(op => op.operator_id === operatorId && op.pin === pin && op.status === "active");
+    const found = (await verifyOperatorCredentials(operatorId, pin, { requireActive: true })).operator;
     if (!found) {
       toast({ title: "Invalid Operator ID or PIN", variant: "destructive" });
       clear();

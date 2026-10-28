@@ -26,15 +26,8 @@ export async function findVoidableSales({ registerId, operatorId, shiftStart }) 
 
 // Puts each sold unit back on hand — the goods physically return to the shelf.
 async function restoreStock(items) {
-  for (const item of items || []) {
-    const matches = await base44.entities.Product.filter({ sku: item.sku });
-    const prod = matches[0];
-    if (prod) {
-      await base44.entities.Product.update(prod.id, {
-        stock_qty: (prod.stock_qty || 0) + Number(item.qty || 0),
-      });
-    }
-  }
+  const adjustments = (items || []).filter(i => i.sku).map(i => ({ sku: i.sku, delta: Number(i.qty || 0) }));
+  if (adjustments.length) await base44.functions.invoke("adjustStock", { adjustments });
 }
 
 // Takes back rewards the sale earned and re-credits any rewards it redeemed.

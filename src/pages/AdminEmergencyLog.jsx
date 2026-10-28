@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
+import { verifyPinOnly } from "@/lib/operatorAuth";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { AlertTriangle, Check, Clock, X, Archive, RotateCcw, Trash2, ShieldAlert, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -112,7 +113,7 @@ export default function AdminEmergencyLog() {
     setOverrideError("");
     setOverrideLoading(true);
     try {
-      const sup = operators.find(o => o.pin === overridePin && (o.role === "manager" || o.role === "csm") && o.status === "active");
+      const sup = (await verifyPinOnly(overridePin, ["manager", "csm"], { requireActive: true })).operator;
       if (!sup) {
         setOverrideError("Invalid PIN — Manager or CSM authorization required");
         setOverrideLoading(false);

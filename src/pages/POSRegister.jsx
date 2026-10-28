@@ -682,7 +682,7 @@ export default function POSRegister() {
     register_id: sessionStorage.getItem("pos_register_num") || "REG-001",
     operator_id: operator?.operator_id || "",
     operator_name: operator?.full_name || "",
-    operator_pin: operator?.pin || "",
+    operator_pin: operator?.operator_id || "",
     training_mode: trainingMode,
   };
 

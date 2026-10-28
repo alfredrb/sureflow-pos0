@@ -18,7 +18,8 @@ export default function CSManagerAuth({ prompt, onAuthorized, roles = ["manager"
     const res = await verifyOperatorCredentials(id, pin, { roles });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
-    onAuthorized(res.operator);
+    // Credentials ride along so a server-side money-out action can re-check them.
+    onAuthorized({ ...res.operator, _credentials: { id: id.trim(), pin: pin.trim() } });
   };
 
   return (

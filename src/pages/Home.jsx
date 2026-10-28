@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Monitor, Settings, ShoppingCart, Users, Package, Receipt, Keyboard, Network, Percent, Calendar, Lock, Store, Loader2, Clock } from "lucide-react";
 import { base44 } from "@/api/base44Client";
+import { verifyOperatorCredentials, verifyPinOnly, ALL_ROLES } from "@/lib/operatorAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,8 +35,7 @@ export default function Home() {
     }
     setVendorLoading(true);
     try {
-      const ops = await base44.entities.Operator.filter({ operator_id: vendorId.trim(), pin: vendorPin.trim(), status: "active" });
-      const vendor = ops.find(o => o.role === "vendor");
+      const vendor = (await verifyOperatorCredentials(vendorId, vendorPin, { roles: ["vendor"], requireActive: true })).operator;
       if (!vendor) {
         toast({ title: "Access Denied", description: "Invalid Vendor ID or PIN", variant: "destructive" });
         setVendorPin("");
@@ -83,7 +83,7 @@ export default function Home() {
     }
 
     try {
-      const foundOperator = operators.find(op => op.pin === pin);
+      const foundOperator = (await verifyPinOnly(pin, ALL_ROLES)).operator;
       if (!foundOperator) {
         toast({ title: "Invalid PIN", variant: "destructive" });
         setPin("");

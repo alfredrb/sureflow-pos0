@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/data";
+import { verifyPinOnly } from "@/lib/operatorAuth";
 import { FileX, ShieldCheck, ArrowLeft, Search, Trash2, Ban, AlertTriangle, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,8 +118,7 @@ export default function POSNoReceiptReturn({ mode, operator, products, loadData,
     setManagerError("");
     setAuthorizing(true);
     try {
-      const ops = await base44.entities.Operator.filter({ pin: managerPin });
-      const mgr = ops.find(o => cfg.authRoles.includes(o.role) && o.pos_access !== false);
+      const mgr = (await verifyPinOnly(managerPin, cfg.authRoles)).operator;
       if (!mgr) { setManagerError(cfg.authRole === "manager" ? "Invalid PIN — Manager required" : "Invalid PIN — CSM or Manager required"); setAuthorizing(false); return; }
       setManagerAuth(mgr);
       setManagerPin("");

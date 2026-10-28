@@ -29,10 +29,8 @@ export function buildReceipt({
 
 // Decrements on-hand stock for each sold line.
 async function decrementStock(cart, products) {
-  for (const item of cart) {
-    const prod = products.find(p => p.sku === item.sku);
-    if (prod) await base44.entities.Product.update(prod.id, { stock_qty: Math.max(0, (prod.stock_qty || 0) - item.qty) });
-  }
+  const adjustments = cart.filter(i => products.some(p => p.sku === i.sku)).map(i => ({ sku: i.sku, delta: -Number(i.qty || 0) }));
+  if (adjustments.length) await base44.functions.invoke("adjustStock", { adjustments });
 }
 
 // Applies redeemed + earned rewards to the member record. Returns the new balance.
@@ -123,7 +121,11 @@ export async function lookupGiftCardTender(cardNumber, amount) {
 
 // Deducts the gift card balance, then writes the sale exactly like any other tender.
 export async function commitGiftCardSale({ card, chargeAmount, ...saleArgs }) {
-  await base44.entities.GiftCard.update(card.id, { balance: card.balance - chargeAmount });
+  await base44.functions.invoke("giftCardAction", {
+    action: "redeem", card_number: card.card_number, amount: chargeAmount,
+    operator_id: saleArgs.operator?.operator_id, operator_name: saleArgs.operator?.full_name,
+    register_id: sessionStorage.getItem("pos_register_num") || "",
+  });
   return commitSaleTransaction({
     ...saleArgs,
     paymentMethod: "giftcard",

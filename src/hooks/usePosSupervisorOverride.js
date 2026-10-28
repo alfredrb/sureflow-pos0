@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { base44, invalidateEntity } from "@/api/data";
+import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 
 // Supervisor authorization for gated POS actions: local CSM/Manager PIN entry
 // and the remote (Remote Workstation) override request with realtime approval.
@@ -25,15 +26,10 @@ export default function usePosSupervisorOverride({
       setSupOverrideError("Enter supervisor User ID and PIN");
       return;
     }
-    const ops = await base44.entities.Operator.filter({ operator_id: supOverrideUserId.trim(), pin: supOverridePin });
-    const requiredRole = pendingFunctionKey?.requires_role || (pendingFunctionKey?.requires_supervisor ? "csm" : "csm");
-    const roleOk = (o) => requiredRole === "manager" ? o.role === "manager" : (o.role === "csm" || o.role === "manager");
-    const sup = ops.find(o => roleOk(o) && o.pos_access !== false);
-    if (!sup) {
-      const blocked = ops.find(o => roleOk(o));
-      setSupOverrideError(blocked ? "This supervisor's POS access is disabled" : (requiredRole === "manager" ? "Invalid credentials — Manager required" : "Invalid credentials — CSM or Manager required"));
-      return;
-    }
+    const requiredRole = pendingFunctionKey?.requires_role || "csm";
+    const res = await verifyOperatorCredentials(supOverrideUserId, supOverridePin, { roles: requiredRole === "manager" ? ["manager"] : ["csm", "manager"] });
+    const sup = res.operator;
+    if (!res.ok) { setSupOverrideError(res.error); return; }
     // Two-person rule: the approver must be someone other than the signed-on
     // operator. Valid credentials are not enough — a CSM keying their own PIN into
     // their own override is exactly what this prompt exists to stop. Logged even

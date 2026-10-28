@@ -11,7 +11,19 @@
     },
     "pin": {
       "type": "string",
-      "description": "Login PIN"
+      "description": "Login PIN. Readable by admins only; lanes verify PINs through the verifyOperatorPin server function and never receive them.",
+      "rls": {
+        "read": {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        "update": {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      }
     },
     "role": {
       "type": "string",

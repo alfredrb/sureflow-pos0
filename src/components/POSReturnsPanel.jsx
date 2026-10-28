@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
+import { verifyPinOnly } from "@/lib/operatorAuth";
 import { printReceipt } from "@/lib/printReceipt";
 import { buildPanelReceiptProps } from "@/lib/posReceiptContext";
 import { normalizeTxId } from "@/lib/txLookupId";
@@ -130,8 +131,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
 
   const handleOverrideSubmit = async () => {
     setOverrideError("");
-    const ops = await base44.entities.Operator.filter({ pin: overridePin });
-    const sup = ops.find(o => o.role === "csm" || o.role === "manager");
+    const sup = (await verifyPinOnly(overridePin, ["csm", "manager"])).operator;
     if (!sup) {
       setOverrideError("Invalid PIN or insufficient role (CSM/Manager required)");
       return;
@@ -214,7 +214,7 @@ export default function ReturnsPanel({ operator, products, loadData, toast, onPr
     for (const d of decisions) {
       const prod = products.find(p => p.sku === d.sku);
       if (d.restockable) {
-        if (prod) { try { await base44.entities.Product.update(prod.id, { stock_qty: (prod.stock_qty || 0) + d.qty }); restocked += d.qty; } catch {} }
+        if (prod) { try { await base44.functions.invoke("adjustStock", { adjustments: [{ sku: prod.sku, delta: d.qty }] }); restocked += d.qty; } catch {} }
       } else {
         const unit_cost = prod?.cost || 0;
         try { await base44.entities.Claim.create({ sku: d.sku, name: d.name, qty: d.qty, unit_cost, total_cost: +(unit_cost * d.qty).toFixed(2), reason: d.reason, condition: "pending", disposition: "pending", status: "open", transaction_id: txId, operator_name: operator.full_name, operator_id: operator.operator_id, date_created: new Date().toISOString(), profit_loss_recorded: false }); claimed += 1; } catch {}

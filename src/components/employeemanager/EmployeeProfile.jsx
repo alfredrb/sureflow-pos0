@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/data";
+import { verifyPinOnly } from "@/lib/operatorAuth";
 import { ArrowLeft, CalendarOff, UserX, RotateCcw, Ban, ShieldOff, Printer, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,8 +91,7 @@ export default function EmployeeProfile({ employee, onBack, onReload }) {
   const doDelete = async () => {
     if (!managerPin.trim()) { setPinError("Manager PIN required"); return; }
     try {
-      const managers = await base44.entities.Operator.filter({ role: "manager", status: "active" });
-      const ok = (managers || []).some(m => m.pin && m.pin === managerPin.trim());
+      const { ok } = await verifyPinOnly(managerPin, ["manager"], { requireActive: true });
       if (!ok) { setPinError("Incorrect manager PIN"); return; }
     } catch (e) { setPinError("Could not verify PIN"); return; }
     setSaving(true);

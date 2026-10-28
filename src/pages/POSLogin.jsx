@@ -258,8 +258,10 @@ export default function POSLogin() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const operatorData = await base44.entities.Operator.filter({ operator_id: operatorId, status: "active" });
-      if (operatorData.length === 0 || operatorData[0].pin !== pin) {
+      // pos_access is checked again just below, so verify ID + PIN without it here.
+      const auth = await base44.functions.invoke("verifyOperatorPin", { operator_id: operatorId, pin, require_active: true });
+      const operatorData = auth.data?.operator ? [auth.data.operator] : (auth.data?.error?.includes("POS access") ? [{ pos_access: false }] : []);
+      if (operatorData.length === 0) {
         toast({ title: "Operator Not Found", description: "Check the Operator ID and PIN and try again.", variant: "destructive" });
         setStep("id"); setOperatorId(""); setPin("");
       } else {

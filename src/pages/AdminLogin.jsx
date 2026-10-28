@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 import { Settings, Loader2, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,8 @@ export default function AdminLogin() {
     }
     setLoading(true);
     try {
-      const ops = await base44.entities.Operator.filter({ operator_id: operatorId.trim(), pin: pin.trim(), status: "active" });
+      const res = await verifyOperatorCredentials(operatorId, pin, { requireActive: true });
+      const ops = res.ok ? [res.operator] : [];
       // Admin access is decided by the resolved ADMIN role, not the POS role. An HQ
       // administrator may hold no register duties at all, so gating on the POS role
       // alone would lock the chain's own administrators out of their panel.

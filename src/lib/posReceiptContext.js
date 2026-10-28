@@ -24,7 +24,7 @@ export function buildPanelReceiptProps({ operator, ...rest }) {
     registerName: sessionStorage.getItem("pos_register_num") || "REG-001",
     registerId: sessionStorage.getItem("pos_register_num") || "REG-001",
     operatorName: operator?.full_name,
-    operatorPin: operator?.pin,
+    operatorPin: operator?.operator_id,
     storeNumber: storeInfo?.store_number || sessionStorage.getItem("pos_store_id") || "",
     managerName: storeInfo?.manager_name,
     taxRate: storeInfo?.default_tax_rate,

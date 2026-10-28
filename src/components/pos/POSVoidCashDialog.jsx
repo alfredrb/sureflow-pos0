@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/data";
+import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 import { findVoidableSales } from "@/lib/posVoidSale";
 import { AlertTriangle } from "lucide-react";
 
@@ -34,8 +35,7 @@ export default function POSVoidCashDialog({ open, onClose, registerId, operator,
     if (!mgrId.trim() || !mgrPin.trim()) { setError("Enter Manager User ID and PIN"); return; }
     setBusy(true);
     try {
-      const ops = await base44.entities.Operator.filter({ operator_id: mgrId.trim(), pin: mgrPin });
-      const mgr = ops.find(o => o.role === "manager" && o.pos_access !== false);
+      const mgr = (await verifyOperatorCredentials(mgrId, mgrPin, { roles: ["manager"] })).operator;
       if (!mgr) { setError("Invalid credentials — a Manager is required to void a cash sale"); setBusy(false); return; }
       await onConfirmed(picked, mgr, reason.trim());
     } catch (e) {

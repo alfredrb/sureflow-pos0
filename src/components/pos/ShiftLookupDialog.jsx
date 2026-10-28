@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { base44 } from "@/api/data";
+import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 import OperatorIdentifyForm from "@/components/pos/OperatorIdentifyForm";
 
 // Shift lookup at the login screen — identifies the operator the same way the
@@ -20,7 +21,7 @@ export default function ShiftLookupDialog({ open, onOpenChange, operators }) {
       toast({ title: "Enter your Operator ID and PIN", variant: "destructive" });
       return;
     }
-    const found = (operators || []).find(op => op.operator_id === operatorId && op.pin === pin && op.status === "active");
+    const found = (await verifyOperatorCredentials(operatorId, pin, { requireActive: true })).operator;
     if (!found) {
       toast({ title: "Invalid Operator ID or PIN", variant: "destructive" });
       clear();
