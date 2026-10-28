@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Clock } from "lucide-react";
 import { getShiftStatus, getUpcomingAlerts, timeToMinutes, getCurrentMinutes } from "@/lib/shiftUtils";
+import { storeToday } from "@/lib/storeDate";
 
 export default function ShiftEnforcement({ operator, register, onLockout, onShiftAlert }) {
   const [shift, setShift] = useState(null);
@@ -19,7 +20,7 @@ export default function ShiftEnforcement({ operator, register, onLockout, onShif
     const loadShift = async () => {
       if (!operator || !register) return;
       try {
-        const today = new Date().toISOString().split("T")[0];
+        const today = storeToday();
         const shifts = await base44.entities.Shift.filter({
           operator_id: operator.operator_id,
           date: today,

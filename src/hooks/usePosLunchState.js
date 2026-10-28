@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/data";
+import { storeToday } from "@/lib/storeDate";
 
 // Today's scheduled shift + active time-clock entry, plus the derived lunch
 // enforcement state the register uses for reminders and the overdue lockout.
@@ -12,7 +13,7 @@ export function usePosLunchState(operator, currentTime) {
     const opId = operator.operator_id;
     const load = async () => {
       try {
-        const today = new Date().toISOString().split("T")[0];
+        const today = storeToday();
         const shifts = await base44.entities.Shift.filter({ operator_id: opId, date: today });
         setTodayShift(shifts[0] || null);
         const entries = await base44.entities.TimeClockEntry.filter({ operator_id: opId }, "-created_date", 50);

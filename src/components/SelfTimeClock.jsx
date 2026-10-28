@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { printMaintenanceNotices } from "@/lib/maintenanceNotices";
 import { printAnnouncementSlips } from "@/lib/announcementSlips";
 import OperatorIdentifyForm from "@/components/pos/OperatorIdentifyForm";
+import { storeToday } from "@/lib/storeDate";
 
 function fmtTime(iso) {
   if (!iso) return "--";
@@ -85,7 +86,7 @@ export default function SelfTimeClock({ open, onOpenChange, operators, onClocked
     if (!operator) return;
     setLoading(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = storeToday();
       const created = await base44.entities.TimeClockEntry.create({
         operator_id: operator.operator_id,
         operator_name: operator.full_name,

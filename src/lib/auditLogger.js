@@ -22,24 +22,55 @@ export function resolveAuditStore(explicit) {
 // that belongs to whatever store the admin is currently pointed at. Pass "" to force a
 // chain-wide entry.
 //
-// Never throws — audit logging must not block the user's primary action.
-export async function logAuditEvent({ action, category = "configuration", description = "", page = "", actor = null, changes = [], ip_address = "", store_id = undefined }) {
+// Never throws — audit logging must not block the user's primary action. An entry
+// that fails to write is kept in a local outbox and retried until the cloud confirms
+// it, so a network drop no longer loses audit history.
+const OUTBOX_KEY = "sureflow_audit_outbox";
+const readOutbox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch { return []; } };
+const writeOutbox = (rows) => localStorage.setItem(OUTBOX_KEY, JSON.stringify(rows.slice(-500)));
+
+let flushing = false;
+export async function flushAuditOutbox() {
+  if (flushing) return;
+  const pending = readOutbox();
+  if (!pending.length) return;
+  flushing = true;
   try {
-    const a = actor || JSON.parse(sessionStorage.getItem("admin_operator") || "{}");
-    await base44.entities.AuditTrail.create({
-      action,
-      category,
-      description,
-      store_id: resolveAuditStore(store_id),
-      page,
-      actor_id: a.operator_id || "",
-      actor_name: a.full_name || "Admin",
-      actor_role: a.role || "",
-      changes,
-      ip_address,
-    });
-  } catch (e) {
-    // silent — do not surface audit errors to the user
+    await base44.entities.AuditTrail.bulkCreate(pending);
+    // Keep anything queued while the flush was in flight.
+    writeOutbox(readOutbox().slice(pending.length));
+  } catch {
+    // still offline — try again later
+  } finally {
+    flushing = false;
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", flushAuditOutbox);
+  setInterval(flushAuditOutbox, 60000);
+}
+
+export async function logAuditEvent({ action, category = "configuration", description = "", page = "", actor = null, changes = [], ip_address = "", store_id = undefined }) {
+  let a = {};
+  try { a = actor || JSON.parse(sessionStorage.getItem("admin_operator") || "{}"); } catch {}
+  const entry = {
+    action,
+    category,
+    description,
+    store_id: resolveAuditStore(store_id),
+    page,
+    actor_id: a.operator_id || "",
+    actor_name: a.full_name || "Admin",
+    actor_role: a.role || "",
+    changes,
+    ip_address,
+  };
+  try {
+    await base44.entities.AuditTrail.create(entry);
+    flushAuditOutbox();
+  } catch {
+    writeOutbox([...readOutbox(), { ...entry, description: `${description} [queued ${new Date().toISOString()}]` }]);
   }
 }
 

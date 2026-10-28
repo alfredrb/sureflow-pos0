@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from "@/components/ui/use-toast";
 import { kickDrawer } from "@/lib/drawerKick";
 import TillContentsList, { STANDARD_TILL } from "@/components/pos/TillContentsList";
+import { storeToday } from "@/lib/storeDate";
 
 // Start of Day at the lane. There is deliberately NO amount field: the starting
 // balance is whatever the back office checked out to this register, so the operator
@@ -44,7 +45,7 @@ export default function SODProtocolModal({ isOpen, registerId, registerName, ope
     setLoading(true);
     try {
       await base44.entities.SODProtocol.create({
-        protocol_date: new Date().toISOString().split("T")[0],
+        protocol_date: storeToday(),
         register_id: registerId,
         operator_id: operatorId,
         operator_name: operatorName,

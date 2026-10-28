@@ -2,6 +2,7 @@ import { useState } from "react";
 import { base44 } from "@/api/data";
 import { raiseRobberyAlert, computeExpectedDrawerCash } from "@/lib/posRobbery";
 import { printRobberySlip } from "@/lib/incidentSlips";
+import { storeToday } from "@/lib/storeDate";
 
 // CSM help paging and the robbery reporting flow (silent alert, expected-drawer
 // calculation, incident record, lane pause and slip print) for the POS register.
@@ -52,7 +53,7 @@ export default function usePosSecurity({ operator, setRegisterPaused, setHelpMen
         operator_id: operator?.operator_id || "",
         operator_name: operator?.full_name || "",
         amount_stolen: calculatedRobberyAmount,
-        report_date: new Date().toISOString().split("T")[0]
+        report_date: storeToday()
       });
 
       // Pause the register

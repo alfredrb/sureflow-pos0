@@ -18,6 +18,7 @@ import LaneRelayDiagnostic from "@/components/pos/LaneRelayDiagnostic";
 import { resolveRelayFromStore } from "@/lib/laneRelayResolve";
 import { runSignOnUpdateNotices } from "@/lib/signOnUpdateNotice";
 import usePoleWelcome from "@/hooks/usePoleWelcome";
+import { storeToday } from "@/lib/storeDate";
 
 export default function POSLogin() {
   const [operatorId, setOperatorId] = useState("");
@@ -273,7 +274,7 @@ export default function POSLogin() {
           return;
         }
         // Clock-in and lunch enforcement
-        const today = new Date().toISOString().split("T")[0];
+        const today = storeToday();
         const tcEntries = await base44.entities.TimeClockEntry.filter({ operator_id: op.operator_id }, "-created_date", 50);
         let activeEntry = tcEntries.find(e => (e.date === today || (e.clock_in && e.clock_in.split("T")[0] === today)) && e.status !== "closed");
         // Just clocked in here but the record has not surfaced in a read yet — look

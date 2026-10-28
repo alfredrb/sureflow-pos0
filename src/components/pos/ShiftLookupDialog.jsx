@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { base44 } from "@/api/data";
 import { verifyOperatorCredentials } from "@/lib/operatorAuth";
 import OperatorIdentifyForm from "@/components/pos/OperatorIdentifyForm";
+import { storeToday } from "@/lib/storeDate";
 
 // Shift lookup at the login screen — identifies the operator the same way the
 // self-service Time Clock does (Operator ID + PIN), then shows today's shift.
@@ -28,7 +29,7 @@ export default function ShiftLookupDialog({ open, onOpenChange, operators }) {
       return;
     }
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = storeToday();
       const shifts = await base44.entities.Shift.filter({ operator_id: found.operator_id, date: today });
       setOperator(found);
       setShift(shifts[0] || null);

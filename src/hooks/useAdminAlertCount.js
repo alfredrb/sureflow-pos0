@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { playChime } from "@/lib/audioAlert";
+import { storeToday } from "@/lib/storeDate";
 
 // Pending-alert badge count for the admin sidebar.
 //
@@ -18,7 +19,7 @@ export default function useAdminAlertCount(soundEnabled) {
     let active = true;
 
     const check = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = storeToday();
       const [requests, deposits, eodReports] = await Promise.all([
         base44.entities.OverrideRequest.filter({ status: "pending" }),
         base44.entities.EODCashDeposit.filter({ report_date: today }),

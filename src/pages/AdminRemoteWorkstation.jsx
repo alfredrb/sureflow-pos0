@@ -185,8 +185,13 @@ export default function AdminRemoteWorkstation() {
 
   const loadLogs = async () => {
     try {
-      const logRecords = await base44.entities.RegisterLog.list("-created_date", 100);
-      setLogs(logRecords);
+      // Pull each lane's own recent history instead of the newest 100 chain-wide, which
+      // let one busy lane crowd every other lane's sign-on out of the window.
+      const regs = await base44.entities.Register.list();
+      const perLane = await Promise.all(regs.map(r =>
+        base44.entities.RegisterLog.filter({ register_id: r.register_id }, "-created_date", 50)
+      ));
+      setLogs(perLane.flat().sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
     } catch (e) {
       console.error("Error loading logs:", e);
     }
@@ -343,10 +348,7 @@ export default function AdminRemoteWorkstation() {
   // force the operator out. Runs on every poll cycle.
   const checkAutoLogouts = async () => {
     try {
-      const [regs, logRecords] = await Promise.all([
-        base44.entities.Register.list(),
-        base44.entities.RegisterLog.list("-created_date", 100)
-      ]);
+      const regs = await base44.entities.Register.list();
       const now = Date.now();
       const due = regs.filter(r =>
         r.remote_logout_requested === true &&
@@ -355,7 +357,9 @@ export default function AdminRemoteWorkstation() {
       );
       let loggedOut = 0;
       for (const reg of due) {
-        const op = computeCurrentOperator(reg.register_id, logRecords);
+        // Read only this lane's own history, so busy lanes can't push its sign-on out of view.
+        const laneLogs = await base44.entities.RegisterLog.filter({ register_id: reg.register_id }, "-created_date", 100);
+        const op = computeCurrentOperator(reg.register_id, laneLogs);
         await base44.entities.Register.update(reg.id, {
           remote_logout_requested: false,
           remote_logout_requested_at: null,

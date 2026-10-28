@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { storeToday } from "@/lib/storeDate";
 
 // End-of-day readiness: open items that should be cleared before the midnight close.
 export default function EODChecklist({ storeScope }) {
@@ -13,7 +14,7 @@ export default function EODChecklist({ storeScope }) {
         const page = await base44.entities.Register.filter({ store_id: { $in: storeScope || [] } }, { limit: 500, fields: ["register_id"] });
         lane = { register_id: { $in: page.items.map(r => r.register_id) } };
       }
-      const today = new Date().toISOString().split("T")[0];
+      const today = storeToday();
       const [tills, overrides, cashReqs, sods] = await Promise.all([
         base44.entities.TillCheckout.count({ ...lane, status: "checked_out" }),
         base44.entities.OverrideRequest.count({ ...lane, status: "pending" }),

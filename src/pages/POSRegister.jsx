@@ -69,6 +69,7 @@ import usePosSecurity from "@/hooks/usePosSecurity";
 import usePosDiagnostics from "@/hooks/usePosDiagnostics";
 import { issueScoBadge } from "@/lib/scoBadge";
 import { printScoBadgeSlip } from "@/lib/scoBadgeSlip";
+import { storeToday } from "@/lib/storeDate";
 
 const OFFLINE_TENDERS = ["cash", "check"];
 
@@ -287,7 +288,7 @@ export default function POSRegister() {
     
     // Check if SOD is needed
     const checkSOD = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      const today = storeToday();
       const sodRecord = await base44.entities.SODProtocol.filter({ 
         protocol_date: today, 
         register_id: registerId,

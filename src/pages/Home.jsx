@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import SelfTimeClock from "@/components/SelfTimeClock";
+import { storeToday } from "@/lib/storeDate";
 
 export default function Home() {
   const [shiftLookupOpen, setShiftLookupOpen] = useState(false);
@@ -90,7 +91,7 @@ export default function Home() {
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = storeToday();
       const shifts = await base44.entities.Shift.filter({ 
         operator_id: foundOperator.operator_id,
         date: today
