@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import VersionButton from "@/components/VersionButton";
 import useAdminAlertCount from "@/hooks/useAdminAlertCount";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const MOBILE_PAGES = ["/admin", "/admin/remote-workstation"];
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -32,6 +35,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const pendingCount = useAdminAlertCount(soundEnabled);
+  const isMobile = useIsMobile();
 
   // One resolver drives the whole panel: which stores this person sees and which
   // tools they may use. Pages must not invent their own rules.
@@ -63,6 +67,8 @@ export default function AdminLayout() {
   }, [adminOperator, isManager]);
 
   const canAccess = (path) => {
+    // Phones only get the two admin surfaces that fit a small touch screen.
+    if (isMobile && !MOBILE_PAGES.includes(path)) return false;
     if (!adminOperator) return true;
     if (!canAccessPage(access, path)) return false;
     // CSMs are additionally narrowed by their configurable permission record.
@@ -75,7 +81,7 @@ export default function AdminLayout() {
     if (isVendor) { navigate("/vendor-dashboard", { replace: true }); return; }
     if (location.pathname === "/admin") return;
     if (!canAccess(location.pathname)) navigate("/admin");
-  }, [location.pathname, adminOperator, permission, isVendor]);
+  }, [location.pathname, adminOperator, permission, isVendor, isMobile]);
 
   useEffect(() => {
     const g = adminNavGroups.find(gr => gr.items.some(i => i.path === location.pathname));
@@ -216,7 +222,7 @@ export default function AdminLayout() {
                       const hasAlert = item.label === "Remote Workstation" && pendingCount > 0;
                       return (
                         <Link key={item.path} to={item.path}
-                          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
+                          className={`flex items-center gap-2.5 px-2.5 py-3 md:py-2 rounded-lg text-sm transition-colors ${active ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
                           <Icon className="w-4 h-4 flex-shrink-0" />
                           <span className="flex-1">{item.label}</span>
                           {hasAlert && <span className="flex items-center gap-1 bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-xs font-bold animate-pulse"><AlertCircle className="w-3 h-3" />{pendingCount}</span>}
@@ -241,7 +247,7 @@ export default function AdminLayout() {
               </select>
             )}
           </div>
-          {isManager && (
+          {isManager && !isMobile && (
             <button onClick={() => setResetDialogOpen(true)} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-orange-400 hover:bg-orange-500/10">
               <Trash2 className="w-4 h-4 flex-shrink-0" />
               {!collapsed && <span>Reset Data</span>}
@@ -253,7 +259,7 @@ export default function AdminLayout() {
             {!collapsed && <span>{soundEnabled ? "Sound On" : "Sound Off"}</span>}
           </button>
           <VersionButton collapsed={collapsed} canManage={isManager} adminOperator={adminOperator} />
-          {!isLossPrevention && !isVendor && (
+          {!isLossPrevention && !isVendor && !isMobile && (
           <Link to="/pos" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors">
             <Monitor className="w-4 h-4 flex-shrink-0" />
             {!collapsed && <span>Open POS</span>}
