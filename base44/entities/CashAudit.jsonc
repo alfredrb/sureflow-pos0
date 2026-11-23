@@ -55,6 +55,19 @@
       "default": "pending",
       "description": "Status of the audit alert"
     },
+    "acknowledged_by_id": {
+      "type": "string",
+      "description": "Operator ID of the admin who acknowledged this audit alert on the Remote Workstation."
+    },
+    "acknowledged_by_name": {
+      "type": "string",
+      "description": "Name of the admin who acknowledged this audit alert."
+    },
+    "acknowledged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the audit alert was acknowledged. Acknowledging clears it from the Remote Workstation; the audit itself stays in the Cash Reconciliation audit history."
+    },
     "triggered_by_cash_limit": {
       "type": "boolean",
       "default": false,

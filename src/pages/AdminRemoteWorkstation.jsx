@@ -5,6 +5,7 @@ import { Monitor, ShieldAlert, Check, X, Clock, Wifi, WifiOff, RefreshCw, AlertT
 import TransactionDetailDialog from "@/components/TransactionDetailDialog";
 import CSMApprovalStatus, { getActiveCsmApprovals } from "@/components/admin/CSMApprovalStatus";
 import SCOLanesSection from "@/components/remote/SCOLanesSection";
+import AlertDropdown from "@/components/remote/AlertDropdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -463,6 +464,27 @@ export default function AdminRemoteWorkstation() {
     }
   };
 
+  // Acknowledging an audit or robbery alert takes it off this page for everyone and
+  // stamps who cleared it. The record itself stays in Cash Reconciliation / the
+  // Emergency Log as acknowledged.
+  const acknowledgeAlerts = async (entity, items, setItems) => {
+    const patch = {
+      status: "acknowledged",
+      acknowledged_by_id: adminOperator?.operator_id || "",
+      acknowledged_by_name: adminOperator?.full_name || "",
+      acknowledged_at: new Date().toISOString(),
+    };
+    try {
+      if (items.length === 1) await base44.entities[entity].update(items[0].id, patch);
+      else await base44.entities[entity].bulkUpdate(items.map(i => ({ id: i.id, ...patch })));
+      const ids = new Set(items.map(i => i.id));
+      setItems(prev => prev.filter(i => !ids.has(i.id)));
+      toast({ title: items.length === 1 ? "Alert acknowledged" : `${items.length} alerts acknowledged` });
+    } catch (e) {
+      toast({ title: "Error acknowledging alert", description: e.message, variant: "destructive" });
+    }
+  };
+
   // Get newly requested audits (created within last 5 minutes)
   const getNewlyRequestedAudits = () => {
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -554,27 +576,17 @@ export default function AdminRemoteWorkstation() {
       )}
 
       {/* Mandatory Audits — highest priority */}
-      {audits.filter(a => a.status === "pending").length > 0 && (
-        <div className="bg-red-50 border border-red-400 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-400">
-          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" /> MANDATORY AUDITS PENDING ({audits.filter(a => a.status === "pending").length})
-          </p>
-          <div className="space-y-2">
-            {audits.filter(a => a.status === "pending").slice(0, 5).map(audit => (
-              <div key={audit.id} className="bg-white rounded-xl border border-red-300 p-3 flex items-center gap-3">
-                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">
-                    <span className="text-red-600">{audit.register_name}</span> — audit pending review
-                  </p>
-                  <p className="text-gray-500 text-xs">Operator: {audit.operator_name} · ${audit.total_counted?.toFixed(2)} counted · {new Date(audit.audit_date).toLocaleDateString()}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {audits.length > 0 && (
+        <AlertDropdown title="MANDATORY AUDITS PENDING" tone="critical" icon={AlertTriangle} items={audits}
+          onAcknowledge={(items) => acknowledgeAlerts("CashAudit", items, setAudits)}
+          renderItem={(audit) => (
+            <>
+              <p className="font-semibold text-gray-900 text-sm">
+                <span className="text-red-600">{audit.register_name}</span> — audit pending review
+              </p>
+              <p className="text-gray-500 text-xs">Operator: {audit.operator_name} · ${audit.total_counted?.toFixed(2)} counted · {new Date(audit.audit_date).toLocaleDateString()}</p>
+            </>
+          )} />
       )}
 
       {/* Cash Limit Alerts — high priority */}
@@ -647,57 +659,37 @@ export default function AdminRemoteWorkstation() {
 
       {/* Cash Audit Alerts — medium priority */}
       {audits.length > 0 && (
-        <div className="bg-orange-50 border border-orange-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-orange-200">
-          <p className="text-orange-800 font-bold text-sm mb-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" /> CASH AUDIT REQUIRED ({audits.length})
-          </p>
-          <div className="space-y-2">
-            {audits.slice(0, 5).map(audit => (
-              <div key={audit.id} className="bg-white rounded-xl border border-orange-200 p-3 flex items-center gap-3">
-                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="w-4 h-4 text-orange-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">
-                    <span className="text-orange-600 font-bold">${audit.total_counted?.toFixed(2) || '0.00'}</span>
-                    {" counted at "}
-                    <span className="text-violet-600">{audit.register_name || audit.register_id}</span>
-                  </p>
-                  <p className="text-gray-500 text-xs">
-                    {audit.operator_name} ({audit.operator_id}) · {new Date(audit.audit_date).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <AlertDropdown title="CASH AUDIT REQUIRED" tone="orange" icon={DollarSign} items={audits}
+          onAcknowledge={(items) => acknowledgeAlerts("CashAudit", items, setAudits)}
+          renderItem={(audit) => (
+            <>
+              <p className="font-semibold text-gray-900 text-sm">
+                <span className="text-orange-600 font-bold">${audit.total_counted?.toFixed(2) || '0.00'}</span>
+                {" counted at "}
+                <span className="text-violet-600">{audit.register_name || audit.register_id}</span>
+              </p>
+              <p className="text-gray-500 text-xs">
+                {audit.operator_name} ({audit.operator_id}) · {new Date(audit.audit_date).toLocaleString()}
+              </p>
+            </>
+          )} />
       )}
 
       {/* Robbery Alerts — critical priority */}
       {robberies.length > 0 && (
-        <div className="bg-red-50 border border-red-300 rounded-2xl p-4 flex-shrink-0 ring-2 ring-red-200">
-          <p className="text-red-800 font-bold text-sm mb-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 animate-pulse" /> ROBBERY ALERT
-          </p>
-          <div className="space-y-2">
-            {robberies.slice(0, 5).map(rob => (
-              <div key={rob.id} className="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
-                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm">
-                    Robbery reported at{" "}
-                    <span className="text-violet-600">{rob.register_name || rob.register_id}</span>
-                  </p>
-                  <p className="text-gray-500 text-xs">
-                    {rob.operator_name} ({rob.operator_id}) · {new Date(rob.timestamp).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <AlertDropdown title="ROBBERY ALERT" tone="red" pulse icon={AlertTriangle} items={robberies}
+          onAcknowledge={(items) => acknowledgeAlerts("EmergencyAlert", items, setRobberies)}
+          renderItem={(rob) => (
+            <>
+              <p className="font-semibold text-gray-900 text-sm">
+                Robbery reported at{" "}
+                <span className="text-violet-600">{rob.register_name || rob.register_id}</span>
+              </p>
+              <p className="text-gray-500 text-xs">
+                {rob.operator_name} ({rob.operator_id}) · {new Date(rob.timestamp).toLocaleString()}
+              </p>
+            </>
+          )} />
       )}
 
       {/* Cash Pickup / Advance Requests — from POS */}
